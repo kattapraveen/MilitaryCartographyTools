@@ -1,6 +1,6 @@
 [general]
 name=Military Cartography Tools
-qgisMinimumVersion=4.0.0
+qgisMinimumVersion=3.44.0
 qgisMaximumVersion=4.99.0
 description=Military cartography and MGRS tools for QGIS.
 author=Praveen Kumar

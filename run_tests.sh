@@ -22,8 +22,19 @@ if [ ! -d "$QGIS_APP" ]; then
     exit 1
 fi
 
+# Auto-detect the bundled Python version/executable rather than
+# hardcoding one - different QGIS releases (e.g. 3.44 vs 4.0) bundle
+# different Python versions, and hardcoding breaks silently against
+# whichever one isn't what was hardcoded.
+PYTHON_BIN="$(find "$QGIS_APP/MacOS" -maxdepth 1 -name 'python3.*' -type f | sort -V | tail -1)"
+if [ -z "$PYTHON_BIN" ]; then
+    echo "Could not find a python3.* executable under: $QGIS_APP/MacOS" >&2
+    exit 1
+fi
+PYTHON_VERSION="$(basename "$PYTHON_BIN")"
+
 export PYTHONHOME="$QGIS_APP/Frameworks"
-export PYTHONPATH="$QGIS_APP/Frameworks/lib/python3.12/site-packages"
+export PYTHONPATH="$QGIS_APP/Frameworks/lib/$PYTHON_VERSION/site-packages"
 export DYLD_FRAMEWORK_PATH="$QGIS_APP/Frameworks"
 export DYLD_LIBRARY_PATH="$QGIS_APP/Frameworks:$QGIS_APP/PlugIns"
 export QGIS_PREFIX_PATH="$QGIS_APP/MacOS"
@@ -50,10 +61,10 @@ if [ "$TARGET" = "discover" ]; then
     # top-level package root one level up, so tests/ resolves as
     # MilitaryCartographyTools.tests (a real subpackage) rather
     # than a bare top-level "tests".
-    "$QGIS_APP/MacOS/python3.12" -m unittest discover \
+    "$PYTHON_BIN" -m unittest discover \
         -s "$REPO_ROOT/tests" \
         -t "$(dirname "$REPO_ROOT")" \
         -p "test_*.py" -v
 else
-    "$QGIS_APP/MacOS/python3.12" -m unittest "$@" -v
+    "$PYTHON_BIN" -m unittest "$@" -v
 fi

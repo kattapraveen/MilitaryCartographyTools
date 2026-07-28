@@ -183,6 +183,39 @@ shared `FakeIface`:
 
 ---
 
+## QGIS 3.44 compatibility (branch `qgis-3.44-compat`)
+
+This plugin was built and tested against QGIS 4.0.3. QGIS 4.0 is primarily a
+Qt5→Qt6 migration release, so the main portability risk when targeting an
+older 3.x release is PyQt5-vs-PyQt6 binding differences, not the QGIS C++ API
+itself. A static audit turned up nothing that needed changing in the code:
+
+- Every Qt import goes through QGIS's own `qgis.PyQt` compatibility shim
+  (`from qgis.PyQt.QtCore import ...`, etc.) — never a direct `PyQt5`/`PyQt6`
+  import anywhere in the codebase.
+- All Qt enums are written fully-scoped (`Qt.AlignmentFlag.AlignHCenter`),
+  which PyQt6 requires and recent PyQt5 (well before 3.44) also supports —
+  the old flat form (`Qt.AlignHCenter`, PyQt5-only/removed in PyQt6) isn't
+  used anywhere.
+- No Python 3.10+-only syntax (`match` statements, PEP 604 `X | Y` type
+  hints) that might not run under an older bundled Python.
+- The specific QGIS APIs used (`QgsLayoutItemPicture.NorthMode.TrueNorth`,
+  `setTextFormat()` added 3.24/3.2, `QgsField(name, QVariant.String)`-style
+  construction) have all existed since well back in the 3.x series.
+
+**The only actual change on this branch**: `metadata.txt`'s
+`qgisMinimumVersion` was lowered from `4.0.0` to `3.44.0`, since that was the
+one hard gate actively blocking installation on a 3.44 profile — QGIS's
+Plugin Manager enforces it regardless of whether the code would run.
+
+**This is unverified.** No QGIS 3.44 install was available at the time this
+branch was created — the above is static reasoning, not a passing test run.
+Before trusting this branch, run `./run_tests.sh` (pointed at a 3.44
+`QGIS_APP`, per the "Running the tests" section above) and fix whatever
+actually breaks; don't assume the audit above is exhaustive.
+
+---
+
 ## Vendored code
 
 - `core/mgrs_engine.py` — MGRS conversion engine, originally by Alex Bruy
