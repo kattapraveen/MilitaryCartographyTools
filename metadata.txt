@@ -8,6 +8,12 @@ license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
 version=0.1.0
 
+changelog=0.1.0
+    - Initial release: MGRS conversion, coordinate probe, military grid
+      generation (UTM/GZD, MGRS 100km, 10/5/1km sub-grids), automated
+      print-layout production, grid convergence and magnetic declination
+      (WMM2025) expression functions.
+
 about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, and cartographic utilities.
 
 tracker=https://github.com/kattapraveen/MilitaryCartographyTools/issues
