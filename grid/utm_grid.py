@@ -19,7 +19,7 @@ from qgis.core import (
     QgsProject
 )
 
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from ..core.coordinate_utils import WGS84
 from ._style_utils import apply_simple_fill_style
@@ -68,17 +68,17 @@ class UTMGridGenerator:
 
                 QgsField(
                     "GZD",
-                    QVariant.String
+                    QMetaType.Type.QString
                 ),
 
                 QgsField(
                     "ZONE",
-                    QVariant.Int
+                    QMetaType.Type.Int
                 ),
 
                 QgsField(
                     "BAND",
-                    QVariant.String
+                    QMetaType.Type.QString
                 )
 
             ]

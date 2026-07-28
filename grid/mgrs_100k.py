@@ -22,7 +22,7 @@ from qgis.core import (
     Qgis
 )
 
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from ..core import mgrs_square_id
 from ..core.coordinate_utils import WGS84, get_utm_crs_from_zone_band
@@ -60,27 +60,27 @@ class MGRS100KGenerator:
 
                 QgsField(
                     "GZD",
-                    QVariant.String
+                    QMetaType.Type.QString
                 ),
 
                 QgsField(
                     "100K",
-                    QVariant.String
+                    QMetaType.Type.QString
                 ),
 
                 QgsField(
                     "ZONE",
-                    QVariant.Int
+                    QMetaType.Type.Int
                 ),
 
                 QgsField(
                     "EASTING",
-                    QVariant.Int
+                    QMetaType.Type.Int
                 ),
 
                 QgsField(
                     "NORTHING",
-                    QVariant.Int
+                    QMetaType.Type.Int
                 )
 
             ]

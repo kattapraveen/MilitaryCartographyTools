@@ -200,19 +200,28 @@ itself. A static audit turned up nothing that needed changing in the code:
 - No Python 3.10+-only syntax (`match` statements, PEP 604 `X | Y` type
   hints) that might not run under an older bundled Python.
 - The specific QGIS APIs used (`QgsLayoutItemPicture.NorthMode.TrueNorth`,
-  `setTextFormat()` added 3.24/3.2, `QgsField(name, QVariant.String)`-style
-  construction) have all existed since well back in the 3.x series.
+  `setTextFormat()` added 3.24/3.2) have all existed since well back in the
+  3.x series.
 
-**The only actual change on this branch**: `metadata.txt`'s
-`qgisMinimumVersion` was lowered from `4.0.0` to `3.44.0`, since that was the
-one hard gate actively blocking installation on a 3.44 profile — QGIS's
-Plugin Manager enforces it regardless of whether the code would run.
+`metadata.txt`'s `qgisMinimumVersion` was lowered from `4.0.0` to `3.44.0`,
+since that was the one hard gate actively blocking installation on a 3.44
+profile — QGIS's Plugin Manager enforces it regardless of whether the code
+would run.
 
-**This is unverified.** No QGIS 3.44 install was available at the time this
-branch was created — the above is static reasoning, not a passing test run.
-Before trusting this branch, run `./run_tests.sh` (pointed at a 3.44
-`QGIS_APP`, per the "Running the tests" section above) and fix whatever
-actually breaks; don't assume the audit above is exhaustive.
+**Verified 2026-07-28** against a real QGIS 3.44.12 install: the full
+45-test suite passes (`QGIS_APP=/Applications/QGIS.app/Contents
+./run_tests.sh`), with one real finding the static audit missed —
+`QgsField(name, QVariant.String)`-style construction is deprecated on 3.44
+(it wasn't flagged on 4.0.3, so this warning is 3.x-specific) in favor of
+`QgsField(name, QMetaType.Type.QString)`. Fixed at all 14 call sites across
+`grid/utm_grid.py`, `grid/mgrs_100k.py`, `grid/mgrs_sub_grid.py` (swapped
+the `QVariant` import for `QMetaType`, `QVariant.String` →
+`QMetaType.Type.QString`, `QVariant.Int` → `QMetaType.Type.Int`). Re-ran on
+both 3.44.12 and 4.0.3 afterward — 45/45 pass on both, zero
+`DeprecationWarning` output on either. `run_tests.sh`'s bundled-Python
+auto-detection (rather than hardcoding `python3.12`) also confirmed
+necessary and working, since 3.44 and 4.0 lay out `Contents/MacOS`
+slightly differently.
 
 ---
 

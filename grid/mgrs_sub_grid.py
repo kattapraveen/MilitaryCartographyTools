@@ -27,7 +27,7 @@ from qgis.core import (
     Qgis
 )
 
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from ..core.coordinate_utils import WGS84, get_utm_crs_from_zone_band
 from ..core.text_format import build_text_format
@@ -99,27 +99,27 @@ class MGRSSubGridGenerator:
             [
                 QgsField(
                     "GZD",
-                    QVariant.String
+                    QMetaType.Type.QString
                 ),
 
                 QgsField(
                     "ZONE",
-                    QVariant.Int
+                    QMetaType.Type.Int
                 ),
 
                 QgsField(
                     "AXIS",
-                    QVariant.String
+                    QMetaType.Type.QString
                 ),
 
                 QgsField(
                     "COORD",
-                    QVariant.Int
+                    QMetaType.Type.Int
                 ),
 
                 QgsField(
                     "ORDER",
-                    QVariant.Int
+                    QMetaType.Type.Int
                 )
             ]
         )
