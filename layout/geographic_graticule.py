@@ -145,7 +145,7 @@ def add_geographic_graticule(map_item):
     )
 
     grid.setStyle(
-        QgsLayoutItemMapGrid.Solid
+        QgsLayoutItemMapGrid.GridStyle.Solid
     )
 
     grid.setGridLineColor(
@@ -157,7 +157,7 @@ def add_geographic_graticule(map_item):
     )
 
     grid.setFrameStyle(
-        QgsLayoutItemMapGrid.NoFrame
+        QgsLayoutItemMapGrid.FrameStyle.NoFrame
     )
 
     grid.setAnnotationEnabled(
@@ -165,7 +165,7 @@ def add_geographic_graticule(map_item):
     )
 
     grid.setAnnotationFormat(
-        QgsLayoutItemMapGrid.DegreeMinute
+        QgsLayoutItemMapGrid.AnnotationFormat.DegreeMinute
     )
 
     # Whole minutes only - confirmed live that the default
@@ -182,40 +182,40 @@ def add_geographic_graticule(map_item):
     )
 
     for side in (
-        QgsLayoutItemMapGrid.Left,
-        QgsLayoutItemMapGrid.Right,
-        QgsLayoutItemMapGrid.Top,
-        QgsLayoutItemMapGrid.Bottom,
+        QgsLayoutItemMapGrid.BorderSide.Left,
+        QgsLayoutItemMapGrid.BorderSide.Right,
+        QgsLayoutItemMapGrid.BorderSide.Top,
+        QgsLayoutItemMapGrid.BorderSide.Bottom,
     ):
 
         grid.setAnnotationPosition(
-            QgsLayoutItemMapGrid.InsideMapFrame,
+            QgsLayoutItemMapGrid.AnnotationPosition.InsideMapFrame,
             side
         )
 
         grid.setAnnotationDirection(
-            QgsLayoutItemMapGrid.Horizontal,
+            QgsLayoutItemMapGrid.AnnotationDirection.Horizontal,
             side
         )
 
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LongitudeOnly,
-        QgsLayoutItemMapGrid.Top
+        QgsLayoutItemMapGrid.DisplayMode.LongitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Top
     )
 
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LongitudeOnly,
-        QgsLayoutItemMapGrid.Bottom
+        QgsLayoutItemMapGrid.DisplayMode.LongitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Bottom
     )
 
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LatitudeOnly,
-        QgsLayoutItemMapGrid.Left
+        QgsLayoutItemMapGrid.DisplayMode.LatitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Left
     )
 
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LatitudeOnly,
-        QgsLayoutItemMapGrid.Right
+        QgsLayoutItemMapGrid.DisplayMode.LatitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Right
     )
 
     map_item.grids().addGrid(

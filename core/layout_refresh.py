@@ -9,6 +9,14 @@ from qgis.core import QgsProject
 _connections = []
 
 
+def _make_refresh_slot(layout):
+
+    def _refresh():
+        layout.refresh()
+
+    return _refresh
+
+
 def _connect_layout_items(layout):
 
     for item in layout.items():
@@ -16,7 +24,7 @@ def _connect_layout_items(layout):
         # only connect map items
         if hasattr(item, "extentsChanged"):
 
-            slot = lambda layout=layout: layout.refresh()
+            slot = _make_refresh_slot(layout)
 
             item.extentsChanged.connect(slot)
 

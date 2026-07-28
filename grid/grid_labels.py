@@ -208,7 +208,7 @@ class GridLabelManager:
         settings.geometryGeneratorEnabled = True
 
         settings.geometryGeneratorType = (
-            QgsWkbTypes.PointGeometry
+            QgsWkbTypes.GeometryType.PointGeometry
         )
 
         settings.geometryGenerator = anchor_expr

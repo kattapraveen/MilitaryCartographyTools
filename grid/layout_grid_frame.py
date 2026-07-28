@@ -574,11 +574,11 @@ def add_grid_frame(map_item, spacing=None):
     # Grid LINES already come from the plugin's own generated
     # layer - this frame is only for the border ticks/numbers.
     grid.setStyle(
-        QgsLayoutItemMapGrid.FrameAnnotationsOnly
+        QgsLayoutItemMapGrid.GridStyle.FrameAnnotationsOnly
     )
 
     grid.setFrameStyle(
-        QgsLayoutItemMapGrid.InteriorTicks
+        QgsLayoutItemMapGrid.FrameStyle.InteriorTicks
     )
 
     grid.setAnnotationEnabled(
@@ -586,7 +586,7 @@ def add_grid_frame(map_item, spacing=None):
     )
 
     grid.setAnnotationFormat(
-        QgsLayoutItemMapGrid.CustomFormat
+        QgsLayoutItemMapGrid.AnnotationFormat.CustomFormat
     )
 
     grid.setAnnotationExpression(
@@ -598,14 +598,14 @@ def add_grid_frame(map_item, spacing=None):
     )
 
     for side in (
-        QgsLayoutItemMapGrid.Left,
-        QgsLayoutItemMapGrid.Right,
-        QgsLayoutItemMapGrid.Top,
-        QgsLayoutItemMapGrid.Bottom,
+        QgsLayoutItemMapGrid.BorderSide.Left,
+        QgsLayoutItemMapGrid.BorderSide.Right,
+        QgsLayoutItemMapGrid.BorderSide.Top,
+        QgsLayoutItemMapGrid.BorderSide.Bottom,
     ):
 
         grid.setAnnotationPosition(
-            QgsLayoutItemMapGrid.OutsideMapFrame,
+            QgsLayoutItemMapGrid.AnnotationPosition.OutsideMapFrame,
             side
         )
 
@@ -615,7 +615,7 @@ def add_grid_frame(map_item, spacing=None):
         # Vertical here for the left/right sides was a mistake
         # that rotated the northing numbers 90 degrees.
         grid.setAnnotationDirection(
-            QgsLayoutItemMapGrid.Horizontal,
+            QgsLayoutItemMapGrid.AnnotationDirection.Horizontal,
             side
         )
 
@@ -624,23 +624,23 @@ def add_grid_frame(map_item, spacing=None):
     # bottom) run along the left/right edges - same convention
     # as the plugin's own on-map tick labels.
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LongitudeOnly,
-        QgsLayoutItemMapGrid.Top
+        QgsLayoutItemMapGrid.DisplayMode.LongitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Top
     )
 
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LongitudeOnly,
-        QgsLayoutItemMapGrid.Bottom
+        QgsLayoutItemMapGrid.DisplayMode.LongitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Bottom
     )
 
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LatitudeOnly,
-        QgsLayoutItemMapGrid.Left
+        QgsLayoutItemMapGrid.DisplayMode.LatitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Left
     )
 
     grid.setAnnotationDisplay(
-        QgsLayoutItemMapGrid.LatitudeOnly,
-        QgsLayoutItemMapGrid.Right
+        QgsLayoutItemMapGrid.DisplayMode.LatitudeOnly,
+        QgsLayoutItemMapGrid.BorderSide.Right
     )
 
     map_item.grids().addGrid(

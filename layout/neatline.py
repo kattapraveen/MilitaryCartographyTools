@@ -39,6 +39,6 @@ def add_neatline(map_item):
     map_item.setFrameStrokeWidth(
         QgsLayoutMeasurement(
             NEATLINE_WIDTH_MM,
-            QgsUnitTypes.LayoutMillimeters
+            QgsUnitTypes.LayoutUnit.LayoutMillimeters
         )
     )

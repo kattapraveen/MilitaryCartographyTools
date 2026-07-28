@@ -224,7 +224,7 @@ def add_scale_bar(layout, map_item, bottom_y):
     scale_bar.applyDefaultSettings()
 
     scale_bar.setUnits(
-        QgsUnitTypes.DistanceKilometers
+        QgsUnitTypes.DistanceUnit.DistanceKilometers
     )
 
     # No explicit setMapUnitsPerScaleBarUnit() call here -

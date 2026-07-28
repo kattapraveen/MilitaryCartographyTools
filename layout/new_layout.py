@@ -442,7 +442,7 @@ def create_layout(
         QgsLayoutSize(
             width_mm,
             height_mm,
-            QgsUnitTypes.LayoutMillimeters
+            QgsUnitTypes.LayoutUnit.LayoutMillimeters
         )
     )
 
@@ -561,7 +561,7 @@ def update_layout(
         QgsLayoutSize(
             width_mm,
             height_mm,
-            QgsUnitTypes.LayoutMillimeters
+            QgsUnitTypes.LayoutUnit.LayoutMillimeters
         )
     )
 
