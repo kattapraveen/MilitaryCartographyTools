@@ -166,9 +166,16 @@ shared `FakeIface`:
   in some environments) rather than always a period — reads as a completely
   different number (`38°30,000'E`). Fixed with `setAnnotationPrecision(0)`.
 - `QgsLayoutItemLabel.setFont()` and `QgsLayoutItemScaleBar.setFont()` are
-  deprecated in QGIS 4.0 (confirmed via the test suite's own
-  `DeprecationWarning` output) — flagged as a follow-up task, not yet
-  migrated to their replacement as of this writing.
+  `.. deprecated:: 3.40` (confirmed by introspecting the real docstrings in
+  QGIS 4.0.3's own bundled Python) in favor of `setTextFormat(QgsTextFormat)`
+  — migrated at all 7 call sites (`layout/heading.py`, `classification.py`,
+  `metadata_block.py`, `center_coordinate.py`, `scale_bar.py`'s scale bar
+  itself plus its two labels). `QgsLayoutItemScaleBar` has one unified
+  `setTextFormat()`, no separate method for tick-number text.
+  `core/text_format.py`'s `build_text_format()` gained an `underline` param
+  for this (default `False`, backward-compatible with existing `grid/`
+  callers). Zero `DeprecationWarning` output from the test suite as of this
+  fix.
 - `QgsMapTool`'s constructor requires a *real* `QgsMapCanvas` — a lightweight
   fake widget standing in for one raises `TypeError: QgsMapTool(): argument 1
   has unexpected type`. Use `tests/qgis_test_case.py`'s `make_canvas()` for
