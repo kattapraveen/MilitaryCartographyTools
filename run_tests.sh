@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# Run the headless PyQGIS test suite (tests/) using QGIS's own
+# bundled Python - the `qgis` package isn't pip-installable, so a
+# regular Python/pytest environment can't run these. See
+# docs/developer-guide.md for the reasoning and how to adapt this
+# for a different QGIS install location/version.
+#
+# Usage:
+#   ./run_tests.sh                  # run everything
+#   ./run_tests.sh MilitaryCartographyTools.tests.test_layout   # one module
+#   ./run_tests.sh MilitaryCartographyTools.tests.test_layout.TestCreateAndUpdateLayout.test_create_layout_has_a_map_item
+
+set -euo pipefail
+
+QGIS_APP="${QGIS_APP:-/Applications/QGIS-final-4_0_3.app/Contents}"
+
+if [ ! -d "$QGIS_APP" ]; then
+    echo "QGIS app bundle not found at: $QGIS_APP" >&2
+    echo "Set QGIS_APP to your QGIS install's Contents directory, e.g.:" >&2
+    echo "  QGIS_APP=/Applications/QGIS.app/Contents ./run_tests.sh" >&2
+    exit 1
+fi
+
+export PYTHONHOME="$QGIS_APP/Frameworks"
+export PYTHONPATH="$QGIS_APP/Frameworks/lib/python3.12/site-packages"
+export DYLD_FRAMEWORK_PATH="$QGIS_APP/Frameworks"
+export DYLD_LIBRARY_PATH="$QGIS_APP/Frameworks:$QGIS_APP/PlugIns"
+export QGIS_PREFIX_PATH="$QGIS_APP/MacOS"
+export QT_QPA_PLATFORM=offscreen
+export PROJ_DATA="$QGIS_APP/Resources/qgis/proj"
+export GDAL_DATA="$QGIS_APP/Resources/qgis/gdal"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The plugin package needs to be importable as
+# `MilitaryCartographyTools.<module>` (matching how QGIS itself
+# imports an installed plugin) - add the repo's PARENT directory
+# to the path, not the repo itself.
+export PYTHONPATH="$(dirname "$REPO_ROOT"):$PYTHONPATH"
+
+TARGET="${1:-discover}"
+
+if [ "$TARGET" = "discover" ]; then
+    # -s scopes discovery to tests/ only - pointing it at the repo
+    # root instead makes unittest also try to import sibling
+    # packages (grid/, layout/, ...) as bare top-level modules
+    # while probing them for test files, which breaks their own
+    # `from ..core import ...`-style relative imports. -t sets the
+    # top-level package root one level up, so tests/ resolves as
+    # MilitaryCartographyTools.tests (a real subpackage) rather
+    # than a bare top-level "tests".
+    "$QGIS_APP/MacOS/python3.12" -m unittest discover \
+        -s "$REPO_ROOT/tests" \
+        -t "$(dirname "$REPO_ROOT")" \
+        -p "test_*.py" -v
+else
+    "$QGIS_APP/MacOS/python3.12" -m unittest "$@" -v
+fi

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- crosshair / reticle -->
+  <circle cx="12" cy="12" r="7" fill="none" stroke="#1f3a5f" stroke-width="2"/>
+  <line x1="12" y1="1" x2="12" y2="6" stroke="#1f3a5f" stroke-width="2" stroke-linecap="round"/>
+  <line x1="12" y1="18" x2="12" y2="23" stroke="#1f3a5f" stroke-width="2" stroke-linecap="round"/>
+  <line x1="1" y1="12" x2="6" y2="12" stroke="#1f3a5f" stroke-width="2" stroke-linecap="round"/>
+  <line x1="18" y1="12" x2="23" y2="12" stroke="#1f3a5f" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="12" cy="12" r="1.5" fill="#1f3a5f"/>
+</svg>

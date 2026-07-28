@@ -1,0 +1,99 @@
+# Military Cartography Tools
+
+A QGIS plugin for military mapping and MGRS work: coordinate conversion,
+military grid generation, and automated print-layout production.
+
+Requires QGIS 4.0 or later.
+
+> **Status: experimental.** This plugin is under active development and
+> hasn't seen wide use yet. Bug reports, suggestions, and feedback are very
+> welcome — please [open an issue](https://github.com/kattapraveen/MilitaryCartographyTools/issues).
+
+## Features
+
+- **MGRS conversion** — lat/lon ↔ MGRS, both directions, plus expression
+  functions for grabbing individual components (zone, 100km square,
+  easting, northing) or a print layout's own map centre live.
+- **Coordinate Probe** — click the map canvas to read off lat/lon and
+  full-precision MGRS for any point, logged in a running window, with the
+  MGRS coordinate copied to the clipboard automatically.
+- **Military grids** — UTM Grid Zone Designators, MGRS 100km squares, and
+  10km/5km/1km tactical sub-grids, generated for the current map extent.
+- **New Military Layout** — a single dialog creates a fully-configured
+  print layout: north arrow (auto-rotating to true north), scale bar,
+  metadata block, center-of-map coordinate, neatline, geographic
+  graticule, optional heading and security classification banners — then
+  lets you revisit any of those settings later on the same layout instead
+  of starting over.
+- **Print-layout grid frame** — border tick marks and coordinate
+  annotations around a layout's map, the standard topographic-map
+  convention.
+- **Grid convergence and magnetic declination** (WMM2025) as expression
+  functions, usable anywhere in QGIS or wired into a layout's own
+  marginalia.
+
+See the **[User Guide](docs/user-guide.md)** for full usage details,
+including every expression function's exact signature.
+
+## Installation
+
+1. Copy the `MilitaryCartographyTools` folder into your QGIS plugins
+   directory (`Settings → User Profiles → Open Active Profile Folder →
+   python/plugins`).
+2. In QGIS, open **Plugins → Manage and Install Plugins → Installed**, and
+   tick **Military Cartography Tools**.
+
+## Documentation
+
+- [User Guide](docs/user-guide.md) — how to use every tool and expression
+  function.
+- [Developer Guide](docs/developer-guide.md) — running the test suite, and
+  PyQGIS/QGIS 4.x API gotchas found while building this plugin.
+- [Roadmap](docs/roadmap.md) — phase-by-phase project status.
+
+## License
+
+GNU General Public License v2 or later — see [LICENSE](LICENSE).
+
+---
+
+## Acknowledgements
+
+### MGRS Conversion Engine
+
+Military Cartography Tools incorporates the MGRS conversion engine
+originally developed by Alex Bruy for Boundless and later maintained
+by Planet Federal / Planet Inc.
+
+The MGRS engine is distributed under the GNU General Public License
+(GPL v2 or later).
+
+The remaining plugin code—including the QGIS integration, expression
+functions, layout tools, user interface, grid management system, and
+additional functionality—is original work developed for Military
+Cartography Tools.
+
+
+### MGRS Grid Generation Workflow
+
+The MGRS grid generation workflow was inspired by QGIS Processing
+models originally developed by:
+
+Klas Karlsson
+
+Published through the QGIS Model Repository:
+https://hub.qgis.org/models/4/
+
+License:
+Creative Commons Zero (CC0)
+
+The workflow was used as a reference for:
+- Global MGRS GZD generation
+- 100 km MGRS grid construction
+- Handling of special UTM zones
+
+The implementation within Military Cartography Tools has been
+re-designed and integrated as a native QGIS plugin workflow.
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for full attribution,
+including the vendored World Magnetic Model code (pyGeoMag, MIT license).
