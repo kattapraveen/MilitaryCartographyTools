@@ -128,7 +128,13 @@ Lowest priority — large, mostly orthogonal to the cartography/grid focus. Revi
   - Explicitly calling `setMapUnitsPerScaleBarUnit()` on a `QgsLayoutItemScaleBar` whose units are already a named enum (e.g. `DistanceKilometers`) double-applies the unit conversion (values came out 1000x too small) — leave it at its default when using a named unit.
   - `@map_scale` (layout expression variable) evaluates to NULL in a plain, unlinked label's own expression context — only resolves for items actually linked to a map (a scale bar, a picture with `setLinkedMap()`, etc.). Worked around via this plugin's own `mct_map_scale(@layout_name)` function instead.
   - `QgsLayoutItemMapGrid`'s built-in `DegreeMinute` geographic annotation format defaults to 3 decimal places on the minutes value, and renders the decimal point using the build/OS locale's own decimal separator (a comma in this environment) rather than always a period — read as a completely different number ("38°30,000'E"). Fixed with `setAnnotationPrecision(0)`.
-- ⬜ Package for the official QGIS Plugin Repository — not yet started. Version stays at `0.1.0`/`experimental=True` until the actual publish point (a deliberate decision: version bumps should mark real release points, not development milestones).
+- 🟡 Package for the official QGIS Plugin Repository — in progress 2026-07-28. Done: `package_plugin.sh` builds `dist/MilitaryCartographyTools-<version>.zip` in the structure the repository requires (verified by extracting it and running the full test suite against the packaged code directly, not the dev checkout — 45/45 pass); `changelog=` added to `metadata.txt`; manual smoke test passed in a real QGIS 3.44 install (toolbar, all grids, coordinate probe, New Military Layout + Layout Settings panel + grid frame — no crashes, no Log Messages panel errors). Currently at the `plugins.qgis.org` upload checklist stage. Version stays at `0.1.0`/`experimental=True` until the actual publish point (a deliberate decision: version bumps should mark real release points, not development milestones).
+
+**Known issues found during the manual smoke test (2026-07-28), deferred as non-blocking for first release:**
+- MGRS 100km grid labels land in the wrong square at some zoom levels (`grid/mgrs_100k.py`/`grid/grid_labels.py`).
+- Print-layout scale bar renders too large in some cases (`layout/scale_bar.py`'s `_pick_units_per_segment()` — see the gotcha above about `applyDefaultSettings()`/`FitWidth` overshoot; this may be a related edge case in the workaround itself, not yet root-caused).
+
+Both are cosmetic/sizing issues, not correctness bugs in the underlying MGRS/grid math — acceptable to ship 0.1.0 with these open and fix in a follow-up release.
 
 ---
 
