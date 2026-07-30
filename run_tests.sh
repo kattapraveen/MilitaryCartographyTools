@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-QGIS_APP="${QGIS_APP:-/Applications/QGIS-final-4_0_3.app/Contents}"
+QGIS_APP="${QGIS_APP:-/Applications/QGIS-final-4_2_0.app/Contents}"
 
 if [ ! -d "$QGIS_APP" ]; then
     echo "QGIS app bundle not found at: $QGIS_APP" >&2
