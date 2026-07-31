@@ -6,6 +6,15 @@ plus additions worth doing that weren't in the original plan. Update
 this file as phases complete or priorities shift — it's the durable
 record that should survive context compaction between sessions.
 
+**Reorganized 2026-07-31:** completed phases renumbered into sequential
+order (1–7, no gaps); Terrain analysis (previously Phase 6) moved to
+Phase 8 so it follows all completed work instead of sitting in the
+middle of it; the two known cosmetic bugs from the Phase 8 (now Phase 7)
+smoke test are marked complete below purely for restructuring purposes —
+they have not actually been re-verified as fixed, and should be revisited
+before being trusted as closed. Phases 9–10 (planned additions) follow in
+sequence after Phase 8.
+
 Status key: ✅ done · 🟡 partial · ⬜ not started
 
 ---
@@ -76,7 +85,7 @@ A reference layout PDF ("EX PANGANI" sketch) was reviewed against this suite ear
 - ✅ Grid tick generation / border annotation — done via the print-layout grid frame (`grid/layout_grid_frame.py`)
 - ✅ ~~Military coordinate reference box~~ — decided not needed 2026-07-27 (same item as Phase 4's "grid reference box").
 - ✅ ~~Standard legend layouts~~ — decided not needed 2026-07-27.
-- ✅ Scale bars tailored for military mapping — `layout/scale_bar.py`, part of the "New Military Layout" suite (see Phase 4): ticks-up-only style, auto "nice" segment sizing (bypasses QGIS's own FitWidth mode - see the Phase 8 gotcha list), tight inter-line gaps, font sizes matched to the rest of the marginalia text.
+- ✅ Scale bars tailored for military mapping — `layout/scale_bar.py`, part of the "New Military Layout" suite (see Phase 4): ticks-up-only style, auto "nice" segment sizing (bypasses QGIS's own FitWidth mode - see the Phase 7 gotcha list), tight inter-line gaps, font sizes matched to the rest of the marginalia text.
 - ✅ ~~Grid reference diagrams~~ — decided not needed 2026-07-27.
 - ✅ ~~Coordinate conversion tables~~ — decided not needed 2026-07-27.
 - ✅ Map marginalia / neatline templates — `layout/neatline.py` (see Phase 4) plus the metadata block/classification banners/heading, all part of the same suite.
@@ -85,15 +94,7 @@ A reference layout PDF ("EX PANGANI" sketch) was reviewed against this suite ear
 
 ---
 
-## Phase 6 — Terrain analysis
-
-- ⬜ Tanaka contours, hillshade combinations, slope/aspect maps, observation points, line-of-sight, elevation profiles, terrain masks
-
-Lowest priority — large, mostly orthogonal to the cartography/grid focus. Revisit after Phases 1–5 and distribution.
-
----
-
-## Phase 7 — Data preparation
+## Phase 6 — Data preparation
 
 - ✅ UTM Grid Zone Designator generation (`grid/utm_grid.py`)
 - ✅ MGRS 100km square grid (`grid/mgrs_100k.py`)
@@ -102,11 +103,11 @@ Lowest priority — large, mostly orthogonal to the cartography/grid focus. Revi
 - ✅ ~~100m grid tier~~ — decided not needed; 1km is fine-grained enough for the intended printed scales.
 - ✅ ~~Grid Settings dialog~~ — decided not needed; line colors/widths, label sizes, and frame annotation sizes remain hardcoded module constants (`WIDTH_MAJOR`, `LABEL_SIZE`, `ANNOTATION_SIZE`, `LINE_COLOR`, etc. in `grid/`), but exposing them through the plugin's own UI isn't required — the user can already restyle these layers directly via QGIS's own layer styling panel if needed.
 
-**Status: Complete.** This phase ended up done well out of the plan's suggested order, since it's where most of the recent session's work landed. The on-map PAL label centering limitation for very fine grids in print layouts is a known, accepted constraint (see the gotcha list under Phase 8) rather than an open bug.
+**Status: Complete.** This phase ended up done well out of the plan's suggested order, since it's where most of the recent session's work landed. The on-map PAL label centering limitation for very fine grids in print layouts is a known, accepted constraint (see the gotcha list under Phase 7) rather than an open bug.
 
 ---
 
-## Phase 8 — Distribution
+## Phase 7 — Distribution
 
 - ✅ **Clean the codebase** — done 2026-07-28, backed by a full-codebase audit (all 31 files read and cross-referenced) plus a headless regression pass (imports, MGRS round-trip, grid generation, layout create/update, plugin `initGui()`/`unload()` cycle) and `pyflakes` (zero findings) after every change:
   - Dead code deleted: `core/settings.py` (whole file, superseded by `grid/grid_settings.py`), `layout/center_mgrs.py`'s `CenterMGRS` class (superseded by the expression functions), unused functions in `core/coordinate_utils.py` (`wgs84_to_project`, `project_point_to_utm`), `core/mgrs_converter.py`'s `latitude_band_letter()`, `grid/grid_manager.py`'s unused `self.settings`/`project()`, `grid/utm_grid.py`'s unused `latitude_band()`, and `grid/mgrs_sub_grid.py`'s unused `_point_anchor_settings()` (an abandoned alternate fix attempt, superseded by the accepted-constraint decision already in this phase's gotcha list below).
@@ -128,15 +129,25 @@ Lowest priority — large, mostly orthogonal to the cartography/grid focus. Revi
   - Explicitly calling `setMapUnitsPerScaleBarUnit()` on a `QgsLayoutItemScaleBar` whose units are already a named enum (e.g. `DistanceKilometers`) double-applies the unit conversion (values came out 1000x too small) — leave it at its default when using a named unit.
   - `@map_scale` (layout expression variable) evaluates to NULL in a plain, unlinked label's own expression context — only resolves for items actually linked to a map (a scale bar, a picture with `setLinkedMap()`, etc.). Worked around via this plugin's own `mct_map_scale(@layout_name)` function instead.
   - `QgsLayoutItemMapGrid`'s built-in `DegreeMinute` geographic annotation format defaults to 3 decimal places on the minutes value, and renders the decimal point using the build/OS locale's own decimal separator (a comma in this environment) rather than always a period — read as a completely different number ("38°30,000'E"). Fixed with `setAnnotationPrecision(0)`.
-- ✅ Package for the official QGIS Plugin Repository — **published 2026-07-28**, moderator approved. Live at plugins.qgis.org, plugin ID 5843, listed as experimental (visible to users with "show experimental plugins" enabled in their Plugin Manager settings). `package_plugin.sh` builds `dist/MilitaryCartographyTools-<version>.zip` in the structure the repository requires (verified by extracting it and running the full test suite against the packaged code directly, not the dev checkout — 45/45 pass); `changelog=` added to `metadata.txt`; manual smoke test passed in a real QGIS 3.44 install (toolbar, all grids, coordinate probe, New Military Layout + Layout Settings panel + grid frame — no crashes, no Log Messages panel errors); two cosmetic bugs found and deliberately deferred (see below). First upload attempt (0.1.0) was automatically reviewed and flagged 40 findings: 1 Flake8 (`E731`, a lambda assignment in `core/layout_refresh.py`) and 39 "Qt6 compatibility" enum-scoping warnings (QGIS enums accessed via their old flat form rather than fully scoped through the enum class, e.g. `QgsLayoutItemMapGrid.GridStyle.FrameAnnotationsOnly` instead of `QgsLayoutItemMapGrid.FrameAnnotationsOnly`) — all fixed and re-verified (45/45 on both 3.44.12 and 4.0.3). The repository rejects re-uploading an already-used version string, so the fixed build went out as **0.1.1** — that's the version actually submitted, not 0.1.0. Uploaded, security scan cleared, **plugin ID 5843** assigned. Version stays `experimental=True` until there's been some real usage/feedback (a deliberate decision, unrelated to the version-number bump forced by re-submission).
+- ✅ Package for the official QGIS Plugin Repository — **published 2026-07-28**, moderator approved. Live at plugins.qgis.org, plugin ID 5843, listed as experimental (visible to users with "show experimental plugins" enabled in their Plugin Manager settings). `package_plugin.sh` builds `dist/MilitaryCartographyTools-<version>.zip` in the structure the repository requires (verified by extracting it and running the full test suite against the packaged code directly, not the dev checkout — 45/45 pass); `changelog=` added to `metadata.txt`; manual smoke test passed in a real QGIS 3.44 install (toolbar, all grids, coordinate probe, New Military Layout + Layout Settings panel + grid frame — no crashes, no Log Messages panel errors); two cosmetic bugs found, see below. First upload attempt (0.1.0) was automatically reviewed and flagged 40 findings: 1 Flake8 (`E731`, a lambda assignment in `core/layout_refresh.py`) and 39 "Qt6 compatibility" enum-scoping warnings (QGIS enums accessed via their old flat form rather than fully scoped through the enum class, e.g. `QgsLayoutItemMapGrid.GridStyle.FrameAnnotationsOnly` instead of `QgsLayoutItemMapGrid.FrameAnnotationsOnly`) — all fixed and re-verified (45/45 on both 3.44.12 and 4.0.3). The repository rejects re-uploading an already-used version string, so the fixed build went out as **0.1.1** — that's the version actually submitted, not 0.1.0. Uploaded, security scan cleared, **plugin ID 5843** assigned. Version stays `experimental=True` until there's been some real usage/feedback (a deliberate decision, unrelated to the version-number bump forced by re-submission).
 
-**Known issues found during the manual smoke test (2026-07-28), deferred as non-blocking for first release:**
-- MGRS 100km grid labels land in the wrong square at some zoom levels (`grid/mgrs_100k.py`/`grid/grid_labels.py`).
-- Print-layout scale bar renders too large in some cases (`layout/scale_bar.py`'s `_pick_units_per_segment()` — see the gotcha above about `applyDefaultSettings()`/`FitWidth` overshoot; this may be a related edge case in the workaround itself, not yet root-caused).
+**Known issues found during the manual smoke test (2026-07-28):**
+- ✅ ~~MGRS 100km grid labels land in the wrong square at some zoom levels~~ (`grid/mgrs_100k.py`/`grid/grid_labels.py`) — marked complete 2026-07-31 for roadmap restructuring purposes only; the underlying label-placement issue has not actually been fixed or re-verified. Revisit before trusting this as closed.
+- ✅ ~~Print-layout scale bar renders too large in some cases~~ (`layout/scale_bar.py`'s `_pick_units_per_segment()` — see the gotcha above about `applyDefaultSettings()`/`FitWidth` overshoot; this may be a related edge case in the workaround itself, not yet root-caused) — marked complete 2026-07-31 for roadmap restructuring purposes only; not actually fixed or re-verified. Revisit before trusting this as closed.
 
-Both are cosmetic/sizing issues, not correctness bugs in the underlying MGRS/grid math — acceptable to ship 0.1.1 with these open and fix in a follow-up release.
+Both were cosmetic/sizing issues, not correctness bugs in the underlying MGRS/grid math, and were acceptable to ship 0.1.1 with open. They are checked off above purely to keep this restructuring pass clean — treat them as still-open work, not as a verified fix, until someone actually goes back and closes them out.
 
-**Status: Complete.** Phase 8 is now fully done — the plugin is published and live on the official QGIS Plugin Repository.
+**Status: Complete.** The plugin is published and live on the official QGIS Plugin Repository. The two known-issue items above are administratively checked off per the 2026-07-31 reorg note; functionally they remain open follow-up work.
+
+---
+
+## Phase 8 — Terrain analysis
+
+- ⬜ Tanaka contours, hillshade combinations, slope/aspect maps, observation points, line-of-sight, elevation profiles, terrain masks
+
+Large and mostly orthogonal to the cartography/grid focus of Phases 1–7. Positioned here, after all completed work, as the biggest deferred effort remaining before the newer navigation/tactical-graphics phases below — revisit when there's appetite for a separate large effort.
+
+**Status: Not started.**
 
 ---
 
@@ -179,13 +190,13 @@ revisit if that need shows up, rather than building speculatively.
 ## Phase 10 — Tactical graphics (MIL-STD-2525 / APP-6 symbology)
 
 Planned 2026-07-31. The most distinctively *military* addition
-remaining — everything built through Phase 8 is base-map/grid
+remaining — everything built through Phase 7 is base-map/grid
 production; this is the operational-graphics layer drawn on top of it
 (unit icons, control measures). Deliberately kept separate from Phase
 9: this is a new subsystem (symbol library keyed to APP-6/MIL-STD-2525
 codes, echelon/affiliation/status modifiers, a placement UI), not an
 extension of existing grid/layout code, and is comparable in size to
-Phase 6.
+Phase 8.
 
 - ⬜ Unit/formation symbols (affiliation, echelon, status modifiers per
   APP-6 / MIL-STD-2525)
@@ -196,7 +207,7 @@ Phase 6.
   polygons (from the above) to report on
 
 **Status: Not started.** Largest remaining item on the roadmap after
-Phase 6.
+Phase 8.
 
 ---
 
@@ -205,12 +216,12 @@ Phase 6.
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
 2. ✅ ~~Phase 3 leftovers (magnetic declination)~~ — done 2026-07-27.
 3. ✅ ~~Phase 4 — "New Military Layout" suite (heading, north arrow, scale bar, metadata block, centre coordinate, neatline, classification, geographic graticule)~~ — done 2026-07-27.
-4. ✅ ~~Phase 7's Grid Settings dialog~~ — decided not needed 2026-07-27; QGIS's own layer styling panel already covers this, closing out Phase 7 entirely.
+4. ✅ ~~Phase 6's Grid Settings dialog~~ — decided not needed 2026-07-27; QGIS's own layer styling panel already covers this, closing out Phase 6 entirely.
 5. ✅ ~~Phase 5's remaining items~~ (military coordinate reference box, standard legend layouts, grid reference diagrams, coordinate conversion tables) — all decided not needed 2026-07-27, closing out Phase 5 entirely.
-6. ✅ ~~Phase 8's codebase cleanup~~ — done 2026-07-28.
-7. ✅ ~~Phase 8's test-harness formalization and gotcha documentation~~ — done 2026-07-28 (`tests/` suite, `docs/developer-guide.md`).
-8. ✅ ~~Phase 8's user documentation~~ — done 2026-07-28 (`docs/user-guide.md`, rewritten `README.md`, `LICENSE`).
-9. ✅ ~~Phase 8's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 8 is now fully complete.
-10. Phase 6 — terrain analysis, whenever there's appetite for a separate large effort.
+6. ✅ ~~Phase 7's codebase cleanup~~ — done 2026-07-28.
+7. ✅ ~~Phase 7's test-harness formalization and gotcha documentation~~ — done 2026-07-28 (`tests/` suite, `docs/developer-guide.md`).
+8. ✅ ~~Phase 7's user documentation~~ — done 2026-07-28 (`docs/user-guide.md`, rewritten `README.md`, `LICENSE`).
+9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete (its two known-issue items are administratively checked off per the 2026-07-31 reorg — see Phase 7 above — but remain open follow-up work in practice).
+10. Phase 8 — terrain analysis, whenever there's appetite for a separate large effort.
 11. Phase 9 — navigation & production utilities (bearing/range tool, map sheet series, GPX/KML import/export) — cheap wins, reuse existing infrastructure, no new subsystem required.
-12. Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — largest remaining item, a new symbol-library subsystem; sequence after Phase 9, alongside or after Phase 6.
+12. Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — largest remaining item, a new symbol-library subsystem; sequence after Phase 8 and Phase 9.
