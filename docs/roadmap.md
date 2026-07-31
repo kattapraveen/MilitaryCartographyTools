@@ -140,6 +140,66 @@ Both are cosmetic/sizing issues, not correctness bugs in the underlying MGRS/gri
 
 ---
 
+## Phase 9 — Navigation & production utilities
+
+Planned 2026-07-31, from a review of what a working military cartography
+workflow still lacks beyond base-map/grid production. Chosen as the
+"cheap wins" set: each item reuses existing plugin infrastructure
+(`core/geomag`, the Coordinate Probe tool's `QgsMapTool` pattern,
+`grid/utm_grid.py`, the New Military Layout suite) rather than opening a
+new subsystem, so effort/risk is low relative to Phase 10.
+
+- ⬜ **Bearing/range (polar coordinate) tool** — click two points on the
+  canvas, report true azimuth, grid azimuth, magnetic azimuth (reusing
+  the WMM2025 declination code already in `core/geomag/`), and distance.
+  Sibling to the existing Coordinate Probe tool, same `QgsMapTool` +
+  persistent-dialog pattern.
+- ⬜ **Map sheet series / index generation** — batch-generate a numbered
+  series of standard print sheets covering a large AO extent: sheet
+  boundaries on a regular grid, a naming/numbering convention, and an
+  adjoining-sheet diagram on each printed sheet showing its neighbors.
+  Mostly a batch wrapper around `grid/utm_grid.py` and the "New Military
+  Layout" suite (Phase 4) rather than new geometry work.
+- ⬜ **GPX/KML waypoint import/export with MGRS labels** — round-trip
+  waypoints with GPS units, ATAK, or similar, labeled with MGRS via the
+  existing conversion functions. Self-contained I/O, no new UI paradigm.
+
+**Considered and deferred:** datum transformation support (converting
+coordinates under pre-WGS84 datums, for registering legacy paper maps).
+QGIS/PROJ already handles the underlying transform; the work would be
+exposing it as a clean expression function and confirming the MGRS
+engine doesn't silently assume WGS84 where a transform is needed. Real
+value depends on actually working with pre-WGS84 source material —
+revisit if that need shows up, rather than building speculatively.
+
+**Status: Not started.**
+
+---
+
+## Phase 10 — Tactical graphics (MIL-STD-2525 / APP-6 symbology)
+
+Planned 2026-07-31. The most distinctively *military* addition
+remaining — everything built through Phase 8 is base-map/grid
+production; this is the operational-graphics layer drawn on top of it
+(unit icons, control measures). Deliberately kept separate from Phase
+9: this is a new subsystem (symbol library keyed to APP-6/MIL-STD-2525
+codes, echelon/affiliation/status modifiers, a placement UI), not an
+extension of existing grid/layout code, and is comparable in size to
+Phase 6.
+
+- ⬜ Unit/formation symbols (affiliation, echelon, status modifiers per
+  APP-6 / MIL-STD-2525)
+- ⬜ Control measures — phase lines, boundaries, axis of advance,
+  objectives, named areas of interest (NAIs)
+- ⬜ AO/NAI area & perimeter reporting in military units — folded in
+  here rather than Phase 9, since it only earns its keep once there are
+  polygons (from the above) to report on
+
+**Status: Not started.** Largest remaining item on the roadmap after
+Phase 6.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
@@ -151,4 +211,6 @@ Both are cosmetic/sizing issues, not correctness bugs in the underlying MGRS/gri
 7. ✅ ~~Phase 8's test-harness formalization and gotcha documentation~~ — done 2026-07-28 (`tests/` suite, `docs/developer-guide.md`).
 8. ✅ ~~Phase 8's user documentation~~ — done 2026-07-28 (`docs/user-guide.md`, rewritten `README.md`, `LICENSE`).
 9. ✅ ~~Phase 8's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 8 is now fully complete.
-10. Phase 6 — terrain analysis, whenever there's appetite for a separate large effort. The only phase left on the roadmap.
+10. Phase 6 — terrain analysis, whenever there's appetite for a separate large effort.
+11. Phase 9 — navigation & production utilities (bearing/range tool, map sheet series, GPX/KML import/export) — cheap wins, reuse existing infrastructure, no new subsystem required.
+12. Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — largest remaining item, a new symbol-library subsystem; sequence after Phase 9, alongside or after Phase 6.
