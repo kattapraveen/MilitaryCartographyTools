@@ -109,15 +109,54 @@ class GridLabelManager:
     # whatever's currently on screen regardless of their true
     # geographic centroids - nudging this one down keeps them
     # from sitting directly on top of each other.
+    #
+    # This is a FIXED screen-space distance, so it's only safe
+    # to apply while a square's own on-screen footprint is
+    # comfortably bigger than 20mm (true while zoomed in, past
+    # corner_scale_threshold - the same regime the corner labels
+    # below are already known to render correctly in). Applied
+    # unconditionally at every zoom level, it used to push the
+    # label straight past a shrunken square's own edge and into
+    # whichever square sits next to it (always the one to the
+    # south, since the offset is always downward) - see
+    # apply_square_label() for the scale gate that now prevents
+    # this.
     CENTER_LABEL_Y_OFFSET_MM = -20
 
 
-    def _centered_settings(self, field, size):
+    # Beyond this map-scale denominator, a 100km square's own
+    # label stops rendering entirely (falling back to the UTM
+    # GZD label for context) - mirrors
+    # MGRSSubGridGenerator.LABEL_MAX_SCALE. Zoomed out this far,
+    # a 100km square's on-screen footprint is only a few
+    # millimetres, so with displayAll forcing every one of them
+    # to render regardless of collisions, a full-size label per
+    # square is clutter rather than information. Loosely chosen
+    # as roughly an order of magnitude past corner_scale_threshold;
+    # worth adjusting once you've seen it live.
+    CENTER_LABEL_MAX_SCALE = 3000000
+
+
+    # Smaller than the zoomed-in centered/corner size (24) - used
+    # once corner labels have already dropped out (see
+    # apply_square_label), where many more squares tend to be on
+    # screen at once and a large font makes the pile-up worse.
+    CENTER_LABEL_FAR_SIZE = 14
+
+
+    def _centered_settings(self, field, size, apply_offset):
 
         """
         One label per square, centred - used when zoomed out
         far enough that a corner position would look cluttered
         or misleading.
+
+        apply_offset: nudge the label down by
+        CENTER_LABEL_Y_OFFSET_MM to keep it clear of the UTM GZD
+        label. Only pass True when the caller has already
+        confirmed (via a scale filter) that the offset is safely
+        smaller than the square's own on-screen size - otherwise
+        it can land in a neighbouring square instead of this one.
         """
 
         settings = QgsPalLayerSettings()
@@ -135,11 +174,13 @@ class GridLabelManager:
 
         settings.displayAll = True
 
-        settings.yOffset = self.CENTER_LABEL_Y_OFFSET_MM
+        if apply_offset:
 
-        settings.offsetUnits = (
-            Qgis.RenderUnit.Millimeters
-        )
+            settings.yOffset = self.CENTER_LABEL_Y_OFFSET_MM
+
+            settings.offsetUnits = (
+                Qgis.RenderUnit.Millimeters
+            )
 
         settings.setFormat(
             build_text_format(size, opacity=self.WATERMARK_OPACITY)
@@ -240,33 +281,54 @@ class GridLabelManager:
         center_size=24,
         corner_size=24,
         corner_gap_mm=12,
-        corner_scale_threshold=250000
+        corner_scale_threshold=250000,
+        center_far_size=None,
+        center_max_scale=None
     ):
 
         """
         Label a 100km-square-style grid layer, switching
         placement by zoom level:
 
-        - Zoomed out (map scale denominator >=
-          corner_scale_threshold): one bigger, centred label
-          per square.
-        - Zoomed in past that point (e.g. only a handful of
-          squares visible): each square ALSO shows its label at
-          all four of its own corners, nudged inward - so every
-          corner on screen unambiguously shows which square it
-          belongs to, and squares sharing an intersection show
-          their labels clustered around it.
+        - Zoomed in past corner_scale_threshold (e.g. only a
+          handful of squares visible): each square shows its
+          label at all four of its own corners, nudged inward -
+          so every corner on screen unambiguously shows which
+          square it belongs to - PLUS a centred label nudged
+          clear of the UTM GZD label's own anchor point. The
+          offset is safe here because a square's on-screen size
+          is comfortably bigger than the fixed nudge distance.
+        - Zoomed out at or beyond corner_scale_threshold (no
+          more corner labels): one centred label per square,
+          smaller and with NO offset - a square may now be only
+          a few millimetres across, so a fixed offset that used
+          to be safe would push the label past its own edge and
+          into a neighbouring square instead.
+        - Zoomed out beyond center_max_scale: no per-square
+          label at all, since that many squares' worth of labels
+          piling up (displayAll bypasses PAL's own collision
+          suppression) is clutter rather than information; the
+          UTM GZD label is left to carry context at that scale.
 
-        The centred rule stays active at every zoom level (not
-        just zoomed out) rather than being replaced by the
-        corner rules - a square that's zoomed in far enough to
-        have NONE of its four corners on screen (you're panned
-        to somewhere in the middle of it) would otherwise show
-        no label at all. Since it's a low-priority, low-opacity
-        watermark like the corner labels, having both active at
-        once when a corner happens to also be in view just means
-        the two coexist rather than fighting.
+        Between them, the two centred rules stay active at every
+        zoom level up to center_max_scale (not just zoomed out)
+        rather than being replaced by the corner rules - a square
+        that's zoomed in far enough to have NONE of its four
+        corners on screen (you're panned to somewhere in the
+        middle of it) would otherwise show no label at all. Since
+        they're low-priority, low-opacity watermarks like the
+        corner labels, having both active at once when a corner
+        happens to also be in view just means they coexist rather
+        than fighting.
         """
+
+        if center_far_size is None:
+
+            center_far_size = self.CENTER_LABEL_FAR_SIZE
+
+        if center_max_scale is None:
+
+            center_max_scale = self.CENTER_LABEL_MAX_SCALE
 
 
         root_rule = QgsRuleBasedLabeling.Rule(
@@ -274,19 +336,46 @@ class GridLabelManager:
         )
 
 
-        centered_rule = QgsRuleBasedLabeling.Rule(
+        centered_near_rule = QgsRuleBasedLabeling.Rule(
             self._centered_settings(
                 field,
-                center_size
+                center_size,
+                apply_offset=True
             )
         )
 
-        centered_rule.setDescription(
-            "Centered (always available as a fallback)"
+        centered_near_rule.setFilterExpression(
+            f"@map_scale < {corner_scale_threshold}"
+        )
+
+        centered_near_rule.setDescription(
+            "Centered, offset clear of the GZD label (zoomed in)"
         )
 
         root_rule.appendChild(
-            centered_rule
+            centered_near_rule
+        )
+
+
+        centered_far_rule = QgsRuleBasedLabeling.Rule(
+            self._centered_settings(
+                field,
+                center_far_size,
+                apply_offset=False
+            )
+        )
+
+        centered_far_rule.setFilterExpression(
+            f"@map_scale >= {corner_scale_threshold} "
+            f"AND @map_scale <= {center_max_scale}"
+        )
+
+        centered_far_rule.setDescription(
+            "Centered, no offset (zoomed out)"
+        )
+
+        root_rule.appendChild(
+            centered_far_rule
         )
 
 
