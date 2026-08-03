@@ -211,6 +211,15 @@ shared `FakeIface`:
   label painted over the finer 100km label. Fixed by giving
   `add_layer_to_group()` an explicit target index instead of blindly
   appending - see `grid/grid_manager.py`'s `generate_mgrs100k()`.
+- `QgsRasterDataProvider.bandStatistics()` emits a `DeprecationWarning`
+  (`QgsRasterInterface.bandStatistics() is deprecated`) on both QGIS
+  3.44.12 and 4.2.0, *regardless* of which overload or argument types are
+  passed - confirmed live by calling it with the modern
+  `Qgis.RasterBandStatistic` enum (both a single flag and a bitwise-OR'd
+  combination) and still getting the warning either way. A binding-level
+  quirk, not something fixable by calling it "correctly" - the values
+  returned are accurate, so `terrain/hypsometric_tint.py`'s `_band_min_max()`
+  accepts the warning rather than working around it.
 
 ---
 

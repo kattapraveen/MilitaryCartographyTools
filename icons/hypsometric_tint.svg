@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- hypsometric tint: filled elevation bands, green (low) through
+       pale (high) - unlike tanaka_contours.svg's illuminated LINE
+       rings, this represents a filled raster technique -->
+  <circle cx="12" cy="12" r="11" fill="#398245" stroke="#1f3a5f" stroke-width="0.6"/>
+  <circle cx="12" cy="12" r="8.2" fill="#a6be65"/>
+  <circle cx="12" cy="12" r="5.4" fill="#b18457"/>
+  <circle cx="12" cy="12" r="2.6" fill="#e8d6c9"/>
+</svg>

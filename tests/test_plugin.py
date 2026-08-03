@@ -48,6 +48,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "Coordinate Probe",
                 "New Military Layout",
                 "Tanaka Contours",
+                "Hypsometric Tint",
             ):
 
                 self.assertIn(expected, texts)
@@ -95,6 +96,7 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.coordinate_probe_action)
         self.assertIsNone(plugin.coordinate_probe_tool)
         self.assertIsNone(plugin.tanaka_contours_action)
+        self.assertIsNone(plugin.hypsometric_tint_action)
 
 
     def test_init_gui_then_unload_then_init_gui_again_does_not_error(self):

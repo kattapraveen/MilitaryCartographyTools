@@ -1,16 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for terrain/tanaka_dialog.py's generate_from_dialog_values() -
-the accept-flow logic split out of show_tanaka_contour_dialog() so it
-can be exercised without driving an actual modal QDialog.
-
-Regression coverage for a real usability complaint: every run of the
-dialog was creating a brand new "Tanaka Contours" layer, so tweaking
-settings and re-running left a pile of stale layers behind instead of
-correcting the existing one. Default behaviour now replaces the
-existing layer in place; an "Add as new layer" checkbox opts back
-into keeping it.
+Tests for terrain/hypsometric_tint_dialog.py's
+generate_from_dialog_values() - the accept-flow logic split out of
+show_hypsometric_tint_dialog() so it can be exercised without driving
+an actual modal QDialog. Mirrors tests/test_tanaka_dialog.py's shape,
+covering the same "Add as new layer" default-replace-in-place
+behaviour.
 
 Military Cartography Tools
 """
@@ -22,7 +18,6 @@ from qgis.core import (
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
-    QgsSymbolLayer,
 )
 
 from .qgis_test_case import (
@@ -32,8 +27,10 @@ from .qgis_test_case import (
     make_canvas,
 )
 
-from MilitaryCartographyTools.terrain.tanaka_contours import OUTPUT_LAYER_NAME
-from MilitaryCartographyTools.terrain.tanaka_dialog import generate_from_dialog_values
+from MilitaryCartographyTools.terrain.hypsometric_tint import OUTPUT_LAYER_NAME
+from MilitaryCartographyTools.terrain.hypsometric_tint_dialog import (
+    generate_from_dialog_values,
+)
 
 
 class TestGenerateFromDialogValues(QgisTestCase):
@@ -70,16 +67,11 @@ class TestGenerateFromDialogValues(QgisTestCase):
             pass
 
 
-    def _values(self, add_as_new_layer=False, monochrome=False):
+    def _values(self, add_as_new_layer=False, opacity=1.0):
 
         return {
             "dem_layer": self.dem_layer,
-            "interval": 20.0,
-            "segment_length": 5.0,
-            "light_azimuth_deg": 315.0,
-            "min_width_mm": 0.15,
-            "max_width_mm": 0.6,
-            "monochrome": monochrome,
+            "opacity": opacity,
             "add_as_new_layer": add_as_new_layer,
         }
 
@@ -118,49 +110,6 @@ class TestGenerateFromDialogValues(QgisTestCase):
         )
 
 
-    def test_monochrome_flag_reaches_the_generated_symbol(self):
-
-        def stroke_color_expression(layer):
-
-            symbol_layer = layer.renderer().symbol().symbolLayer(0)
-
-            return symbol_layer.dataDefinedProperties().property(
-                QgsSymbolLayer.Property.StrokeColor
-            ).expressionString()
-
-        # add_as_new_layer=True on both, so the second call doesn't
-        # remove the first result out from under this test (default
-        # replace-in-place behaviour is covered separately above).
-        color_result = generate_from_dialog_values(
-            self.iface,
-            self._values(monochrome=False, add_as_new_layer=True)
-        )
-
-        color_expression = stroke_color_expression(color_result)
-
-        monochrome_result = generate_from_dialog_values(
-            self.iface,
-            self._values(monochrome=True, add_as_new_layer=True)
-        )
-
-        monochrome_expression = stroke_color_expression(monochrome_result)
-
-        self.assertIn(
-            'color_rgb("R", "G", "B")',
-            color_expression
-        )
-
-        self.assertIn(
-            "color_mix_rgb",
-            monochrome_expression
-        )
-
-        self.assertNotIn(
-            '"R"',
-            stroke_color_expression(monochrome_result)
-        )
-
-
     def test_checkbox_keeps_previous_layer_alongside_the_new_one(self):
 
         first = generate_from_dialog_values(self.iface, self._values())
@@ -179,4 +128,17 @@ class TestGenerateFromDialogValues(QgisTestCase):
 
         self.assertIsNotNone(
             QgsProject.instance().mapLayer(first.id())
+        )
+
+
+    def test_opacity_value_reaches_the_generated_layer(self):
+
+        result = generate_from_dialog_values(
+            self.iface,
+            self._values(opacity=0.4)
+        )
+
+        self.assertAlmostEqual(
+            result.opacity(),
+            0.4
         )

@@ -25,7 +25,7 @@ from .core.coordinate_probe_tool import CoordinateProbeTool
 from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel
-from .terrain import show_tanaka_contour_dialog
+from .terrain import show_tanaka_contour_dialog, show_hypsometric_tint_dialog
 
 
 SUB_GRID_OPTIONS = [
@@ -66,6 +66,7 @@ class MilitaryCartographyTools:
         self.new_layout_action = None
         self.coordinate_probe_action = None
         self.tanaka_contours_action = None
+        self.hypsometric_tint_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -137,6 +138,7 @@ class MilitaryCartographyTools:
         self._setup_coordinate_probe_action()
         self._setup_new_layout_action()
         self._setup_tanaka_contours_action()
+        self._setup_hypsometric_tint_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -423,6 +425,21 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_hypsometric_tint_action(self):
+
+        # Filled elevation-colour raster from a DEM, clipped to the
+        # current map canvas extent - see terrain/hypsometric_tint.py.
+        self.hypsometric_tint_action = self._build_action(
+            "hypsometric_tint.svg",
+            "Hypsometric Tint",
+            tooltip=(
+                "Generate a filled hypsometric (elevation colour) "
+                "raster from a DEM for the current map extent"
+            ),
+            callback=self.create_hypsometric_tint
+        )
+
+
     def _setup_coordinate_probe_action(self):
 
         # Click-to-read-coordinates tool - stays active across
@@ -533,6 +550,7 @@ class MilitaryCartographyTools:
             self.new_layout_action,
             self.coordinate_probe_action,
             self.tanaka_contours_action,
+            self.hypsometric_tint_action,
         ]:
 
             if action is not None:
@@ -574,10 +592,10 @@ class MilitaryCartographyTools:
 
 
         # utm_action/mgrs100k_action/clear_action/new_layout_action/
-        # coordinate_probe_action/tanaka_contours_action are parented
-        # to the main window (like self.action above), not the
-        # toolbar, so they survive sip.delete(self.toolbar) - just
-        # drop the references.
+        # coordinate_probe_action/tanaka_contours_action/
+        # hypsometric_tint_action are parented to the main window
+        # (like self.action above), not the toolbar, so they survive
+        # sip.delete(self.toolbar) - just drop the references.
         self.utm_action = None
         self.mgrs100k_action = None
         self.clear_action = None
@@ -585,6 +603,7 @@ class MilitaryCartographyTools:
         self.coordinate_probe_action = None
         self.coordinate_probe_tool = None
         self.tanaka_contours_action = None
+        self.hypsometric_tint_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -738,6 +757,17 @@ class MilitaryCartographyTools:
         """
 
         show_tanaka_contour_dialog(
+            self.iface
+        )
+
+
+    def create_hypsometric_tint(self):
+        """
+        Prompt for a DEM and opacity, then generate a hypsometric
+        tint layer for the current map extent.
+        """
+
+        show_hypsometric_tint_dialog(
             self.iface
         )
 

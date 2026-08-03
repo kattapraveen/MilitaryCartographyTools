@@ -8,7 +8,6 @@ Military Cartography Tools
 """
 
 import os
-import tempfile
 
 from qgis.core import (
     QgsExpressionContext,
@@ -22,7 +21,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtGui import QColor
 
-from .qgis_test_case import QgisTestCase
+from .qgis_test_case import build_synthetic_sloped_dem, QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
 from MilitaryCartographyTools.terrain.tanaka_contours import (
@@ -91,7 +90,7 @@ class TestHypsometricColor(QgisTestCase):
 
     The normalisation is the fix for a real complaint: a first
     version keyed straight off fixed absolute elevation anchors, and
-    a real Tanzania DEM clip - whose local relief only spanned a
+    a real DEM clip - whose local relief only spanned a
     few hundred metres, all within one narrow band of that global
     scale - came out almost entirely one shade of brown. Confirmed
     live against the user's own report before rewriting this.
@@ -364,16 +363,16 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
     End-to-end pipeline test against a small synthetic DEM with a
     known, simple slope (rises steadily eastward), so the expected
     illumination sign can be checked precisely rather than just
-    "some contours came out". Located near Kilimanjaro, close to
-    UTM zone 37S's own central meridian, matching the real DEM this
-    pipeline was verified against during development.
+    "some contours came out". Located close to UTM zone 37S's own
+    central meridian, matching the real DEM this pipeline was
+    verified against during development.
     """
 
     def setUp(self):
 
         super().setUp()
 
-        self._dem_path = self._build_synthetic_dem()
+        self._dem_path = build_synthetic_sloped_dem(width=40, height=40)
 
 
     def tearDown(self):
@@ -382,48 +381,6 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
             os.remove(self._dem_path)
         except OSError:
             pass
-
-
-    def _build_synthetic_dem(self):
-
-        import numpy
-        from osgeo import gdal, osr
-
-        width, height = 40, 40
-        pixel_size = 0.0001
-
-        origin_lon, origin_lat = 37.34, -3.09
-
-        path = tempfile.mktemp(suffix=".tif")
-
-        driver = gdal.GetDriverByName("GTiff")
-
-        dataset = driver.Create(
-            path, width, height, 1, gdal.GDT_Float32
-        )
-
-        dataset.SetGeoTransform(
-            [origin_lon, pixel_size, 0, origin_lat, 0, -pixel_size]
-        )
-
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-        dataset.SetProjection(srs.ExportToWkt())
-
-        # Elevation rises steadily eastward (with column) only - a
-        # single, clean gradient direction so the expected uphill
-        # side is unambiguous.
-        band = numpy.fromfunction(
-            lambda row, col: col * 10.0,
-            (height, width),
-            dtype="float32"
-        )
-
-        dataset.GetRasterBand(1).WriteArray(band)
-        dataset.FlushCache()
-        dataset = None
-
-        return path
 
 
     def test_pipeline_produces_valid_segments(self):

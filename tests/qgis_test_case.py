@@ -14,6 +14,7 @@ Military Cartography Tools
 """
 
 import atexit
+import tempfile
 import unittest
 
 from qgis.core import QgsApplication, QgsProject, QgsCoordinateReferenceSystem
@@ -207,6 +208,56 @@ def make_canvas(crs="EPSG:4326"):
     )
 
     return canvas
+
+
+def build_synthetic_sloped_dem(
+    width=30,
+    height=30,
+    pixel_size=0.0001,
+    origin_lon=37.34,
+    origin_lat=-3.09
+):
+
+    """
+    A small synthetic GeoTIFF DEM whose elevation rises steadily
+    eastward (elevation == column * 10.0) - a single, clean gradient
+    direction, so tests that need real DEM raster I/O (Tanaka
+    contours, hypsometric tint) can check an expected uphill side/
+    illumination sign or elevation range exactly rather than just
+    "something came out". Returns the file path; the caller owns
+    deleting it (e.g. in tearDown()).
+    """
+
+    import numpy
+    from osgeo import gdal, osr
+
+    path = tempfile.mktemp(suffix=".tif")
+
+    driver = gdal.GetDriverByName("GTiff")
+
+    dataset = driver.Create(
+        path, width, height, 1, gdal.GDT_Float32
+    )
+
+    dataset.SetGeoTransform(
+        [origin_lon, pixel_size, 0, origin_lat, 0, -pixel_size]
+    )
+
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    dataset.SetProjection(srs.ExportToWkt())
+
+    band = numpy.fromfunction(
+        lambda row, col: col * 10.0,
+        (height, width),
+        dtype="float32"
+    )
+
+    dataset.GetRasterBand(1).WriteArray(band)
+    dataset.FlushCache()
+    dataset = None
+
+    return path
 
 
 class QgisTestCase(unittest.TestCase):

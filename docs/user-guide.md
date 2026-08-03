@@ -15,6 +15,7 @@ military grid generation, and automated print-layout production.
 - [Military Layout Settings panel](#military-layout-settings-panel)
 - [Print-layout grid frame](#print-layout-grid-frame)
 - [Tanaka Contours](#tanaka-contours)
+- [Hypsometric Tint](#hypsometric-tint)
 - [Expression functions](#expression-functions)
 
 ---
@@ -49,6 +50,7 @@ Left to right:
 | Crosshair reticle | Coordinate Probe |
 | Page with a heading bar and a small map | New Military Layout |
 | Illuminated concentric rings | Tanaka Contours |
+| Filled concentric colour bands | Hypsometric Tint |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -207,6 +209,42 @@ already well covered elsewhere. If you don't already have elevation data
 for your area, options include QGIS's own **Data Source Manager** (WCS
 connections), or a dedicated plugin such as **SRTM Downloader** (via
 **Plugins → Manage and Install Plugins**).
+
+---
+
+## Hypsometric Tint
+
+Tanaka Contours colors *lines*, but the space between them is left blank.
+Click the filled-colour-bands icon to generate a **Hypsometric Tint**
+layer instead — a filled, full-coverage raster using the same elevation
+color convention (blue below sea level, green → yellow → brown → red →
+white with increasing elevation above it, stretched across whichever
+elevations are actually present in the area you generate). It's a
+separate layer from Tanaka Contours, meant to sit underneath it: generate
+both over the same area, and the tint fills the gaps between the
+contour lines rather than leaving them blank.
+
+Requires a DEM layer already loaded in your project (see "Getting a DEM"
+above). The dialog asks for:
+
+| Field | Notes |
+|---|---|
+| DEM layer | Any loaded raster layer |
+| Opacity | 0–100%, default 100 |
+| Add as new layer | Off by default — re-running the dialog corrects the existing "Hypsometric Tint" layer in place. Check this to keep the previous layer and add a new one alongside it instead |
+
+Like Tanaka Contours, it's generated for the **current map canvas extent**
+only, clipped and reprojected automatically — pan/zoom to the area you
+want first. New layers are always placed at the **bottom** of the layer
+panel, so it won't cover any grid or contour layers already in your
+project.
+
+**Tip:** for a fuller, textured relief look (closer to a shaded physical
+relief map), add a QGIS-native **Hillshade** on top (**Raster → Analysis
+→ Hillshade**, or the `gdal:hillshade` Processing algorithm) and set its
+layer blending mode to **Multiply** (**Layer Properties → Symbology →
+Blending mode**). That combination uses tools already built into QGIS —
+no extra step from this plugin needed.
 
 ---
 
