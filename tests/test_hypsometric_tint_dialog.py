@@ -18,6 +18,7 @@ from qgis.core import (
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
+    QgsVectorLayer,
 )
 
 from .qgis_test_case import (
@@ -107,6 +108,41 @@ class TestGenerateFromDialogValues(QgisTestCase):
         # project, not just shadowed by name.
         self.assertIsNone(
             QgsProject.instance().mapLayer(first_id)
+        )
+
+
+    def test_regenerate_preserves_manually_moved_layer_position(self):
+
+        # Real usability complaint: correcting the layer in place is
+        # only actually helpful if it doesn't also reset the layer's
+        # position back to the default (bottom of the stack) every
+        # time - the user is likely to have dragged it somewhere
+        # deliberate.
+        first = generate_from_dialog_values(self.iface, self._values())
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        # generate_hypsometric_tint() places new layers at the
+        # bottom by default - move it to the top instead, simulating
+        # the user reordering things themselves.
+        other = QgsVectorLayer("Point?crs=EPSG:4326", "Other", "memory")
+        QgsProject.instance().addMapLayer(other, False)
+        root.insertLayer(len(root.children()), other)
+
+        node = root.findLayer(first.id())
+        node.parent().removeChildNode(node)
+        root.insertLayer(0, first)
+
+        self.assertEqual(
+            [c.name() for c in root.children()],
+            [OUTPUT_LAYER_NAME, "Other"]
+        )
+
+        generate_from_dialog_values(self.iface, self._values())
+
+        self.assertEqual(
+            [c.name() for c in root.children()],
+            [OUTPUT_LAYER_NAME, "Other"]
         )
 
 

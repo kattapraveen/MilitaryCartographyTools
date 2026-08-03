@@ -23,6 +23,7 @@ from qgis.core import (
     QgsRasterLayer,
     QgsRectangle,
     QgsSymbolLayer,
+    QgsVectorLayer,
 )
 
 from .qgis_test_case import (
@@ -158,6 +159,42 @@ class TestGenerateFromDialogValues(QgisTestCase):
         self.assertNotIn(
             '"R"',
             stroke_color_expression(monochrome_result)
+        )
+
+
+    def test_regenerate_preserves_manually_moved_layer_position(self):
+
+        # Real usability complaint: correcting the layer in place is
+        # only actually helpful if it doesn't also reset the layer's
+        # position in the Layers panel back to the default every
+        # time - the user is likely to have dragged it somewhere
+        # deliberate (e.g. above a basemap, below a grid).
+        first = generate_from_dialog_values(self.iface, self._values())
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        # generate_tanaka_contours() adds via a plain addMapLayer(),
+        # which lands new layers at the top - add another layer
+        # above it, then move the Tanaka layer below it, simulating
+        # the user reordering things themselves.
+        other = QgsVectorLayer("Point?crs=EPSG:4326", "Other", "memory")
+        QgsProject.instance().addMapLayer(other, False)
+        root.insertLayer(0, other)
+
+        node = root.findLayer(first.id())
+        node.parent().removeChildNode(node)
+        root.insertLayer(1, first)
+
+        self.assertEqual(
+            [c.name() for c in root.children()],
+            ["Other", OUTPUT_LAYER_NAME]
+        )
+
+        generate_from_dialog_values(self.iface, self._values())
+
+        self.assertEqual(
+            [c.name() for c in root.children()],
+            ["Other", OUTPUT_LAYER_NAME]
         )
 
 

@@ -218,8 +218,10 @@ shared `FakeIface`:
   `Qgis.RasterBandStatistic` enum (both a single flag and a bitwise-OR'd
   combination) and still getting the warning either way. A binding-level
   quirk, not something fixable by calling it "correctly" - the values
-  returned are accurate, so `terrain/hypsometric_tint.py`'s `_band_min_max()`
-  accepts the warning rather than working around it.
+  returned are accurate, so `terrain/_dem_utils.py`'s `band_min_max()`
+  (shared by Tanaka Contours and Hypsometric Tint, so both normalise their
+  colour ramp against the same range) accepts the warning rather than
+  working around it.
 
 ---
 

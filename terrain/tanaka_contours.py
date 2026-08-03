@@ -28,7 +28,10 @@ from qgis.core import (
 
 from qgis.PyQt.QtCore import QMetaType
 
-from ._dem_utils import clip_and_reproject_dem as _clip_and_reproject
+from ._dem_utils import (
+    band_min_max as _band_min_max,
+    clip_and_reproject_dem as _clip_and_reproject,
+)
 from ._hypsometric_ramp import (
     hypsometric_color as _hypsometric_color,
     LAND_RAMP,
@@ -191,11 +194,29 @@ def _segment_illumination(segment_geometry, dem_provider, light_vector):
     )
 
 
-def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
+def _build_output_layer(
+    segment_layer,
+    dem_layer,
+    light_azimuth_deg,
+    crs,
+    min_elevation,
+    max_elevation
+):
 
     """
     A new memory layer holding every segment with a valid
     illumination value, plus its elevation, ready for styling.
+
+    min_elevation/max_elevation come from dem_layer's own raw pixel
+    range (see generate_tanaka_contours()), not from the drawn
+    contour lines' own elevation range - contour levels are quantised
+    to the interval, so they rarely reach the DEM's true min/max,
+    which previously made Tanaka's colours normalise against a
+    narrower range than hypsometric tint's (which already used the
+    raw DEM range), a real, confirmed-live mismatch between the two
+    layers over the same area. Using the same source for both fixes
+    that: an identical DEM/extent now produces identical colours in
+    both.
     """
 
     output_layer = QgsVectorLayer(
@@ -222,15 +243,7 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
         light_azimuth_deg
     )
 
-    # Two passes: colour is normalised against this generation's own
-    # elevation range (see _hypsometric_color()), so the range has to
-    # be known before any feature's colour can be computed - buffer
-    # the valid (geometry, elevation, illumination) tuples first,
-    # then assign colours once min/max are known.
-    valid_segments = []
-
-    min_elevation = None
-    max_elevation = None
+    features = []
 
     for segment in segment_layer.getFeatures():
 
@@ -245,20 +258,6 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
 
         elevation = segment["ELEV"]
 
-        if min_elevation is None or elevation < min_elevation:
-            min_elevation = elevation
-
-        if max_elevation is None or elevation > max_elevation:
-            max_elevation = elevation
-
-        valid_segments.append(
-            (segment.geometry(), elevation, illumination)
-        )
-
-    features = []
-
-    for geometry, elevation, illumination in valid_segments:
-
         red, green, blue = _hypsometric_color(
             elevation,
             min_elevation,
@@ -270,7 +269,7 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
         )
 
         feature.setGeometry(
-            geometry
+            segment.geometry()
         )
 
         feature.setAttributes(
@@ -397,6 +396,10 @@ def generate_tanaka_contours(
         extent_crs
     )
 
+    min_elevation, max_elevation = _band_min_max(
+        clipped_dem
+    )
+
     segment_layer = _generate_contour_segments(
         clipped_dem,
         interval,
@@ -407,7 +410,9 @@ def generate_tanaka_contours(
         segment_layer,
         clipped_dem,
         light_azimuth_deg,
-        clipped_dem.crs()
+        clipped_dem.crs(),
+        min_elevation,
+        max_elevation
     )
 
     _apply_style(

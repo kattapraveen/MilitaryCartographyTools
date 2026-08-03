@@ -26,6 +26,8 @@ from .qgis_test_case import build_synthetic_sloped_dem, QgisTestCase
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
 from MilitaryCartographyTools.terrain.tanaka_contours import (
     _apply_style,
+    _band_min_max,
+    _clip_and_reproject,
     _hypsometric_color,
     _light_vector,
     _segment_illumination,
@@ -429,15 +431,19 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
             self.assertGreaterEqual(value, -1.0001)
             self.assertLessEqual(value, 1.0001)
 
-        # The synthetic DEM's elevations (col * 10.0, 40 columns) are
-        # all >= 0, so every segment's colour should come from
-        # LAND_RAMP, normalised against this output's own min/max
-        # elevation - each channel a valid 0-255 int, and matching
-        # what _hypsometric_color() itself would produce for that
-        # segment's own ELEV against that same range.
-        elev_values = [f["ELEV"] for f in output.getFeatures()]
+        # Colour is normalised against the clipped DEM's own raw
+        # pixel min/max (not the drawn contour lines' own elevation
+        # range, which is quantised to the interval and rarely
+        # reaches the DEM's true extremes) - deliberately so a
+        # hypsometric tint layer generated over the same DEM/extent
+        # agrees on colour with these contours. Recompute that same
+        # ground truth independently here (same clip pipeline the
+        # real code path uses) rather than trusting the output's own
+        # ELEV spread, so this test would actually catch a regression
+        # back to the old, mismatched normalisation.
+        clipped_dem = _clip_and_reproject(dem_layer, extent, WGS84)
 
-        min_elev, max_elev = min(elev_values), max(elev_values)
+        min_elev, max_elev = _band_min_max(clipped_dem)
 
         # A real colour spread requires an actual elevation range to
         # normalise against - guards against this test accidentally
@@ -459,21 +465,42 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
                 self.assertGreaterEqual(channel, 0)
                 self.assertLessEqual(channel, 255)
 
-        # The whole ramp should actually be exercised end to end -
-        # the lowest-elevation segment should be tinted with
-        # LAND_RAMP's first stop, the highest with its last, not
-        # some narrow slice of it (the original, monochromatic bug).
+        # The whole ramp should actually be exercised, not some
+        # narrow slice of it (the original, monochromatic bug) -
+        # the lowest- and highest-elevation segments should land
+        # close to LAND_RAMP's first/last stops respectively, even
+        # if not landing exactly on them (contour levels are
+        # quantised to the interval, so they rarely touch the DEM's
+        # true min/max exactly).
         lowest = min(output.getFeatures(), key=lambda f: f["ELEV"])
         highest = max(output.getFeatures(), key=lambda f: f["ELEV"])
 
-        self.assertEqual(
+        self.assertLess(
             (lowest["R"], lowest["G"], lowest["B"]),
-            LAND_RAMP[0][1]
+            (highest["R"], highest["G"], highest["B"])
         )
 
-        self.assertEqual(
-            (highest["R"], highest["G"], highest["B"]),
-            LAND_RAMP[-1][1]
+        def channel_distance(color_a, color_b):
+            return sum(
+                abs(a - b) for a, b in zip(color_a, color_b)
+            )
+
+        lowest_color = (lowest["R"], lowest["G"], lowest["B"])
+        highest_color = (highest["R"], highest["G"], highest["B"])
+
+        # The lowest-elevation segment should sit closer to
+        # LAND_RAMP's first stop than its last, and vice versa for
+        # the highest - a relative check rather than a tight absolute
+        # tolerance, since contour levels are quantised to the
+        # interval and won't land exactly on the DEM's true min/max.
+        self.assertLess(
+            channel_distance(lowest_color, LAND_RAMP[0][1]),
+            channel_distance(lowest_color, LAND_RAMP[-1][1])
+        )
+
+        self.assertLess(
+            channel_distance(highest_color, LAND_RAMP[-1][1]),
+            channel_distance(highest_color, LAND_RAMP[0][1])
         )
 
         # The slope rises eastward everywhere, so every contour's

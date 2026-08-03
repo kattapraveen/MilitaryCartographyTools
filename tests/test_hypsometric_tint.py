@@ -20,12 +20,17 @@ from qgis.core import (
 from .qgis_test_case import build_synthetic_sloped_dem, QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
-from MilitaryCartographyTools.terrain._hypsometric_ramp import LAND_RAMP, SEA_RAMP
+from MilitaryCartographyTools.terrain._hypsometric_ramp import (
+    hypsometric_color,
+    LAND_RAMP,
+    SEA_RAMP,
+)
 from MilitaryCartographyTools.terrain.hypsometric_tint import (
     _build_color_ramp_items,
     generate_hypsometric_tint,
     OUTPUT_LAYER_NAME,
 )
+from MilitaryCartographyTools.terrain.tanaka_contours import generate_tanaka_contours
 
 
 class TestBuildColorRampItems(QgisTestCase):
@@ -204,3 +209,72 @@ class TestGenerateHypsometricTintIntegration(QgisTestCase):
             names[-1],
             OUTPUT_LAYER_NAME
         )
+
+
+class TestColorMatchesTanakaContours(QgisTestCase):
+
+    """
+    Regression coverage for a real complaint: over the same DEM and
+    extent, a Tanaka Contours line and a Hypsometric Tint pixel at the
+    same elevation used to come out different colours, because Tanaka
+    normalised against the elevation range of its own *drawn contour
+    lines* (quantised to the contour interval) while the tint
+    normalised against the DEM's raw pixel range - two different
+    ranges even for an identical DEM/extent. Both now share
+    terrain._dem_utils.band_min_max() as the one source of truth (see
+    terrain/tanaka_contours.py's _build_output_layer()).
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        self._dem_path = build_synthetic_sloped_dem(width=40, height=40)
+
+
+    def tearDown(self):
+
+        try:
+            os.remove(self._dem_path)
+        except OSError:
+            pass
+
+
+    def test_tanaka_segment_color_matches_tint_at_the_same_elevation(self):
+
+        from MilitaryCartographyTools.terrain._dem_utils import (
+            band_min_max,
+            clip_and_reproject_dem,
+        )
+
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        extent = QgsRectangle(37.3402, -3.0935, 37.3428, -3.0905)
+
+        tanaka = generate_tanaka_contours(
+            dem_layer,
+            extent,
+            WGS84,
+            interval=20.0,
+            segment_length=5.0
+        )
+
+        # The ground truth both pipelines are meant to share - an
+        # independent re-clip of the same DEM/extent, not something
+        # read back out of either pipeline's own output.
+        clipped_dem = clip_and_reproject_dem(dem_layer, extent, WGS84)
+
+        min_elev, max_elev = band_min_max(clipped_dem)
+
+        for feature in tanaka.getFeatures():
+
+            expected = hypsometric_color(
+                feature["ELEV"], min_elev, max_elev
+            )
+
+            actual = (feature["R"], feature["G"], feature["B"])
+
+            self.assertEqual(actual, expected)

@@ -9,7 +9,7 @@ canvas extent.
 Military Cartography Tools
 """
 
-from qgis.core import QgsMapLayerProxyModel, QgsProject
+from qgis.core import QgsMapLayerProxyModel
 from qgis.gui import QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
@@ -21,6 +21,7 @@ from qgis.PyQt.QtWidgets import (
     QDialogButtonBox,
 )
 
+from ._layer_utils import replace_named_layer
 from .tanaka_contours import (
     generate_tanaka_contours,
     DEFAULT_INTERVAL,
@@ -214,30 +215,33 @@ def generate_from_dialog_values(iface, values):
 
         return None
 
-    if not values["add_as_new_layer"]:
-
-        # Default behaviour: correct the existing layer in place
-        # rather than piling up a new one on every re-run with
-        # tweaked settings. Only removes layers by this exact name,
-        # so a layer the user has since renamed is left alone.
-        for layer in QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME):
-
-            QgsProject.instance().removeMapLayer(
-                layer.id()
-            )
-
     canvas = iface.mapCanvas()
 
-    return generate_tanaka_contours(
-        values["dem_layer"],
-        canvas.extent(),
-        canvas.mapSettings().destinationCrs(),
-        interval=values["interval"],
-        segment_length=values["segment_length"],
-        light_azimuth_deg=values["light_azimuth_deg"],
-        min_width_mm=values["min_width_mm"],
-        max_width_mm=values["max_width_mm"],
-        monochrome=values["monochrome"]
+    def generate():
+
+        return generate_tanaka_contours(
+            values["dem_layer"],
+            canvas.extent(),
+            canvas.mapSettings().destinationCrs(),
+            interval=values["interval"],
+            segment_length=values["segment_length"],
+            light_azimuth_deg=values["light_azimuth_deg"],
+            min_width_mm=values["min_width_mm"],
+            max_width_mm=values["max_width_mm"],
+            monochrome=values["monochrome"]
+        )
+
+    if values["add_as_new_layer"]:
+        return generate()
+
+    # Default behaviour: correct the existing layer in place rather
+    # than piling up a new one on every re-run with tweaked settings,
+    # preserving wherever the user has since dragged it in the Layers
+    # panel. Only replaces layers by this exact name, so a layer the
+    # user has since renamed is left alone.
+    return replace_named_layer(
+        OUTPUT_LAYER_NAME,
+        generate
     )
 
 

@@ -11,7 +11,6 @@ Military Cartography Tools
 """
 
 from qgis.core import (
-    Qgis,
     QgsColorRampShader,
     QgsProject,
     QgsRasterShader,
@@ -20,37 +19,13 @@ from qgis.core import (
 
 from qgis.PyQt.QtGui import QColor
 
-from ._dem_utils import clip_and_reproject_dem
+from ._dem_utils import band_min_max, clip_and_reproject_dem
 from ._hypsometric_ramp import LAND_RAMP, SEA_RAMP
 
 
 OUTPUT_LAYER_NAME = "Hypsometric Tint"
 
 DEFAULT_OPACITY = 1.0
-
-
-def _band_min_max(raster_layer, band=1):
-
-    """
-    (minimum, maximum) pixel value for one band of raster_layer.
-
-    QgsRasterDataProvider.bandStatistics() emits a DeprecationWarning
-    ("QgsRasterInterface.bandStatistics() is deprecated") on both
-    QGIS 3.44.12 and 4.2.0 regardless of which overload/argument types
-    are passed - confirmed live before writing this; a binding-level
-    quirk rather than something fixable by calling it differently.
-    Values returned are correct, so accepted as a known, harmless
-    warning rather than a bug (see docs/developer-guide.md).
-    """
-
-    provider = raster_layer.dataProvider()
-
-    stats = provider.bandStatistics(
-        band,
-        Qgis.RasterBandStatistic.Min | Qgis.RasterBandStatistic.Max
-    )
-
-    return stats.minimumValue, stats.maximumValue
 
 
 def _build_color_ramp_items(min_elevation, max_elevation):
@@ -117,7 +92,7 @@ def _apply_raster_style(raster_layer, opacity):
     elevation range.
     """
 
-    min_elevation, max_elevation = _band_min_max(raster_layer)
+    min_elevation, max_elevation = band_min_max(raster_layer)
 
     color_ramp_shader = QgsColorRampShader()
 
