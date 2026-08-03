@@ -47,6 +47,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "Clear Grid",
                 "Coordinate Probe",
                 "New Military Layout",
+                "Tanaka Contours",
             ):
 
                 self.assertIn(expected, texts)
@@ -93,6 +94,7 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.new_layout_action)
         self.assertIsNone(plugin.coordinate_probe_action)
         self.assertIsNone(plugin.coordinate_probe_tool)
+        self.assertIsNone(plugin.tanaka_contours_action)
 
 
     def test_init_gui_then_unload_then_init_gui_again_does_not_error(self):

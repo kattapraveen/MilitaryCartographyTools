@@ -25,6 +25,7 @@ from .core.coordinate_probe_tool import CoordinateProbeTool
 from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel
+from .terrain import show_tanaka_contour_dialog
 
 
 SUB_GRID_OPTIONS = [
@@ -64,6 +65,7 @@ class MilitaryCartographyTools:
         self.clear_action = None
         self.new_layout_action = None
         self.coordinate_probe_action = None
+        self.tanaka_contours_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -134,6 +136,7 @@ class MilitaryCartographyTools:
         self._setup_clear_action()
         self._setup_coordinate_probe_action()
         self._setup_new_layout_action()
+        self._setup_tanaka_contours_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -405,6 +408,21 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_tanaka_contours_action(self):
+
+        # Illuminated contours from a DEM, clipped to the current
+        # map canvas extent - see terrain/tanaka_contours.py.
+        self.tanaka_contours_action = self._build_action(
+            "tanaka_contours.svg",
+            "Tanaka Contours",
+            tooltip=(
+                "Generate illuminated (Tanaka) contours from a DEM "
+                "for the current map extent"
+            ),
+            callback=self.create_tanaka_contours
+        )
+
+
     def _setup_coordinate_probe_action(self):
 
         # Click-to-read-coordinates tool - stays active across
@@ -514,6 +532,7 @@ class MilitaryCartographyTools:
             self.clear_action,
             self.new_layout_action,
             self.coordinate_probe_action,
+            self.tanaka_contours_action,
         ]:
 
             if action is not None:
@@ -555,16 +574,17 @@ class MilitaryCartographyTools:
 
 
         # utm_action/mgrs100k_action/clear_action/new_layout_action/
-        # coordinate_probe_action are parented to the main window
-        # (like self.action above), not the toolbar, so they
-        # survive sip.delete(self.toolbar) - just drop the
-        # references.
+        # coordinate_probe_action/tanaka_contours_action are parented
+        # to the main window (like self.action above), not the
+        # toolbar, so they survive sip.delete(self.toolbar) - just
+        # drop the references.
         self.utm_action = None
         self.mgrs100k_action = None
         self.clear_action = None
         self.new_layout_action = None
         self.coordinate_probe_action = None
         self.coordinate_probe_tool = None
+        self.tanaka_contours_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -707,6 +727,17 @@ class MilitaryCartographyTools:
         """
 
         show_new_layout_dialog(
+            self.iface
+        )
+
+
+    def create_tanaka_contours(self):
+        """
+        Prompt for a DEM and illumination parameters, then generate
+        a Tanaka contour layer for the current map extent.
+        """
+
+        show_tanaka_contour_dialog(
             self.iface
         )
 

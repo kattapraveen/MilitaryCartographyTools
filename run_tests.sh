@@ -42,6 +42,17 @@ export QT_QPA_PLATFORM=offscreen
 export PROJ_DATA="$QGIS_APP/Resources/qgis/proj"
 export GDAL_DATA="$QGIS_APP/Resources/qgis/gdal"
 
+# Needed for terrain/ (Tanaka contours), which uses QGIS's Processing
+# framework: `import processing` resolves to the actual Processing
+# plugin (not just the thin qgis.processing helper) only with its
+# directory on PYTHONPATH, and gdal:contour/gdal:warpreproject shell
+# out to the gdal_contour/gdal_translate-family binaries bundled
+# under Contents/MacOS, which needs to be on PATH to be found. Both
+# are already set up automatically inside a normally-launched QGIS
+# GUI session - only this headless harness needs them added by hand.
+export PYTHONPATH="$QGIS_APP/Resources/qgis/python/plugins:$PYTHONPATH"
+export PATH="$QGIS_APP/MacOS:$PATH"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The plugin package needs to be importable as

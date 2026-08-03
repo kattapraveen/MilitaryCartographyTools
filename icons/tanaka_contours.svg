@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- illuminated contour rings: thin arc on the lit (upper-left,
+       matching the default NW light azimuth) side, thick arc on
+       the shadowed (lower-right) side of each ring -->
+  <path d="M 12 4 A 8 8 0 0 0 4 12" fill="none" stroke="#1f3a5f" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M 4 12 A 8 8 0 0 0 12 20" fill="none" stroke="#1f3a5f" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M 12 20 A 8 8 0 0 0 20 12" fill="none" stroke="#1f3a5f" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M 20 12 A 8 8 0 0 0 12 4" fill="none" stroke="#1f3a5f" stroke-width="0.8" stroke-linecap="round"/>
+
+  <path d="M 12 8 A 4 4 0 0 0 8 12" fill="none" stroke="#1f3a5f" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M 8 12 A 4 4 0 0 0 12 16" fill="none" stroke="#1f3a5f" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 12 16 A 4 4 0 0 0 16 12" fill="none" stroke="#1f3a5f" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 16 12 A 4 4 0 0 0 12 8" fill="none" stroke="#1f3a5f" stroke-width="0.6" stroke-linecap="round"/>
+</svg>

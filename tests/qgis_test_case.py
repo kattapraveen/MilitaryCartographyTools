@@ -29,7 +29,13 @@ def start_app():
     """
     Start the single QgsApplication this whole test process shares
     - idempotent, so every test module can safely call this itself
-    without caring whether another module already did.
+    without caring whether another module already did. Also
+    initializes QGIS's Processing framework, needed the moment
+    anything imports MilitaryCartographyTools at all (terrain/
+    imports the `processing` package eagerly at module load time,
+    not just when a Tanaka contour is actually generated) - not
+    auto-available like it is inside a normally-launched QGIS GUI
+    session, which loads Processing as a core plugin on startup.
     """
 
     global _qgs_app
@@ -42,6 +48,10 @@ def start_app():
         )
 
         _qgs_app.initQgis()
+
+        from processing.core.Processing import Processing
+
+        Processing.initialize()
 
     return _qgs_app
 
