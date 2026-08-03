@@ -15,6 +15,7 @@ Military Cartography Tools
 """
 
 from qgis.core import (
+    Qgis,
     QgsCoordinateReferenceSystem,
     QgsProject,
     QgsRectangle,
@@ -190,6 +191,81 @@ class TestApplySquareLabel(QgisTestCase):
                 rule.filterExpression(),
                 f"@map_scale < {threshold}"
             )
+
+
+    def test_square_labels_outrank_utm_label_but_not_sub_grid(self):
+
+        # 2026-08-05: raising the 100km square's own label priority
+        # above the UTM/GZD label's (1) - combined with
+        # GZD_LABEL_OFFSET_MM nudging the GZD label away from the
+        # centroid it would otherwise share with a 100km square's
+        # centred label - is the user-confirmed fix for the two
+        # still occasionally competing for the same screen space,
+        # even after the layer z-order fix. Kept below the sub-grid
+        # tick labels' priority (9) so the intended fine-to-coarse
+        # hierarchy (sub-grid > 100km > UTM GZD) still holds.
+        self.manager.apply_square_label(self.layer, "100K")
+
+        root = self.layer.labeling().rootRule()
+
+        for rule in root.children():
+
+            self.assertEqual(
+                rule.settings().priority,
+                self.manager.SQUARE_LABEL_PRIORITY
+            )
+
+        self.assertGreater(
+            self.manager.SQUARE_LABEL_PRIORITY,
+            1
+        )
+
+        self.assertLess(
+            self.manager.SQUARE_LABEL_PRIORITY,
+            9
+        )
+
+
+class TestApplyLabelOffset(QgisTestCase):
+
+    """
+    GridLabelManager.apply_label() - used for the UTM/GZD grid label.
+    Regression coverage for the 2026-08-05 fix: nudging this label
+    away from its polygon's centroid (rather than sitting exactly on
+    it, where a 100km square's own centred label is also anchored at
+    matching zoom levels) reduces how often the two even compete for
+    the same screen space.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        self.layer = UTMGridGenerator().generate(EXTENT)
+
+        self.manager = GridLabelManager()
+
+
+    def test_label_is_offset_up_and_left_of_its_anchor(self):
+
+        self.manager.apply_label(self.layer, "GZD")
+
+        settings = self.layer.labeling().settings()
+
+        # Negative x/y - confirmed live elsewhere in this module that
+        # PAL offsets are positive-right/positive-down, so negative
+        # is up-left.
+        self.assertLess(settings.xOffset, 0)
+        self.assertLess(settings.yOffset, 0)
+
+        self.assertEqual(
+            settings.offsetUnits,
+            Qgis.RenderUnit.Millimeters
+        )
 
 
 class TestCornerOffsetSigns(QgisTestCase):

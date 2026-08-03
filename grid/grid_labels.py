@@ -33,6 +33,16 @@ class GridLabelManager:
 
 
 
+    # How far, top-left of its anchor point, to nudge the UTM/GZD
+    # label - reduces the odds of it landing exactly on top of a
+    # 100km square's own corner/center label in the first place,
+    # rather than relying solely on priority (below) and layer
+    # z-order to sort out a collision after the fact. Confirmed live
+    # (2026-08-05): combined with SQUARE_LABEL_PRIORITY, this leaves
+    # every case checked overlap-free.
+    GZD_LABEL_OFFSET_MM = 12
+
+
     def apply_label(
         self,
         layer,
@@ -58,9 +68,24 @@ class GridLabelManager:
             Qgis.LabelPlacement.OverPoint
         )
 
+        # Nudged up and left from its anchor point (negative x/y -
+        # confirmed live that PAL's offsets are positive-right/
+        # positive-down, so negative is up-left) rather than sitting
+        # exactly on the polygon's own centroid, which is where a
+        # 100km square's centred label is also anchored at matching
+        # zoom levels - reduces how often the two even compete for
+        # the same screen space.
+        settings.xOffset = -self.GZD_LABEL_OFFSET_MM
+        settings.yOffset = -self.GZD_LABEL_OFFSET_MM
+
+        settings.offsetUnits = (
+            Qgis.RenderUnit.Millimeters
+        )
+
         # Low priority: this is background context (the whole
         # GZD), so it should yield to the sub-grid's tick labels
-        # rather than fight them for the same screen space.
+        # AND the 100km square labels (SQUARE_LABEL_PRIORITY)
+        # rather than fight either for the same screen space.
         settings.priority = 1
 
         # displayAll bypasses PAL's collision suppression, so
@@ -124,6 +149,15 @@ class GridLabelManager:
     SQUARE_LABEL_SIZE = 14
 
 
+    # Above the UTM/GZD label's priority (1) so a 100km square's own
+    # label wins whenever the two still end up competing for the same
+    # screen space (belt-and-suspenders alongside GZD_LABEL_OFFSET_MM
+    # above) - but below the sub-grid tick labels' priority (9, see
+    # mgrs_sub_grid.py), preserving the intended fine-to-coarse
+    # hierarchy: sub-grid > 100km square > UTM GZD.
+    SQUARE_LABEL_PRIORITY = 5
+
+
     def _centered_settings(self, field, size):
 
         """
@@ -142,10 +176,11 @@ class GridLabelManager:
             Qgis.LabelPlacement.OverPoint
         )
 
-        # Background context, like the UTM GZD label - low
-        # priority plus displayAll so it fades into a watermark
-        # under the sub-grid's labels instead of disappearing.
-        settings.priority = 1
+        # Above the UTM GZD label's priority, below the sub-grid's -
+        # see SQUARE_LABEL_PRIORITY. displayAll still keeps this a
+        # watermark against the sub-grid's own labels rather than
+        # disappearing outright when it loses that fight.
+        settings.priority = self.SQUARE_LABEL_PRIORITY
 
         settings.displayAll = True
 
@@ -241,7 +276,9 @@ class GridLabelManager:
             Qgis.RenderUnit.Millimeters
         )
 
-        settings.priority = 1
+        # Above the UTM GZD label's priority, below the sub-grid's -
+        # see SQUARE_LABEL_PRIORITY.
+        settings.priority = self.SQUARE_LABEL_PRIORITY
 
         settings.displayAll = True
 
