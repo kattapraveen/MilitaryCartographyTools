@@ -101,7 +101,7 @@ class GridManager:
         self.labels.apply_label(
             layer,
             "GZD",
-            30
+            22
         )
 
         group = self.layers.get_group()

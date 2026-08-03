@@ -116,11 +116,12 @@ class GridLabelManager:
     CENTER_LABEL_MAX_SCALE = 3000000
 
 
-    # Smaller than the zoomed-in centered/corner size (24) - used
-    # once corner labels have already dropped out (see
-    # apply_square_label), where many more squares tend to be on
-    # screen at once and a large font makes the pile-up worse.
-    CENTER_LABEL_FAR_SIZE = 14
+    # Shared by both the zoomed-in corner labels and the zoomed-out
+    # centred label (see apply_square_label) - matched 2026-08-03 so
+    # a square's label reads the same size whether it's showing at
+    # its corners or centred, rather than shrinking on the far side
+    # of the corner_scale_threshold cutover.
+    SQUARE_LABEL_SIZE = 14
 
 
     def _centered_settings(self, field, size):
@@ -256,7 +257,7 @@ class GridLabelManager:
         self,
         layer,
         field,
-        corner_size=24,
+        corner_size=None,
         corner_gap_mm=12,
         corner_scale_threshold=250000,
         center_far_size=None,
@@ -274,11 +275,11 @@ class GridLabelManager:
           so every corner on screen unambiguously shows which
           square it belongs to.
         - Zoomed out at or beyond corner_scale_threshold (no
-          more corner labels): one centred label per square,
-          smaller, with no offset - a square may now be only a
-          few millimetres across, so a fixed offset that's safe
-          zoomed in would push the label past its own edge and
-          into a neighbouring square instead.
+          more corner labels): one centred label per square, same
+          size as the corner labels, with no offset - a square may
+          now be only a few millimetres across, so a fixed offset
+          that's safe zoomed in would push the label past its own
+          edge and into a neighbouring square instead.
         - Zoomed out beyond center_max_scale: no per-square label
           at all, since that many squares' worth of labels piling
           up (displayAll bypasses PAL's own collision suppression)
@@ -293,12 +294,19 @@ class GridLabelManager:
         the same square rather than a helpful fallback. The
         traded-away edge case (deep zoom, no corner in view) now
         shows no label for that square until you pan enough to see
-        one of its corners or zoom out past corner_scale_threshold.
+        one of its corners or zoom out past corner_scale_threshold -
+        confirmed as an accepted limitation (not a bug) rather than
+        something worth the added rule-engine complexity to fix; see
+        the roadmap's 100km-label entry.
         """
+
+        if corner_size is None:
+
+            corner_size = self.SQUARE_LABEL_SIZE
 
         if center_far_size is None:
 
-            center_far_size = self.CENTER_LABEL_FAR_SIZE
+            center_far_size = self.SQUARE_LABEL_SIZE
 
         if center_max_scale is None:
 

@@ -140,8 +140,11 @@ class TestApplySquareLabel(QgisTestCase):
         )
 
 
-    def test_far_rule_uses_smaller_default_font_than_corner_labels(self):
+    def test_far_rule_uses_same_default_font_size_as_corner_labels(self):
 
+        # Matched 2026-08-03: corner and centred labels use the same
+        # default size (SQUARE_LABEL_SIZE) so a square's label reads
+        # consistently across the corner_scale_threshold cutover.
         self.manager.apply_square_label(self.layer, "100K")
 
         root = self.layer.labeling().rootRule()
@@ -157,7 +160,8 @@ class TestApplySquareLabel(QgisTestCase):
         corner_size = corner_rule.settings().format().size()
         far_size = far.settings().format().size()
 
-        self.assertLess(far_size, corner_size)
+        self.assertEqual(far_size, corner_size)
+        self.assertEqual(far_size, self.manager.SQUARE_LABEL_SIZE)
 
 
     def test_corner_rules_still_gated_to_zoomed_in_only(self):
