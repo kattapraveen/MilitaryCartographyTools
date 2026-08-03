@@ -13,6 +13,7 @@ any test module runs) rather than per test case.
 Military Cartography Tools
 """
 
+import atexit
 import unittest
 
 from qgis.core import QgsApplication, QgsProject, QgsCoordinateReferenceSystem
@@ -52,6 +53,16 @@ def start_app():
         from processing.core.Processing import Processing
 
         Processing.initialize()
+
+        # An orderly QGIS/GDAL provider shutdown via atexit, run
+        # before Python's own uncontrolled interpreter teardown
+        # begins, rather than leaving it to whatever destruction
+        # order happens naturally at process exit - confirmed
+        # necessary after the terrain/ tests (the first in this
+        # suite to use Processing/GDAL raster I/O directly) segfaulted
+        # at process exit, strictly after every test had already
+        # passed, only when run through the real unittest runner.
+        atexit.register(_qgs_app.exitQgis)
 
     return _qgs_app
 
