@@ -14,15 +14,17 @@ military grid generation, and automated print-layout production.
 - [New Military Layout](#new-military-layout)
 - [Military Layout Settings panel](#military-layout-settings-panel)
 - [Print-layout grid frame](#print-layout-grid-frame)
+- [Tanaka Contours](#tanaka-contours)
 - [Expression functions](#expression-functions)
 
 ---
 
 ## Installation
 
-Requires QGIS 4.0 or later. Install from the QGIS Plugin Repository (once
-published — see the plugin's `metadata.txt` for its current status), or
-manually:
+Requires QGIS 3.44 or later. Install from the [official QGIS Plugin
+Repository](https://plugins.qgis.org) — the plugin is currently listed as
+experimental, so tick **"Show also experimental plugins"** under **Plugins
+→ Manage and Install Plugins → Settings** first — or manually:
 
 1. Copy the `MilitaryCartographyTools` folder into your QGIS plugins
    directory (`Settings → User Profiles → Open Active Profile Folder →
@@ -46,6 +48,7 @@ Left to right:
 | Grid with a red X | Clear Grid — remove every grid layer |
 | Crosshair reticle | Coordinate Probe |
 | Page with a heading bar and a small map | New Military Layout |
+| Illuminated concentric rings | Tanaka Contours |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -154,6 +157,40 @@ Each Layout Designer window's own small toolbar has:
 
 This is the standard topographic/military-map convention: ticks and numbers
 on the neatline rather than labels drawn over the map content.
+
+---
+
+## Tanaka Contours
+
+Click the illuminated-rings icon to generate **Tanaka contours** — contour
+lines whose width and color vary by local terrain illumination, giving a
+sense of relief without needing a hillshade raster underneath. Requires a
+DEM (elevation raster) layer already loaded in your project; this plugin
+doesn't fetch or download one for you (see "Getting a DEM" below).
+
+The dialog asks for:
+
+| Field | Notes |
+|---|---|
+| DEM layer | Any loaded raster layer |
+| Contour interval | Vertical spacing between contour lines, in metres |
+| Segment length | How finely each contour is subdivided for illumination to vary smoothly along it, in metres — smaller values give a smoother gradient at the cost of more features |
+| Light azimuth | Direction the virtual light comes from, in degrees (0 = north). Defaults to 315° (north-west), matching QGIS's own hillshade default |
+| Min/max line width | Line width at fully-lit and fully-shadowed, in mm |
+| Lit color / Shadow color | Colors blended between based on each segment's illumination |
+
+Contours are generated for the **current map canvas extent** only (not the
+whole DEM), clipped and reprojected to the appropriate local UTM zone
+automatically — pan/zoom to the area you want first. On a large DEM, keep
+the extent reasonably small (a few kilometres across) for fast generation.
+
+### Getting a DEM
+
+This plugin doesn't include a DEM downloader — that's a generic GIS task
+already well covered elsewhere. If you don't already have elevation data
+for your area, options include QGIS's own **Data Source Manager** (WCS
+connections), or a dedicated plugin such as **SRTM Downloader** (via
+**Plugins → Manage and Install Plugins**).
 
 ---
 
