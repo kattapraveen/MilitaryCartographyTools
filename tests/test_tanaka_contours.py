@@ -10,17 +10,30 @@ Military Cartography Tools
 import os
 import tempfile
 
-from qgis.core import QgsGeometry, QgsPointXY, QgsRasterLayer, QgsRectangle
+from qgis.core import (
+    QgsExpressionContext,
+    QgsFeature,
+    QgsGeometry,
+    QgsPointXY,
+    QgsRasterLayer,
+    QgsRectangle,
+    QgsSymbolLayer,
+    QgsVectorLayer,
+)
+from qgis.PyQt.QtGui import QColor
 
 from .qgis_test_case import QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
 from MilitaryCartographyTools.terrain.tanaka_contours import (
+    _apply_style,
     _hypsometric_color,
     _light_vector,
     _segment_illumination,
     generate_tanaka_contours,
     LAND_RAMP,
+    MONOCHROME_LIT_GRAY,
+    MONOCHROME_SHADOW_GRAY,
     SEA_RAMP,
 )
 
@@ -176,6 +189,93 @@ class TestHypsometricColor(QgisTestCase):
             _hypsometric_color(250.0, min_elevation=250.0, max_elevation=250.0),
             LAND_RAMP[0][1]
         )
+
+
+class TestMonochromeStyle(QgisTestCase):
+
+    """
+    _apply_style()'s monochrome=True mode - a plain grayscale blend
+    driven by ILLUM instead of the R/G/B hypsometric fields, for the
+    classic monochrome Tanaka look. Evaluates the actual data-defined
+    QgsProperty against synthetic features rather than just
+    string-matching the expression, so a change that keeps the same
+    text but breaks evaluation wouldn't slip through silently.
+    """
+
+    def _styled_layer(self, monochrome):
+
+        layer = QgsVectorLayer(
+            "LineString?crs=EPSG:32737&field=ELEV:double&field=ILLUM:double"
+            "&field=R:int&field=G:int&field=B:int",
+            "test",
+            "memory"
+        )
+
+        _apply_style(layer, 0.15, 0.6, monochrome=monochrome)
+
+        return layer
+
+
+    def _stroke_color_for(self, layer, illum):
+
+        symbol_layer = layer.renderer().symbol().symbolLayer(0)
+
+        prop = symbol_layer.dataDefinedProperties().property(
+            QgsSymbolLayer.Property.StrokeColor
+        )
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setAttribute("ILLUM", illum)
+
+        context = QgsExpressionContext()
+
+        context.setFeature(feature)
+        context.setFields(layer.fields())
+
+        color, ok = prop.valueAsColor(context, QColor())
+
+        self.assertTrue(ok)
+
+        return color
+
+
+    def test_shadowed_feature_is_dark_gray(self):
+
+        layer = self._styled_layer(monochrome=True)
+
+        color = self._stroke_color_for(layer, -1.0)
+
+        self.assertEqual(
+            (color.red(), color.green(), color.blue()),
+            (MONOCHROME_SHADOW_GRAY,) * 3
+        )
+
+
+    def test_lit_feature_is_light_gray(self):
+
+        layer = self._styled_layer(monochrome=True)
+
+        color = self._stroke_color_for(layer, 1.0)
+
+        self.assertEqual(
+            (color.red(), color.green(), color.blue()),
+            (MONOCHROME_LIT_GRAY,) * 3
+        )
+
+
+    def test_default_mode_is_not_monochrome(self):
+
+        layer = self._styled_layer(monochrome=False)
+
+        symbol_layer = layer.renderer().symbol().symbolLayer(0)
+
+        expression = symbol_layer.dataDefinedProperties().property(
+            QgsSymbolLayer.Property.StrokeColor
+        ).expressionString()
+
+        self.assertIn('"R"', expression)
+        self.assertNotIn("color_mix_rgb", expression)
 
 
 class TestSegmentIllumination(QgisTestCase):

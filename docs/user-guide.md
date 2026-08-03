@@ -163,18 +163,25 @@ on the neatline rather than labels drawn over the map content.
 ## Tanaka Contours
 
 Click the illuminated-rings icon to generate **Tanaka contours** — contour
-lines whose *width* varies by local terrain illumination (giving a sense of
-relief without needing a hillshade raster underneath) and whose *color*
-varies by elevation, using the standard hypsometric ("layer tint")
-convention topographic/military maps use: shades of blue below sea level,
-then green → yellow → brown → red → white with increasing elevation above
-it. The colour range is stretched across whichever elevations are actually
-present in the area you generate — so the lowest point on screen is always
-green and the highest is always white, regardless of whether that area sits
-at 50m or 5,000m — rather than a fixed global scale, which would leave a
-single small-extent generation looking almost one flat colour. Requires a
-DEM (elevation raster) layer already loaded in your project; this plugin
-doesn't fetch or download one for you (see "Getting a DEM" below).
+lines whose *width* always varies by local terrain illumination (giving a
+sense of relief without needing a hillshade raster underneath). *Color* is
+either:
+
+- **Elevation color** (default) — the standard hypsometric ("layer tint")
+  convention topographic/military maps use: shades of blue below sea level,
+  then green → yellow → brown → red → white with increasing elevation above
+  it. The colour range is stretched across whichever elevations are actually
+  present in the area you generate — so the lowest point on screen is always
+  green and the highest is always white, regardless of whether that area
+  sits at 50m or 5,000m — rather than a fixed global scale, which would
+  leave a single small-extent generation looking almost one flat colour.
+- **Monochrome** — the classic grayscale Tanaka look, where color (dark
+  where shadowed, light where lit) comes from the same illumination value
+  as the line width, instead of elevation.
+
+Requires a DEM (elevation raster) layer already loaded in your project;
+this plugin doesn't fetch or download one for you (see "Getting a DEM"
+below).
 
 The dialog asks for:
 
@@ -185,6 +192,7 @@ The dialog asks for:
 | Segment length | How finely each contour is subdivided for illumination to vary smoothly along it, in metres — smaller values give a smoother gradient at the cost of more features |
 | Light azimuth | Direction the virtual light comes from, in degrees (0 = north). Defaults to 315° (north-west), matching QGIS's own hillshade default |
 | Min/max line width | Line width at fully-lit and fully-shadowed, in mm |
+| Monochrome | Off by default (elevation color). Check this for the classic grayscale-by-illumination look instead |
 | Add as new layer | Off by default — re-running the dialog corrects the existing "Tanaka Contours" layer in place. Check this to keep the previous layer and add a new one alongside it instead, e.g. to compare two parameter sets |
 
 Contours are generated for the **current map canvas extent** only (not the

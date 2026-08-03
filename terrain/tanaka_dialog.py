@@ -131,6 +131,14 @@ class TanakaContourDialog(QDialog):
             DEFAULT_MAX_WIDTH_MM
         )
 
+        self.monochrome_checkbox = QCheckBox(
+            "Monochrome (grayscale by illumination, not elevation color)"
+        )
+
+        self.monochrome_checkbox.setChecked(
+            False
+        )
+
         self.new_layer_checkbox = QCheckBox(
             "Add as new layer (keep the existing one)"
         )
@@ -147,6 +155,7 @@ class TanakaContourDialog(QDialog):
         form.addRow("Light azimuth", self.azimuth_spin)
         form.addRow("Min line width (lit)", self.min_width_spin)
         form.addRow("Max line width (shadow)", self.max_width_spin)
+        form.addRow(self.monochrome_checkbox)
         form.addRow(self.new_layer_checkbox)
 
         buttons = QDialogButtonBox(
@@ -181,6 +190,7 @@ class TanakaContourDialog(QDialog):
             "light_azimuth_deg": self.azimuth_spin.value(),
             "min_width_mm": self.min_width_spin.value(),
             "max_width_mm": self.max_width_spin.value(),
+            "monochrome": self.monochrome_checkbox.isChecked(),
             "add_as_new_layer": self.new_layer_checkbox.isChecked(),
         }
 
@@ -226,7 +236,8 @@ def generate_from_dialog_values(iface, values):
         segment_length=values["segment_length"],
         light_azimuth_deg=values["light_azimuth_deg"],
         min_width_mm=values["min_width_mm"],
-        max_width_mm=values["max_width_mm"]
+        max_width_mm=values["max_width_mm"],
+        monochrome=values["monochrome"]
     )
 
 

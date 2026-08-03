@@ -18,7 +18,13 @@ Military Cartography Tools
 import os
 import tempfile
 
-from qgis.core import QgsCoordinateReferenceSystem, QgsProject, QgsRasterLayer, QgsRectangle
+from qgis.core import (
+    QgsCoordinateReferenceSystem,
+    QgsProject,
+    QgsRasterLayer,
+    QgsRectangle,
+    QgsSymbolLayer,
+)
 
 from .qgis_test_case import FakeIface, QgisTestCase, make_canvas
 
@@ -96,7 +102,7 @@ class TestGenerateFromDialogValues(QgisTestCase):
             pass
 
 
-    def _values(self, add_as_new_layer=False):
+    def _values(self, add_as_new_layer=False, monochrome=False):
 
         return {
             "dem_layer": self.dem_layer,
@@ -105,6 +111,7 @@ class TestGenerateFromDialogValues(QgisTestCase):
             "light_azimuth_deg": 315.0,
             "min_width_mm": 0.15,
             "max_width_mm": 0.6,
+            "monochrome": monochrome,
             "add_as_new_layer": add_as_new_layer,
         }
 
@@ -140,6 +147,49 @@ class TestGenerateFromDialogValues(QgisTestCase):
         # project, not just shadowed by name.
         self.assertIsNone(
             QgsProject.instance().mapLayer(first_id)
+        )
+
+
+    def test_monochrome_flag_reaches_the_generated_symbol(self):
+
+        def stroke_color_expression(layer):
+
+            symbol_layer = layer.renderer().symbol().symbolLayer(0)
+
+            return symbol_layer.dataDefinedProperties().property(
+                QgsSymbolLayer.Property.StrokeColor
+            ).expressionString()
+
+        # add_as_new_layer=True on both, so the second call doesn't
+        # remove the first result out from under this test (default
+        # replace-in-place behaviour is covered separately above).
+        color_result = generate_from_dialog_values(
+            self.iface,
+            self._values(monochrome=False, add_as_new_layer=True)
+        )
+
+        color_expression = stroke_color_expression(color_result)
+
+        monochrome_result = generate_from_dialog_values(
+            self.iface,
+            self._values(monochrome=True, add_as_new_layer=True)
+        )
+
+        monochrome_expression = stroke_color_expression(monochrome_result)
+
+        self.assertIn(
+            'color_rgb("R", "G", "B")',
+            color_expression
+        )
+
+        self.assertIn(
+            "color_mix_rgb",
+            monochrome_expression
+        )
+
+        self.assertNotIn(
+            '"R"',
+            stroke_color_expression(monochrome_result)
         )
 
 

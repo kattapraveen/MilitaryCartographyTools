@@ -455,15 +455,31 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
     return output_layer
 
 
-def _apply_style(layer, min_width_mm, max_width_mm):
+# Monochrome mode's grayscale range - dark shadow-grey to near-white
+# lit, not full 0-255 black-to-white, so even a fully-shadowed
+# segment stays legible against a white page background rather than
+# vanishing into pure black.
+MONOCHROME_SHADOW_GRAY = 40
+MONOCHROME_LIT_GRAY = 235
+
+
+def _apply_style(layer, min_width_mm, max_width_mm, monochrome=False):
 
     """
-    One line symbol whose width is data-defined by each feature's
-    own ILLUM value (thin where illuminated, thick where shadowed -
-    the classic Tanaka relief effect) and whose color is data-defined
-    by its own precomputed R/G/B hypsometric-tint fields (see
-    _hypsometric_color()) - width still carries the illumination
-    shading, color now carries elevation instead of light/shadow.
+    One line symbol whose width is always data-defined by each
+    feature's own ILLUM value (thin where illuminated, thick where
+    shadowed - the classic Tanaka relief effect).
+
+    Color is data-defined two different ways depending on
+    monochrome:
+    - False (default): each feature's own precomputed R/G/B
+      hypsometric-tint fields (see _hypsometric_color()) - color
+      carries elevation, independently of the illumination-driven
+      width.
+    - True: a grayscale blend driven by ILLUM instead (dark where
+      shadowed, light where lit) - the classic monochrome Tanaka
+      look, where both width and tone come from the same
+      illumination value.
     """
 
     symbol = QgsLineSymbol.createSimple(
@@ -483,10 +499,23 @@ def _apply_style(layer, min_width_mm, max_width_mm):
         )
     )
 
+    if monochrome:
+
+        color_expression = (
+            "color_mix_rgb("
+            f"color_rgb({MONOCHROME_SHADOW_GRAY}, {MONOCHROME_SHADOW_GRAY}, {MONOCHROME_SHADOW_GRAY}), "
+            f"color_rgb({MONOCHROME_LIT_GRAY}, {MONOCHROME_LIT_GRAY}, {MONOCHROME_LIT_GRAY}), "
+            'scale_linear("ILLUM", -1, 1, 0, 1))'
+        )
+
+    else:
+
+        color_expression = 'color_rgb("R", "G", "B")'
+
     symbol_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.StrokeColor,
         QgsProperty.fromExpression(
-            'color_rgb("R", "G", "B")'
+            color_expression
         )
     )
 
@@ -505,17 +534,20 @@ def generate_tanaka_contours(
     segment_length=DEFAULT_SEGMENT_LENGTH,
     light_azimuth_deg=DEFAULT_LIGHT_AZIMUTH,
     min_width_mm=DEFAULT_MIN_WIDTH_MM,
-    max_width_mm=DEFAULT_MAX_WIDTH_MM
+    max_width_mm=DEFAULT_MAX_WIDTH_MM,
+    monochrome=False
 ):
 
     """
     Build a Tanaka (illuminated) contour layer from dem_layer,
-    clipped to extent. Line width is data-defined by local terrain
-    illumination relative to light_azimuth_deg (thin where lit, thick
-    where shadowed); color is data-defined by each contour's own
-    elevation, per the standard hypsometric convention (see
-    _hypsometric_color()). Adds the result to the current project
-    and returns it.
+    clipped to extent. Line width is always data-defined by local
+    terrain illumination relative to light_azimuth_deg (thin where
+    lit, thick where shadowed). Color is data-defined by each
+    contour's own elevation, per the standard hypsometric convention
+    (see _hypsometric_color()), unless monochrome=True, in which case
+    it's a grayscale blend driven by illumination instead (the
+    classic monochrome Tanaka look). Adds the result to the current
+    project and returns it.
     """
 
     clipped_dem = _clip_and_reproject(
@@ -540,7 +572,8 @@ def generate_tanaka_contours(
     _apply_style(
         output_layer,
         min_width_mm,
-        max_width_mm
+        max_width_mm,
+        monochrome=monochrome
     )
 
     QgsProject.instance().addMapLayer(
