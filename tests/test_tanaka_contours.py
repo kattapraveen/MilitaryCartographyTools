@@ -20,8 +20,8 @@ from MilitaryCartographyTools.terrain.tanaka_contours import (
     _light_vector,
     _segment_illumination,
     generate_tanaka_contours,
-    LAND_STOPS,
-    SEA_LEVEL_STOPS,
+    LAND_RAMP,
+    SEA_RAMP,
 )
 
 
@@ -71,53 +71,81 @@ class TestLightVector(QgisTestCase):
 class TestHypsometricColor(QgisTestCase):
 
     """
-    _hypsometric_color() - the fixed blue-below-sea-level,
-    green-through-white-above-it colour convention (SEA_LEVEL_STOPS/
-    LAND_STOPS), keyed purely on a contour's own elevation.
+    _hypsometric_color() - the blue-below-sea-level,
+    green-through-white-above-it colour convention (SEA_RAMP/
+    LAND_RAMP), normalised against each generation's own min/max
+    elevation rather than a fixed global scale.
+
+    The normalisation is the fix for a real complaint: a first
+    version keyed straight off fixed absolute elevation anchors, and
+    a real Tanzania DEM clip - whose local relief only spanned a
+    few hundred metres, all within one narrow band of that global
+    scale - came out almost entirely one shade of brown. Confirmed
+    live against the user's own report before rewriting this.
     """
 
-    def test_deep_ocean_matches_lowest_sea_stop(self):
+    def test_inland_dataset_reaches_both_ends_of_the_land_ramp(self):
+
+        # No negative elevations anywhere in this generation's own
+        # output (the common case - a single inland AOI), regardless
+        # of how high up that range actually sits.
+        self.assertEqual(
+            _hypsometric_color(1200.0, min_elevation=1200.0, max_elevation=1400.0),
+            LAND_RAMP[0][1]
+        )
 
         self.assertEqual(
-            _hypsometric_color(-999999),
-            SEA_LEVEL_STOPS[0][1]
+            _hypsometric_color(1400.0, min_elevation=1200.0, max_elevation=1400.0),
+            LAND_RAMP[-1][1]
         )
 
 
-    def test_high_peak_matches_highest_land_stop(self):
+    def test_coastal_dataset_still_anchors_land_and_sea_at_zero(self):
+
+        # A real coastline present in this generation's own output -
+        # land and sea are each normalised over their own side,
+        # anchored at 0 rather than at this dataset's own min/max.
+        self.assertEqual(
+            _hypsometric_color(0.0, min_elevation=-500.0, max_elevation=1000.0),
+            LAND_RAMP[0][1]
+        )
 
         self.assertEqual(
-            _hypsometric_color(999999),
-            LAND_STOPS[-1][1]
+            _hypsometric_color(1000.0, min_elevation=-500.0, max_elevation=1000.0),
+            LAND_RAMP[-1][1]
+        )
+
+        self.assertEqual(
+            _hypsometric_color(-500.0, min_elevation=-500.0, max_elevation=1000.0),
+            SEA_RAMP[-1][1]
         )
 
 
-    def test_just_above_sea_level_uses_land_stops_not_sea_stops(self):
+    def test_out_of_range_elevation_clamps_rather_than_extrapolates(self):
 
-        # 0 itself is the boundary - LAND_STOPS (not SEA_LEVEL_STOPS)
-        # owns it, per _hypsometric_color()'s "elevation < 0" test.
         self.assertEqual(
-            _hypsometric_color(0.0),
-            LAND_STOPS[0][1]
+            _hypsometric_color(-100.0, min_elevation=0.0, max_elevation=500.0),
+            LAND_RAMP[0][1]
+        )
+
+        self.assertEqual(
+            _hypsometric_color(9999.0, min_elevation=0.0, max_elevation=500.0),
+            LAND_RAMP[-1][1]
         )
 
 
-    def test_just_below_sea_level_uses_sea_stops(self):
+    def test_interpolates_between_adjacent_land_ramp_stops(self):
 
-        self.assertEqual(
-            _hypsometric_color(-0.5),
-            SEA_LEVEL_STOPS[-1][1]
+        fraction_a, color_a = LAND_RAMP[0]
+        fraction_b, color_b = LAND_RAMP[1]
+
+        midpoint_fraction = (fraction_a + fraction_b) / 2
+
+        elevation = midpoint_fraction * 1000.0
+
+        red, green, blue = _hypsometric_color(
+            elevation, min_elevation=0.0, max_elevation=1000.0
         )
-
-
-    def test_interpolates_between_adjacent_land_stops(self):
-
-        elev_a, color_a = LAND_STOPS[0]
-        elev_b, color_b = LAND_STOPS[1]
-
-        midpoint = (elev_a + elev_b) / 2
-
-        red, green, blue = _hypsometric_color(midpoint)
 
         for channel, low, high in zip(
             (red, green, blue), color_a, color_b
@@ -131,13 +159,23 @@ class TestHypsometricColor(QgisTestCase):
 
         # A real hypsometric tint jumps at the coastline rather than
         # fading through it - colours right at 0 shouldn't sit
-        # "between" the two tables.
-        just_below = _hypsometric_color(-0.001)
-        at_sea_level = _hypsometric_color(0.0)
+        # "between" the two ramps.
+        just_below = _hypsometric_color(-0.001, min_elevation=-1000.0, max_elevation=1000.0)
+        at_sea_level = _hypsometric_color(0.0, min_elevation=-1000.0, max_elevation=1000.0)
 
-        self.assertEqual(just_below, SEA_LEVEL_STOPS[-1][1])
-        self.assertEqual(at_sea_level, LAND_STOPS[0][1])
+        self.assertEqual(just_below, SEA_RAMP[0][1])
+        self.assertEqual(at_sea_level, LAND_RAMP[0][1])
         self.assertNotEqual(just_below, at_sea_level)
+
+
+    def test_flat_dataset_does_not_divide_by_zero(self):
+
+        # min == max (every contour at the exact same elevation) -
+        # must resolve deterministically rather than raising.
+        self.assertEqual(
+            _hypsometric_color(250.0, min_elevation=250.0, max_elevation=250.0),
+            LAND_RAMP[0][1]
+        )
 
 
 class TestSegmentIllumination(QgisTestCase):
@@ -336,12 +374,24 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
 
         # The synthetic DEM's elevations (col * 10.0, 40 columns) are
         # all >= 0, so every segment's colour should come from
-        # LAND_STOPS - each channel a valid 0-255 int, and matching
+        # LAND_RAMP, normalised against this output's own min/max
+        # elevation - each channel a valid 0-255 int, and matching
         # what _hypsometric_color() itself would produce for that
-        # segment's own ELEV.
+        # segment's own ELEV against that same range.
+        elev_values = [f["ELEV"] for f in output.getFeatures()]
+
+        min_elev, max_elev = min(elev_values), max(elev_values)
+
+        # A real colour spread requires an actual elevation range to
+        # normalise against - guards against this test accidentally
+        # passing vacuously if the synthetic DEM stopped varying.
+        self.assertGreater(max_elev, min_elev)
+
         for feature in output.getFeatures():
 
-            expected = _hypsometric_color(feature["ELEV"])
+            expected = _hypsometric_color(
+                feature["ELEV"], min_elev, max_elev
+            )
 
             actual = (feature["R"], feature["G"], feature["B"])
 
@@ -351,6 +401,23 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
 
                 self.assertGreaterEqual(channel, 0)
                 self.assertLessEqual(channel, 255)
+
+        # The whole ramp should actually be exercised end to end -
+        # the lowest-elevation segment should be tinted with
+        # LAND_RAMP's first stop, the highest with its last, not
+        # some narrow slice of it (the original, monochromatic bug).
+        lowest = min(output.getFeatures(), key=lambda f: f["ELEV"])
+        highest = max(output.getFeatures(), key=lambda f: f["ELEV"])
+
+        self.assertEqual(
+            (lowest["R"], lowest["G"], lowest["B"]),
+            LAND_RAMP[0][1]
+        )
+
+        self.assertEqual(
+            (highest["R"], highest["G"], highest["B"]),
+            LAND_RAMP[-1][1]
+        )
 
         # The slope rises eastward everywhere, so every contour's
         # uphill direction is east - with the default NW light

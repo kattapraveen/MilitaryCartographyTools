@@ -168,9 +168,13 @@ relief without needing a hillshade raster underneath) and whose *color*
 varies by elevation, using the standard hypsometric ("layer tint")
 convention topographic/military maps use: shades of blue below sea level,
 then green → yellow → brown → red → white with increasing elevation above
-it. Requires a DEM (elevation raster) layer already loaded in your project;
-this plugin doesn't fetch or download one for you (see "Getting a DEM"
-below).
+it. The colour range is stretched across whichever elevations are actually
+present in the area you generate — so the lowest point on screen is always
+green and the highest is always white, regardless of whether that area sits
+at 50m or 5,000m — rather than a fixed global scale, which would leave a
+single small-extent generation looking almost one flat colour. Requires a
+DEM (elevation raster) layer already loaded in your project; this plugin
+doesn't fetch or download one for you (see "Getting a DEM" below).
 
 The dialog asks for:
 
