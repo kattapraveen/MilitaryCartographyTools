@@ -76,7 +76,7 @@ first `setExtent()` call - no post-hoc resizing needed.
 
 **Status: Complete.** The remaining grid reference box item was decided not needed 2026-07-27.
 
-A reference layout PDF ("EX PANGANI" sketch) was reviewed against this suite earlier in the 2026-07-27 session; three more elements it showed were considered and explicitly not built: a unit badge/crest logo (out of scope entirely), corner coordinate readouts at the four page corners, and 100km-square letter labels at grid corners (decided not needed) — plus an annex reference block (e.g. "ANNEX P TO INDEX 3 / REFERS TO PARA 2", top-right), deliberately deferred rather than ruled out, since it's specific to this one reference document and building it now would over-fit the plugin to one user's exact use case rather than staying broadly usable.
+A reference layout PDF ("EX EXPERIMENT" sketch) was reviewed against this suite earlier in the 2026-07-27 session; three more elements it showed were considered and explicitly not built: a unit badge/crest logo (out of scope entirely), corner coordinate readouts at the four page corners, and 100km-square letter labels at grid corners (decided not needed) — plus an annex reference block (e.g. "ANNEX P TO INDEX 3 / REFERS TO PARA 2", top-right), deliberately deferred rather than ruled out, since it's specific to this one reference document and building it now would over-fit the plugin to one user's exact use case rather than staying broadly usable.
 
 ---
 

@@ -191,7 +191,7 @@ class TestCreateAndUpdateLayout(QgisTestCase):
             297.0,
             210.0,
             50000,
-            heading_lines=["Ex Pangani"],
+            heading_lines=["Ex Experiment"],
             classification="SECRET",
         )
 
@@ -199,7 +199,7 @@ class TestCreateAndUpdateLayout(QgisTestCase):
         classification_item = layout.itemById("mct_classification_top")
 
         self.assertIsNotNone(heading_item)
-        self.assertEqual(heading_item.text(), "EX PANGANI")
+        self.assertEqual(heading_item.text(), "EX EXPERIMENT")
         self.assertIsNotNone(classification_item)
         self.assertEqual(classification_item.text(), "SECRET")
 
