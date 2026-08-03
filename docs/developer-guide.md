@@ -117,6 +117,23 @@ shared `FakeIface`:
 
 ## PyQGIS / QGIS 4.x gotchas
 
+- `QgsPalLayerSettings.yOffset` is positive-**down** on screen, not
+  positive-up - confirmed by rendering a single offset label via
+  `QgsMapRendererParallelJob` and inspecting the actual pixels. Easy to
+  get backwards if you reason about it as a map/mathematical offset
+  rather than a screen-space one; `xOffset` is positive-right as expected.
+  A real bug shipped from exactly this assumption - see
+  `grid/grid_labels.py`'s `CORNERS` list and its 2026-08-03 fix note.
+- `@map_scale` (and other map-settings expression variables) are **not**
+  populated in a bare `QgsMapSettings` used with `QgsMapRendererParallelJob`
+  - unlike a real running `QgsMapCanvas`, which populates them
+  automatically. A scale-filtered rule-based labeling/renderer rule will
+  silently fail to match anything (rendering nothing, no error) unless you
+  explicitly attach an expression context built with
+  `QgsExpressionContextUtils.mapSettingsScope(map_settings)` (plus the
+  global/project scopes) via `map_settings.setExpressionContext(...)`,
+  built *after* the extent/output size/CRS are already set so the
+  computed scale is correct.
 - `QgsLabelLineSettings` / `QgsPalLayerSettings.layerType` plain attribute
   assignment silently no-ops; the real setter methods must be used instead.
 - `QgsMapLayerStyleOverride` doesn't affect labeling in a layout map item's

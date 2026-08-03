@@ -2,10 +2,14 @@
 
 """
 Tests for GridLabelManager.apply_square_label() (grid/grid_labels.py)
-- specifically the scale-gated centred/corner rule split that fixes
-the two zoomed-out label bugs (labels drifting into a neighbouring
-square's box, and labels piling up too large once many squares are
-on screen).
+- the scale-gated centred/corner rule split that fixes the two
+zoomed-out label bugs (labels drifting into a neighbouring square's
+box, and labels piling up too large once many squares are on
+screen), the corner-label y_sign fix (confirmed live that PAL's
+yOffset is positive-down, not positive-up as an earlier version of
+CORNERS assumed - see grid_labels.py's own comment), and making
+corner/centred labels mutually exclusive by zoom scale rather than
+both showing at once for the same square.
 
 Military Cartography Tools
 """
@@ -54,28 +58,25 @@ class TestApplySquareLabel(QgisTestCase):
         self.manager = GridLabelManager()
 
 
-    def test_rule_set_has_two_centred_rules_and_four_corner_rules(self):
+    def test_rule_set_has_one_centred_rule_and_four_corner_rules(self):
 
+        # Corner and centred labels are mutually exclusive by zoom
+        # scale (see grid_labels.py's 2026-08-03 note) - only one
+        # centred rule now, not a near/far pair.
         self.manager.apply_square_label(self.layer, "100K")
 
         root = self.layer.labeling().rootRule()
 
-        self.assertEqual(len(root.children()), 6)
+        self.assertEqual(len(root.children()), 5)
 
 
-    def test_near_centred_rule_offsets_and_far_one_does_not(self):
+    def test_far_centred_rule_has_no_offset(self):
 
         self.manager.apply_square_label(self.layer, "100K")
 
         rules = _rules_by_description(self.layer)
 
-        near = rules["Centered, offset clear of the GZD label (zoomed in)"]
         far = rules["Centered, no offset (zoomed out)"]
-
-        self.assertEqual(
-            near.settings().yOffset,
-            GridLabelManager.CENTER_LABEL_Y_OFFSET_MM
-        )
 
         self.assertEqual(
             far.settings().yOffset,
@@ -83,8 +84,11 @@ class TestApplySquareLabel(QgisTestCase):
         )
 
 
-    def test_near_and_far_rules_partition_on_corner_scale_threshold(self):
+    def test_centred_and_corner_rules_partition_on_corner_scale_threshold(self):
 
+        # Exactly one style is ever active at a given scale: corner
+        # labels below the threshold, the centred label at or above
+        # it - never both, never neither.
         threshold = 250000
 
         self.manager.apply_square_label(
@@ -95,18 +99,27 @@ class TestApplySquareLabel(QgisTestCase):
 
         rules = _rules_by_description(self.layer)
 
-        near = rules["Centered, offset clear of the GZD label (zoomed in)"]
         far = rules["Centered, no offset (zoomed out)"]
-
-        self.assertEqual(
-            near.filterExpression(),
-            f"@map_scale < {threshold}"
-        )
 
         self.assertIn(
             f"@map_scale >= {threshold}",
             far.filterExpression()
         )
+
+        root = self.layer.labeling().rootRule()
+
+        corner_rules = [
+            rule
+            for rule in root.children()
+            if rule.description().startswith("Corner")
+        ]
+
+        for rule in corner_rules:
+
+            self.assertEqual(
+                rule.filterExpression(),
+                f"@map_scale < {threshold}"
+            )
 
 
     def test_far_rule_stops_at_center_max_scale(self):
@@ -127,19 +140,24 @@ class TestApplySquareLabel(QgisTestCase):
         )
 
 
-    def test_far_rule_uses_smaller_default_font_than_near_rule(self):
+    def test_far_rule_uses_smaller_default_font_than_corner_labels(self):
 
         self.manager.apply_square_label(self.layer, "100K")
 
-        rules = _rules_by_description(self.layer)
+        root = self.layer.labeling().rootRule()
 
-        near = rules["Centered, offset clear of the GZD label (zoomed in)"]
-        far = rules["Centered, no offset (zoomed out)"]
+        corner_rule = next(
+            rule
+            for rule in root.children()
+            if rule.description().startswith("Corner")
+        )
 
-        near_size = near.settings().format().size()
+        far = _rules_by_description(self.layer)["Centered, no offset (zoomed out)"]
+
+        corner_size = corner_rule.settings().format().size()
         far_size = far.settings().format().size()
 
-        self.assertLess(far_size, near_size)
+        self.assertLess(far_size, corner_size)
 
 
     def test_corner_rules_still_gated_to_zoomed_in_only(self):
@@ -168,3 +186,40 @@ class TestApplySquareLabel(QgisTestCase):
                 rule.filterExpression(),
                 f"@map_scale < {threshold}"
             )
+
+
+class TestCornerOffsetSigns(QgisTestCase):
+
+    """
+    Regression test for a real bug: CORNERS' y_sign values were
+    written assuming PAL's yOffset is positive-up (map/mathematical
+    convention), but it's actually positive-down (screen/render
+    convention) - confirmed live by rendering a single offset label
+    and inspecting the pixels. Getting this backwards nudges every
+    corner label OUTWARD into the neighbouring square instead of
+    INWARD into its own - confirmed live too, by rendering a small
+    2x2 test grid and seeing each square's corner labels land on the
+    wrong side of a shared boundary.
+
+    Expected signs, given confirmed +x = right, +y = down:
+    - SW (bottom-left corner) needs right+up to go inward: (+1, -1)
+    - SE (bottom-right corner) needs left+up to go inward: (-1, -1)
+    - NW (top-left corner) needs right+down to go inward: (+1, +1)
+    - NE (top-right corner) needs left+down to go inward: (-1, +1)
+    """
+
+    EXPECTED_SIGNS = {
+        "SW": (1, -1),
+        "SE": (-1, -1),
+        "NW": (1, 1),
+        "NE": (-1, 1),
+    }
+
+    def test_corner_signs_nudge_inward_not_outward(self):
+
+        actual = {
+            name: (x_sign, y_sign)
+            for name, _anchor_expr, x_sign, y_sign in GridLabelManager.CORNERS
+        }
+
+        self.assertEqual(actual, self.EXPECTED_SIGNS)

@@ -103,27 +103,6 @@ class GridLabelManager:
     WATERMARK_OPACITY = 0.4
 
 
-    # Both this label and the UTM GZD label use OverPoint
-    # placement on a polygon much bigger than the viewport, so
-    # PAL tends to plant both of them near the middle of
-    # whatever's currently on screen regardless of their true
-    # geographic centroids - nudging this one down keeps them
-    # from sitting directly on top of each other.
-    #
-    # This is a FIXED screen-space distance, so it's only safe
-    # to apply while a square's own on-screen footprint is
-    # comfortably bigger than 20mm (true while zoomed in, past
-    # corner_scale_threshold - the same regime the corner labels
-    # below are already known to render correctly in). Applied
-    # unconditionally at every zoom level, it used to push the
-    # label straight past a shrunken square's own edge and into
-    # whichever square sits next to it (always the one to the
-    # south, since the offset is always downward) - see
-    # apply_square_label() for the scale gate that now prevents
-    # this.
-    CENTER_LABEL_Y_OFFSET_MM = -20
-
-
     # Beyond this map-scale denominator, a 100km square's own
     # label stops rendering entirely (falling back to the UTM
     # GZD label for context) - mirrors
@@ -144,19 +123,14 @@ class GridLabelManager:
     CENTER_LABEL_FAR_SIZE = 14
 
 
-    def _centered_settings(self, field, size, apply_offset):
+    def _centered_settings(self, field, size):
 
         """
-        One label per square, centred - used when zoomed out
-        far enough that a corner position would look cluttered
-        or misleading.
-
-        apply_offset: nudge the label down by
-        CENTER_LABEL_Y_OFFSET_MM to keep it clear of the UTM GZD
-        label. Only pass True when the caller has already
-        confirmed (via a scale filter) that the offset is safely
-        smaller than the square's own on-screen size - otherwise
-        it can land in a neighbouring square instead of this one.
+        One label per square, centred, no offset - used when
+        zoomed out far enough that a corner position would look
+        cluttered or misleading, and a square's on-screen footprint
+        may be too small for any fixed screen-space nudge to stay
+        safely inside it.
         """
 
         settings = QgsPalLayerSettings()
@@ -173,14 +147,6 @@ class GridLabelManager:
         settings.priority = 1
 
         settings.displayAll = True
-
-        if apply_offset:
-
-            settings.yOffset = self.CENTER_LABEL_Y_OFFSET_MM
-
-            settings.offsetUnits = (
-                Qgis.RenderUnit.Millimeters
-            )
 
         settings.setFormat(
             build_text_format(size, opacity=self.WATERMARK_OPACITY)
@@ -201,30 +167,42 @@ class GridLabelManager:
     # square's identifier appears at every corner it touches,
     # so there's never doubt which square a label belongs to.
     #
+    # y_sign follows QgsPalLayerSettings.yOffset's own convention -
+    # confirmed live (rendered a single offset label and inspected
+    # the pixels) that positive yOffset moves a label DOWN the
+    # screen, not up. A square's SW/SE corners sit at its bottom
+    # edge, so nudging "inward" (up) needs a NEGATIVE y_sign; its
+    # NW/NE corners sit at the top edge, so nudging inward (down)
+    # needs POSITIVE. Getting this backwards (as an earlier version
+    # of this list did, assuming +y meant up) pushes every corner
+    # label outward into the neighbouring square instead of inward
+    # into its own - confirmed live by rendering a small 2x2 test
+    # grid: each square's labels landed on the wrong side of a
+    # shared boundary from its neighbour.
     CORNERS = [
         (
             "SW",
             "make_point(x_min($geometry), y_min($geometry))",
             1,
-            1
+            -1
         ),
         (
             "SE",
             "make_point(x_max($geometry), y_min($geometry))",
             -1,
-            1
+            -1
         ),
         (
             "NW",
             "make_point(x_min($geometry), y_max($geometry))",
             1,
-            -1
+            1
         ),
         (
             "NE",
             "make_point(x_max($geometry), y_max($geometry))",
             -1,
-            -1
+            1
         ),
     ]
 
@@ -278,7 +256,6 @@ class GridLabelManager:
         self,
         layer,
         field,
-        center_size=24,
         corner_size=24,
         corner_gap_mm=12,
         corner_scale_threshold=250000,
@@ -288,38 +265,35 @@ class GridLabelManager:
 
         """
         Label a 100km-square-style grid layer, switching
-        placement by zoom level:
+        placement by zoom level - exactly one style active at any
+        given scale, never both at once:
 
         - Zoomed in past corner_scale_threshold (e.g. only a
           handful of squares visible): each square shows its
           label at all four of its own corners, nudged inward -
           so every corner on screen unambiguously shows which
-          square it belongs to - PLUS a centred label nudged
-          clear of the UTM GZD label's own anchor point. The
-          offset is safe here because a square's on-screen size
-          is comfortably bigger than the fixed nudge distance.
+          square it belongs to.
         - Zoomed out at or beyond corner_scale_threshold (no
           more corner labels): one centred label per square,
-          smaller and with NO offset - a square may now be only
-          a few millimetres across, so a fixed offset that used
-          to be safe would push the label past its own edge and
+          smaller, with no offset - a square may now be only a
+          few millimetres across, so a fixed offset that's safe
+          zoomed in would push the label past its own edge and
           into a neighbouring square instead.
-        - Zoomed out beyond center_max_scale: no per-square
-          label at all, since that many squares' worth of labels
-          piling up (displayAll bypasses PAL's own collision
-          suppression) is clutter rather than information; the
-          UTM GZD label is left to carry context at that scale.
+        - Zoomed out beyond center_max_scale: no per-square label
+          at all, since that many squares' worth of labels piling
+          up (displayAll bypasses PAL's own collision suppression)
+          is clutter rather than information; the UTM GZD label
+          is left to carry context at that scale.
 
-        Between them, the two centred rules stay active at every
-        zoom level up to center_max_scale (not just zoomed out)
-        rather than being replaced by the corner rules - a square
-        that's zoomed in far enough to have NONE of its four
-        corners on screen (you're panned to somewhere in the
-        middle of it) would otherwise show no label at all. Since
-        they're low-priority, low-opacity watermarks like the
-        corner labels, having both active at once when a corner
-        happens to also be in view just means they coexist rather
-        than fighting.
+        An earlier version also kept a centred label active
+        alongside the corner labels while zoomed in (to guarantee
+        something shows even if panned to a square's interior with
+        none of its corners on screen) - removed 2026-08-03 after
+        live testing showed it read as two conflicting labels for
+        the same square rather than a helpful fallback. The
+        traded-away edge case (deep zoom, no corner in view) now
+        shows no label for that square until you pan enough to see
+        one of its corners or zoom out past corner_scale_threshold.
         """
 
         if center_far_size is None:
@@ -336,32 +310,10 @@ class GridLabelManager:
         )
 
 
-        centered_near_rule = QgsRuleBasedLabeling.Rule(
-            self._centered_settings(
-                field,
-                center_size,
-                apply_offset=True
-            )
-        )
-
-        centered_near_rule.setFilterExpression(
-            f"@map_scale < {corner_scale_threshold}"
-        )
-
-        centered_near_rule.setDescription(
-            "Centered, offset clear of the GZD label (zoomed in)"
-        )
-
-        root_rule.appendChild(
-            centered_near_rule
-        )
-
-
         centered_far_rule = QgsRuleBasedLabeling.Rule(
             self._centered_settings(
                 field,
-                center_far_size,
-                apply_offset=False
+                center_far_size
             )
         )
 
