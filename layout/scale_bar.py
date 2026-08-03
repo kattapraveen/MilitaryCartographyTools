@@ -44,7 +44,18 @@ NUM_SEGMENTS = 4
 # overshoot the requested maximum bar width rather than respect
 # it, whenever the next-smaller nice value would have undershot
 # the minimum - so this picks the segment size directly instead.
+#
+# The 0.01-0.05 decade was added after a real bug report: at very
+# close-in scales (confirmed live at 1:1,000 and 1:2,000), the
+# previous smallest value (0.1) was already too coarse, so the
+# picked bar came out wider than the page itself (400mm on a
+# 297mm-wide page at 1:1,000) - centering math then went negative
+# and the bar visibly overlapped the metadata block. This still
+# doesn't guarantee the bar can never exceed a given page (an even
+# tighter scale or a narrow custom page could still do it), but
+# covers every case actually observed.
 NICE_SEGMENT_KM = [
+    0.01, 0.02, 0.025, 0.05,
     0.1, 0.2, 0.25, 0.5,
     1, 2, 2.5, 5,
     10, 20, 25, 50,

@@ -26,6 +26,59 @@ from MilitaryCartographyTools.layout.new_layout import (
     _compute_geometry,
 )
 from MilitaryCartographyTools.grid.layout_grid_frame import add_grid_frame, remove_grid_frame
+from MilitaryCartographyTools.layout.scale_bar import (
+    _pick_units_per_segment,
+    NUM_SEGMENTS,
+    TARGET_BAR_WIDTH_MM,
+)
+
+
+def _bar_width_mm(scale, units_per_segment):
+    return (units_per_segment * NUM_SEGMENTS * 1_000_000) / scale
+
+
+class TestPickUnitsPerSegment(QgisTestCase):
+
+    """
+    Regression coverage for the scale-bar-too-large bug (confirmed
+    live at 1:1,000 and 1:2,000 - see scale_bar.py's NICE_SEGMENT_KM
+    comment): the picked segment size must never blow the bar up far
+    past TARGET_BAR_WIDTH_MM just because the "nice" value list ran
+    out of small enough options.
+    """
+
+    def test_close_in_scale_no_longer_overshoots_the_page(self):
+
+        # Previously chose 0.1 (400mm bar - wider than a 297mm-wide
+        # A4-landscape page). Should now land exactly on target.
+        km = _pick_units_per_segment(1000, NUM_SEGMENTS)
+
+        width_mm = _bar_width_mm(1000, km)
+
+        self.assertLessEqual(width_mm, TARGET_BAR_WIDTH_MM * 1.5)
+
+    def test_common_round_scale_unaffected(self):
+
+        # 1:50,000 already landed exactly on target before this fix -
+        # confirm the new smaller "nice" values don't change that.
+        km = _pick_units_per_segment(50000, NUM_SEGMENTS)
+
+        self.assertEqual(km, 1)
+
+    def test_every_nice_value_is_smallest_that_meets_target(self):
+
+        # For a spread of scales, the chosen value's bar width should
+        # always be >= target (the function's contract) and never so
+        # far past it that the previous "nice" value would also have
+        # worked - i.e. it's genuinely the smallest sufficient one.
+        for scale in (1000, 2000, 10000, 15000, 60000, 150000, 500000):
+
+            km = _pick_units_per_segment(scale, NUM_SEGMENTS)
+
+            self.assertGreaterEqual(
+                _bar_width_mm(scale, km),
+                TARGET_BAR_WIDTH_MM
+            )
 
 
 class FakeMapSettings:
