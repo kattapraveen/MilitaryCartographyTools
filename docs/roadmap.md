@@ -143,11 +143,17 @@ The 100km label and scale bar items have both now been genuinely root-caused, fi
 
 ## Phase 8 — Terrain analysis
 
-- ⬜ Tanaka contours, hillshade combinations, slope/aspect maps, observation points, line-of-sight, elevation profiles, terrain masks
+Scoped 2026-08-03, consolidating the original one-line item list into better-defined work: several original items either duplicate what QGIS already provides natively, or aren't really separate features so much as facets of the same one.
+
+- ⬜ **Tanaka contours** (illuminated/shaded contour lines, width/tone varying by local aspect relative to a virtual light source) — no QGIS native equivalent; genuinely custom rule-based rendering work, the most engineering-heavy item in this phase. Fits well alongside the plugin's existing print-layout production focus.
+- ⬜ **Hillshade combinations** — a one-click multi-directional hillshade blend (e.g. 2-3 azimuths combined), since QGIS/GDAL's own hillshade tools (`gdal:hillshade`, the raster "Hillshade" render type) only do a single light direction natively.
+- ⬜ **Line-of-sight / visibility analysis** — consolidates what were three separate original items (observation points, line-of-sight, terrain masks) into one tool: pick two points, get a profile-based point-to-point visibility check with earth-curvature/refraction correction, with dead-ground (non-visible terrain) as an optional shaded output of the same calculation rather than a separate feature. An "observation point" isn't a standalone concept here, just the origin of this check.
+- ⬜ *(lower priority)* **Slope/aspect convenience wrapper** — batch-generate slope + aspect (+ hillshade) with plugin-provided military-style symbology presets. QGIS's own raster properties panel already offers "Slope"/"Aspect" rendering with one dropdown and no processing run needed, so this is a minor convenience add-on rather than new capability - fine to include if there's appetite, but not worth leading with.
+- ✅ ~~Elevation profiles~~ — decided not needed 2026-08-03; QGIS 3.28+ (covers both this plugin's 3.44 and 4.x targets) already has a native Elevation Profile panel built in, so building a duplicate wouldn't add value.
 
 Large and mostly orthogonal to the cartography/grid focus of Phases 1–7. Positioned here, after all completed work, as the biggest deferred effort remaining before the newer navigation/tactical-graphics phases below — revisit when there's appetite for a separate large effort.
 
-**Status: Not started.**
+**Status: Not started** (elevation profiles item closed out as not needed; everything else awaiting work).
 
 ---
 
