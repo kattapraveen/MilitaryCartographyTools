@@ -3,3 +3,8 @@ __pycache__/
 .DS_Store
 .claude/
 dist/
+
+# Reference/test DEM data - not part of the plugin, too large to commit.
+Tanzania_SRTM30meters/
+*.tif
+*.tiff
