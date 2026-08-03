@@ -69,16 +69,61 @@ class GridManager:
         elif name == "MGRS 100km Grid":
             self.mgrs100k.layer = None
 
-    def add_layer_to_group(self, layer, group):
+    def add_layer_to_group(self, layer, group, index=None):
+
+        """
+        Add a layer to a layer-tree group.
+
+        index=None appends at the end (the group's default, lowest
+        stacking position). Pass an explicit index to control
+        stacking order within the group instead - see
+        generate_mgrs100k() below, which needs its layer placed
+        above the UTM Grid layer rather than below it.
+        """
 
         QgsProject.instance().addMapLayer(
             layer,
             False
         )
 
-        group.addLayer(
-            layer
-        )
+        if index is None:
+
+            group.addLayer(
+                layer
+            )
+
+        else:
+
+            group.insertLayer(
+                index,
+                layer
+            )
+
+
+
+    def _index_after_sub_grid_group(self, group):
+
+        """
+        The position, within `group`'s direct children, right
+        after the "MGRS Sub Grid" subgroup - i.e. the topmost
+        stacking position still below the sub-grid group itself.
+
+        Used to keep the MGRS 100km Grid layer rendering above the
+        (coarser) UTM Grid layer regardless of which one was most
+        recently (re)generated - see the 2026-08-04 z-order fix
+        note on generate_mgrs100k().
+        """
+
+        for position, child in enumerate(group.children()):
+
+            if (
+                child.nodeType() == 0
+                and child.name() == self.layers.SUB_GROUP
+            ):
+
+                return position + 1
+
+        return 0
 
 
 
@@ -107,6 +152,12 @@ class GridManager:
         group = self.layers.get_group()
 
 
+        # Appended (not inserted) - the UTM Grid is the coarsest
+        # grid, so it always belongs at the bottom of the stack,
+        # below the MGRS 100km Grid layer. See
+        # generate_mgrs100k()'s note: mixing this up is what let
+        # the UTM Grid's own polygon fill/label paint over the
+        # MGRS 100km label whenever the two visually coincided.
         self.add_layer_to_group(
             layer,
             group
@@ -140,9 +191,21 @@ class GridManager:
         group = self.layers.get_group()
 
 
+        # 2026-08-04 z-order fix: since generate_mgrs100k() always
+        # runs after generate_utm() (the 100km grid needs the UTM
+        # layer to already exist), a plain append put this layer
+        # BELOW the UTM Grid layer in the layer tree - and QGIS
+        # renders the topmost layer last, so the UTM Grid's own
+        # polygon fill and GZD label were painting over the MGRS
+        # 100km label wherever the two visually coincided (reported
+        # live as "the mgrs label is rendered but behind the utm
+        # grid icon"). Inserted right after the sub-grid subgroup
+        # instead, so it always sits above the UTM Grid regardless
+        # of generation order.
         self.add_layer_to_group(
             layer,
-            group
+            group,
+            index=self._index_after_sub_grid_group(group)
         )
 
 

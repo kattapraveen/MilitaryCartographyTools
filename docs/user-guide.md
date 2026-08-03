@@ -163,10 +163,14 @@ on the neatline rather than labels drawn over the map content.
 ## Tanaka Contours
 
 Click the illuminated-rings icon to generate **Tanaka contours** — contour
-lines whose width and color vary by local terrain illumination, giving a
-sense of relief without needing a hillshade raster underneath. Requires a
-DEM (elevation raster) layer already loaded in your project; this plugin
-doesn't fetch or download one for you (see "Getting a DEM" below).
+lines whose *width* varies by local terrain illumination (giving a sense of
+relief without needing a hillshade raster underneath) and whose *color*
+varies by elevation, using the standard hypsometric ("layer tint")
+convention topographic/military maps use: shades of blue below sea level,
+then green → yellow → brown → red → white with increasing elevation above
+it. Requires a DEM (elevation raster) layer already loaded in your project;
+this plugin doesn't fetch or download one for you (see "Getting a DEM"
+below).
 
 The dialog asks for:
 
@@ -177,7 +181,7 @@ The dialog asks for:
 | Segment length | How finely each contour is subdivided for illumination to vary smoothly along it, in metres — smaller values give a smoother gradient at the cost of more features |
 | Light azimuth | Direction the virtual light comes from, in degrees (0 = north). Defaults to 315° (north-west), matching QGIS's own hillshade default |
 | Min/max line width | Line width at fully-lit and fully-shadowed, in mm |
-| Lit color / Shadow color | Colors blended between based on each segment's illumination |
+| Add as new layer | Off by default — re-running the dialog corrects the existing "Tanaka Contours" layer in place. Check this to keep the previous layer and add a new one alongside it instead, e.g. to compare two parameter sets |
 
 Contours are generated for the **current map canvas extent** only (not the
 whole DEM), clipped and reprojected to the appropriate local UTM zone

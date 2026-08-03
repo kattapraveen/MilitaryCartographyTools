@@ -197,6 +197,20 @@ shared `FakeIface`:
   fake widget standing in for one raises `TypeError: QgsMapTool(): argument 1
   has unexpected type`. Use `tests/qgis_test_case.py`'s `make_canvas()` for
   anything that constructs a real map tool in a test.
+- Layer tree stacking order: the **first**-listed layer in a
+  `QgsLayerTreeGroup`'s children (index 0, top of the Layers panel) renders
+  **on top** of later ones - confirmed live by rendering two overlapping
+  memory layers in a known order and inspecting the resulting pixel colour.
+  `QgsLayerTreeGroup.addLayer()` always appends to the *end* of the group
+  (i.e. the bottom of the stack), so if layer B is generated after layer A
+  and both just append, B ends up rendered *underneath* A - not on top of
+  it, which is the opposite of what "added most recently" usually implies
+  in other layer-stack UIs. This caused a real bug: `GridManager`'s MGRS
+  100km Grid layer (generated after, and dependent on, the UTM Grid layer)
+  was rendering *below* the UTM grid, so the coarser UTM grid's own fill/
+  label painted over the finer 100km label. Fixed by giving
+  `add_layer_to_group()` an explicit target index instead of blindly
+  appending - see `grid/grid_manager.py`'s `generate_mgrs100k()`.
 
 ---
 

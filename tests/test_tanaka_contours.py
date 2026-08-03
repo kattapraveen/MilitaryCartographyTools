@@ -16,9 +16,12 @@ from .qgis_test_case import QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
 from MilitaryCartographyTools.terrain.tanaka_contours import (
+    _hypsometric_color,
     _light_vector,
     _segment_illumination,
     generate_tanaka_contours,
+    LAND_STOPS,
+    SEA_LEVEL_STOPS,
 )
 
 
@@ -63,6 +66,78 @@ class TestLightVector(QgisTestCase):
 
         self.assertLess(x, 0)
         self.assertGreater(y, 0)
+
+
+class TestHypsometricColor(QgisTestCase):
+
+    """
+    _hypsometric_color() - the fixed blue-below-sea-level,
+    green-through-white-above-it colour convention (SEA_LEVEL_STOPS/
+    LAND_STOPS), keyed purely on a contour's own elevation.
+    """
+
+    def test_deep_ocean_matches_lowest_sea_stop(self):
+
+        self.assertEqual(
+            _hypsometric_color(-999999),
+            SEA_LEVEL_STOPS[0][1]
+        )
+
+
+    def test_high_peak_matches_highest_land_stop(self):
+
+        self.assertEqual(
+            _hypsometric_color(999999),
+            LAND_STOPS[-1][1]
+        )
+
+
+    def test_just_above_sea_level_uses_land_stops_not_sea_stops(self):
+
+        # 0 itself is the boundary - LAND_STOPS (not SEA_LEVEL_STOPS)
+        # owns it, per _hypsometric_color()'s "elevation < 0" test.
+        self.assertEqual(
+            _hypsometric_color(0.0),
+            LAND_STOPS[0][1]
+        )
+
+
+    def test_just_below_sea_level_uses_sea_stops(self):
+
+        self.assertEqual(
+            _hypsometric_color(-0.5),
+            SEA_LEVEL_STOPS[-1][1]
+        )
+
+
+    def test_interpolates_between_adjacent_land_stops(self):
+
+        elev_a, color_a = LAND_STOPS[0]
+        elev_b, color_b = LAND_STOPS[1]
+
+        midpoint = (elev_a + elev_b) / 2
+
+        red, green, blue = _hypsometric_color(midpoint)
+
+        for channel, low, high in zip(
+            (red, green, blue), color_a, color_b
+        ):
+
+            self.assertGreaterEqual(channel, min(low, high))
+            self.assertLessEqual(channel, max(low, high))
+
+
+    def test_coastline_is_a_hard_edge_not_a_blend(self):
+
+        # A real hypsometric tint jumps at the coastline rather than
+        # fading through it - colours right at 0 shouldn't sit
+        # "between" the two tables.
+        just_below = _hypsometric_color(-0.001)
+        at_sea_level = _hypsometric_color(0.0)
+
+        self.assertEqual(just_below, SEA_LEVEL_STOPS[-1][1])
+        self.assertEqual(at_sea_level, LAND_STOPS[0][1])
+        self.assertNotEqual(just_below, at_sea_level)
 
 
 class TestSegmentIllumination(QgisTestCase):
@@ -246,6 +321,9 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
 
         self.assertIn("ELEV", field_names)
         self.assertIn("ILLUM", field_names)
+        self.assertIn("R", field_names)
+        self.assertIn("G", field_names)
+        self.assertIn("B", field_names)
 
         illumination_values = [
             f["ILLUM"] for f in output.getFeatures()
@@ -255,6 +333,24 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
 
             self.assertGreaterEqual(value, -1.0001)
             self.assertLessEqual(value, 1.0001)
+
+        # The synthetic DEM's elevations (col * 10.0, 40 columns) are
+        # all >= 0, so every segment's colour should come from
+        # LAND_STOPS - each channel a valid 0-255 int, and matching
+        # what _hypsometric_color() itself would produce for that
+        # segment's own ELEV.
+        for feature in output.getFeatures():
+
+            expected = _hypsometric_color(feature["ELEV"])
+
+            actual = (feature["R"], feature["G"], feature["B"])
+
+            self.assertEqual(actual, expected)
+
+            for channel in actual:
+
+                self.assertGreaterEqual(channel, 0)
+                self.assertLessEqual(channel, 255)
 
         # The slope rises eastward everywhere, so every contour's
         # uphill direction is east - with the default NW light

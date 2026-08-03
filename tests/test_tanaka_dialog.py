@@ -1,0 +1,164 @@
+# -*- coding: utf-8 -*-
+
+"""
+Tests for terrain/tanaka_dialog.py's generate_from_dialog_values() -
+the accept-flow logic split out of show_tanaka_contour_dialog() so it
+can be exercised without driving an actual modal QDialog.
+
+Regression coverage for a real usability complaint: every run of the
+dialog was creating a brand new "Tanaka Contours" layer, so tweaking
+settings and re-running left a pile of stale layers behind instead of
+correcting the existing one. Default behaviour now replaces the
+existing layer in place; an "Add as new layer" checkbox opts back
+into keeping it.
+
+Military Cartography Tools
+"""
+
+import os
+import tempfile
+
+from qgis.core import QgsCoordinateReferenceSystem, QgsProject, QgsRasterLayer, QgsRectangle
+
+from .qgis_test_case import FakeIface, QgisTestCase, make_canvas
+
+from MilitaryCartographyTools.core.coordinate_utils import WGS84
+from MilitaryCartographyTools.terrain.tanaka_contours import OUTPUT_LAYER_NAME
+from MilitaryCartographyTools.terrain.tanaka_dialog import generate_from_dialog_values
+
+
+def _build_synthetic_dem():
+
+    import numpy
+    from osgeo import gdal, osr
+
+    width, height = 30, 30
+    pixel_size = 0.0001
+    origin_lon, origin_lat = 37.34, -3.09
+
+    path = tempfile.mktemp(suffix=".tif")
+
+    driver = gdal.GetDriverByName("GTiff")
+    dataset = driver.Create(path, width, height, 1, gdal.GDT_Float32)
+
+    dataset.SetGeoTransform(
+        [origin_lon, pixel_size, 0, origin_lat, 0, -pixel_size]
+    )
+
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    dataset.SetProjection(srs.ExportToWkt())
+
+    band = numpy.fromfunction(
+        lambda row, col: col * 10.0,
+        (height, width),
+        dtype="float32"
+    )
+
+    dataset.GetRasterBand(1).WriteArray(band)
+    dataset.FlushCache()
+    dataset = None
+
+    return path
+
+
+class TestGenerateFromDialogValues(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        self._dem_path = _build_synthetic_dem()
+
+        self.dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        canvas = make_canvas()
+
+        canvas.setExtent(
+            QgsRectangle(37.3402, -3.0935, 37.3428, -3.0905)
+        )
+
+        self.iface = FakeIface(canvas=canvas)
+
+
+    def tearDown(self):
+
+        try:
+            os.remove(self._dem_path)
+        except OSError:
+            pass
+
+
+    def _values(self, add_as_new_layer=False):
+
+        return {
+            "dem_layer": self.dem_layer,
+            "interval": 20.0,
+            "segment_length": 5.0,
+            "light_azimuth_deg": 315.0,
+            "min_width_mm": 0.15,
+            "max_width_mm": 0.6,
+            "add_as_new_layer": add_as_new_layer,
+        }
+
+
+    def test_no_dem_layer_warns_and_returns_none(self):
+
+        result = generate_from_dialog_values(
+            self.iface,
+            self._values() | {"dem_layer": None}
+        )
+
+        self.assertIsNone(result)
+        self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+    def test_default_replaces_existing_layer_rather_than_adding_another(self):
+
+        first = generate_from_dialog_values(self.iface, self._values())
+
+        self.assertIsNotNone(first)
+
+        first_id = first.id()
+
+        second = generate_from_dialog_values(self.iface, self._values())
+
+        self.assertIsNotNone(second)
+
+        matching = QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME)
+
+        self.assertEqual(len(matching), 1)
+
+        # The old layer object was actually removed from the
+        # project, not just shadowed by name.
+        self.assertIsNone(
+            QgsProject.instance().mapLayer(first_id)
+        )
+
+
+    def test_checkbox_keeps_previous_layer_alongside_the_new_one(self):
+
+        first = generate_from_dialog_values(self.iface, self._values())
+
+        second = generate_from_dialog_values(
+            self.iface,
+            self._values(add_as_new_layer=True)
+        )
+
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second)
+
+        matching = QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME)
+
+        self.assertEqual(len(matching), 2)
+
+        self.assertIsNotNone(
+            QgsProject.instance().mapLayer(first.id())
+        )

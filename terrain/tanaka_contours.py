@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
-Tanaka (illuminated) contours - contour lines whose width and color
-vary by local terrain illumination, giving a pseudo-3D relief effect
-without needing a hillshade raster underneath.
+Tanaka (illuminated) contours - contour lines whose width varies by
+local terrain illumination (giving a pseudo-3D relief effect without
+needing a hillshade raster underneath) and whose color varies by
+elevation, per the standard hypsometric ("layer tint") convention
+used on topographic/military maps.
 
 Military Cartography Tools
 """
@@ -27,7 +29,6 @@ from qgis.core import (
 )
 
 from qgis.PyQt.QtCore import QMetaType
-from qgis.PyQt.QtGui import QColor
 
 from ..core.coordinate_utils import WGS84, get_utm_crs
 
@@ -41,8 +42,12 @@ DEFAULT_INTERVAL = 20.0
 DEFAULT_SEGMENT_LENGTH = 50.0
 DEFAULT_MIN_WIDTH_MM = 0.15
 DEFAULT_MAX_WIDTH_MM = 0.6
-DEFAULT_LIT_COLOR = "white"
-DEFAULT_SHADOW_COLOR = "black"
+
+# The layer name generate_tanaka_contours() always creates - shared
+# with tanaka_dialog.py, which needs it to find and remove a
+# previous run's layer when the user wants their edited settings
+# applied in place rather than piling up a new layer each time.
+OUTPUT_LAYER_NAME = "Tanaka Contours"
 
 # How far, in the reprojected DEM's own map units (always metres -
 # see _clip_and_reproject()), to sample perpendicular to a segment
@@ -50,6 +55,33 @@ DEFAULT_SHADOW_COLOR = "black"
 # the same DEM pixel on both sides at coarse resolutions; too large
 # starts sampling terrain that isn't really local to this segment.
 UPHILL_SAMPLE_OFFSET_M = 15.0
+
+# Standard hypsometric ("layer tint") colour convention used on
+# topographic/military maps: shades of blue below sea level, then
+# green -> yellow -> brown -> red -> white with increasing elevation
+# above it (white standing in for permanent snow/ice at the highest
+# bands). Fixed, absolute elevation anchors rather than a per-DEM
+# min/max stretch - the same elevation should tint the same colour
+# on any map sheet, not shift depending on what else happens to be
+# in this particular clipped extent.
+SEA_LEVEL_STOPS = (
+    (-8000.0, (7, 21, 59)),
+    (-4000.0, (13, 55, 117)),
+    (-1000.0, (39, 106, 165)),
+    (0.0, (168, 218, 250)),
+)
+
+LAND_STOPS = (
+    (0.0, (57, 130, 69)),
+    (300.0, (104, 164, 79)),
+    (750.0, (166, 190, 101)),
+    (1250.0, (216, 194, 111)),
+    (1750.0, (177, 132, 87)),
+    (2500.0, (150, 100, 80)),
+    (3500.0, (186, 129, 116)),
+    (4500.0, (222, 190, 176)),
+    (5500.0, (255, 255, 255)),
+)
 
 
 def _clip_and_reproject(dem_layer, extent, extent_crs):
@@ -167,6 +199,52 @@ def _light_vector(azimuth_degrees):
     )
 
 
+def _interpolate_stops(elevation, stops):
+
+    """
+    Linear-interpolate an (r, g, b) colour between the two stops
+    bracketing elevation, clamping to the nearest end colour beyond
+    either edge rather than extrapolating.
+    """
+
+    if elevation <= stops[0][0]:
+        return stops[0][1]
+
+    if elevation >= stops[-1][0]:
+        return stops[-1][1]
+
+    for (elev_a, color_a), (elev_b, color_b) in zip(stops, stops[1:]):
+
+        if elev_a <= elevation <= elev_b:
+
+            ratio = (elevation - elev_a) / (elev_b - elev_a)
+
+            return tuple(
+                round(a + (b - a) * ratio)
+                for a, b in zip(color_a, color_b)
+            )
+
+    return stops[-1][1]
+
+
+def _hypsometric_color(elevation):
+
+    """
+    (r, g, b) for a contour's own elevation, per the hypsometric
+    convention in SEA_LEVEL_STOPS/LAND_STOPS above - which band
+    applies is decided purely by the sign of elevation, since the
+    two stop tables meet (but don't blend into each other) exactly
+    at 0.
+    """
+
+    stops = SEA_LEVEL_STOPS if elevation < 0 else LAND_STOPS
+
+    return _interpolate_stops(
+        elevation,
+        stops
+    )
+
+
 def _segment_illumination(segment_geometry, dem_provider, light_vector):
 
     """
@@ -242,7 +320,7 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
 
     output_layer = QgsVectorLayer(
         f"LineString?crs={crs.authid()}",
-        "Tanaka Contours",
+        OUTPUT_LAYER_NAME,
         "memory"
     )
 
@@ -250,6 +328,9 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
         [
             QgsField("ELEV", QMetaType.Type.Double),
             QgsField("ILLUM", QMetaType.Type.Double),
+            QgsField("R", QMetaType.Type.Int),
+            QgsField("G", QMetaType.Type.Int),
+            QgsField("B", QMetaType.Type.Int),
         ]
     )
 
@@ -274,6 +355,12 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
         if illumination is None:
             continue
 
+        elevation = segment["ELEV"]
+
+        red, green, blue = _hypsometric_color(
+            elevation
+        )
+
         feature = QgsFeature(
             output_layer.fields()
         )
@@ -284,8 +371,11 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
 
         feature.setAttributes(
             [
-                segment["ELEV"],
-                illumination
+                elevation,
+                illumination,
+                red,
+                green,
+                blue
             ]
         )
 
@@ -302,18 +392,20 @@ def _build_output_layer(segment_layer, dem_layer, light_azimuth_deg, crs):
     return output_layer
 
 
-def _apply_style(layer, min_width_mm, max_width_mm, lit_color, shadow_color):
+def _apply_style(layer, min_width_mm, max_width_mm):
 
     """
-    One line symbol whose width and color are data-defined by each
-    feature's own ILLUM value - thin/lit-colored where illuminated,
-    thick/shadow-colored where shadowed, continuously varying rather
-    than a handful of discrete rule buckets.
+    One line symbol whose width is data-defined by each feature's
+    own ILLUM value (thin where illuminated, thick where shadowed -
+    the classic Tanaka relief effect) and whose color is data-defined
+    by its own precomputed R/G/B hypsometric-tint fields (see
+    _hypsometric_color()) - width still carries the illumination
+    shading, color now carries elevation instead of light/shadow.
     """
 
     symbol = QgsLineSymbol.createSimple(
         {
-            "color": lit_color.name(),
+            "color": "128,128,128",
             "width": str(min_width_mm),
             "width_unit": "MM"
         }
@@ -328,16 +420,10 @@ def _apply_style(layer, min_width_mm, max_width_mm, lit_color, shadow_color):
         )
     )
 
-    # color_mix_rgb()'s ratio is a 0-1 fraction (0 = color1, 1 =
-    # color2), not a 0-100 percentage - confirmed live before writing
-    # this, since that's an easy assumption to get backwards.
     symbol_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.StrokeColor,
         QgsProperty.fromExpression(
-            "color_mix_rgb("
-            f"color_rgb({shadow_color.red()}, {shadow_color.green()}, {shadow_color.blue()}), "
-            f"color_rgb({lit_color.red()}, {lit_color.green()}, {lit_color.blue()}), "
-            'scale_linear("ILLUM", -1, 1, 0, 1))'
+            'color_rgb("R", "G", "B")'
         )
     )
 
@@ -356,23 +442,18 @@ def generate_tanaka_contours(
     segment_length=DEFAULT_SEGMENT_LENGTH,
     light_azimuth_deg=DEFAULT_LIGHT_AZIMUTH,
     min_width_mm=DEFAULT_MIN_WIDTH_MM,
-    max_width_mm=DEFAULT_MAX_WIDTH_MM,
-    lit_color=None,
-    shadow_color=None
+    max_width_mm=DEFAULT_MAX_WIDTH_MM
 ):
 
     """
     Build a Tanaka (illuminated) contour layer from dem_layer,
-    clipped to extent and styled by local terrain illumination
-    relative to light_azimuth_deg. Adds the result to the current
-    project and returns it.
+    clipped to extent. Line width is data-defined by local terrain
+    illumination relative to light_azimuth_deg (thin where lit, thick
+    where shadowed); color is data-defined by each contour's own
+    elevation, per the standard hypsometric convention (see
+    _hypsometric_color()). Adds the result to the current project
+    and returns it.
     """
-
-    if lit_color is None:
-        lit_color = QColor(DEFAULT_LIT_COLOR)
-
-    if shadow_color is None:
-        shadow_color = QColor(DEFAULT_SHADOW_COLOR)
 
     clipped_dem = _clip_and_reproject(
         dem_layer,
@@ -396,9 +477,7 @@ def generate_tanaka_contours(
     _apply_style(
         output_layer,
         min_width_mm,
-        max_width_mm,
-        lit_color,
-        shadow_color
+        max_width_mm
     )
 
     QgsProject.instance().addMapLayer(

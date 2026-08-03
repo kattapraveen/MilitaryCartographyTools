@@ -9,10 +9,11 @@ canvas extent.
 Military Cartography Tools
 """
 
-from qgis.core import QgsMapLayerProxyModel
-from qgis.gui import QgsMapLayerComboBox, QgsColorButton
+from qgis.core import QgsMapLayerProxyModel, QgsProject
+from qgis.gui import QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFormLayout,
     QVBoxLayout,
@@ -27,11 +28,8 @@ from .tanaka_contours import (
     DEFAULT_LIGHT_AZIMUTH,
     DEFAULT_MIN_WIDTH_MM,
     DEFAULT_MAX_WIDTH_MM,
-    DEFAULT_LIT_COLOR,
-    DEFAULT_SHADOW_COLOR,
+    OUTPUT_LAYER_NAME,
 )
-
-from qgis.PyQt.QtGui import QColor
 
 
 class TanakaContourDialog(QDialog):
@@ -133,16 +131,12 @@ class TanakaContourDialog(QDialog):
             DEFAULT_MAX_WIDTH_MM
         )
 
-        self.lit_color_button = QgsColorButton()
-
-        self.lit_color_button.setColor(
-            QColor(DEFAULT_LIT_COLOR)
+        self.new_layer_checkbox = QCheckBox(
+            "Add as new layer (keep the existing one)"
         )
 
-        self.shadow_color_button = QgsColorButton()
-
-        self.shadow_color_button.setColor(
-            QColor(DEFAULT_SHADOW_COLOR)
+        self.new_layer_checkbox.setChecked(
+            False
         )
 
         form = QFormLayout()
@@ -153,8 +147,7 @@ class TanakaContourDialog(QDialog):
         form.addRow("Light azimuth", self.azimuth_spin)
         form.addRow("Min line width (lit)", self.min_width_spin)
         form.addRow("Max line width (shadow)", self.max_width_spin)
-        form.addRow("Lit color", self.lit_color_button)
-        form.addRow("Shadow color", self.shadow_color_button)
+        form.addRow(self.new_layer_checkbox)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -188,9 +181,53 @@ class TanakaContourDialog(QDialog):
             "light_azimuth_deg": self.azimuth_spin.value(),
             "min_width_mm": self.min_width_spin.value(),
             "max_width_mm": self.max_width_spin.value(),
-            "lit_color": self.lit_color_button.color(),
-            "shadow_color": self.shadow_color_button.color(),
+            "add_as_new_layer": self.new_layer_checkbox.isChecked(),
         }
+
+
+def generate_from_dialog_values(iface, values):
+
+    """
+    The accept-flow logic that runs once a TanakaContourDialog has
+    been filled in and accepted - split out from
+    show_tanaka_contour_dialog() so it's testable without driving an
+    actual modal QDialog. Returns the new layer, or None if no DEM
+    layer was picked.
+    """
+
+    if values["dem_layer"] is None:
+
+        iface.messageBar().pushWarning(
+            "Military Cartography Tools",
+            "No raster (DEM) layer available to generate contours from."
+        )
+
+        return None
+
+    if not values["add_as_new_layer"]:
+
+        # Default behaviour: correct the existing layer in place
+        # rather than piling up a new one on every re-run with
+        # tweaked settings. Only removes layers by this exact name,
+        # so a layer the user has since renamed is left alone.
+        for layer in QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME):
+
+            QgsProject.instance().removeMapLayer(
+                layer.id()
+            )
+
+    canvas = iface.mapCanvas()
+
+    return generate_tanaka_contours(
+        values["dem_layer"],
+        canvas.extent(),
+        canvas.mapSettings().destinationCrs(),
+        interval=values["interval"],
+        segment_length=values["segment_length"],
+        light_azimuth_deg=values["light_azimuth_deg"],
+        min_width_mm=values["min_width_mm"],
+        max_width_mm=values["max_width_mm"]
+    )
 
 
 def show_tanaka_contour_dialog(iface):
@@ -209,28 +246,7 @@ def show_tanaka_contour_dialog(iface):
     if dialog.exec() != QDialog.DialogCode.Accepted:
         return None
 
-    values = dialog.values()
-
-    if values["dem_layer"] is None:
-
-        iface.messageBar().pushWarning(
-            "Military Cartography Tools",
-            "No raster (DEM) layer available to generate contours from."
-        )
-
-        return None
-
-    canvas = iface.mapCanvas()
-
-    return generate_tanaka_contours(
-        values["dem_layer"],
-        canvas.extent(),
-        canvas.mapSettings().destinationCrs(),
-        interval=values["interval"],
-        segment_length=values["segment_length"],
-        light_azimuth_deg=values["light_azimuth_deg"],
-        min_width_mm=values["min_width_mm"],
-        max_width_mm=values["max_width_mm"],
-        lit_color=values["lit_color"],
-        shadow_color=values["shadow_color"]
+    return generate_from_dialog_values(
+        iface,
+        dialog.values()
     )

@@ -94,6 +94,13 @@ class FakeMessageBar:
         )
 
 
+    def pushWarning(self, title, text):
+
+        self.calls.append(
+            (title, text)
+        )
+
+
 class FakeIface(QObject):
 
     """
