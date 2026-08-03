@@ -41,17 +41,25 @@ def _layer_tree_position(layer):
 def replace_named_layer(name, generate):
 
     """
-    Remove every existing layer named `name`, call generate() (a
-    zero-arg callable that builds and adds a fresh replacement layer -
-    generate_tanaka_contours()/generate_hypsometric_tint(), already
+    Call generate() (a zero-arg callable that builds and adds a fresh
+    replacement layer - generate_tanaka_contours()/
+    generate_hypsometric_tint()/generate_line_of_sight(), already
     bound to their own arguments via a lambda/partial at the call
-    site), then - if a prior layer existed - move the new layer to
-    the same layer tree position the old one occupied.
+    site); if it succeeds, remove every existing layer named `name`
+    and - if a prior layer existed - move the new layer to the same
+    layer tree position the old one occupied.
 
-    Without this, a user who has manually dragged the layer to a
-    different spot in the Layers panel finds it reset to the default
-    position on every regenerate, which reads as the plugin ignoring
-    their own organisation of the project.
+    Without the position-preservation, a user who has manually
+    dragged the layer to a different spot in the Layers panel finds
+    it reset to the default position on every regenerate, which reads
+    as the plugin ignoring their own organisation of the project.
+
+    generate() can genuinely return None - not every caller is
+    guaranteed to succeed (generate_line_of_sight() does, when the
+    observer/target point falls outside the DEM). Old layers are only
+    removed once generate() has actually produced a replacement, so a
+    failed regenerate leaves any existing layer alone instead of
+    deleting it for nothing; returns None in that case.
     """
 
     project = QgsProject.instance()
@@ -63,13 +71,16 @@ def replace_named_layer(name, generate):
     if existing:
         remembered_position = _layer_tree_position(existing[0])
 
+    new_layer = generate()
+
+    if new_layer is None:
+        return None
+
     for layer in existing:
 
         project.removeMapLayer(
             layer.id()
         )
-
-    new_layer = generate()
 
     if remembered_position is not None:
 

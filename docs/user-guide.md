@@ -16,6 +16,7 @@ military grid generation, and automated print-layout production.
 - [Print-layout grid frame](#print-layout-grid-frame)
 - [Tanaka Contours](#tanaka-contours)
 - [Hypsometric Tint](#hypsometric-tint)
+- [Line of Sight](#line-of-sight)
 - [Expression functions](#expression-functions)
 
 ---
@@ -51,6 +52,7 @@ Left to right:
 | Page with a heading bar and a small map | New Military Layout |
 | Illuminated concentric rings | Tanaka Contours |
 | Filled concentric colour bands | Hypsometric Tint |
+| Two dots joined by a line, with a small crossing tick | Line of Sight |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -245,6 +247,48 @@ relief map), add a QGIS-native **Hillshade** on top (**Raster → Analysis
 layer blending mode to **Multiply** (**Layer Properties → Symbology →
 Blending mode**). That combination uses tools already built into QGIS —
 no extra step from this plugin needed.
+
+---
+
+## Line of Sight
+
+Click the two-dots-and-a-line icon to activate, then click two points on the
+map canvas: the first sets the **observer**, the second sets the **target**.
+Each click drops a marker on the map so it's obvious it registered — a blue
+cross for the observer, a red X for the target. A small **Line of Sight**
+window opens on the first click, showing each point's coordinates as you set
+them, and the check runs automatically as soon as both are set.
+
+The result is drawn as a line between the two points — **green** where the
+target is visible from the observer, **red** where it's blocked — with the
+total observer-to-target distance, and (if blocked) roughly how far along
+the path the first obstruction is, shown in the window's own **Result**
+line. Visibility accounts for both real terrain (sampled from your DEM
+along the path) and earth curvature/atmospheric refraction, so even a low
+target far enough away over open ground can be correctly reported as not
+visible.
+
+Requires a DEM layer already loaded in your project (see "Getting a DEM"
+above). The window also lets you set:
+
+| Field | Notes |
+|---|---|
+| DEM layer | Any loaded raster layer |
+| Observer height | Height above ground at the observer point, in metres (default 1.7 — average eye height) |
+| Target height | Height above ground at the target point, in metres (default 0 — ground level) |
+| Add as new layer | Off by default — re-running the check corrects the existing "Line of Sight" layer in place. Check this to keep the previous result and add a new one alongside it instead |
+| Result | Read-only — total distance, and visible/blocked (with the blocking distance, if any) |
+
+Adjust a height and press **Generate** to re-run the check without
+re-clicking either point. Clicking a third point starts a fresh
+observer/target pair rather than adding to the previous one — the observer
+marker jumps to the new point and the old target marker disappears.
+
+Unlike Tanaka Contours and Hypsometric Tint, this isn't tied to the current
+map canvas extent — the DEM is clipped to a box around wherever the observer
+and target actually are, so you can freely pan or zoom between clicking the
+first point and the second without losing it. The tool stays active across
+repeated pairs, like Coordinate Probe, until you select a different tool.
 
 ---
 

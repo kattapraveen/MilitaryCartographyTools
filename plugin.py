@@ -26,6 +26,7 @@ from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel
 from .terrain import show_tanaka_contour_dialog, show_hypsometric_tint_dialog
+from .terrain.line_of_sight_tool import LineOfSightTool
 
 
 SUB_GRID_OPTIONS = [
@@ -67,6 +68,7 @@ class MilitaryCartographyTools:
         self.coordinate_probe_action = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
+        self.line_of_sight_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -74,6 +76,7 @@ class MilitaryCartographyTools:
 
         self.grid_manager = None
         self.coordinate_probe_tool = None
+        self.line_of_sight_tool = None
 
         # One small toolbar per currently-open Layout Designer
         # window, keyed by the designer interface itself - just
@@ -139,6 +142,7 @@ class MilitaryCartographyTools:
         self._setup_new_layout_action()
         self._setup_tanaka_contours_action()
         self._setup_hypsometric_tint_action()
+        self._setup_line_of_sight_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -470,6 +474,32 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_line_of_sight_action(self):
+
+        # Two-click point-to-point visibility check tool - see
+        # terrain/line_of_sight_tool.py/terrain/line_of_sight.py.
+        # Stays active across repeated pairs like the coordinate
+        # probe tool, so it shares the same _on_map_tool_changed
+        # un-check handling (no separate mapToolSet connection
+        # needed - one connection already covers every map tool).
+        self.line_of_sight_tool = LineOfSightTool(
+            self.iface.mapCanvas(),
+            self.iface
+        )
+
+        self.line_of_sight_action = self._build_action(
+            "line_of_sight.svg",
+            "Line of Sight",
+            tooltip=(
+                "Click two points on the map to check whether the "
+                "second is visible from the first, accounting for "
+                "terrain and earth curvature/refraction"
+            ),
+            checkable=True,
+            callback=self.toggle_line_of_sight
+        )
+
+
     def unload(self):
         """
         Unload plugin.
@@ -496,6 +526,14 @@ class MilitaryCartographyTools:
             except (TypeError, RuntimeError):
 
                 pass
+
+        if self.line_of_sight_tool is not None:
+
+            if self.iface.mapCanvas().mapTool() is self.line_of_sight_tool:
+
+                self.iface.mapCanvas().unsetMapTool(
+                    self.line_of_sight_tool
+                )
 
         try:
 
@@ -551,6 +589,7 @@ class MilitaryCartographyTools:
             self.coordinate_probe_action,
             self.tanaka_contours_action,
             self.hypsometric_tint_action,
+            self.line_of_sight_action,
         ]:
 
             if action is not None:
@@ -593,9 +632,10 @@ class MilitaryCartographyTools:
 
         # utm_action/mgrs100k_action/clear_action/new_layout_action/
         # coordinate_probe_action/tanaka_contours_action/
-        # hypsometric_tint_action are parented to the main window
-        # (like self.action above), not the toolbar, so they survive
-        # sip.delete(self.toolbar) - just drop the references.
+        # hypsometric_tint_action/line_of_sight_action are parented
+        # to the main window (like self.action above), not the
+        # toolbar, so they survive sip.delete(self.toolbar) - just
+        # drop the references.
         self.utm_action = None
         self.mgrs100k_action = None
         self.clear_action = None
@@ -604,6 +644,8 @@ class MilitaryCartographyTools:
         self.coordinate_probe_tool = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
+        self.line_of_sight_action = None
+        self.line_of_sight_tool = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -790,22 +832,43 @@ class MilitaryCartographyTools:
             )
 
 
+    def toggle_line_of_sight(self, checked):
+        """
+        Activate/deactivate the line of sight map tool.
+        """
+
+        if checked:
+
+            self.iface.mapCanvas().setMapTool(
+                self.line_of_sight_tool
+            )
+
+        else:
+
+            self.iface.mapCanvas().unsetMapTool(
+                self.line_of_sight_tool
+            )
+
+
     def _on_map_tool_changed(self, new_tool, old_tool):
         """
-        Keep the toolbar button's checked state in sync when some
-        OTHER tool (e.g. Pan, Identify) replaces the coordinate
-        probe - QGIS map tools don't un-check their own toolbar
-        button automatically when deselected this way.
+        Keep each checkable tool's toolbar button in sync when some
+        OTHER tool (e.g. Pan, Identify, or one of this plugin's own
+        other tools) replaces it - QGIS map tools don't un-check
+        their own toolbar button automatically when deselected this
+        way.
         """
 
-        if (
-            self.coordinate_probe_action is not None
-            and new_tool is not self.coordinate_probe_tool
+        for action, tool in (
+            (self.coordinate_probe_action, self.coordinate_probe_tool),
+            (self.line_of_sight_action, self.line_of_sight_tool),
         ):
 
-            self.coordinate_probe_action.setChecked(
-                False
-            )
+            if action is not None and new_tool is not tool:
+
+                action.setChecked(
+                    False
+                )
 
 
     # ------------------------------------------------------------------

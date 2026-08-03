@@ -141,6 +141,28 @@ class TestApplySquareLabel(QgisTestCase):
         )
 
 
+    def test_far_centred_rule_anchors_to_the_true_centroid(self):
+
+        # Real reported bug: without a geometry-generator-derived
+        # fixed point, PAL doesn't anchor a centred polygon label to
+        # its true, full centroid - for a polygon that's only
+        # partially on screen, it drifts toward whatever portion is
+        # currently visible instead, sliding the label toward (and
+        # past) the polygon's own edge as more of it leaves the
+        # screen. Confirmed live by panning a fresh grid across zone
+        # boundaries. centroid($geometry) is immune to this, since
+        # it's computed from the full geometry regardless of what's
+        # currently on screen.
+        self.manager.apply_square_label(self.layer, "100K")
+
+        far = _rules_by_description(self.layer)["Centered, no offset (zoomed out)"]
+
+        settings = far.settings()
+
+        self.assertTrue(settings.geometryGeneratorEnabled)
+        self.assertEqual(settings.geometryGenerator, "centroid($geometry)")
+
+
     def test_far_rule_uses_same_default_font_size_as_corner_labels(self):
 
         # Matched 2026-08-03: corner and centred labels use the same
@@ -230,11 +252,19 @@ class TestApplyLabelOffset(QgisTestCase):
 
     """
     GridLabelManager.apply_label() - used for the UTM/GZD grid label.
-    Regression coverage for the 2026-08-05 fix: nudging this label
-    away from its polygon's centroid (rather than sitting exactly on
-    it, where a 100km square's own centred label is also anchored at
-    matching zoom levels) reduces how often the two even compete for
-    the same screen space.
+
+    Covers two fixes: (1) 2026-08-05, nudging this label away from
+    its polygon's centroid (rather than sitting exactly on it, where
+    a 100km square's own centred label is also anchored at matching
+    zoom levels) reduces how often the two even compete for the same
+    screen space; (2) 2026-08-06, a real reported bug - that fixed
+    offset is only safe while the GZD polygon is still large on
+    screen. Zoomed out far enough, it pushed the label past its own
+    polygon's edge into the neighbouring GZD zone, the same failure
+    mode already fixed for the 100km square label's own corner/
+    centred switch (see apply_square_label). apply_label() now uses
+    the same scale-gated rule-based approach: offset while zoomed in,
+    centred (no offset) once zoomed out past GZD_OFFSET_MAX_SCALE.
     """
 
     def setUp(self):
@@ -250,22 +280,113 @@ class TestApplyLabelOffset(QgisTestCase):
         self.manager = GridLabelManager()
 
 
-    def test_label_is_offset_up_and_left_of_its_anchor(self):
+    def test_rule_set_has_one_offset_rule_and_one_centered_rule(self):
 
         self.manager.apply_label(self.layer, "GZD")
 
-        settings = self.layer.labeling().settings()
+        root = self.layer.labeling().rootRule()
+
+        self.assertEqual(len(root.children()), 2)
+
+
+    def test_offset_rule_is_offset_up_and_left_of_its_anchor(self):
+
+        self.manager.apply_label(self.layer, "GZD")
+
+        rules = _rules_by_description(self.layer)
+
+        offset = rules["Offset up-left (zoomed in)"].settings()
 
         # Negative x/y - confirmed live elsewhere in this module that
         # PAL offsets are positive-right/positive-down, so negative
         # is up-left.
-        self.assertLess(settings.xOffset, 0)
-        self.assertLess(settings.yOffset, 0)
+        self.assertLess(offset.xOffset, 0)
+        self.assertLess(offset.yOffset, 0)
 
         self.assertEqual(
-            settings.offsetUnits,
+            offset.offsetUnits,
             Qgis.RenderUnit.Millimeters
         )
+
+
+    def test_centered_rule_has_no_offset(self):
+
+        self.manager.apply_label(self.layer, "GZD")
+
+        rules = _rules_by_description(self.layer)
+
+        centered = rules["Centered, no offset (zoomed out)"].settings()
+
+        self.assertEqual(centered.xOffset, 0)
+        self.assertEqual(centered.yOffset, 0)
+
+
+    def test_both_rules_anchor_to_the_true_centroid(self):
+
+        # Real reported bug, 2026-08-06: without a geometry-generator-
+        # derived fixed point, PAL doesn't anchor a polygon label to
+        # its true, full centroid - for a GZD zone, which routinely
+        # spans well beyond what's on screen at once, it drifts
+        # toward whatever portion is currently visible instead,
+        # sliding the label toward (and past) the zone's own edge
+        # into a neighbouring zone as more of it pans off screen.
+        # Confirmed live by panning a fresh grid across zone
+        # boundaries in every direction. centroid($geometry) is immune
+        # to this - it's computed from the full geometry regardless
+        # of what's currently on screen. Applies to both scale
+        # variants (offset and centred both anchor from this same
+        # fixed point, the offset rule just nudges from it).
+        self.manager.apply_label(self.layer, "GZD")
+
+        root = self.layer.labeling().rootRule()
+
+        for rule in root.children():
+
+            settings = rule.settings()
+
+            self.assertTrue(settings.geometryGeneratorEnabled)
+            self.assertEqual(settings.geometryGenerator, "centroid($geometry)")
+
+
+    def test_rules_partition_on_offset_max_scale(self):
+
+        # Exactly one style is ever active at a given scale - offset
+        # below the threshold, centred at or above it - mirroring how
+        # apply_square_label's own corner/centred rules partition on
+        # corner_scale_threshold.
+        self.manager.apply_label(self.layer, "GZD")
+
+        rules = _rules_by_description(self.layer)
+
+        threshold = self.manager.GZD_OFFSET_MAX_SCALE
+
+        self.assertEqual(
+            rules["Offset up-left (zoomed in)"].filterExpression(),
+            f"@map_scale < {threshold}"
+        )
+
+        self.assertEqual(
+            rules["Centered, no offset (zoomed out)"].filterExpression(),
+            f"@map_scale >= {threshold}"
+        )
+
+
+    def test_both_rules_keep_gzd_priority(self):
+
+        # Both scale variants must stay at the same low priority (1) -
+        # this label is background context that should still yield to
+        # the 100km square label (SQUARE_LABEL_PRIORITY) and the
+        # sub-grid regardless of which scale rule is currently active.
+        self.manager.apply_label(self.layer, "GZD")
+
+        root = self.layer.labeling().rootRule()
+
+        for rule in root.children():
+
+            self.assertEqual(
+                rule.settings().priority,
+                1
+            )
 
 
 class TestCornerOffsetSigns(QgisTestCase):

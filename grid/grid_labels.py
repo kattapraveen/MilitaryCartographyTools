@@ -11,7 +11,6 @@ Military Cartography Tools
 
 from qgis.core import (
     QgsPalLayerSettings,
-    QgsVectorLayerSimpleLabeling,
     QgsRuleBasedLabeling,
     QgsWkbTypes,
     Qgis
@@ -39,34 +38,80 @@ class GridLabelManager:
     # rather than relying solely on priority (below) and layer
     # z-order to sort out a collision after the fact. Confirmed live
     # (2026-08-05): combined with SQUARE_LABEL_PRIORITY, this leaves
-    # every case checked overlap-free.
+    # every case checked overlap-free - AT SCALES WHERE THE GZD
+    # POLYGON ITSELF IS STILL LARGE ON SCREEN. See GZD_OFFSET_MAX_SCALE
+    # below for the zoomed-out case, where this stops being true.
     GZD_LABEL_OFFSET_MM = 12
 
 
-    def apply_label(
-        self,
-        layer,
-        field,
-        size=10
-    ):
+    # Beyond this map-scale denominator, the UTM/GZD label switches
+    # from the up-left nudge above to sitting exactly on its polygon's
+    # centroid instead - same "fixed offset stops being safe once the
+    # polygon is small on screen" fix already applied to the 100km
+    # square label's own corner/centered switch (see
+    # apply_square_label's corner_scale_threshold), just for a much
+    # larger polygon: a GZD zone is roughly 6deg x 8deg (very roughly
+    # 600-900km per side), so the crossover happens at a far more
+    # zoomed-out scale than a 100km square's own 250,000. Loosely
+    # derived (a 12mm offset should stay comfortably inside even the
+    # narrower ~half-width of a GZD zone up to a few million scale)
+    # rather than measured live - worth tuning once seen live, same
+    # as CENTER_LABEL_MAX_SCALE below. Fixes a real reported bug: at
+    # sufficiently zoomed-out scales, the fixed offset pushed this
+    # label out of its own GZD polygon and into the neighbouring one.
+    GZD_OFFSET_MAX_SCALE = 3000000
+
+
+    def _anchor_to_true_centroid(self, settings):
 
         """
-        Apply labels to a polygon grid layer.
+        Force the label onto a point generated from centroid($geometry)
+        rather than letting PAL derive a position from the polygon
+        geometry directly. Real bug, confirmed live: with placement =
+        OverPoint applied straight to a polygon (no geometry
+        generator), PAL doesn't anchor to the feature's true, full
+        centroid - for a large polygon that's only partially on
+        screen (routine for a GZD zone, which regularly spans well
+        beyond a single view, unlike a 100km square), it instead
+        drifts toward whatever portion of the polygon is currently
+        visible, sliding the label toward whichever edge is cut off -
+        confirmed by panning a fresh grid across zone boundaries and
+        watching each zone's label creep toward, and past, its own
+        edge into the neighbour as more of it left the screen.
+        `_corner_settings()` already avoids this (it generates an
+        explicit corner point via make_point(...) before placing), so
+        this mirrors that same fix for the centroid case - centroid()
+        computes the true, full-geometry centroid regardless of what
+        portion of the polygon happens to be on screen.
         """
 
+        settings.geometryGeneratorEnabled = True
+
+        settings.geometryGeneratorType = (
+            QgsWkbTypes.GeometryType.PointGeometry
+        )
+
+        settings.geometryGenerator = "centroid($geometry)"
+
+
+    def _gzd_offset_settings(self, field, size):
+
+        """
+        The UTM/GZD label nudged up-left from its polygon's true
+        centroid - safe once the polygon is large enough on screen
+        that the fixed mm offset can't reach past its edge. See
+        GZD_LABEL_OFFSET_MM.
+        """
 
         settings = QgsPalLayerSettings()
 
-
         settings.fieldName = field
 
-
-        #
-        # QGIS 4.x polygon label placement
-        #
         settings.placement = (
             Qgis.LabelPlacement.OverPoint
         )
+
+        self._anchor_to_true_centroid(settings)
 
         # Nudged up and left from its anchor point (negative x/y -
         # confirmed live that PAL's offsets are positive-right/
@@ -82,6 +127,38 @@ class GridLabelManager:
             Qgis.RenderUnit.Millimeters
         )
 
+        self._apply_gzd_common_settings(settings, size)
+
+        return settings
+
+
+    def _gzd_centered_settings(self, field, size):
+
+        """
+        The UTM/GZD label sitting exactly on its polygon's true
+        centroid, no offset - used once the polygon is small enough
+        on screen (see GZD_OFFSET_MAX_SCALE) that any fixed offset
+        risks landing outside it, in the neighbouring GZD zone
+        instead.
+        """
+
+        settings = QgsPalLayerSettings()
+
+        settings.fieldName = field
+
+        settings.placement = (
+            Qgis.LabelPlacement.OverPoint
+        )
+
+        self._anchor_to_true_centroid(settings)
+
+        self._apply_gzd_common_settings(settings, size)
+
+        return settings
+
+
+    def _apply_gzd_common_settings(self, settings, size):
+
         # Low priority: this is background context (the whole
         # GZD), so it should yield to the sub-grid's tick labels
         # AND the 100km square labels (SQUARE_LABEL_PRIORITY)
@@ -94,7 +171,6 @@ class GridLabelManager:
         # disappearing outright - a watermark, not a competitor.
         settings.displayAll = True
 
-
         settings.setFormat(
             build_text_format(
                 size,
@@ -103,8 +179,60 @@ class GridLabelManager:
         )
 
 
-        labeling = QgsVectorLayerSimpleLabeling(
-            settings
+    def apply_label(
+        self,
+        layer,
+        field,
+        size=10
+    ):
+
+        """
+        Apply labels to the UTM/GZD grid layer - offset up-left of
+        each polygon's centroid while it's still large enough on
+        screen for that to stay safely inside it, falling back to
+        sitting exactly on the centroid once zoomed out past
+        GZD_OFFSET_MAX_SCALE (mirrors apply_square_label's own
+        corner/centered switch, for the same reason).
+        """
+
+        root_rule = QgsRuleBasedLabeling.Rule(
+            QgsPalLayerSettings()
+        )
+
+        offset_rule = QgsRuleBasedLabeling.Rule(
+            self._gzd_offset_settings(field, size)
+        )
+
+        offset_rule.setFilterExpression(
+            f"@map_scale < {self.GZD_OFFSET_MAX_SCALE}"
+        )
+
+        offset_rule.setDescription(
+            "Offset up-left (zoomed in)"
+        )
+
+        root_rule.appendChild(
+            offset_rule
+        )
+
+        centered_rule = QgsRuleBasedLabeling.Rule(
+            self._gzd_centered_settings(field, size)
+        )
+
+        centered_rule.setFilterExpression(
+            f"@map_scale >= {self.GZD_OFFSET_MAX_SCALE}"
+        )
+
+        centered_rule.setDescription(
+            "Centered, no offset (zoomed out)"
+        )
+
+        root_rule.appendChild(
+            centered_rule
+        )
+
+        labeling = QgsRuleBasedLabeling(
+            root_rule
         )
 
 
@@ -175,6 +303,15 @@ class GridLabelManager:
         settings.placement = (
             Qgis.LabelPlacement.OverPoint
         )
+
+        # Same fix as the GZD label's own centred/offset settings
+        # (see _anchor_to_true_centroid) - without this, PAL derives
+        # the anchor from whatever portion of the square happens to
+        # be on screen rather than its true centroid. Less likely to
+        # be visible for a 100km square (usually small enough to be
+        # fully on screen at once) than for a GZD zone, but the same
+        # underlying bug either way.
+        self._anchor_to_true_centroid(settings)
 
         # Above the UTM GZD label's priority, below the sub-grid's -
         # see SQUARE_LABEL_PRIORITY. displayAll still keeps this a

@@ -260,6 +260,71 @@ def build_synthetic_sloped_dem(
     return path
 
 
+def build_synthetic_ridge_dem(
+    width=30,
+    height=30,
+    pixel_size=0.0001,
+    origin_lon=37.34,
+    origin_lat=-3.09,
+    base_elevation=0.0,
+    ridge_height=200.0,
+    ridge_start_column=13,
+    ridge_end_column=17
+):
+
+    """
+    A small synthetic GeoTIFF DEM: flat base_elevation everywhere,
+    except a raised block of ridge_height across columns
+    [ridge_start_column, ridge_end_column) - a single obstruction
+    between two low points on either side of it, for line-of-sight
+    tests that need something concrete to block (or, with
+    ridge_height=0, a plain flat DEM for curvature-only cases where
+    there should be nothing in the way at all). Returns the file path;
+    the caller owns deleting it (e.g. in tearDown()).
+    """
+
+    import numpy
+    from osgeo import gdal, osr
+
+    path = tempfile.mktemp(suffix=".tif")
+
+    driver = gdal.GetDriverByName("GTiff")
+
+    dataset = driver.Create(
+        path, width, height, 1, gdal.GDT_Float32
+    )
+
+    dataset.SetGeoTransform(
+        [origin_lon, pixel_size, 0, origin_lat, 0, -pixel_size]
+    )
+
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    dataset.SetProjection(srs.ExportToWkt())
+
+    def elevation(row, col):
+
+        on_ridge = (col >= ridge_start_column) & (col < ridge_end_column)
+
+        return numpy.where(
+            on_ridge,
+            base_elevation + ridge_height,
+            base_elevation
+        )
+
+    band = numpy.fromfunction(
+        elevation,
+        (height, width),
+        dtype="float32"
+    )
+
+    dataset.GetRasterBand(1).WriteArray(band)
+    dataset.FlushCache()
+    dataset = None
+
+    return path
+
+
 class QgisTestCase(unittest.TestCase):
 
     """

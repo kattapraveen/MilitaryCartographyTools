@@ -117,3 +117,36 @@ class TestReplaceNamedLayer(QgisTestCase):
 
         node = root.findLayer(second.id())
         self.assertIsNotNone(node)
+
+
+    def test_generate_returning_none_does_not_crash_and_returns_none(self):
+
+        # Real reported bug: generate() can genuinely fail (e.g.
+        # generate_line_of_sight() when a point falls outside the
+        # DEM) - replace_named_layer() used to assume generate()
+        # always returns a layer and crashed on new_layer.id().
+        first = replace_named_layer(NAME, _make_layer)
+
+        self.assertIsNotNone(first)
+
+        result = replace_named_layer(NAME, lambda: None)
+
+        self.assertIsNone(result)
+
+
+    def test_generate_returning_none_leaves_the_existing_layer_alone(self):
+
+        # A failed regenerate shouldn't destroy a previously
+        # successful result just because the next attempt didn't
+        # produce anything.
+        first = replace_named_layer(NAME, _make_layer)
+
+        replace_named_layer(NAME, lambda: None)
+
+        self.assertIsNotNone(
+            QgsProject.instance().mapLayer(first.id())
+        )
+
+        matching = QgsProject.instance().mapLayersByName(NAME)
+
+        self.assertEqual(len(matching), 1)
