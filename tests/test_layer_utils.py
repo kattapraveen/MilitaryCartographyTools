@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for terrain/_layer_utils.py's replace_named_layer() - shared by
-the Tanaka Contours and Hypsometric Tint dialogs to correct their
-layer in place on regenerate, without resetting it to whatever
-position a fresh generate_*() call would place a brand new layer at
+Tests for terrain/_layer_utils.py's replace_named_layer() and
+add_layer_at_default_position() - shared by the Tanaka Contours,
+Hypsometric Tint, Combined Hillshade, and Line of Sight dialogs to
+correct their layer in place on regenerate, without resetting it to
+whatever position a fresh generate would place a brand new layer at
 by default.
 
 Military Cartography Tools
@@ -14,7 +15,10 @@ from qgis.core import QgsProject, QgsVectorLayer
 
 from .qgis_test_case import QgisTestCase
 
-from MilitaryCartographyTools.terrain._layer_utils import replace_named_layer
+from MilitaryCartographyTools.terrain._layer_utils import (
+    add_layer_at_default_position,
+    replace_named_layer,
+)
 
 
 NAME = "Replaceable Layer"
@@ -22,21 +26,24 @@ NAME = "Replaceable Layer"
 
 def _make_layer():
 
-    # generate()'s contract is "build AND add" - mirroring
-    # generate_tanaka_contours()/generate_hypsometric_tint(), which
-    # both add themselves to the project via QgsProject.addMapLayer()
-    # rather than leaving that to the caller.
-    layer = QgsVectorLayer(
+    # generate()'s contract is "build and style only" - mirroring
+    # generate_tanaka_contours()/generate_hypsometric_tint()/
+    # generate_hillshade_combination()/generate_line_of_sight(), none
+    # of which add themselves to the project any more (see
+    # terrain/_layer_utils.py's own module docstring for why).
+    return QgsVectorLayer(
         "Point?crs=EPSG:4326",
         NAME,
         "memory"
     )
 
-    QgsProject.instance().addMapLayer(
+
+def _default_insert_at_top(project, layer):
+
+    project.layerTreeRoot().insertLayer(
+        0,
         layer
     )
-
-    return layer
 
 
 class TestReplaceNamedLayer(QgisTestCase):
@@ -44,8 +51,12 @@ class TestReplaceNamedLayer(QgisTestCase):
     def test_first_generation_has_no_position_to_preserve(self):
 
         # No existing layer named NAME yet - generate() runs once,
-        # and whatever position it puts the layer at is left alone.
-        result = replace_named_layer(NAME, _make_layer)
+        # and default_insert_position() places it.
+        result = replace_named_layer(
+            NAME,
+            _make_layer,
+            _default_insert_at_top
+        )
 
         self.assertIsNotNone(result)
 
@@ -53,14 +64,28 @@ class TestReplaceNamedLayer(QgisTestCase):
             QgsProject.instance().mapLayer(result.id())
         )
 
+        root = QgsProject.instance().layerTreeRoot()
+
+        self.assertIsNotNone(
+            root.findLayer(result.id())
+        )
+
 
     def test_removes_the_old_layer_and_keeps_only_one(self):
 
-        first = replace_named_layer(NAME, _make_layer)
+        first = replace_named_layer(
+            NAME,
+            _make_layer,
+            _default_insert_at_top
+        )
 
         first_id = first.id()
 
-        second = replace_named_layer(NAME, _make_layer)
+        second = replace_named_layer(
+            NAME,
+            _make_layer,
+            _default_insert_at_top
+        )
 
         matching = QgsProject.instance().mapLayersByName(NAME)
 
@@ -78,14 +103,17 @@ class TestReplaceNamedLayer(QgisTestCase):
     def test_preserves_manually_moved_layer_tree_position(self):
 
         # Deterministically build a stack with the replaceable layer
-        # sitting in the MIDDLE - i.e. somewhere generate()'s own
-        # default placement (wherever a plain addMapLayer() happens
-        # to put a brand new layer) would never put it on its own -
+        # sitting in the MIDDLE - i.e. somewhere its own default
+        # placement (top of the tree) would never put it on its own -
         # simulating the user having dragged it there themselves.
         project = QgsProject.instance()
         root = project.layerTreeRoot()
 
-        first = _make_layer()
+        first = replace_named_layer(
+            NAME,
+            _make_layer,
+            _default_insert_at_top
+        )
 
         layer_a = QgsVectorLayer("Point?crs=EPSG:4326", "A", "memory")
         project.addMapLayer(layer_a, False)
@@ -106,9 +134,13 @@ class TestReplaceNamedLayer(QgisTestCase):
         )
 
         # Regenerate - the new layer should land back in the same
-        # (middle) slot, not wherever generate()'s own default
-        # placement would put a brand new layer.
-        second = replace_named_layer(NAME, _make_layer)
+        # (middle) slot, not wherever its own default placement would
+        # put a brand new layer.
+        second = replace_named_layer(
+            NAME,
+            _make_layer,
+            _default_insert_at_top
+        )
 
         self.assertEqual(
             [c.name() for c in root.children()],
@@ -125,11 +157,19 @@ class TestReplaceNamedLayer(QgisTestCase):
         # generate_line_of_sight() when a point falls outside the
         # DEM) - replace_named_layer() used to assume generate()
         # always returns a layer and crashed on new_layer.id().
-        first = replace_named_layer(NAME, _make_layer)
+        first = replace_named_layer(
+            NAME,
+            _make_layer,
+            _default_insert_at_top
+        )
 
         self.assertIsNotNone(first)
 
-        result = replace_named_layer(NAME, lambda: None)
+        result = replace_named_layer(
+            NAME,
+            lambda: None,
+            _default_insert_at_top
+        )
 
         self.assertIsNone(result)
 
@@ -139,9 +179,17 @@ class TestReplaceNamedLayer(QgisTestCase):
         # A failed regenerate shouldn't destroy a previously
         # successful result just because the next attempt didn't
         # produce anything.
-        first = replace_named_layer(NAME, _make_layer)
+        first = replace_named_layer(
+            NAME,
+            _make_layer,
+            _default_insert_at_top
+        )
 
-        replace_named_layer(NAME, lambda: None)
+        replace_named_layer(
+            NAME,
+            lambda: None,
+            _default_insert_at_top
+        )
 
         self.assertIsNotNone(
             QgsProject.instance().mapLayer(first.id())
@@ -150,3 +198,29 @@ class TestReplaceNamedLayer(QgisTestCase):
         matching = QgsProject.instance().mapLayersByName(NAME)
 
         self.assertEqual(len(matching), 1)
+
+
+class TestAddLayerAtDefaultPosition(QgisTestCase):
+
+    def test_adds_the_layer_to_the_project_and_positions_it(self):
+
+        layer = _make_layer()
+
+        result = add_layer_at_default_position(
+            QgsProject.instance(),
+            layer,
+            _default_insert_at_top
+        )
+
+        self.assertIs(result, layer)
+
+        self.assertIsNotNone(
+            QgsProject.instance().mapLayer(layer.id())
+        )
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        self.assertEqual(
+            root.children()[0].name(),
+            NAME
+        )

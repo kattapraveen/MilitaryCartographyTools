@@ -31,6 +31,7 @@ from MilitaryCartographyTools.terrain.tanaka_contours import (
     _hypsometric_color,
     _light_vector,
     _segment_illumination,
+    default_insert_position,
     generate_tanaka_contours,
     LAND_RAMP,
     MONOCHROME_LIT_GRAY,
@@ -513,8 +514,15 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
         )
 
 
-    def test_output_layer_added_to_project(self):
+    def test_output_layer_is_not_added_to_the_project(self):
 
+        # generate_tanaka_contours() deliberately doesn't add its
+        # result to the project - see terrain/_layer_utils.py's
+        # module docstring for why (a real bug: generate() self-
+        # inserting, then replace_named_layer() moving that same
+        # layer to its remembered position, could make the layer
+        # vanish in a live GUI session). Insertion is the dialog's
+        # job - see tests/test_tanaka_dialog.py.
         from qgis.core import QgsProject
 
         dem_layer = QgsRasterLayer(
@@ -535,6 +543,50 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
             segment_length=5.0
         )
 
-        self.assertIsNotNone(
+        self.assertTrue(
+            output.isValid()
+        )
+
+        self.assertIsNone(
             QgsProject.instance().mapLayer(output.id())
+        )
+
+
+    def test_default_insert_position_places_it_at_the_top_of_the_tree(self):
+
+        from qgis.core import QgsProject, QgsVectorLayer
+
+        project = QgsProject.instance()
+
+        existing = QgsVectorLayer("Point?crs=EPSG:4326", "Existing", "memory")
+        project.addMapLayer(existing, False)
+        project.layerTreeRoot().insertLayer(0, existing)
+
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        extent = QgsRectangle(
+            37.3405, -3.0935,
+            37.3435, -3.0905
+        )
+
+        output = generate_tanaka_contours(
+            dem_layer,
+            extent,
+            WGS84,
+            interval=20.0,
+            segment_length=5.0
+        )
+
+        project.addMapLayer(output, False)
+
+        default_insert_position(project, output)
+
+        root = project.layerTreeRoot()
+
+        self.assertEqual(
+            [c.name() for c in root.children()],
+            [output.name(), "Existing"]
         )

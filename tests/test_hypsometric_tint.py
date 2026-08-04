@@ -10,6 +10,7 @@ Military Cartography Tools
 import os
 
 from qgis.core import (
+    Qgis,
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
@@ -27,6 +28,8 @@ from MilitaryCartographyTools.terrain._hypsometric_ramp import (
 )
 from MilitaryCartographyTools.terrain.hypsometric_tint import (
     _build_color_ramp_items,
+    _build_source_color_ramp,
+    default_insert_position,
     generate_hypsometric_tint,
     OUTPUT_LAYER_NAME,
 )
@@ -95,6 +98,78 @@ class TestBuildColorRampItems(QgisTestCase):
         self.assertIn(0.0, values)
 
 
+    def test_only_one_item_lands_exactly_at_zero(self):
+
+        # Regression test for a real colour-seam bug: SEA_RAMP's own
+        # top stop and LAND_RAMP's own bottom stop both naively land
+        # on elevation 0 - a genuine tie in the sorted item list.
+        # hypsometric_color() (used by Tanaka Contours) resolves
+        # elevation 0 to LAND unambiguously, but QgsColorRampShader's
+        # shade() resolved the tie to SEA's blue instead of LAND's
+        # green, confirmed live as a real coastline colour mismatch
+        # between the two layers. Exactly one item may sit at 0.0 -
+        # SEA_RAMP's tied stop must be nudged off it.
+        items = _build_color_ramp_items(
+            min_elevation=-500.0,
+            max_elevation=1000.0
+        )
+
+        zero_valued = [item for item in items if item.value == 0.0]
+
+        self.assertEqual(len(zero_valued), 1)
+
+        self.assertEqual(
+            (zero_valued[0].color.red(), zero_valued[0].color.green(), zero_valued[0].color.blue()),
+            LAND_RAMP[0][1]
+        )
+
+
+class TestBuildSourceColorRamp(QgisTestCase):
+
+    """
+    Regression coverage for a real bug: QgsColorRampShader built only
+    via setColorRampItemList(), with no QgsColorRamp attached via
+    setSourceColorRamp(), isn't recognised by QGIS's own Symbology UI -
+    confirmed live, simply opening and closing Layer Properties (no
+    edits made) silently replaced the hypsometric colours with QGIS's
+    own default ramp.
+    """
+
+    def test_endpoints_match_the_first_and_last_items(self):
+
+        items = _build_color_ramp_items(
+            min_elevation=-500.0,
+            max_elevation=1000.0
+        )
+
+        ramp = _build_source_color_ramp(items)
+
+        self.assertEqual(
+            ramp.color1(),
+            items[0].color
+        )
+
+        self.assertEqual(
+            ramp.color2(),
+            items[-1].color
+        )
+
+
+    def test_intermediate_stop_count_matches_the_items_in_between(self):
+
+        items = _build_color_ramp_items(
+            min_elevation=-500.0,
+            max_elevation=1000.0
+        )
+
+        ramp = _build_source_color_ramp(items)
+
+        self.assertEqual(
+            len(ramp.stops()),
+            len(items) - 2
+        )
+
+
 class TestGenerateHypsometricTintIntegration(QgisTestCase):
 
     def setUp(self):
@@ -148,8 +223,115 @@ class TestGenerateHypsometricTintIntegration(QgisTestCase):
             QgsSingleBandPseudoColorRenderer
         )
 
+
+    def test_shader_has_a_source_color_ramp_attached(self):
+
+        # Regression test: without a source ramp, QGIS's own
+        # Symbology UI silently discards the hypsometric colours the
+        # moment Layer Properties is opened and closed.
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        output = generate_hypsometric_tint(
+            dem_layer,
+            self._extent(),
+            WGS84
+        )
+
+        shader_function = output.renderer().shader().rasterShaderFunction()
+
         self.assertIsNotNone(
-            QgsProject.instance().mapLayer(output.id())
+            shader_function.sourceColorRamp()
+        )
+
+
+    def test_shader_min_max_match_the_dems_own_elevation_range(self):
+
+        # Regression test for a real bug: QgsColorRampShader()'s
+        # no-arg constructor leaves minimumValue()/maximumValue() at
+        # their default 0.0/255.0 - confirmed live as the cause of a
+        # colour-shift bug (the Layers panel legend read 0/255 for a
+        # freshly generated layer instead of its real elevation
+        # range, and the actual rendered colours only became correct
+        # once something else - opening and closing Layer Properties
+        # - finally set these from the real data).
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        output = generate_hypsometric_tint(
+            dem_layer,
+            self._extent(),
+            WGS84
+        )
+
+        shader_function = output.renderer().shader().rasterShaderFunction()
+
+        items = shader_function.colorRampItemList()
+
+        self.assertAlmostEqual(
+            shader_function.minimumValue(),
+            items[0].value
+        )
+
+        self.assertAlmostEqual(
+            shader_function.maximumValue(),
+            items[-1].value
+        )
+
+        self.assertNotAlmostEqual(
+            shader_function.minimumValue(),
+            0.0
+        )
+
+        self.assertNotAlmostEqual(
+            shader_function.maximumValue(),
+            255.0
+        )
+
+
+    def test_min_max_origin_is_pinned_to_the_exact_whole_raster_range(self):
+
+        # Regression test for a real bug: QgsRasterMinMaxOrigin()'s
+        # own default (limits=NotSet, statAccuracy=Estimated,
+        # confirmed via a direct check of a fresh instance) leaves
+        # QGIS's own Symbology widget free to recompute its own
+        # SAMPLED min/max estimate whenever it loads - which came out
+        # narrower than the true range (missing the real peak pixel)
+        # and visibly changed the rendered colours, confirmed live,
+        # purely from opening and closing Layer Properties with zero
+        # edits made. Pinning limits/extent/statAccuracy tells QGIS
+        # the values this module already computed ARE the exact
+        # whole-raster min/max, so it has no reason to recompute them.
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        output = generate_hypsometric_tint(
+            dem_layer,
+            self._extent(),
+            WGS84
+        )
+
+        min_max_origin = output.renderer().minMaxOrigin()
+
+        self.assertEqual(
+            min_max_origin.limits(),
+            Qgis.RasterRangeLimit.MinimumMaximum
+        )
+
+        self.assertEqual(
+            min_max_origin.extent(),
+            Qgis.RasterRangeExtent.WholeRaster
+        )
+
+        self.assertEqual(
+            min_max_origin.statAccuracy(),
+            Qgis.RasterRangeAccuracy.Exact
         )
 
 
@@ -173,7 +355,33 @@ class TestGenerateHypsometricTintIntegration(QgisTestCase):
         )
 
 
-    def test_lands_at_bottom_of_layer_tree_even_with_other_layers_above(self):
+    def test_output_layer_is_not_added_to_the_project(self):
+
+        # generate_hypsometric_tint() deliberately doesn't add its
+        # result to the project - see terrain/_layer_utils.py's
+        # module docstring for why. Insertion is the dialog's job -
+        # see tests/test_hypsometric_tint_dialog.py.
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        output = generate_hypsometric_tint(
+            dem_layer,
+            self._extent(),
+            WGS84
+        )
+
+        self.assertTrue(
+            output.isValid()
+        )
+
+        self.assertIsNone(
+            QgsProject.instance().mapLayer(output.id())
+        )
+
+
+    def test_default_insert_position_lands_at_bottom_of_layer_tree(self):
 
         # A real bug this session: a new layer added via a plain
         # addMapLayer() ends up on TOP of the layer tree (rendered
@@ -195,13 +403,19 @@ class TestGenerateHypsometricTintIntegration(QgisTestCase):
             "test_dem"
         )
 
-        generate_hypsometric_tint(
+        output = generate_hypsometric_tint(
             dem_layer,
             self._extent(),
             WGS84
         )
 
-        root = QgsProject.instance().layerTreeRoot()
+        project = QgsProject.instance()
+
+        project.addMapLayer(output, False)
+
+        default_insert_position(project, output)
+
+        root = project.layerTreeRoot()
 
         names = [child.name() for child in root.children()]
 

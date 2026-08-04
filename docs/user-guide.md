@@ -17,6 +17,7 @@ military grid generation, and automated print-layout production.
 - [Tanaka Contours](#tanaka-contours)
 - [Hypsometric Tint](#hypsometric-tint)
 - [Line of Sight](#line-of-sight)
+- [Hillshade Combinations](#hillshade-combinations)
 - [Expression functions](#expression-functions)
 
 ---
@@ -53,6 +54,7 @@ Left to right:
 | Illuminated concentric rings | Tanaka Contours |
 | Filled concentric colour bands | Hypsometric Tint |
 | Two dots joined by a line, with a small crossing tick | Line of Sight |
+| Hill silhouette lit by two crossed arrows | Hillshade Combinations |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -199,10 +201,12 @@ The dialog asks for:
 | Monochrome | Off by default (elevation color). Check this for the classic grayscale-by-illumination look instead |
 | Add as new layer | Off by default — re-running the dialog corrects the existing "Tanaka Contours" layer in place. Check this to keep the previous layer and add a new one alongside it instead, e.g. to compare two parameter sets |
 
-Contours are generated for the **current map canvas extent** only (not the
-whole DEM), clipped and reprojected to the appropriate local UTM zone
-automatically — pan/zoom to the area you want first. On a large DEM, keep
-the extent reasonably small (a few kilometres across) for fast generation.
+Contours are generated for the **DEM layer's own full extent**, clipped and
+reprojected to the appropriate local UTM zone automatically — the current
+map canvas view has no effect on the result, so regenerating (e.g. after
+tweaking a parameter) always produces the same output regardless of where
+you've since panned or zoomed. On a large DEM, generation may take longer;
+crop the DEM itself first if you only need a smaller area.
 
 ### Getting a DEM
 
@@ -235,18 +239,16 @@ above). The dialog asks for:
 | Opacity | 0–100%, default 100 |
 | Add as new layer | Off by default — re-running the dialog corrects the existing "Hypsometric Tint" layer in place. Check this to keep the previous layer and add a new one alongside it instead |
 
-Like Tanaka Contours, it's generated for the **current map canvas extent**
-only, clipped and reprojected automatically — pan/zoom to the area you
-want first. New layers are always placed at the **bottom** of the layer
-panel, so it won't cover any grid or contour layers already in your
-project.
+Like Tanaka Contours, it's generated for the **DEM layer's own full
+extent**, clipped and reprojected automatically — the current map canvas
+view has no effect on the result. New layers are always placed at the
+**bottom** of the layer panel, so it won't cover any grid or contour
+layers already in your project.
 
 **Tip:** for a fuller, textured relief look (closer to a shaded physical
-relief map), add a QGIS-native **Hillshade** on top (**Raster → Analysis
-→ Hillshade**, or the `gdal:hillshade` Processing algorithm) and set its
-layer blending mode to **Multiply** (**Layer Properties → Symbology →
-Blending mode**). That combination uses tools already built into QGIS —
-no extra step from this plugin needed.
+relief map), generate a **Hillshade Combinations** layer (see below) over
+the same area — it automatically sits above this one with a Multiply
+blend already applied.
 
 ---
 
@@ -289,6 +291,37 @@ map canvas extent — the DEM is clipped to a box around wherever the observer
 and target actually are, so you can freely pan or zoom between clicking the
 first point and the second without losing it. The tool stays active across
 repeated pairs, like Coordinate Probe, until you select a different tool.
+
+---
+
+## Hillshade Combinations
+
+QGIS/GDAL's own hillshade tools (**Raster → Analysis → Hillshade**, or the
+`gdal:hillshade` Processing algorithm) only light the terrain from a single
+direction, which can hide relief that happens to run parallel to that
+light. Click the hill-with-two-arrows icon to generate a **Combined
+Hillshade** layer instead — it runs the hillshade calculation once per
+light direction and averages the results into one blended relief layer.
+
+Requires a DEM layer already loaded in your project (see "Getting a DEM"
+above). The dialog asks for:
+
+| Field | Notes |
+|---|---|
+| DEM layer | Any loaded raster layer |
+| Light directions | Two-direction (NW + NE) or Three-direction (NW + NE + S) — default Three-direction |
+| Add as new layer | Off by default — re-running the dialog corrects the existing "Combined Hillshade" layer in place. Check this to keep the previous layer and add a new one alongside it instead |
+
+Like Tanaka Contours and Hypsometric Tint, it's generated for the **DEM
+layer's own full extent**, clipped and reprojected automatically — the
+current map canvas view has no effect on the result. The layer is
+rendered in grayscale with a **Multiply** blending mode already applied,
+so if a Hypsometric
+Tint layer already exists in your project, the new layer is placed
+directly above it — the two combine automatically into a coloured,
+textured relief look. If there's no Hypsometric Tint layer yet, it's
+placed at the bottom of the layer panel instead, same as Hypsometric Tint
+itself, so it won't cover any grid or contour layers.
 
 ---
 

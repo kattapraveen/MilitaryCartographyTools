@@ -20,7 +20,6 @@ from qgis.core import (
     QgsField,
     QgsLineSymbol,
     QgsPointXY,
-    QgsProject,
     QgsProperty,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -366,6 +365,22 @@ def _apply_style(layer, min_width_mm, max_width_mm, monochrome=False):
     layer.triggerRepaint()
 
 
+def default_insert_position(project, layer):
+
+    """
+    Tanaka Contours' own default placement for a brand new layer -
+    top of the tree, since it's a vector overlay meant to sit above
+    the coarser grid/raster layers. Only used when there's no
+    previous layer's position to inherit (see
+    terrain/_layer_utils.py's replace_named_layer()).
+    """
+
+    project.layerTreeRoot().insertLayer(
+        0,
+        layer
+    )
+
+
 def generate_tanaka_contours(
     dem_layer,
     extent,
@@ -420,10 +435,6 @@ def generate_tanaka_contours(
         min_width_mm,
         max_width_mm,
         monochrome=monochrome
-    )
-
-    QgsProject.instance().addMapLayer(
-        output_layer
     )
 
     return output_layer

@@ -50,6 +50,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "Tanaka Contours",
                 "Hypsometric Tint",
                 "Line of Sight",
+                "Hillshade Combinations",
             ):
 
                 self.assertIn(expected, texts)
@@ -100,6 +101,7 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.hypsometric_tint_action)
         self.assertIsNone(plugin.line_of_sight_action)
         self.assertIsNone(plugin.line_of_sight_tool)
+        self.assertIsNone(plugin.hillshade_combination_action)
 
 
     def test_init_gui_then_unload_then_init_gui_again_does_not_error(self):

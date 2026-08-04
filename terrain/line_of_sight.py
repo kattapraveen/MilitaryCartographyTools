@@ -345,6 +345,22 @@ def _bounding_extent(observer_lonlat, target_lonlat):
     )
 
 
+def default_insert_position(project, layer):
+
+    """
+    Line of Sight's own default placement for a brand new layer - top
+    of the tree, since it's a vector overlay meant to sit above the
+    coarser grid/raster layers. Only used when there's no previous
+    layer's position to inherit (see terrain/_layer_utils.py's
+    replace_named_layer()).
+    """
+
+    project.layerTreeRoot().insertLayer(
+        0,
+        layer
+    )
+
+
 def generate_line_of_sight(
     dem_layer,
     observer_lonlat,
@@ -359,8 +375,9 @@ def generate_line_of_sight(
     against dem_layer clipped to a bounding box around the two points
     (see _bounding_extent() - deliberately not the current map canvas
     extent). Green where the target is visible from the observer, red
-    where blocked by terrain or earth curvature/refraction. Adds the
-    result to the current project and returns it.
+    where blocked by terrain or earth curvature/refraction.
+    Deliberately does NOT add the layer to the project - see
+    terrain/_layer_utils.py's module docstring for why.
 
     Returns None if either point falls outside dem_layer's own
     coverage - whether the target is actually visible or not is read
@@ -433,10 +450,6 @@ def generate_line_of_sight(
     )
 
     _apply_style(
-        output_layer
-    )
-
-    QgsProject.instance().addMapLayer(
         output_layer
     )
 

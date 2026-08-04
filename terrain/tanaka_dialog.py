@@ -3,13 +3,13 @@
 """
 Qt UI for generating Tanaka contours - picks a DEM plus the
 illumination/styling parameters, then hands off to
-tanaka_contours.generate_tanaka_contours() for the current map
-canvas extent.
+tanaka_contours.generate_tanaka_contours() for the DEM's own full
+extent.
 
 Military Cartography Tools
 """
 
-from qgis.core import QgsMapLayerProxyModel
+from qgis.core import QgsMapLayerProxyModel, QgsProject
 from qgis.gui import QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
@@ -21,9 +21,10 @@ from qgis.PyQt.QtWidgets import (
     QDialogButtonBox,
 )
 
-from ._layer_utils import replace_named_layer
+from ._layer_utils import add_layer_at_default_position, replace_named_layer
 from .tanaka_contours import (
     generate_tanaka_contours,
+    default_insert_position,
     DEFAULT_INTERVAL,
     DEFAULT_SEGMENT_LENGTH,
     DEFAULT_LIGHT_AZIMUTH,
@@ -215,14 +216,14 @@ def generate_from_dialog_values(iface, values):
 
         return None
 
-    canvas = iface.mapCanvas()
+    dem_layer = values["dem_layer"]
 
     def generate():
 
         return generate_tanaka_contours(
-            values["dem_layer"],
-            canvas.extent(),
-            canvas.mapSettings().destinationCrs(),
+            dem_layer,
+            dem_layer.extent(),
+            dem_layer.crs(),
             interval=values["interval"],
             segment_length=values["segment_length"],
             light_azimuth_deg=values["light_azimuth_deg"],
@@ -232,7 +233,17 @@ def generate_from_dialog_values(iface, values):
         )
 
     if values["add_as_new_layer"]:
-        return generate()
+
+        new_layer = generate()
+
+        if new_layer is None:
+            return None
+
+        return add_layer_at_default_position(
+            QgsProject.instance(),
+            new_layer,
+            default_insert_position
+        )
 
     # Default behaviour: correct the existing layer in place rather
     # than piling up a new one on every re-run with tweaked settings,
@@ -241,7 +252,8 @@ def generate_from_dialog_values(iface, values):
     # user has since renamed is left alone.
     return replace_named_layer(
         OUTPUT_LAYER_NAME,
-        generate
+        generate,
+        default_insert_position
     )
 
 
@@ -249,9 +261,9 @@ def show_tanaka_contour_dialog(iface):
 
     """
     Prompt for a DEM and illumination/styling parameters, then
-    generate the Tanaka contour layer for the current map canvas
-    extent if accepted. Returns the new layer, or None if the
-    dialog was cancelled or no DEM layer was available to pick.
+    generate the Tanaka contour layer for the DEM's own full extent
+    if accepted. Returns the new layer, or None if the dialog was
+    cancelled or no DEM layer was available to pick.
     """
 
     dialog = TanakaContourDialog(

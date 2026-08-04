@@ -9,7 +9,7 @@ height field, then hands off to line_of_sight.generate_line_of_sight().
 Military Cartography Tools
 """
 
-from qgis.core import QgsMapLayerProxyModel
+from qgis.core import QgsMapLayerProxyModel, QgsProject
 from qgis.gui import QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
@@ -22,9 +22,10 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
-from ._layer_utils import replace_named_layer
+from ._layer_utils import add_layer_at_default_position, replace_named_layer
 from .line_of_sight import (
     generate_line_of_sight,
+    default_insert_position,
     DEFAULT_OBSERVER_HEIGHT_M,
     DEFAULT_TARGET_HEIGHT_M,
     OUTPUT_LAYER_NAME,
@@ -309,7 +310,17 @@ def generate_from_dialog_values(iface, values):
         )
 
     if values["add_as_new_layer"]:
+
         layer = generate()
+
+        if layer is not None:
+
+            layer = add_layer_at_default_position(
+                QgsProject.instance(),
+                layer,
+                default_insert_position
+            )
+
     else:
         # Default behaviour: correct the existing layer in place
         # rather than piling up a new one on every re-run with
@@ -317,7 +328,8 @@ def generate_from_dialog_values(iface, values):
         # dragged it in the Layers panel.
         layer = replace_named_layer(
             OUTPUT_LAYER_NAME,
-            generate
+            generate,
+            default_insert_position
         )
 
     if layer is None:

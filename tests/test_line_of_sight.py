@@ -10,7 +10,7 @@ Military Cartography Tools
 
 import os
 
-from qgis.core import QgsPointXY, QgsRasterLayer
+from qgis.core import QgsPointXY, QgsProject, QgsRasterLayer, QgsVectorLayer
 
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
@@ -18,6 +18,7 @@ from MilitaryCartographyTools.terrain._dem_utils import clip_and_reproject_dem
 from MilitaryCartographyTools.terrain.line_of_sight import (
     compute_profile,
     curvature_refraction_drop,
+    default_insert_position,
     generate_line_of_sight,
     OUTPUT_LAYER_NAME,
 )
@@ -289,6 +290,63 @@ class TestGenerateLineOfSight(QgisTestCase):
                 feature["VISIBLE"]
                 for feature in layer.getFeatures()
             )
+        )
+
+
+    def test_output_layer_is_not_added_to_the_project(self):
+
+        # generate_line_of_sight() deliberately doesn't add its
+        # result to the project - see terrain/_layer_utils.py's
+        # module docstring for why. Insertion is the dialog's job -
+        # see tests/test_line_of_sight_dialog.py.
+        extent = self.dem_layer.extent()
+
+        margin = extent.width() * 0.1
+        y = extent.center().y()
+
+        layer = generate_line_of_sight(
+            self.dem_layer,
+            QgsPointXY(extent.xMinimum() + margin, y),
+            2.0,
+            QgsPointXY(extent.xMaximum() - margin, y),
+            2.0
+        )
+
+        self.assertIsNone(
+            QgsProject.instance().mapLayer(layer.id())
+        )
+
+
+    def test_default_insert_position_places_it_at_the_top_of_the_tree(self):
+
+        project = QgsProject.instance()
+
+        existing = QgsVectorLayer("Point?crs=EPSG:4326", "Existing", "memory")
+        project.addMapLayer(existing, False)
+        project.layerTreeRoot().insertLayer(0, existing)
+
+        extent = self.dem_layer.extent()
+
+        margin = extent.width() * 0.1
+        y = extent.center().y()
+
+        layer = generate_line_of_sight(
+            self.dem_layer,
+            QgsPointXY(extent.xMinimum() + margin, y),
+            2.0,
+            QgsPointXY(extent.xMaximum() - margin, y),
+            2.0
+        )
+
+        project.addMapLayer(layer, False)
+
+        default_insert_position(project, layer)
+
+        root = project.layerTreeRoot()
+
+        self.assertEqual(
+            [c.name() for c in root.children()],
+            [layer.name(), "Existing"]
         )
 
 

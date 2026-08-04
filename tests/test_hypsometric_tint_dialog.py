@@ -17,7 +17,6 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsProject,
     QgsRasterLayer,
-    QgsRectangle,
     QgsVectorLayer,
 )
 
@@ -51,13 +50,11 @@ class TestGenerateFromDialogValues(QgisTestCase):
             "test_dem"
         )
 
-        canvas = make_canvas()
-
-        canvas.setExtent(
-            QgsRectangle(37.3402, -3.0935, 37.3428, -3.0905)
-        )
-
-        self.iface = FakeIface(canvas=canvas)
+        # generate_from_dialog_values() now clips to the DEM's own
+        # full extent rather than the canvas, so the canvas's own
+        # extent no longer affects generation - kept only because
+        # FakeIface expects one.
+        self.iface = FakeIface(canvas=make_canvas())
 
 
     def tearDown(self):
@@ -86,6 +83,37 @@ class TestGenerateFromDialogValues(QgisTestCase):
 
         self.assertIsNone(result)
         self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+    def test_generation_uses_the_dems_own_extent_not_the_canvas(self):
+
+        # Regression test: generation used to clip to canvas.extent(),
+        # so a regenerate could silently produce a different result
+        # (or nothing at all) if the view had shifted even slightly
+        # since the last run. Moving the canvas somewhere completely
+        # disjoint from the DEM must not affect the result at all.
+        from qgis.core import QgsRectangle
+
+        self.iface.mapCanvas().setExtent(
+            QgsRectangle(100.0, 40.0, 101.0, 41.0)
+        )
+
+        result = generate_from_dialog_values(self.iface, self._values())
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result.isValid())
+
+        # The output is reprojected to a local UTM zone, so its own
+        # extent won't string-match the source DEM's WGS84 extent -
+        # instead confirm it covers the DEM's real elevation range
+        # (0-290m for the default synthetic sloped DEM), proving it
+        # clipped the actual DEM rather than the disjoint canvas area.
+        from MilitaryCartographyTools.terrain._dem_utils import band_min_max
+
+        min_elev, max_elev = band_min_max(result)
+
+        self.assertAlmostEqual(min_elev, 0.0, delta=1.0)
+        self.assertAlmostEqual(max_elev, 290.0, delta=1.0)
 
 
     def test_default_replaces_existing_layer_rather_than_adding_another(self):

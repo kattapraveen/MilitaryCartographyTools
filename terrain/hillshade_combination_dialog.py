@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Qt UI for generating a hypsometric tint layer - picks a DEM plus
-opacity, then hands off to
-hypsometric_tint.generate_hypsometric_tint() for the DEM's own full
-extent.
+Qt UI for generating a combined hillshade layer - picks a DEM plus an
+azimuth preset, then hands off to
+hillshade_combination.generate_hillshade_combination() for the DEM's
+own full extent.
 
 Military Cartography Tools
 """
@@ -14,29 +14,31 @@ from qgis.gui import QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFormLayout,
     QVBoxLayout,
-    QSpinBox,
     QDialogButtonBox,
 )
 
 from ._layer_utils import add_layer_at_default_position, replace_named_layer
-from .hypsometric_tint import (
-    generate_hypsometric_tint,
+from .hillshade_combination import (
+    generate_hillshade_combination,
     default_insert_position,
     OUTPUT_LAYER_NAME,
+    TWO_DIRECTION_AZIMUTHS,
+    THREE_DIRECTION_AZIMUTHS,
 )
 
 
-class HypsometricTintDialog(QDialog):
+class HillshadeCombinationDialog(QDialog):
 
     def __init__(self, parent=None):
 
         super().__init__(parent)
 
         self.setWindowTitle(
-            "Hypsometric Tint"
+            "Hillshade Combinations"
         )
 
         self.dem_combo = QgsMapLayerComboBox()
@@ -45,20 +47,19 @@ class HypsometricTintDialog(QDialog):
             QgsMapLayerProxyModel.Filter.RasterLayer
         )
 
-        self.opacity_spin = QSpinBox()
+        self.preset_combo = QComboBox()
 
-        self.opacity_spin.setRange(
-            0,
-            100
+        self.preset_combo.addItem(
+            "Two-direction (NW 315° + NE 45°)",
+            TWO_DIRECTION_AZIMUTHS
         )
 
-        self.opacity_spin.setSuffix(
-            "%"
+        self.preset_combo.addItem(
+            "Three-direction (NW 315° + NE 45° + S 180°)",
+            THREE_DIRECTION_AZIMUTHS
         )
 
-        self.opacity_spin.setValue(
-            100
-        )
+        self.preset_combo.setCurrentIndex(1)
 
         self.new_layer_checkbox = QCheckBox(
             "Add as new layer (keep the existing one)"
@@ -71,7 +72,7 @@ class HypsometricTintDialog(QDialog):
         form = QFormLayout()
 
         form.addRow("DEM layer", self.dem_combo)
-        form.addRow("Opacity", self.opacity_spin)
+        form.addRow("Light directions", self.preset_combo)
         form.addRow(self.new_layer_checkbox)
 
         buttons = QDialogButtonBox(
@@ -101,7 +102,7 @@ class HypsometricTintDialog(QDialog):
 
         return {
             "dem_layer": self.dem_combo.currentLayer(),
-            "opacity": self.opacity_spin.value() / 100.0,
+            "azimuths": self.preset_combo.currentData(),
             "add_as_new_layer": self.new_layer_checkbox.isChecked(),
         }
 
@@ -109,18 +110,18 @@ class HypsometricTintDialog(QDialog):
 def generate_from_dialog_values(iface, values):
 
     """
-    The accept-flow logic that runs once a HypsometricTintDialog has
-    been filled in and accepted - split out from
-    show_hypsometric_tint_dialog() so it's testable without driving
-    an actual modal QDialog. Returns the new layer, or None if no DEM
-    layer was picked.
+    The accept-flow logic that runs once a HillshadeCombinationDialog
+    has been filled in and accepted - split out from
+    show_hillshade_combination_dialog() so it's testable without
+    driving an actual modal QDialog. Returns the new layer, or None if
+    no DEM layer was picked.
     """
 
     if values["dem_layer"] is None:
 
         iface.messageBar().pushWarning(
             "Military Cartography Tools",
-            "No raster (DEM) layer available to generate a hypsometric tint from."
+            "No raster (DEM) layer available to generate a combined hillshade from."
         )
 
         return None
@@ -129,11 +130,11 @@ def generate_from_dialog_values(iface, values):
 
     def generate():
 
-        return generate_hypsometric_tint(
+        return generate_hillshade_combination(
             dem_layer,
             dem_layer.extent(),
             dem_layer.crs(),
-            opacity=values["opacity"]
+            azimuths=values["azimuths"]
         )
 
     if values["add_as_new_layer"]:
@@ -150,10 +151,9 @@ def generate_from_dialog_values(iface, values):
         )
 
     # Default behaviour: correct the existing layer in place rather
-    # than piling up a new one on every re-run with tweaked settings,
-    # preserving wherever the user has since dragged it in the Layers
-    # panel. Only replaces layers by this exact name, so a layer the
-    # user has since renamed is left alone.
+    # than piling up a new one on every re-run with a different
+    # preset, preserving wherever the user has since dragged it in
+    # the Layers panel.
     return replace_named_layer(
         OUTPUT_LAYER_NAME,
         generate,
@@ -161,16 +161,16 @@ def generate_from_dialog_values(iface, values):
     )
 
 
-def show_hypsometric_tint_dialog(iface):
+def show_hillshade_combination_dialog(iface):
 
     """
-    Prompt for a DEM and opacity, then generate the hypsometric tint
-    layer for the DEM's own full extent if accepted. Returns the new
-    layer, or None if the dialog was cancelled or no DEM layer was
-    available to pick.
+    Prompt for a DEM and an azimuth preset, then generate the combined
+    hillshade layer for the DEM's own full extent if accepted. Returns
+    the new layer, or None if the dialog was cancelled or no DEM
+    layer was available to pick.
     """
 
-    dialog = HypsometricTintDialog(
+    dialog = HillshadeCombinationDialog(
         iface.mainWindow()
     )
 

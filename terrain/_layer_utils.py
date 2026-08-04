@@ -2,13 +2,26 @@
 
 """
 Shared "replace this layer in place" helper for the terrain/ dialogs
-(Tanaka Contours, Hypsometric Tint) - both want re-running their
-dialog with tweaked settings to correct the existing layer rather
-than piling up a new one, AND to leave the corrected layer wherever
-the user has since dragged it in the Layers panel, rather than
-resetting it to whatever position a fresh generate_*() call would
-place a brand new layer at by default (top of the tree for Tanaka
-Contours, bottom for Hypsometric Tint).
+(Tanaka Contours, Hypsometric Tint, Combined Hillshade, Line of
+Sight) - both want re-running their dialog with tweaked settings to
+correct the existing layer rather than piling up a new one, AND to
+leave the corrected layer wherever the user has since dragged it in
+the Layers panel, rather than resetting it to whatever position a
+fresh generate would place a brand new layer at by default.
+
+generate_*() functions build and style a layer but deliberately don't
+add it to the project/tree themselves - this module owns ALL project/
+tree insertion, in exactly one explicit place per call. Earlier,
+generate_*() self-inserted (via QgsProject.addMapLayer()) and this
+module then removed-and-reinserted that same layer to reposition it -
+confirmed live as a real bug: a plain addMapLayer() call in a live
+QGIS session is influenced by QgsLayerTreeRegistryBridge's "current
+insertion point" (tied to whatever's selected in the Layers panel),
+something no headless test can reproduce (there's no Layers panel
+widget), and the extra remove-then-reinsert churn on the very layer
+`generate()` just added was a second, independent source of fragility.
+Building the layer without inserting it, then inserting it exactly
+once at an explicit position, sidesteps both.
 
 Military Cartography Tools
 """
@@ -38,16 +51,42 @@ def _layer_tree_position(layer):
     return parent, parent.children().index(node)
 
 
-def replace_named_layer(name, generate):
+def add_layer_at_default_position(project, layer, default_insert_position):
 
     """
-    Call generate() (a zero-arg callable that builds and adds a fresh
-    replacement layer - generate_tanaka_contours()/
-    generate_hypsometric_tint()/generate_line_of_sight(), already
-    bound to their own arguments via a lambda/partial at the call
-    site); if it succeeds, remove every existing layer named `name`
-    and - if a prior layer existed - move the new layer to the same
-    layer tree position the old one occupied.
+    Add layer to project (not yet in the legend) and position it via
+    default_insert_position(project, layer) - used for the "Add as
+    new layer" path, where there's no previous layer's position to
+    inherit, so the feature's own default placement (e.g. top of the
+    tree for a vector overlay, bottom for a raster fill) applies.
+    """
+
+    project.addMapLayer(
+        layer,
+        False
+    )
+
+    default_insert_position(
+        project,
+        layer
+    )
+
+    return layer
+
+
+def replace_named_layer(name, generate, default_insert_position):
+
+    """
+    Call generate() (a zero-arg callable that builds and styles a
+    fresh replacement layer - generate_tanaka_contours()/
+    generate_hypsometric_tint()/generate_hillshade_combination()/
+    generate_line_of_sight(), already bound to their own arguments via
+    a lambda/closure at the call site - WITHOUT adding it to the
+    project); if it succeeds, remove every existing layer named `name`
+    and insert the new layer exactly once - at the old layer's own
+    tree position if one existed, or via default_insert_position(
+    project, layer) otherwise (a small per-feature callback that knows
+    that feature's own sensible default placement).
 
     Without the position-preservation, a user who has manually
     dragged the layer to a different spot in the Layers panel finds
@@ -82,28 +121,34 @@ def replace_named_layer(name, generate):
             layer.id()
         )
 
+    project.addMapLayer(
+        new_layer,
+        False
+    )
+
     if remembered_position is not None:
 
         parent, index = remembered_position
 
-        root = project.layerTreeRoot()
-
-        node = root.findLayer(
-            new_layer.id()
+        # The remembered index came from the OLD layer, which has
+        # since been removed - the parent's current child count may
+        # be smaller now, so clamp defensively rather than risk an
+        # out-of-range insert.
+        index = min(
+            index,
+            len(parent.children())
         )
 
-        if node is not None:
+        parent.insertLayer(
+            index,
+            new_layer
+        )
 
-            # No direct "move" API on QgsLayerTreeGroup - undo
-            # whichever default placement generate() just used and
-            # insert fresh at the remembered position instead.
-            node.parent().removeChildNode(
-                node
-            )
+    else:
 
-            parent.insertLayer(
-                index,
-                new_layer
-            )
+        default_insert_position(
+            project,
+            new_layer
+        )
 
     return new_layer

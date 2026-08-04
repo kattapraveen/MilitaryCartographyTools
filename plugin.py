@@ -25,7 +25,11 @@ from .core.coordinate_probe_tool import CoordinateProbeTool
 from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel
-from .terrain import show_tanaka_contour_dialog, show_hypsometric_tint_dialog
+from .terrain import (
+    show_tanaka_contour_dialog,
+    show_hypsometric_tint_dialog,
+    show_hillshade_combination_dialog,
+)
 from .terrain.line_of_sight_tool import LineOfSightTool
 
 
@@ -69,6 +73,7 @@ class MilitaryCartographyTools:
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
         self.line_of_sight_action = None
+        self.hillshade_combination_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -143,6 +148,7 @@ class MilitaryCartographyTools:
         self._setup_tanaka_contours_action()
         self._setup_hypsometric_tint_action()
         self._setup_line_of_sight_action()
+        self._setup_hillshade_combination_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -444,6 +450,23 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_hillshade_combination_action(self):
+
+        # Multi-directional hillshade blend from a DEM, clipped to
+        # the current map canvas extent - see
+        # terrain/hillshade_combination.py.
+        self.hillshade_combination_action = self._build_action(
+            "hillshade_combination.svg",
+            "Hillshade Combinations",
+            tooltip=(
+                "Generate a multi-directional hillshade blend (2-3 "
+                "light azimuths averaged) from a DEM for the "
+                "current map extent"
+            ),
+            callback=self.create_hillshade_combination
+        )
+
+
     def _setup_coordinate_probe_action(self):
 
         # Click-to-read-coordinates tool - stays active across
@@ -590,6 +613,7 @@ class MilitaryCartographyTools:
             self.tanaka_contours_action,
             self.hypsometric_tint_action,
             self.line_of_sight_action,
+            self.hillshade_combination_action,
         ]:
 
             if action is not None:
@@ -632,10 +656,11 @@ class MilitaryCartographyTools:
 
         # utm_action/mgrs100k_action/clear_action/new_layout_action/
         # coordinate_probe_action/tanaka_contours_action/
-        # hypsometric_tint_action/line_of_sight_action are parented
-        # to the main window (like self.action above), not the
-        # toolbar, so they survive sip.delete(self.toolbar) - just
-        # drop the references.
+        # hypsometric_tint_action/line_of_sight_action/
+        # hillshade_combination_action are parented to the main
+        # window (like self.action above), not the toolbar, so they
+        # survive sip.delete(self.toolbar) - just drop the
+        # references.
         self.utm_action = None
         self.mgrs100k_action = None
         self.clear_action = None
@@ -646,6 +671,7 @@ class MilitaryCartographyTools:
         self.hypsometric_tint_action = None
         self.line_of_sight_action = None
         self.line_of_sight_tool = None
+        self.hillshade_combination_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -810,6 +836,17 @@ class MilitaryCartographyTools:
         """
 
         show_hypsometric_tint_dialog(
+            self.iface
+        )
+
+
+    def create_hillshade_combination(self):
+        """
+        Prompt for a DEM and an azimuth preset, then generate a
+        combined hillshade layer for the current map extent.
+        """
+
+        show_hillshade_combination_dialog(
             self.iface
         )
 
