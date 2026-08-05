@@ -15,6 +15,7 @@ from MilitaryCartographyTools.core import (
     mgrs_square_id,
     grid_convergence,
     magnetic_declination,
+    true_bearing_and_distance,
 )
 from MilitaryCartographyTools.core.mgrs_engine import MgrsException
 
@@ -226,3 +227,56 @@ class TestMGRSConversion(QgisTestCase):
         # precise expected value.
         self.assertGreater(declination, -90.0)
         self.assertLess(declination, 90.0)
+
+
+    def test_true_bearing_and_distance_due_north(self):
+
+        bearing, distance = true_bearing_and_distance(
+            REF_LAT, REF_LON,
+            REF_LAT + 1.0, REF_LON
+        )
+
+        self.assertAlmostEqual(bearing, 0.0, delta=0.01)
+
+        # One degree of latitude's ellipsoidal arc length varies with
+        # latitude (WGS84: ~110,574 m at the equator to ~111,694 m at
+        # the poles) - a loose bound covering that whole range, not a
+        # single equator-only expected value.
+        self.assertGreater(distance, 110500.0)
+        self.assertLess(distance, 111700.0)
+
+
+    def test_true_bearing_and_distance_due_west_normalises_to_270(self):
+
+        # QgsDistanceArea.bearing() itself returns radians in
+        # (-pi, pi] - due west comes back as -90 degrees there, not
+        # the 270 a conventional 0-360 azimuth would read.
+        bearing, _distance = true_bearing_and_distance(
+            REF_LAT, REF_LON,
+            REF_LAT, REF_LON - 1.0
+        )
+
+        self.assertAlmostEqual(bearing, 270.0, delta=0.5)
+
+
+    def test_true_bearing_and_distance_is_symmetric_in_distance_not_bearing(self):
+
+        forward_bearing, forward_distance = true_bearing_and_distance(
+            REF_LAT, REF_LON,
+            REF_LAT + 1.0, REF_LON + 1.0
+        )
+
+        reverse_bearing, reverse_distance = true_bearing_and_distance(
+            REF_LAT + 1.0, REF_LON + 1.0,
+            REF_LAT, REF_LON
+        )
+
+        self.assertAlmostEqual(forward_distance, reverse_distance, delta=1.0)
+
+        # The reverse bearing is roughly opposite (offset by ~180
+        # degrees), not equal to the forward one.
+        self.assertAlmostEqual(
+            (forward_bearing + 180.0) % 360.0,
+            reverse_bearing,
+            delta=1.0
+        )

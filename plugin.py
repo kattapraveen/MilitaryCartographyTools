@@ -22,6 +22,7 @@ from qgis.core import Qgis, QgsMessageLog, QgsLayoutItemMap
 from .expressions import mgrs_functions
 from .core.layout_refresh import connect_layout_refresh, disconnect_layout_refresh
 from .core.coordinate_probe_tool import CoordinateProbeTool
+from .core.bearing_range_tool import BearingRangeTool
 from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel
@@ -71,6 +72,7 @@ class MilitaryCartographyTools:
         self.clear_action = None
         self.new_layout_action = None
         self.coordinate_probe_action = None
+        self.bearing_range_action = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
         self.line_of_sight_action = None
@@ -83,6 +85,7 @@ class MilitaryCartographyTools:
 
         self.grid_manager = None
         self.coordinate_probe_tool = None
+        self.bearing_range_tool = None
         self.line_of_sight_tool = None
         self.viewshed_tool = None
 
@@ -147,6 +150,7 @@ class MilitaryCartographyTools:
         self._setup_sub_grid_menu()
         self._setup_clear_action()
         self._setup_coordinate_probe_action()
+        self._setup_bearing_range_action()
         self._setup_new_layout_action()
         self._setup_tanaka_contours_action()
         self._setup_hypsometric_tint_action()
@@ -501,6 +505,31 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_bearing_range_action(self):
+
+        # Two-click true/grid/magnetic azimuth + distance tool - see
+        # core/bearing_range_tool.py. Stays active across repeated
+        # pairs like the coordinate probe/line of sight tools, so it
+        # shares the same _on_map_tool_changed un-check handling (no
+        # separate mapToolSet connection needed - one connection
+        # already covers every map tool).
+        self.bearing_range_tool = BearingRangeTool(
+            self.iface.mapCanvas(),
+            self.iface
+        )
+
+        self.bearing_range_action = self._build_action(
+            "bearing_range.svg",
+            "Bearing / Range",
+            tooltip=(
+                "Click two points on the map to read the true, grid, "
+                "and magnetic azimuth and distance between them"
+            ),
+            checkable=True,
+            callback=self.toggle_bearing_range
+        )
+
+
     def _setup_line_of_sight_action(self):
 
         # Two-click point-to-point visibility check tool - see
@@ -580,6 +609,14 @@ class MilitaryCartographyTools:
 
                 pass
 
+        if self.bearing_range_tool is not None:
+
+            if self.iface.mapCanvas().mapTool() is self.bearing_range_tool:
+
+                self.iface.mapCanvas().unsetMapTool(
+                    self.bearing_range_tool
+                )
+
         if self.line_of_sight_tool is not None:
 
             if self.iface.mapCanvas().mapTool() is self.line_of_sight_tool:
@@ -640,6 +677,7 @@ class MilitaryCartographyTools:
             self.clear_action,
             self.new_layout_action,
             self.coordinate_probe_action,
+            self.bearing_range_action,
             self.tanaka_contours_action,
             self.hypsometric_tint_action,
             self.line_of_sight_action,
@@ -686,18 +724,20 @@ class MilitaryCartographyTools:
 
 
         # utm_action/mgrs100k_action/clear_action/new_layout_action/
-        # coordinate_probe_action/tanaka_contours_action/
-        # hypsometric_tint_action/line_of_sight_action/
-        # hillshade_combination_action/viewshed_action are parented to
-        # the main window (like self.action above), not the toolbar,
-        # so they survive sip.delete(self.toolbar) - just drop the
-        # references.
+        # coordinate_probe_action/bearing_range_action/
+        # tanaka_contours_action/hypsometric_tint_action/
+        # line_of_sight_action/hillshade_combination_action/
+        # viewshed_action are parented to the main window (like
+        # self.action above), not the toolbar, so they survive
+        # sip.delete(self.toolbar) - just drop the references.
         self.utm_action = None
         self.mgrs100k_action = None
         self.clear_action = None
         self.new_layout_action = None
         self.coordinate_probe_action = None
         self.coordinate_probe_tool = None
+        self.bearing_range_action = None
+        self.bearing_range_tool = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
         self.line_of_sight_action = None
@@ -902,6 +942,24 @@ class MilitaryCartographyTools:
             )
 
 
+    def toggle_bearing_range(self, checked):
+        """
+        Activate/deactivate the bearing/range map tool.
+        """
+
+        if checked:
+
+            self.iface.mapCanvas().setMapTool(
+                self.bearing_range_tool
+            )
+
+        else:
+
+            self.iface.mapCanvas().unsetMapTool(
+                self.bearing_range_tool
+            )
+
+
     def toggle_line_of_sight(self, checked):
         """
         Activate/deactivate the line of sight map tool.
@@ -949,6 +1007,7 @@ class MilitaryCartographyTools:
 
         for action, tool in (
             (self.coordinate_probe_action, self.coordinate_probe_tool),
+            (self.bearing_range_action, self.bearing_range_tool),
             (self.line_of_sight_action, self.line_of_sight_tool),
             (self.viewshed_action, self.viewshed_tool),
         ):

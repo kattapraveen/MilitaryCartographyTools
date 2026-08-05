@@ -46,6 +46,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "MGRS 100km Grid",
                 "Clear Grid",
                 "Coordinate Probe",
+                "Bearing / Range",
                 "New Military Layout",
                 "Tanaka Contours",
                 "Hypsometric Tint",
@@ -56,12 +57,14 @@ class TestPluginLifecycle(QgisTestCase):
 
                 self.assertIn(expected, texts)
 
-            # Coordinate Probe sits immediately to the left of
-            # (i.e. right before) New Military Layout, per request.
+            # Coordinate Probe, then Bearing/Range, sit immediately
+            # before New Military Layout, per request.
             probe_index = texts.index("Coordinate Probe")
+            bearing_range_index = texts.index("Bearing / Range")
             layout_index = texts.index("New Military Layout")
 
-            self.assertEqual(layout_index - probe_index, 1)
+            self.assertEqual(bearing_range_index - probe_index, 1)
+            self.assertEqual(layout_index - bearing_range_index, 1)
 
         finally:
 
@@ -98,6 +101,8 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.new_layout_action)
         self.assertIsNone(plugin.coordinate_probe_action)
         self.assertIsNone(plugin.coordinate_probe_tool)
+        self.assertIsNone(plugin.bearing_range_action)
+        self.assertIsNone(plugin.bearing_range_tool)
         self.assertIsNone(plugin.tanaka_contours_action)
         self.assertIsNone(plugin.hypsometric_tint_action)
         self.assertIsNone(plugin.line_of_sight_action)
@@ -140,6 +145,55 @@ class TestCoordinateProbeWiring(QgisTestCase):
             canvas.setMapTool(other_tool)
 
             self.assertFalse(plugin.coordinate_probe_action.isChecked())
+
+        finally:
+
+            plugin.unload()
+
+
+class TestBearingRangeWiring(QgisTestCase):
+
+    def test_toggling_action_activates_and_the_tool_syncs_back_off(self):
+
+        plugin, iface, window, canvas = make_plugin()
+
+        plugin.initGui()
+
+        try:
+
+            plugin.bearing_range_action.setChecked(True)
+
+            self.assertIs(canvas.mapTool(), plugin.bearing_range_tool)
+
+            from qgis.gui import QgsMapToolPan
+
+            other_tool = QgsMapToolPan(canvas)
+            canvas.setMapTool(other_tool)
+
+            self.assertFalse(plugin.bearing_range_action.isChecked())
+
+        finally:
+
+            plugin.unload()
+
+
+    def test_toggling_coordinate_probe_does_not_uncheck_bearing_range(self):
+
+        # _on_map_tool_changed() loops over every checkable tool - a
+        # regression here would un-check every OTHER tool's action
+        # whenever any one of them activates, not just the one that
+        # actually lost the canvas.
+        plugin, iface, window, canvas = make_plugin()
+
+        plugin.initGui()
+
+        try:
+
+            plugin.bearing_range_action.setChecked(True)
+            plugin.coordinate_probe_action.setChecked(True)
+
+            self.assertIs(canvas.mapTool(), plugin.coordinate_probe_tool)
+            self.assertFalse(plugin.bearing_range_action.isChecked())
 
         finally:
 

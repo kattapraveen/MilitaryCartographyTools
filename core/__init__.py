@@ -9,11 +9,16 @@ from .mgrs_converter import (
     mgrs_square_id,
 )
 
-from .coordinate_utils import grid_convergence, magnetic_declination
+from .coordinate_utils import (
+    grid_convergence,
+    magnetic_declination,
+    true_bearing_and_distance,
+)
 
 __all__ = [
     "MGRSConverter",
     "mgrs_square_id",
     "grid_convergence",
     "magnetic_declination",
+    "true_bearing_and_distance",
 ]

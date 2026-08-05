@@ -203,11 +203,52 @@ workflow still lacks beyond base-map/grid production. Chosen as the
 `grid/utm_grid.py`, the New Military Layout suite) rather than opening a
 new subsystem, so effort/risk is low relative to Phase 10.
 
-- ⬜ **Bearing/range (polar coordinate) tool** — click two points on the
+- ✅ **Bearing/range (polar coordinate) tool** — click two points on the
   canvas, report true azimuth, grid azimuth, magnetic azimuth (reusing
   the WMM2025 declination code already in `core/geomag/`), and distance.
-  Sibling to the existing Coordinate Probe tool, same `QgsMapTool` +
-  persistent-dialog pattern.
+  **Built 2026-08-06.** `core/bearing_range_tool.py`'s `BearingRangeTool`
+  reuses Line of Sight's own two-click state machine (first click sets
+  "from", second sets "to" and logs a reading, third starts a fresh
+  pair) rather than Coordinate Probe's single-click model, since a
+  bearing needs two points; its `BearingRangeDialog` reuses Coordinate
+  Probe's own persistent, newest-row-on-top log table instead of Line
+  of Sight's single-result label, since a soldier is likely to want
+  several readings kept side by side. True azimuth/distance come from
+  `core/coordinate_utils.py`'s new `true_bearing_and_distance()`
+  (`QgsDistanceArea.bearing()`/`measureLine()` against the WGS84
+  ellipsoid, not a flat-plane approximation - matching how MGRS
+  conversion already treats the earth); `QgsDistanceArea.bearing()`
+  itself returns radians in (-pi, pi] rather than a conventional 0-360
+  azimuth (confirmed live: due west came back as -90°, not 270°), so
+  the result is normalised with `% 360`. Grid azimuth and magnetic
+  azimuth reuse the plugin's own existing `grid_convergence()`/
+  `magnetic_declination()` functions unchanged, computed at the "from"
+  point (the standard grid-magnetic-angle-diagram convention) - both
+  are defined the same way (positive means that north reference is
+  east of true north), so both subtract from the true azimuth
+  identically (`grid/magnetic = true - convergence/declination`, the
+  same "east is least" relationship as a paper G-M angle diagram).
+  203 → 223 tests; verified on both QGIS 3.44.12 and 4.2.0, plus a
+  direct `BearingRangeDialog` smoke test against a real point pair
+  (no DEM/Processing involved, so no separate real-DEM manual test
+  was needed, unlike Phase 8's terrain tools).
+  **2026-08-06 follow-up, on request**: (1) a line with an arrowhead
+  is now drawn from the from-point to the to-point via two
+  `QgsRubberBand`s (`Qgis.GeometryType.Line` for the shaft,
+  `Qgis.GeometryType.Polygon` for a small triangular arrowhead) -
+  QgsRubberBand's own `IconType` set has no arrowhead shape and
+  wouldn't rotate to match the line's direction anyway, so the
+  triangle is computed by hand in `_arrowhead_geometry()` and sized
+  in screen pixels via `canvas().mapUnitsPerPixel()` rather than a
+  fraction of the line's length, so it stays a consistent, legible
+  size regardless of zoom or how far apart the two points are, the
+  same fixed-pixel-size convention the vertex markers themselves
+  already use; (2) From/To now show full-precision (1m) MGRS
+  alongside lat/lon, on a second line, reusing `MGRSConverter` the
+  same way `CoordinateProbeDialog` already does - `QTableWidget`
+  rows don't auto-expand for multi-line cell content, so
+  `resizeRowToContents()` is called after populating each new row.
+  203 → 229 tests.
 - ⬜ **Map sheet series / index generation** — batch-generate a numbered
   series of standard print sheets covering a large AO extent: sheet
   boundaries on a regular grid, a naming/numbering convention, and an
@@ -226,7 +267,8 @@ engine doesn't silently assume WGS84 where a transform is needed. Real
 value depends on actually working with pre-WGS84 source material —
 revisit if that need shows up, rather than building speculatively.
 
-**Status: Not started.**
+**Status: In progress.** Bearing/range tool done 2026-08-06; map sheet
+series and GPX/KML import/export not started.
 
 ---
 
@@ -266,5 +308,5 @@ Phase 8.
 8. ✅ ~~Phase 7's user documentation~~ — done 2026-07-28 (`docs/user-guide.md`, rewritten `README.md`, `LICENSE`).
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06, aside from the deprioritized slope/aspect wrapper (see Phase 8 above).
-11. Phase 9 — navigation & production utilities (bearing/range tool, map sheet series, GPX/KML import/export) — cheap wins, reuse existing infrastructure, no new subsystem required.
+11. Phase 9 — navigation & production utilities. ✅ ~~Bearing/range tool~~ — done 2026-08-06. Map sheet series and GPX/KML import/export remain — cheap wins, reuse existing infrastructure, no new subsystem required.
 12. Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — largest remaining item, a new symbol-library subsystem; sequence after Phase 8 and Phase 9.

@@ -10,6 +10,7 @@ military grid generation, and automated print-layout production.
 - [Installation](#installation)
 - [The toolbar, at a glance](#the-toolbar-at-a-glance)
 - [Coordinate Probe](#coordinate-probe)
+- [Bearing / Range](#bearing--range)
 - [Military grids](#military-grids)
 - [New Military Layout](#new-military-layout)
 - [Military Layout Settings panel](#military-layout-settings-panel)
@@ -51,6 +52,7 @@ Left to right:
 | Fine grid + crosshair, with a dropdown | Sub Grid spacing (Off / 10km / 5km / 1km) |
 | Grid with a red X | Clear Grid — remove every grid layer |
 | Crosshair reticle | Coordinate Probe |
+| Point with a north tick, angle arc, and line to a second point | Bearing / Range |
 | Page with a heading bar and a small map | New Military Layout |
 | Illuminated concentric rings | Tanaka Contours |
 | Filled concentric colour bands | Hypsometric Tint |
@@ -80,6 +82,40 @@ click already overwrote it).
 
 The tool stays active across repeated clicks, like QGIS's own
 Identify/Measure tools, until you select a different tool.
+
+---
+
+## Bearing / Range
+
+Click the icon to activate, then click two points on the map canvas: the
+first sets the **from** point (blue cross marker), the second sets the
+**to** point (red X marker) and immediately logs a reading. A third click
+starts a fresh pair rather than adding to the previous one. Once both points
+are set, a line with an arrowhead is drawn from the from-point to the
+to-point, so the direction is visible on the map itself, not just as a
+number in the log.
+
+Each logged reading shows:
+
+| Column | Notes |
+|---|---|
+| From / To | Latitude/longitude and full-precision (1m) MGRS for each point, on separate lines |
+| True Az | True (geographic) azimuth from the from-point to the to-point |
+| Grid Az | Azimuth relative to UTM grid north at the from-point |
+| Mag Az | Azimuth relative to magnetic north at the from-point (WMM2025, current date) |
+| Distance | Geodesic distance between the two points, in metres |
+
+Grid and magnetic azimuth are both computed at the **from** point, the same
+convention a paper grid-magnetic-angle diagram uses. All three azimuths and
+the distance are geodesic (ellipsoid-surface) values, not flat-plane
+approximations.
+
+The **Bearing / Range** window stays open and keeps accumulating readings,
+newest at the top, the same persistent-log pattern Coordinate Probe uses —
+handy for logging several readings in one session rather than only ever
+seeing the most recent one. Use **Clear** to empty the log. The tool stays
+active across repeated pairs, like Coordinate Probe and Line of Sight, until
+you select a different tool.
 
 ---
 

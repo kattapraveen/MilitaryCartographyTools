@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- from-point with a north reference tick and an angle arc to the
+       bearing/range line reaching the to-point -->
+  <circle cx="4" cy="20" r="2" fill="#1f3a5f"/>
+  <circle cx="20" cy="4" r="2" fill="#1f3a5f"/>
+  <line x1="4" y1="18" x2="4" y2="9" stroke="#1f3a5f" stroke-width="1.6" stroke-linecap="round"/>
+  <line x1="5.4" y1="18.6" x2="18.6" y2="5.4" stroke="#1f3a5f" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 4 14 A 6 6 0 0 1 8.24 15.76" fill="none" stroke="#1f3a5f" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

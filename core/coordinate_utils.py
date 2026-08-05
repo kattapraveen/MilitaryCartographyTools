@@ -12,6 +12,8 @@ import math
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
+    QgsDistanceArea,
+    QgsPointXY,
     QgsProject
 )
 
@@ -140,6 +142,49 @@ def grid_convergence(latitude, longitude):
     return delta_lambda * math.sin(
         math.radians(latitude)
     )
+
+
+
+def true_bearing_and_distance(lat1, lon1, lat2, lon2):
+
+    """
+    (true_bearing_degrees, distance_metres) from point 1 to point 2,
+    both given as WGS84 latitude/longitude - the geodesic (ellipsoid
+    surface) initial bearing and distance, not a flat-plane
+    approximation, matching how the plugin's other coordinate
+    calculations (e.g. MGRS conversion) already treat the earth as an
+    ellipsoid rather than a plane.
+
+    true_bearing_degrees is normalised to [0, 360) - QgsDistanceArea's
+    own bearing() returns radians in (-pi, pi] (e.g. due west comes
+    back as -90 degrees rather than 270), which doesn't match the
+    0-360 convention azimuths are conventionally reported in.
+    """
+
+    distance_area = QgsDistanceArea()
+
+    distance_area.setEllipsoid(
+        "WGS84"
+    )
+
+    distance_area.setSourceCrs(
+        WGS84,
+        QgsProject.instance().transformContext()
+    )
+
+    point1 = QgsPointXY(lon1, lat1)
+    point2 = QgsPointXY(lon2, lat2)
+
+    distance_m = distance_area.measureLine(
+        point1,
+        point2
+    )
+
+    bearing_deg = math.degrees(
+        distance_area.bearing(point1, point2)
+    ) % 360.0
+
+    return bearing_deg, distance_m
 
 
 
