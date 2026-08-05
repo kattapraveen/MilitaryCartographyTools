@@ -18,6 +18,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog,
     QFormLayout,
     QVBoxLayout,
+    QSpinBox,
     QDialogButtonBox,
 )
 
@@ -61,6 +62,21 @@ class HillshadeCombinationDialog(QDialog):
 
         self.preset_combo.setCurrentIndex(1)
 
+        self.opacity_spin = QSpinBox()
+
+        self.opacity_spin.setRange(
+            0,
+            100
+        )
+
+        self.opacity_spin.setSuffix(
+            "%"
+        )
+
+        self.opacity_spin.setValue(
+            100
+        )
+
         self.new_layer_checkbox = QCheckBox(
             "Add as new layer (keep the existing one)"
         )
@@ -73,6 +89,7 @@ class HillshadeCombinationDialog(QDialog):
 
         form.addRow("DEM layer", self.dem_combo)
         form.addRow("Light directions", self.preset_combo)
+        form.addRow("Opacity", self.opacity_spin)
         form.addRow(self.new_layer_checkbox)
 
         buttons = QDialogButtonBox(
@@ -103,6 +120,7 @@ class HillshadeCombinationDialog(QDialog):
         return {
             "dem_layer": self.dem_combo.currentLayer(),
             "azimuths": self.preset_combo.currentData(),
+            "opacity": self.opacity_spin.value() / 100.0,
             "add_as_new_layer": self.new_layer_checkbox.isChecked(),
         }
 
@@ -134,7 +152,8 @@ def generate_from_dialog_values(iface, values):
             dem_layer,
             dem_layer.extent(),
             dem_layer.crs(),
-            azimuths=values["azimuths"]
+            azimuths=values["azimuths"],
+            opacity=values["opacity"]
         )
 
     if values["add_as_new_layer"]:

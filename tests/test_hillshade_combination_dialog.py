@@ -68,11 +68,17 @@ class TestGenerateFromDialogValues(QgisTestCase):
             pass
 
 
-    def _values(self, add_as_new_layer=False, azimuths=THREE_DIRECTION_AZIMUTHS):
+    def _values(
+        self,
+        add_as_new_layer=False,
+        azimuths=THREE_DIRECTION_AZIMUTHS,
+        opacity=1.0
+    ):
 
         return {
             "dem_layer": self.dem_layer,
             "azimuths": azimuths,
+            "opacity": opacity,
             "add_as_new_layer": add_as_new_layer,
         }
 
@@ -192,3 +198,16 @@ class TestGenerateFromDialogValues(QgisTestCase):
 
         self.assertIsNotNone(result)
         self.assertTrue(result.isValid())
+
+
+    def test_opacity_value_reaches_the_generated_layer(self):
+
+        result = generate_from_dialog_values(
+            self.iface,
+            self._values(opacity=0.5)
+        )
+
+        self.assertAlmostEqual(
+            result.opacity(),
+            0.5
+        )

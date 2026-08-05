@@ -6,7 +6,7 @@ blending 2-3 light azimuths into one layer. QGIS/GDAL's own hillshade
 tools (gdal:hillshade, the raster "Hillshade" render type) only cast
 light from a single direction; GDAL's own -multidirectional flag uses
 a fixed, non-user-configurable light set and ignores the azimuth
-parameter entirely when enabled. Meant to be layered (with a Multiply
+parameter entirely when enabled. Meant to be layered (with an Overlay
 blend, applied automatically here) over Hypsometric Tint for a fuller,
 textured relief look - see docs/roadmap.md's own note on doing this
 combination by hand with QGIS's native tools; this feature automates
@@ -35,6 +35,7 @@ OUTPUT_LAYER_NAME = "Combined Hillshade"
 
 DEFAULT_ALTITUDE = 45.0
 DEFAULT_Z_FACTOR = 1.0
+DEFAULT_OPACITY = 1.0
 
 # 315 degrees (north-west) matches tanaka_contours.DEFAULT_LIGHT_AZIMUTH's
 # own convention, so a hillshade generated here reads consistently
@@ -144,7 +145,7 @@ def _combine_hillshades(hillshade_layers):
     )
 
 
-def _apply_raster_style(raster_layer):
+def _apply_raster_style(raster_layer, opacity):
 
     """
     Plain grayscale rendering (no elevation semantics here, unlike
@@ -160,6 +161,18 @@ def _apply_raster_style(raster_layer):
     to MinMax" amplified its tiny real variance across the full
     range, and Multiply blend then dragged everything beneath it dark
     too.
+
+    Blend mode is Overlay, not Multiply - confirmed live against a
+    real DEM (Kilimanjaro, Tanzania SRTM) layered over Hypsometric
+    Tint: Multiply can only ever darken, so it dragged the whole
+    mid/high elevation band toward a muddy, desaturated brown-purple
+    that didn't read as the source ramp's own colours any more.
+    Overlay instead darkens shadowed slopes and lightens sunlit ones
+    relative to each pixel's own colour, which visibly preserved the
+    tint's own hue far better in that same comparison, at the cost of
+    being a less mathematically simple relationship than Multiply's
+    - an accepted trade-off since the visual result is what matters
+    here.
     """
 
     renderer = QgsSingleBandGrayRenderer(
@@ -176,7 +189,11 @@ def _apply_raster_style(raster_layer):
     )
 
     raster_layer.setBlendMode(
-        QPainter.CompositionMode.CompositionMode_Multiply
+        QPainter.CompositionMode.CompositionMode_Overlay
+    )
+
+    raster_layer.setOpacity(
+        opacity
     )
 
     raster_layer.triggerRepaint()
@@ -187,7 +204,7 @@ def default_insert_position(project, raster_layer):
     """
     Combined Hillshade's own default placement for a brand new layer -
     directly above (in front of) an existing "Hypsometric Tint" layer,
-    if one exists, so the Multiply blend set in _apply_raster_style()
+    if one exists, so the Overlay blend set in _apply_raster_style()
     actually combines with it - otherwise fall back to the same
     bottom-of-tree default generate_hypsometric_tint() itself uses, so
     this layer still never covers vector layers like Tanaka Contours
@@ -234,14 +251,15 @@ def generate_hillshade_combination(
     extent_crs,
     azimuths=DEFAULT_AZIMUTHS,
     altitude=DEFAULT_ALTITUDE,
-    z_factor=DEFAULT_Z_FACTOR
+    z_factor=DEFAULT_Z_FACTOR,
+    opacity=DEFAULT_OPACITY
 ):
 
     """
     Build a multi-directional hillshade blend from dem_layer, clipped
     to extent, by running gdal:hillshade once per azimuth in azimuths
     (2 or 3) and averaging the results. Rendered single-band grayscale
-    with a Multiply blend mode. Deliberately does NOT add the layer to
+    with an Overlay blend mode. Deliberately does NOT add the layer to
     the project - see terrain/_layer_utils.py's module docstring for
     why. Returns the layer.
     """
@@ -266,7 +284,8 @@ def generate_hillshade_combination(
     )
 
     _apply_raster_style(
-        combined
+        combined,
+        opacity
     )
 
     return combined

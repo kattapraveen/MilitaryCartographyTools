@@ -249,7 +249,7 @@ layers already in your project.
 
 **Tip:** for a fuller, textured relief look (closer to a shaded physical
 relief map), generate a **Hillshade Combinations** layer (see below) over
-the same area — it automatically sits above this one with a Multiply
+the same area — it automatically sits above this one with an Overlay
 blend already applied.
 
 ---
@@ -314,13 +314,16 @@ above). The dialog asks for:
 |---|---|
 | DEM layer | Any loaded raster layer |
 | Light directions | Two-direction (NW + NE) or Three-direction (NW + NE + S) — default Three-direction |
+| Opacity | How strongly the relief shading shows through (default 100%) |
 | Add as new layer | Off by default — re-running the dialog corrects the existing "Combined Hillshade" layer in place. Check this to keep the previous layer and add a new one alongside it instead |
 
 Like Tanaka Contours and Hypsometric Tint, it's generated for the **DEM
 layer's own full extent**, clipped and reprojected automatically — the
 current map canvas view has no effect on the result. The layer is
-rendered in grayscale with a **Multiply** blending mode already applied,
-so if a Hypsometric
+rendered in grayscale with an **Overlay** blending mode already applied
+(darkens shadowed slopes and lightens sunlit ones, while keeping the
+underlying colour's own hue — a plain Multiply blend was tried first but
+dragged colours toward a muddy brown-purple instead), so if a Hypsometric
 Tint layer already exists in your project, the new layer is placed
 directly above it — the two combine automatically into a coloured,
 textured relief look. If there's no Hypsometric Tint layer yet, it's

@@ -287,8 +287,15 @@ class TestGenerateHillshadeCombinationIntegration(_RidgeDemTestCase):
         )
 
 
-    def test_blend_mode_is_multiply(self):
+    def test_blend_mode_is_overlay(self):
 
+        # Regression test: Multiply can only ever darken, which
+        # dragged a real combined Tint+Hillshade render's mid/high
+        # elevation band toward a muddy, desaturated brown-purple that
+        # no longer read as the source ramp's own colours - confirmed
+        # live against a real DEM (Kilimanjaro, Tanzania SRTM).
+        # Overlay preserves the underlying colour's hue far better
+        # while still showing relief.
         output = generate_hillshade_combination(
             self.dem_layer,
             self.dem_layer.extent(),
@@ -297,7 +304,22 @@ class TestGenerateHillshadeCombinationIntegration(_RidgeDemTestCase):
 
         self.assertEqual(
             output.blendMode(),
-            QPainter.CompositionMode.CompositionMode_Multiply
+            QPainter.CompositionMode.CompositionMode_Overlay
+        )
+
+
+    def test_opacity_is_applied(self):
+
+        output = generate_hillshade_combination(
+            self.dem_layer,
+            self.dem_layer.extent(),
+            WGS84,
+            opacity=0.6
+        )
+
+        self.assertAlmostEqual(
+            output.opacity(),
+            0.6
         )
 
 
