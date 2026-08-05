@@ -6,9 +6,16 @@ description=Military cartography, MGRS, and terrain analysis tools for QGIS. Run
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=0.2.0
+version=0.2.1
 
-changelog=0.2.0
+changelog=0.2.1
+    - Fixed Plugin Repository validator findings from the 0.2.0 upload:
+      3 Qt6 forward-compatibility enum-scoping errors in the new
+      Line of Sight/Viewshed marker code, and a security finding
+      (insecure tempfile.mktemp() usage, 9 call sites across the new
+      terrain analysis modules) - all Processing algorithm outputs now
+      use QgsProcessing.TEMPORARY_OUTPUT instead.
+    0.2.0
     - New terrain analysis toolset (Phase 8), all fully offline/local:
       Tanaka (illuminated) contours, Hypsometric Tint, Line of Sight,
       Combined Hillshade, and Viewshed (dead-ground analysis) - each

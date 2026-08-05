@@ -10,13 +10,12 @@ agree on what colour a given elevation gets.
 Military Cartography Tools
 """
 
-import tempfile
-
 import processing
 
 from qgis.core import (
     Qgis,
     QgsCoordinateTransform,
+    QgsProcessing,
     QgsProject,
     QgsRasterLayer,
 )
@@ -64,7 +63,7 @@ def clip_and_reproject_dem(dem_layer, extent, extent_crs):
             "TARGET_EXTENT_CRS": extent_crs,
             "MULTITHREADING": False,
             "EXTRA": None,
-            "OUTPUT": tempfile.mktemp(suffix=".tif")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 

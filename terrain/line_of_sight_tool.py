@@ -69,7 +69,7 @@ class LineOfSightTool(QgsMapTool):
             )
 
             self.observer_marker.setIconType(
-                QgsVertexMarker.ICON_CROSS
+                QgsVertexMarker.IconType.ICON_CROSS
             )
 
             self.observer_marker.setColor(
@@ -98,7 +98,7 @@ class LineOfSightTool(QgsMapTool):
             )
 
             self.target_marker.setIconType(
-                QgsVertexMarker.ICON_X
+                QgsVertexMarker.IconType.ICON_X
             )
 
             self.target_marker.setColor(

@@ -15,12 +15,11 @@ it for a multi-directional blend instead of a single light direction.
 Military Cartography Tools
 """
 
-import tempfile
-
 import processing
 
 from qgis.core import (
     QgsContrastEnhancement,
+    QgsProcessing,
     QgsRasterLayer,
     QgsSingleBandGrayRenderer,
 )
@@ -72,7 +71,7 @@ def _run_hillshade(dem_layer, azimuth_deg, altitude_deg, z_factor):
             "MULTIDIRECTIONAL": False,
             "OPTIONS": "",
             "EXTRA": None,
-            "OUTPUT": tempfile.mktemp(suffix=".tif")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 
@@ -116,7 +115,7 @@ def _combine_hillshades(hillshade_layers):
         "RTYPE": 0,
         "OPTIONS": "",
         "EXTRA": None,
-        "OUTPUT": tempfile.mktemp(suffix=".tif")
+        "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
     }
 
     if count == 2:

@@ -11,7 +11,6 @@ Military Cartography Tools
 """
 
 import math
-import tempfile
 
 import processing
 
@@ -20,6 +19,7 @@ from qgis.core import (
     QgsField,
     QgsLineSymbol,
     QgsPointXY,
+    QgsProcessing,
     QgsProperty,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -84,7 +84,7 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
             "OFFSET": 0.0,
             "EXTRA": None,
             "OPTIONS": "",
-            "OUTPUT": tempfile.mktemp(suffix=".gpkg")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 
@@ -99,15 +99,14 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
         {
             "INPUT": contour_layer,
             "LENGTH": segment_length,
-            "OUTPUT": tempfile.mktemp(suffix=".gpkg")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 
-    return QgsVectorLayer(
-        split_result["OUTPUT"],
-        "tanaka_contours_segments",
-        "ogr"
-    )
+    # Unlike a GDAL-wrapped algorithm, native:splitlinesbylength's
+    # TEMPORARY_OUTPUT resolves to an already-loaded QgsVectorLayer
+    # object directly (confirmed live), not a file path to re-wrap.
+    return split_result["OUTPUT"]
 
 
 def _light_vector(azimuth_degrees):

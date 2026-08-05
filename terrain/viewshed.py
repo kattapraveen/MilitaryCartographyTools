@@ -13,13 +13,13 @@ Military Cartography Tools
 """
 
 import math
-import tempfile
 
 import processing
 
 from qgis.core import (
     QgsCoordinateTransform,
     QgsFillSymbol,
+    QgsProcessing,
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
@@ -121,7 +121,7 @@ def _clamp_to_sea_level(clipped_dem):
             "RTYPE": 5,  # Float32 - matches a typical DEM's own dtype
             "OPTIONS": "",
             "EXTRA": None,
-            "OUTPUT": tempfile.mktemp(suffix=".tif")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 
@@ -176,7 +176,7 @@ def _run_viewshed(
                 f"-ov {OUT_OF_RANGE_VALUE} -a_nodata {OUT_OF_RANGE_VALUE} "
                 f"-cc {curvature_coefficient}"
             ),
-            "OUTPUT": tempfile.mktemp(suffix=".tif")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 
@@ -210,7 +210,7 @@ def _polygonize_visible_area(raster_layer):
             "FIELD": "DN",
             "EIGHT_CONNECTEDNESS": False,
             "EXTRA": None,
-            "OUTPUT": tempfile.mktemp(suffix=".gpkg")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 
@@ -227,15 +227,14 @@ def _polygonize_visible_area(raster_layer):
             "FIELD": "DN",
             "OPERATOR": 0,  # "="
             "VALUE": str(VISIBLE_VALUE),
-            "OUTPUT": tempfile.mktemp(suffix=".gpkg")
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         }
     )
 
-    return QgsVectorLayer(
-        filter_result["OUTPUT"],
-        "viewshed_visible_only",
-        "ogr"
-    )
+    # Unlike a GDAL-wrapped algorithm, native:extractbyattribute's
+    # TEMPORARY_OUTPUT resolves to an already-loaded QgsVectorLayer
+    # object directly (confirmed live), not a file path to re-wrap.
+    return filter_result["OUTPUT"]
 
 
 def _apply_polygon_style(layer, opacity):

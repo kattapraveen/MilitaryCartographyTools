@@ -60,7 +60,7 @@ class ViewshedTool(QgsMapTool):
             )
 
             self.observer_marker.setIconType(
-                QgsVertexMarker.ICON_CROSS
+                QgsVertexMarker.IconType.ICON_CROSS
             )
 
             self.observer_marker.setColor(
