@@ -36,6 +36,7 @@ INCLUDE=(
     grid
     layout
     expressions
+    terrain
     icons
     docs
     LICENSE

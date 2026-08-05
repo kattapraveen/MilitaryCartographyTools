@@ -2,13 +2,19 @@
 name=Military Cartography Tools
 qgisMinimumVersion=3.44.0
 qgisMaximumVersion=4.99.0
-description=Military cartography and MGRS tools for QGIS.
+description=Military cartography, MGRS, and terrain analysis tools for QGIS. Runs fully offline - no external services, no data ever leaves your machine.
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=0.1.2
+version=0.2.0
 
-changelog=0.1.2
+changelog=0.2.0
+    - New terrain analysis toolset (Phase 8), all fully offline/local:
+      Tanaka (illuminated) contours, Hypsometric Tint, Line of Sight,
+      Combined Hillshade, and Viewshed (dead-ground analysis) - each
+      driven entirely by local GDAL/QGIS Processing against your own
+      DEM, with no network access of any kind.
+    0.1.2
     - Fixed MGRS 100km grid labels landing in the wrong square at some
       zoom levels, and the print-layout scale bar rendering too large
       at close-in scales (e.g. 1:1,000-1:2,000).
@@ -22,7 +28,7 @@ changelog=0.1.2
       print-layout production, grid convergence and magnetic declination
       (WMM2025) expression functions.
 
-about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, and cartographic utilities.
+about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, cartographic utilities, and terrain analysis (illuminated contours, hypsometric tint, line of sight, combined hillshade, and viewshed/dead-ground analysis). Every tool runs entirely offline against local data - GDAL/QGIS Processing, a bundled World Magnetic Model, and your own DEM - with no external services, API calls, or telemetry of any kind, making it suitable for use with sensitive or classified data.
 
 tracker=https://github.com/kattapraveen/MilitaryCartographyTools/issues
 repository=https://github.com/kattapraveen/MilitaryCartographyTools
@@ -36,4 +42,4 @@ deprecated=False
 
 hasProcessingProvider=False
 
-tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping
+tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline

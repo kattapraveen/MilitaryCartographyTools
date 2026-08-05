@@ -1,9 +1,16 @@
 # Military Cartography Tools
 
 A QGIS plugin for military mapping and MGRS work: coordinate conversion,
-military grid generation, and automated print-layout production.
+military grid generation, terrain analysis, and automated print-layout
+production.
 
-Requires QGIS 4.0 or later.
+Requires QGIS 3.44 or later.
+
+> **Fully offline.** Every tool runs entirely against local data - GDAL/QGIS
+> Processing, a bundled World Magnetic Model, and your own DEM - with no
+> external services, API calls, or telemetry of any kind. Nothing you map
+> ever leaves your machine, which makes this plugin suitable for sensitive
+> or classified work.
 
 > **Status: experimental.** This plugin is under active development and
 > hasn't seen wide use yet. Bug reports, suggestions, and feedback are very
@@ -31,6 +38,9 @@ Requires QGIS 4.0 or later.
 - **Grid convergence and magnetic declination** (WMM2025) as expression
   functions, usable anywhere in QGIS or wired into a layout's own
   marginalia.
+- **Terrain analysis** — Tanaka (illuminated) contours, Hypsometric Tint,
+  Combined (multi-directional) Hillshade, Line of Sight, and Viewshed
+  (dead-ground analysis), all generated locally from your own DEM.
 
 See the **[User Guide](docs/user-guide.md)** for full usage details,
 including every expression function's exact signature.
