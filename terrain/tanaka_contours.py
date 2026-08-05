@@ -371,7 +371,7 @@ def default_insert_position(project, layer):
     top of the tree, since it's a vector overlay meant to sit above
     the coarser grid/raster layers. Only used when there's no
     previous layer's position to inherit (see
-    terrain/_layer_utils.py's replace_named_layer()).
+    core/_layer_utils.py's replace_named_layer()).
     """
 
     project.layerTreeRoot().insertLayer(

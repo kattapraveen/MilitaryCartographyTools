@@ -33,7 +33,7 @@ from ..core.coordinate_utils import WGS84
 # The layer name generate_line_of_sight() always creates - shared with
 # line_of_sight_dialog.py, which needs it to find and remove a
 # previous run's layer when correcting it in place rather than piling
-# up a new layer each time (see terrain/_layer_utils.py).
+# up a new layer each time (see core/_layer_utils.py).
 OUTPUT_LAYER_NAME = "Line of Sight"
 
 # Human eye height / ground-level target - reasonable defaults, both
@@ -367,7 +367,7 @@ def default_insert_position(project, layer):
     Line of Sight's own default placement for a brand new layer - top
     of the tree, since it's a vector overlay meant to sit above the
     coarser grid/raster layers. Only used when there's no previous
-    layer's position to inherit (see terrain/_layer_utils.py's
+    layer's position to inherit (see core/_layer_utils.py's
     replace_named_layer()).
     """
 
@@ -393,7 +393,7 @@ def generate_line_of_sight(
     extent). Green where the target is visible from the observer, red
     where blocked by terrain or earth curvature/refraction.
     Deliberately does NOT add the layer to the project - see
-    terrain/_layer_utils.py's module docstring for why.
+    core/_layer_utils.py's module docstring for why.
 
     Returns None if either point falls outside dem_layer's own
     coverage - whether the target is actually visible or not is read

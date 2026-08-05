@@ -274,7 +274,7 @@ def default_insert_position(project, layer):
     overlay meant to sit above whatever base terrain rendering
     (Hypsometric Tint, Combined Hillshade) is underneath, not a
     full-coverage base layer itself. Only used when there's no
-    previous layer's position to inherit (see terrain/_layer_utils.py's
+    previous layer's position to inherit (see core/_layer_utils.py's
     replace_named_layer()).
     """
 
@@ -299,7 +299,7 @@ def generate_viewshed(
     against dem_layer clipped to a box sized from max_distance (see
     _observer_extent() - deliberately not the DEM's full extent or the
     current map canvas). Deliberately does NOT add the layer to the
-    project - see terrain/_layer_utils.py's module docstring for why.
+    project - see core/_layer_utils.py's module docstring for why.
 
     Returns None if observer_lonlat falls outside dem_layer's own
     coverage.

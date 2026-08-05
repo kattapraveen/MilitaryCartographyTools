@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for terrain/_layer_utils.py's replace_named_layer() and
+Tests for core/_layer_utils.py's replace_named_layer() and
 add_layer_at_default_position() - shared by the Tanaka Contours,
-Hypsometric Tint, Combined Hillshade, and Line of Sight dialogs to
-correct their layer in place on regenerate, without resetting it to
-whatever position a fresh generate would place a brand new layer at
-by default.
+Hypsometric Tint, Combined Hillshade, Line of Sight, and Viewshed
+dialogs to correct their layer in place on regenerate, without
+resetting it to whatever position a fresh generate would place a
+brand new layer at by default, plus the waypoints/ import dialog.
 
 Military Cartography Tools
 """
@@ -15,7 +15,7 @@ from qgis.core import QgsProject, QgsVectorLayer
 
 from .qgis_test_case import QgisTestCase
 
-from MilitaryCartographyTools.terrain._layer_utils import (
+from MilitaryCartographyTools.core._layer_utils import (
     add_layer_at_default_position,
     replace_named_layer,
 )
@@ -30,7 +30,7 @@ def _make_layer():
     # generate_tanaka_contours()/generate_hypsometric_tint()/
     # generate_hillshade_combination()/generate_line_of_sight(), none
     # of which add themselves to the project any more (see
-    # terrain/_layer_utils.py's own module docstring for why).
+    # core/_layer_utils.py's own module docstring for why).
     return QgsVectorLayer(
         "Point?crs=EPSG:4326",
         NAME,

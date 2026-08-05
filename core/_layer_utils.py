@@ -1,27 +1,32 @@
 # -*- coding: utf-8 -*-
 
 """
-Shared "replace this layer in place" helper for the terrain/ dialogs
-(Tanaka Contours, Hypsometric Tint, Combined Hillshade, Line of
-Sight) - both want re-running their dialog with tweaked settings to
-correct the existing layer rather than piling up a new one, AND to
-leave the corrected layer wherever the user has since dragged it in
-the Layers panel, rather than resetting it to whatever position a
-fresh generate would place a brand new layer at by default.
+Shared "replace this layer in place" helper, originally built for the
+terrain/ dialogs (Tanaka Contours, Hypsometric Tint, Combined
+Hillshade, Line of Sight, Viewshed) - re-running one of those with
+tweaked settings should correct the existing layer rather than piling
+up a new one, AND leave the corrected layer wherever the user has
+since dragged it in the Layers panel, rather than resetting it to
+whatever position a fresh generate would place a brand new layer at
+by default. Later reused as-is by waypoints/gpx_kml_dialog.py, since
+nothing about it is actually terrain-specific - moved here from
+terrain/_layer_utils.py once a second, unrelated feature family
+needed it.
 
-generate_*() functions build and style a layer but deliberately don't
-add it to the project/tree themselves - this module owns ALL project/
-tree insertion, in exactly one explicit place per call. Earlier,
-generate_*() self-inserted (via QgsProject.addMapLayer()) and this
-module then removed-and-reinserted that same layer to reposition it -
-confirmed live as a real bug: a plain addMapLayer() call in a live
-QGIS session is influenced by QgsLayerTreeRegistryBridge's "current
-insertion point" (tied to whatever's selected in the Layers panel),
-something no headless test can reproduce (there's no Layers panel
-widget), and the extra remove-then-reinsert churn on the very layer
-`generate()` just added was a second, independent source of fragility.
-Building the layer without inserting it, then inserting it exactly
-once at an explicit position, sidesteps both.
+generate_*()/import_*() functions build and style a layer but
+deliberately don't add it to the project/tree themselves - this
+module owns ALL project/tree insertion, in exactly one explicit place
+per call. Earlier, generate_*() self-inserted (via
+QgsProject.addMapLayer()) and this module then removed-and-reinserted
+that same layer to reposition it - confirmed live as a real bug: a
+plain addMapLayer() call in a live QGIS session is influenced by
+QgsLayerTreeRegistryBridge's "current insertion point" (tied to
+whatever's selected in the Layers panel), something no headless test
+can reproduce (there's no Layers panel widget), and the extra
+remove-then-reinsert churn on the very layer `generate()` just added
+was a second, independent source of fragility. Building the layer
+without inserting it, then inserting it exactly once at an explicit
+position, sidesteps both.
 
 Military Cartography Tools
 """

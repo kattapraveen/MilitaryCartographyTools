@@ -21,7 +21,7 @@ from qgis.PyQt.QtWidgets import (
     QDialogButtonBox,
 )
 
-from ._layer_utils import add_layer_at_default_position, replace_named_layer
+from ..core._layer_utils import add_layer_at_default_position, replace_named_layer
 from .tanaka_contours import (
     generate_tanaka_contours,
     default_insert_position,

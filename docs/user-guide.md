@@ -20,6 +20,7 @@ military grid generation, and automated print-layout production.
 - [Line of Sight](#line-of-sight)
 - [Hillshade Combinations](#hillshade-combinations)
 - [Viewshed](#viewshed)
+- [Waypoint Import/Export (GPX/KML)](#waypoint-importexport-gpxkml)
 - [Expression functions](#expression-functions)
 
 ---
@@ -59,6 +60,8 @@ Left to right:
 | Two dots joined by a line, with a small crossing tick | Line of Sight |
 | Hill silhouette lit by two crossed arrows | Hillshade Combinations |
 | Observer point with radiating coverage arcs | Viewshed |
+| Waypoint dropping down into a tray | Import Waypoints |
+| Waypoint rising up out of a tray | Export Waypoints |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -406,6 +409,35 @@ track of. Like Line of Sight, the DEM is clipped to a box around wherever
 the observer actually is (sized from the max distance you've set), not
 tied to the current map canvas extent, and the tool stays active across
 repeated clicks until you select a different tool.
+
+---
+
+## Waypoint Import/Export (GPX/KML)
+
+Two separate actions — **Import Waypoints** reads waypoints from a GPX or
+KML file; **Export Waypoints** writes a point layer out to one. Both attach
+an MGRS grid reference, since neither format has any native concept of it.
+
+**Import Waypoints:**
+
+1. Click the icon, then **Browse...** to pick a `.gpx` or `.kml` file.
+2. Click **Import**. A new point layer is added (named after the file),
+   with every field the source file already had, plus a new **mgrs**
+   field computed from each waypoint's own position — the original
+   name/label field is left untouched alongside it.
+
+**Export Waypoints:**
+
+1. Click the icon, choose a point layer already in your project, and pick
+   a format (**GPX** or **KML**).
+2. **Browse...** to pick a destination file, then click **Export**.
+3. Each waypoint's **name** (the field a GPS unit or ATAK actually
+   displays) is set to its MGRS grid reference. If the source layer has
+   its own name/label field, it's preserved as a separate description
+   field alongside it.
+
+Both `.gpx` and `.kml` are supported; `.kmz` (zipped KML) isn't. A GPX
+file's **routes**/**tracks** aren't imported — only standalone waypoints.
 
 ---
 

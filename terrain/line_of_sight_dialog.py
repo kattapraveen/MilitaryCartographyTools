@@ -22,7 +22,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
-from ._layer_utils import add_layer_at_default_position, replace_named_layer
+from ..core._layer_utils import add_layer_at_default_position, replace_named_layer
 from .line_of_sight import (
     generate_line_of_sight,
     default_insert_position,

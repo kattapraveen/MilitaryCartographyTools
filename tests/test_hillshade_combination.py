@@ -374,7 +374,7 @@ class TestGenerateHillshadeCombinationIntegration(_RidgeDemTestCase):
     def test_output_layer_is_not_added_to_the_project(self):
 
         # generate_hillshade_combination() deliberately doesn't add
-        # its result to the project - see terrain/_layer_utils.py's
+        # its result to the project - see core/_layer_utils.py's
         # module docstring for why. Insertion is the dialog's job -
         # see tests/test_hillshade_combination_dialog.py.
         output = generate_hillshade_combination(

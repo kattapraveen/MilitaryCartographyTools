@@ -250,7 +250,7 @@ class TestGenerateViewshed(QgisTestCase):
     def test_output_layer_is_not_added_to_the_project(self):
 
         # generate_viewshed() deliberately doesn't add its result to
-        # the project - see terrain/_layer_utils.py's module
+        # the project - see core/_layer_utils.py's module
         # docstring for why. Insertion is the dialog's job - see
         # tests/test_viewshed_dialog.py.
         observer_lonlat = _lonlat_at_fraction(

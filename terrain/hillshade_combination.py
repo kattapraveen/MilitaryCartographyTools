@@ -208,7 +208,7 @@ def default_insert_position(project, raster_layer):
     bottom-of-tree default generate_hypsometric_tint() itself uses, so
     this layer still never covers vector layers like Tanaka Contours
     or the grids. Only used when there's no previous layer's position
-    to inherit (see terrain/_layer_utils.py's replace_named_layer()) -
+    to inherit (see core/_layer_utils.py's replace_named_layer()) -
     deliberately doesn't retroactively reposition this layer above a
     Hypsometric Tint layer added *after* it already exists, consistent
     with never overriding a position the user may have organised
@@ -259,7 +259,7 @@ def generate_hillshade_combination(
     to extent, by running gdal:hillshade once per azimuth in azimuths
     (2 or 3) and averaging the results. Rendered single-band grayscale
     with an Overlay blend mode. Deliberately does NOT add the layer to
-    the project - see terrain/_layer_utils.py's module docstring for
+    the project - see core/_layer_utils.py's module docstring for
     why. Returns the layer.
     """
 

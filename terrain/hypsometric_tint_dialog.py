@@ -21,7 +21,7 @@ from qgis.PyQt.QtWidgets import (
     QDialogButtonBox,
 )
 
-from ._layer_utils import add_layer_at_default_position, replace_named_layer
+from ..core._layer_utils import add_layer_at_default_position, replace_named_layer
 from .hypsometric_tint import (
     generate_hypsometric_tint,
     default_insert_position,

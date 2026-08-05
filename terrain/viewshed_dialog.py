@@ -23,7 +23,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
-from ._layer_utils import add_layer_at_default_position, replace_named_layer
+from ..core._layer_utils import add_layer_at_default_position, replace_named_layer
 from .line_of_sight import DEFAULT_OBSERVER_HEIGHT_M, DEFAULT_TARGET_HEIGHT_M
 from .viewshed import (
     generate_viewshed,

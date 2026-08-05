@@ -245,7 +245,7 @@ def default_insert_position(project, layer):
     unqualified addMapLayer() would use, so it never covers Tanaka
     Contours or other vector layers already in the project. Only used
     when there's no previous layer's position to inherit (see
-    terrain/_layer_utils.py's replace_named_layer()).
+    core/_layer_utils.py's replace_named_layer()).
     """
 
     root = project.layerTreeRoot()
@@ -267,7 +267,7 @@ def generate_hypsometric_tint(
     Build a hypsometric tint raster layer from dem_layer, clipped to
     extent and coloured by elevation per the standard hypsometric
     convention (see _hypsometric_ramp.py). Deliberately does NOT add
-    the layer to the project - see terrain/_layer_utils.py's module
+    the layer to the project - see core/_layer_utils.py's module
     docstring for why. Returns the layer.
     """
 

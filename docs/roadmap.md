@@ -255,9 +255,53 @@ new subsystem, so effort/risk is low relative to Phase 10.
   adjoining-sheet diagram on each printed sheet showing its neighbors.
   Mostly a batch wrapper around `grid/utm_grid.py` and the "New Military
   Layout" suite (Phase 4) rather than new geometry work.
-- ⬜ **GPX/KML waypoint import/export with MGRS labels** — round-trip
+- ✅ **GPX/KML waypoint import/export with MGRS labels** — round-trip
   waypoints with GPS units, ATAK, or similar, labeled with MGRS via the
-  existing conversion functions. Self-contained I/O, no new UI paradigm.
+  existing conversion functions. **Built 2026-08-06.** New `waypoints/`
+  package (`gpx_kml_io.py` for the read/write + MGRS logic,
+  `gpx_kml_dialog.py` for two small one-shot dialogs - Import and
+  Export are separate actions, not a combined tab set, matching every
+  other feature's one-button-one-dialog convention). QGIS/GDAL already
+  read and write both formats natively (the OGR GPX/KML drivers) - no
+  file-format parsing was written here, only the MGRS-labelling step
+  neither format has any concept of.
+  - **Import**: adds a new `mgrs` field to every waypoint, computed
+    from its own point geometry, alongside whatever fields the source
+    file already had (untouched) - explicit user choice, not the
+    alternative of overwriting the existing name/label field.
+  - **Export**: sets each waypoint's `name` field to its MGRS grid
+    reference (the field a receiving GPS unit/ATAK actually displays),
+    with the source layer's own name/label field, if any, preserved as
+    a separate description field - also an explicit user choice over
+    keeping the original name and adding MGRS as a secondary field.
+  - **Real GDAL quirk, confirmed live before writing any code**: the
+    description field must be named exactly `desc` for GPX and
+    `description` for KML - confirmed by writing test files and
+    inspecting the actual XML, since each driver's fixed schema maps
+    only that one specific field name to its native `<desc>`/
+    `<description>` element; anything else needs `GPX_USE_EXTENSIONS`
+    (GPX) or ends up as free-form `ExtendedData` (KML), neither of
+    which most consumer GPS units/ATAK render as a visible
+    description. Also confirmed live: OGR's KML reader always reports
+    the built-in `<name>` element back as a field literally called
+    `Name` (capitalised) regardless of what field name was used to
+    write it, while GPX's own fixed waypoint schema uses lowercase
+    `name` - `_find_label_field()` checks both cases.
+  - **Refactor along the way**: `terrain/_layer_utils.py` (the
+    "build a layer without inserting it, insert it exactly once"
+    helper originally shared by the four terrain/Viewshed dialogs)
+    moved to `core/_layer_utils.py`, since nothing about it was
+    actually terrain-specific and this feature needed it too -
+    `add_layer_at_default_position()` is used for imports (each
+    import is a genuinely new file, no "regenerate in place" concept
+    the way terrain's own dialogs have). Also caught and fixed in the
+    same pass: `package_plugin.sh`'s `INCLUDE` array needed `waypoints`
+    added, learning directly from the earlier real bug where `terrain`
+    itself was missing there.
+  229 → 247 tests; verified round-trip (export then re-import) against
+  real GPX and KML files on both QGIS 3.44.12 and 4.2.0, plus a packaged-
+  zip extraction check confirming `waypoints/` is actually present this
+  time.
 
 **Considered and deferred:** datum transformation support (converting
 coordinates under pre-WGS84 datums, for registering legacy paper maps).
@@ -267,8 +311,8 @@ engine doesn't silently assume WGS84 where a transform is needed. Real
 value depends on actually working with pre-WGS84 source material —
 revisit if that need shows up, rather than building speculatively.
 
-**Status: In progress.** Bearing/range tool done 2026-08-06; map sheet
-series and GPX/KML import/export not started.
+**Status: In progress.** Bearing/range tool and GPX/KML import/export
+both done 2026-08-06; map sheet series not started.
 
 ---
 
@@ -308,5 +352,5 @@ Phase 8.
 8. ✅ ~~Phase 7's user documentation~~ — done 2026-07-28 (`docs/user-guide.md`, rewritten `README.md`, `LICENSE`).
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06, aside from the deprioritized slope/aspect wrapper (see Phase 8 above).
-11. Phase 9 — navigation & production utilities. ✅ ~~Bearing/range tool~~ — done 2026-08-06. Map sheet series and GPX/KML import/export remain — cheap wins, reuse existing infrastructure, no new subsystem required.
+11. Phase 9 — navigation & production utilities. ✅ ~~Bearing/range tool~~ and ✅ ~~GPX/KML import/export~~ — both done 2026-08-06. Map sheet series remains — a cheap win, reuses existing infrastructure, no new subsystem required.
 12. Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — largest remaining item, a new symbol-library subsystem; sequence after Phase 8 and Phase 9.

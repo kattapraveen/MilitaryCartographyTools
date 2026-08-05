@@ -37,6 +37,7 @@ INCLUDE=(
     layout
     expressions
     terrain
+    waypoints
     icons
     docs
     LICENSE

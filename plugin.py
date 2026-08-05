@@ -33,6 +33,7 @@ from .terrain import (
 )
 from .terrain.line_of_sight_tool import LineOfSightTool
 from .terrain.viewshed_tool import ViewshedTool
+from .waypoints import show_export_waypoints_dialog, show_import_waypoints_dialog
 
 
 SUB_GRID_OPTIONS = [
@@ -78,6 +79,8 @@ class MilitaryCartographyTools:
         self.line_of_sight_action = None
         self.hillshade_combination_action = None
         self.viewshed_action = None
+        self.import_waypoints_action = None
+        self.export_waypoints_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -157,6 +160,8 @@ class MilitaryCartographyTools:
         self._setup_line_of_sight_action()
         self._setup_hillshade_combination_action()
         self._setup_viewshed_action()
+        self._setup_import_waypoints_action()
+        self._setup_export_waypoints_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -582,6 +587,36 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_import_waypoints_action(self):
+
+        # One-shot dialog action, not a map tool - see
+        # waypoints/gpx_kml_dialog.py.
+        self.import_waypoints_action = self._build_action(
+            "import_waypoints.svg",
+            "Import Waypoints",
+            tooltip=(
+                "Import waypoints from a GPX or KML file, labelled "
+                "with their MGRS grid reference"
+            ),
+            callback=self.create_import_waypoints
+        )
+
+
+    def _setup_export_waypoints_action(self):
+
+        # One-shot dialog action, not a map tool - see
+        # waypoints/gpx_kml_dialog.py.
+        self.export_waypoints_action = self._build_action(
+            "export_waypoints.svg",
+            "Export Waypoints",
+            tooltip=(
+                "Export a point layer to a GPX or KML file, with "
+                "each waypoint's name set to its MGRS grid reference"
+            ),
+            callback=self.create_export_waypoints
+        )
+
+
     def unload(self):
         """
         Unload plugin.
@@ -683,6 +718,8 @@ class MilitaryCartographyTools:
             self.line_of_sight_action,
             self.hillshade_combination_action,
             self.viewshed_action,
+            self.import_waypoints_action,
+            self.export_waypoints_action,
         ]:
 
             if action is not None:
@@ -727,8 +764,9 @@ class MilitaryCartographyTools:
         # coordinate_probe_action/bearing_range_action/
         # tanaka_contours_action/hypsometric_tint_action/
         # line_of_sight_action/hillshade_combination_action/
-        # viewshed_action are parented to the main window (like
-        # self.action above), not the toolbar, so they survive
+        # viewshed_action/import_waypoints_action/
+        # export_waypoints_action are parented to the main window
+        # (like self.action above), not the toolbar, so they survive
         # sip.delete(self.toolbar) - just drop the references.
         self.utm_action = None
         self.mgrs100k_action = None
@@ -745,6 +783,8 @@ class MilitaryCartographyTools:
         self.hillshade_combination_action = None
         self.viewshed_action = None
         self.viewshed_tool = None
+        self.import_waypoints_action = None
+        self.export_waypoints_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -994,6 +1034,29 @@ class MilitaryCartographyTools:
             self.iface.mapCanvas().unsetMapTool(
                 self.viewshed_tool
             )
+
+
+    def create_import_waypoints(self):
+        """
+        Prompt for a GPX/KML file and import its waypoints, labelled
+        with their MGRS grid reference.
+        """
+
+        show_import_waypoints_dialog(
+            self.iface
+        )
+
+
+    def create_export_waypoints(self):
+        """
+        Prompt for a point layer and a GPX/KML destination, then
+        export it with each waypoint's name set to its MGRS grid
+        reference.
+        """
+
+        show_export_waypoints_dialog(
+            self.iface
+        )
 
 
     def _on_map_tool_changed(self, new_tool, old_tool):
