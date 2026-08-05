@@ -31,6 +31,7 @@ from .terrain import (
     show_hillshade_combination_dialog,
 )
 from .terrain.line_of_sight_tool import LineOfSightTool
+from .terrain.viewshed_tool import ViewshedTool
 
 
 SUB_GRID_OPTIONS = [
@@ -74,6 +75,7 @@ class MilitaryCartographyTools:
         self.hypsometric_tint_action = None
         self.line_of_sight_action = None
         self.hillshade_combination_action = None
+        self.viewshed_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -82,6 +84,7 @@ class MilitaryCartographyTools:
         self.grid_manager = None
         self.coordinate_probe_tool = None
         self.line_of_sight_tool = None
+        self.viewshed_tool = None
 
         # One small toolbar per currently-open Layout Designer
         # window, keyed by the designer interface itself - just
@@ -149,6 +152,7 @@ class MilitaryCartographyTools:
         self._setup_hypsometric_tint_action()
         self._setup_line_of_sight_action()
         self._setup_hillshade_combination_action()
+        self._setup_viewshed_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -523,6 +527,32 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_viewshed_action(self):
+
+        # Single-click coverage-sweep tool - see
+        # terrain/viewshed_tool.py/terrain/viewshed.py. Stays active
+        # across repeated clicks like the coordinate probe/line of
+        # sight tools, so it shares the same _on_map_tool_changed
+        # un-check handling (no separate mapToolSet connection
+        # needed - one connection already covers every map tool).
+        self.viewshed_tool = ViewshedTool(
+            self.iface.mapCanvas(),
+            self.iface
+        )
+
+        self.viewshed_action = self._build_action(
+            "viewshed.svg",
+            "Viewshed",
+            tooltip=(
+                "Click a point on the map to show everywhere visible "
+                "from it within a chosen range, accounting for "
+                "terrain and earth curvature/refraction"
+            ),
+            checkable=True,
+            callback=self.toggle_viewshed
+        )
+
+
     def unload(self):
         """
         Unload plugin.
@@ -614,6 +644,7 @@ class MilitaryCartographyTools:
             self.hypsometric_tint_action,
             self.line_of_sight_action,
             self.hillshade_combination_action,
+            self.viewshed_action,
         ]:
 
             if action is not None:
@@ -657,9 +688,9 @@ class MilitaryCartographyTools:
         # utm_action/mgrs100k_action/clear_action/new_layout_action/
         # coordinate_probe_action/tanaka_contours_action/
         # hypsometric_tint_action/line_of_sight_action/
-        # hillshade_combination_action are parented to the main
-        # window (like self.action above), not the toolbar, so they
-        # survive sip.delete(self.toolbar) - just drop the
+        # hillshade_combination_action/viewshed_action are parented to
+        # the main window (like self.action above), not the toolbar,
+        # so they survive sip.delete(self.toolbar) - just drop the
         # references.
         self.utm_action = None
         self.mgrs100k_action = None
@@ -672,6 +703,8 @@ class MilitaryCartographyTools:
         self.line_of_sight_action = None
         self.line_of_sight_tool = None
         self.hillshade_combination_action = None
+        self.viewshed_action = None
+        self.viewshed_tool = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -887,6 +920,24 @@ class MilitaryCartographyTools:
             )
 
 
+    def toggle_viewshed(self, checked):
+        """
+        Activate/deactivate the viewshed map tool.
+        """
+
+        if checked:
+
+            self.iface.mapCanvas().setMapTool(
+                self.viewshed_tool
+            )
+
+        else:
+
+            self.iface.mapCanvas().unsetMapTool(
+                self.viewshed_tool
+            )
+
+
     def _on_map_tool_changed(self, new_tool, old_tool):
         """
         Keep each checkable tool's toolbar button in sync when some
@@ -899,6 +950,7 @@ class MilitaryCartographyTools:
         for action, tool in (
             (self.coordinate_probe_action, self.coordinate_probe_tool),
             (self.line_of_sight_action, self.line_of_sight_tool),
+            (self.viewshed_action, self.viewshed_tool),
         ):
 
             if action is not None and new_tool is not tool:

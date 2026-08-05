@@ -128,6 +128,19 @@ def compute_profile(
     if not (observer_ok and target_ok):
         return None
 
+    # A bathymetric DEM (e.g. GMRT) holds negative values below mean
+    # sea level for open water - genuine seafloor depth, not a
+    # surface anyone stands or sails on. An observer/target over
+    # water sits at the sea surface (elevation 0), not the seabed, so
+    # any elevation below 0 is clamped up to 0 - the same "below zero
+    # is sea" simplification hypsometric_tint.py's own colour ramp
+    # already relies on elsewhere in this plugin. This also clamps a
+    # genuine below-sea-level inland depression the same way, an
+    # accepted trade-off since nothing in a DEM alone distinguishes
+    # that from ocean floor.
+    observer_terrain = max(0.0, observer_terrain)
+    target_terrain = max(0.0, target_terrain)
+
     distance = observer_point.distance(target_point)
 
     observer_eye_z = observer_terrain + observer_height
@@ -170,6 +183,9 @@ def compute_profile(
 
         if not ok:
             continue
+
+        # Same below-zero-is-sea clamp as the observer/target above.
+        terrain = max(0.0, terrain)
 
         effective_terrain = terrain - curvature_refraction_drop(
             sample_distance

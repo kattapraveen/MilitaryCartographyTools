@@ -93,6 +93,57 @@ def _observer_and_target(clipped_dem, row_fraction=0.5, margin_fraction=0.1):
     return observer, target
 
 
+class TestSeaLevelClamp(QgisTestCase):
+
+    """
+    Regression coverage for a real requirement: an observer or target
+    over open water sits at the sea surface, not the seabed - a
+    bathymetric DEM's negative below-mean-sea-level values must be
+    clamped to 0 before height/visibility calculations, or an
+    observer over water would incorrectly compute its own eye height
+    from a large negative seafloor depth instead of the water
+    surface.
+    """
+
+    def test_observer_over_water_is_not_treated_as_being_at_seabed_depth(self):
+
+        # A single-column depression at (roughly) the observer's own
+        # point - not a wide trench, which would create unrelated
+        # self-shadowing effects on the profile, confounding the
+        # result - flat sea level (0) everywhere else, including at
+        # the target.
+        clipped, path = _clipped_ridge_dem(
+            width=30,
+            height=10,
+            base_elevation=0.0,
+            ridge_height=-50.0,
+            ridge_start_column=3,
+            ridge_end_column=4
+        )
+
+        try:
+            observer, target = _observer_and_target(clipped)
+
+            visible, blocked_at_distance, _samples = compute_profile(
+                clipped,
+                observer,
+                2.0,
+                target,
+                2.0
+            )
+
+            # Without the clamp, the observer's own eye height would
+            # be computed from -50m (the seabed) instead of 0m (the
+            # surface), making the sightline start so low that the
+            # surrounding flat (0m) terrain would immediately block
+            # it.
+            self.assertTrue(visible)
+            self.assertIsNone(blocked_at_distance)
+
+        finally:
+            os.remove(path)
+
+
 class TestComputeProfile(QgisTestCase):
 
     def test_tall_ridge_between_low_points_blocks_visibility(self):

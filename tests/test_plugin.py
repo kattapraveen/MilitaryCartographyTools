@@ -51,6 +51,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "Hypsometric Tint",
                 "Line of Sight",
                 "Hillshade Combinations",
+                "Viewshed",
             ):
 
                 self.assertIn(expected, texts)
@@ -102,6 +103,8 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.line_of_sight_action)
         self.assertIsNone(plugin.line_of_sight_tool)
         self.assertIsNone(plugin.hillshade_combination_action)
+        self.assertIsNone(plugin.viewshed_action)
+        self.assertIsNone(plugin.viewshed_tool)
 
 
     def test_init_gui_then_unload_then_init_gui_again_does_not_error(self):
@@ -186,6 +189,55 @@ class TestLineOfSightWiring(QgisTestCase):
 
             self.assertIs(canvas.mapTool(), plugin.coordinate_probe_tool)
             self.assertFalse(plugin.line_of_sight_action.isChecked())
+
+        finally:
+
+            plugin.unload()
+
+
+class TestViewshedWiring(QgisTestCase):
+
+    def test_toggling_action_activates_and_the_tool_syncs_back_off(self):
+
+        plugin, iface, window, canvas = make_plugin()
+
+        plugin.initGui()
+
+        try:
+
+            plugin.viewshed_action.setChecked(True)
+
+            self.assertIs(canvas.mapTool(), plugin.viewshed_tool)
+
+            from qgis.gui import QgsMapToolPan
+
+            other_tool = QgsMapToolPan(canvas)
+            canvas.setMapTool(other_tool)
+
+            self.assertFalse(plugin.viewshed_action.isChecked())
+
+        finally:
+
+            plugin.unload()
+
+
+    def test_toggling_line_of_sight_does_not_uncheck_viewshed(self):
+
+        # _on_map_tool_changed() loops over every checkable tool - a
+        # regression here would un-check every OTHER tool's action
+        # whenever any one of them activates, not just the one that
+        # actually lost the canvas.
+        plugin, iface, window, canvas = make_plugin()
+
+        plugin.initGui()
+
+        try:
+
+            plugin.viewshed_action.setChecked(True)
+            plugin.line_of_sight_action.setChecked(True)
+
+            self.assertIs(canvas.mapTool(), plugin.line_of_sight_tool)
+            self.assertFalse(plugin.viewshed_action.isChecked())
 
         finally:
 

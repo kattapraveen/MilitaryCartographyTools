@@ -13,6 +13,7 @@ from .hypsometric_tint_dialog import show_hypsometric_tint_dialog
 from .line_of_sight import generate_line_of_sight
 from .hillshade_combination import generate_hillshade_combination
 from .hillshade_combination_dialog import show_hillshade_combination_dialog
+from .viewshed import generate_viewshed
 
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "generate_line_of_sight",
     "generate_hillshade_combination",
     "show_hillshade_combination_dialog",
+    "generate_viewshed",
 ]

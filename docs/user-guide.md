@@ -18,6 +18,7 @@ military grid generation, and automated print-layout production.
 - [Hypsometric Tint](#hypsometric-tint)
 - [Line of Sight](#line-of-sight)
 - [Hillshade Combinations](#hillshade-combinations)
+- [Viewshed](#viewshed)
 - [Expression functions](#expression-functions)
 
 ---
@@ -55,6 +56,7 @@ Left to right:
 | Filled concentric colour bands | Hypsometric Tint |
 | Two dots joined by a line, with a small crossing tick | Line of Sight |
 | Hill silhouette lit by two crossed arrows | Hillshade Combinations |
+| Observer point with radiating coverage arcs | Viewshed |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -268,7 +270,9 @@ the path the first obstruction is, shown in the window's own **Result**
 line. Visibility accounts for both real terrain (sampled from your DEM
 along the path) and earth curvature/atmospheric refraction, so even a low
 target far enough away over open ground can be correctly reported as not
-visible.
+visible. Any elevation below sea level (open water on a bathymetric DEM)
+is treated as sea level (0m) rather than the seabed's own depth — an
+observer or target over water sits on the surface, not the seafloor.
 
 Requires a DEM layer already loaded in your project (see "Getting a DEM"
 above). The window also lets you set:
@@ -322,6 +326,47 @@ directly above it — the two combine automatically into a coloured,
 textured relief look. If there's no Hypsometric Tint layer yet, it's
 placed at the bottom of the layer panel instead, same as Hypsometric Tint
 itself, so it won't cover any grid or contour layers.
+
+---
+
+## Viewshed
+
+Click the radiating-arcs icon to activate, then click a point on the map:
+that's the **observer**, marked with a blue cross. A small **Viewshed**
+window opens showing the observer's coordinates, and generates a coverage
+layer automatically.
+
+Unlike Line of Sight, which checks visibility to one target point, Viewshed
+sweeps every direction out to a chosen range and draws a single **green**
+polygon covering just the area actually visible from the observer. Ground
+that's out of range, or hidden behind terrain, is left blank rather than
+filled in — a full coloured circle covering the whole swept area reads as
+"the whole circle matters," which was more confusing than useful in
+practice. Like Line of Sight, this accounts for both real terrain and
+earth curvature/atmospheric refraction, and treats any elevation below sea
+level (open water on a bathymetric DEM) as sea level (0m) rather than the
+seabed's own depth — an observer or target over water sits on the surface,
+not the seafloor.
+
+Requires a DEM layer already loaded in your project (see "Getting a DEM"
+above). The window also lets you set:
+
+| Field | Notes |
+|---|---|
+| DEM layer | Any loaded raster layer |
+| Observer height | Height above ground (or water surface) at the observer point, in metres (default 1.7 — average eye height) |
+| Target height | Height above ground being checked for visibility, in metres (default 0 — ground level) |
+| Max distance | How far out to sweep, in metres (default 5000) |
+| Opacity | How solid the visible-area fill appears, so terrain underneath still shows through (default 65%) |
+| Add as new layer | Off by default — clicking again corrects the existing "Viewshed" layer in place. Check this to keep the previous result and add a new one alongside it instead |
+
+Adjust a field and press **Generate** to re-run without re-clicking, or
+just click a different point on the map — every click is a complete,
+standalone analysis on its own, so there's no observer/target pair to keep
+track of. Like Line of Sight, the DEM is clipped to a box around wherever
+the observer actually is (sized from the max distance you've set), not
+tied to the current map canvas extent, and the tool stays active across
+repeated clicks until you select a different tool.
 
 ---
 
