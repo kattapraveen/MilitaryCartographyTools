@@ -36,6 +36,7 @@ from qgis.core import (
     QgsRectangle
 )
 
+from .grid_position_diagram import add_grid_position_diagram
 from .north_arrow import add_north_arrow
 from .scale_bar import add_scale_bar
 from .scale_bar import required_height as scale_bar_required_height
@@ -338,6 +339,11 @@ def _apply_marginalia(
         map_item
     )
 
+    add_grid_position_diagram(
+        layout,
+        map_item
+    )
+
     add_neatline(
         map_item
     )
@@ -408,7 +414,9 @@ def create_layout(
     height_mm,
     scale,
     heading_lines=None,
-    classification=None
+    classification=None,
+    center=None,
+    open_designer=True
 ):
 
     """
@@ -424,6 +432,21 @@ def create_layout(
         One of classification.LEVELS (e.g. "RESTRICTED"), shown
         bold/all-caps at both the top and bottom of the page.
         Omit (or "None") for no classification banners.
+
+    center:
+        A QgsPointXY, in the same CRS as the map canvas's own
+        destination CRS, to centre the map on instead of the
+        current canvas extent's centre - used by
+        layout/map_sheet_series.py to place each sheet in a
+        batch-generated series at its own computed centre rather
+        than wherever the canvas happens to be pointed. Omit for
+        the normal single-layout behaviour.
+
+    open_designer:
+        Whether to open this layout in the Layout Designer once
+        built - True for the normal single-layout case; a batch
+        generator creating many layouts at once passes False to
+        avoid flooding the user with that many open windows.
     """
 
     heading_lines = heading_lines or []
@@ -485,14 +508,22 @@ def create_layout(
     seed_width = canvas_extent.width()
     seed_height = seed_width * (rect_height / rect_width)
 
-    center = canvas_extent.center()
+    # seed_width/seed_height only need to match the rect's own
+    # aspect ratio, per the comment above - their absolute size is
+    # irrelevant, since setScale() below rescales the extent around
+    # this same centre point to the exact requested denominator
+    # regardless of what size it started at. That's what makes it
+    # safe to seed from the canvas's own (otherwise arbitrary, for
+    # a batch-generated sheet) extent width even when center is
+    # given explicitly.
+    map_center = center if center is not None else canvas_extent.center()
 
     map_item.setExtent(
         QgsRectangle(
-            center.x() - (seed_width / 2),
-            center.y() - (seed_height / 2),
-            center.x() + (seed_width / 2),
-            center.y() + (seed_height / 2)
+            map_center.x() - (seed_width / 2),
+            map_center.y() - (seed_height / 2),
+            map_center.x() + (seed_width / 2),
+            map_center.y() + (seed_height / 2)
         )
     )
 
@@ -522,9 +553,11 @@ def create_layout(
         geometry
     )
 
-    iface.openLayoutDesigner(
-        layout
-    )
+    if open_designer:
+
+        iface.openLayoutDesigner(
+            layout
+        )
 
     return layout
 

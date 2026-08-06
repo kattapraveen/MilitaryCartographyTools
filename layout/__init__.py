@@ -10,6 +10,7 @@ from .neatline import add_neatline
 from .heading import add_heading
 from .geographic_graticule import add_geographic_graticule
 from .classification import add_classification_banner
+from .map_sheet_series_dialog import show_map_sheet_series_dialog
 
 __all__ = [
     "show_new_layout_dialog",
@@ -22,4 +23,5 @@ __all__ = [
     "add_heading",
     "add_geographic_graticule",
     "add_classification_banner",
+    "show_map_sheet_series_dialog",
 ]

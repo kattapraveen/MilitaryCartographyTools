@@ -25,7 +25,7 @@ from .core.coordinate_probe_tool import CoordinateProbeTool
 from .core.bearing_range_tool import BearingRangeTool
 from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
-from .layout import show_new_layout_dialog, LayoutOptionsPanel
+from .layout import show_new_layout_dialog, LayoutOptionsPanel, show_map_sheet_series_dialog
 from .terrain import (
     show_tanaka_contour_dialog,
     show_hypsometric_tint_dialog,
@@ -81,6 +81,7 @@ class MilitaryCartographyTools:
         self.viewshed_action = None
         self.import_waypoints_action = None
         self.export_waypoints_action = None
+        self.map_sheet_series_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -162,6 +163,7 @@ class MilitaryCartographyTools:
         self._setup_viewshed_action()
         self._setup_import_waypoints_action()
         self._setup_export_waypoints_action()
+        self._setup_map_sheet_series_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -617,6 +619,21 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_map_sheet_series_action(self):
+
+        # One-shot dialog action, not a map tool - see
+        # layout/map_sheet_series_dialog.py.
+        self.map_sheet_series_action = self._build_action(
+            "map_sheet_series.svg",
+            "Map Sheet Series",
+            tooltip=(
+                "Batch-generate a numbered series of print sheets "
+                "tiling the current map extent"
+            ),
+            callback=self.create_map_sheet_series
+        )
+
+
     def unload(self):
         """
         Unload plugin.
@@ -720,6 +737,7 @@ class MilitaryCartographyTools:
             self.viewshed_action,
             self.import_waypoints_action,
             self.export_waypoints_action,
+            self.map_sheet_series_action,
         ]:
 
             if action is not None:
@@ -765,9 +783,10 @@ class MilitaryCartographyTools:
         # tanaka_contours_action/hypsometric_tint_action/
         # line_of_sight_action/hillshade_combination_action/
         # viewshed_action/import_waypoints_action/
-        # export_waypoints_action are parented to the main window
-        # (like self.action above), not the toolbar, so they survive
-        # sip.delete(self.toolbar) - just drop the references.
+        # export_waypoints_action/map_sheet_series_action are
+        # parented to the main window (like self.action above), not
+        # the toolbar, so they survive sip.delete(self.toolbar) -
+        # just drop the references.
         self.utm_action = None
         self.mgrs100k_action = None
         self.clear_action = None
@@ -785,6 +804,7 @@ class MilitaryCartographyTools:
         self.viewshed_tool = None
         self.import_waypoints_action = None
         self.export_waypoints_action = None
+        self.map_sheet_series_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -1055,6 +1075,18 @@ class MilitaryCartographyTools:
         """
 
         show_export_waypoints_dialog(
+            self.iface
+        )
+
+
+    def create_map_sheet_series(self):
+        """
+        Prompt for page size/orientation/scale, then batch-generate
+        a numbered series of print sheets tiling the current map
+        extent.
+        """
+
+        show_map_sheet_series_dialog(
             self.iface
         )
 

@@ -21,6 +21,7 @@ military grid generation, and automated print-layout production.
 - [Hillshade Combinations](#hillshade-combinations)
 - [Viewshed](#viewshed)
 - [Waypoint Import/Export (GPX/KML)](#waypoint-importexport-gpxkml)
+- [Map Sheet Series](#map-sheet-series)
 - [Expression functions](#expression-functions)
 
 ---
@@ -62,6 +63,7 @@ Left to right:
 | Observer point with radiating coverage arcs | Viewshed |
 | Waypoint dropping down into a tray | Import Waypoints |
 | Waypoint rising up out of a tray | Export Waypoints |
+| A 2×2 grid of sheets, one filled in | Map Sheet Series |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -171,6 +173,12 @@ The layout it creates automatically includes:
 - **Geographic graticule** — a light-brown lat/lon overlay, auto-spaced
   15′/30′/1° depending on the map's extent, distinct from the plugin's own
   UTM/MGRS grid.
+- **Grid position diagram** (bottom-left) — a small inset showing where
+  this map sits in the plugin's own grid hierarchy (UTM Grid Zone
+  Designator down to MGRS 100km squares), with the map's own footprint
+  outlined on it — see [Map Sheet Series](#map-sheet-series) below for the
+  full explanation, since every layout gets one, not just a generated
+  series.
 - **Classification banners**, if selected.
 
 Every element auto-sizes the map's margins to fit whatever combination of
@@ -449,6 +457,56 @@ an MGRS grid reference, since neither format has any native concept of it.
 
 Both `.gpx` and `.kml` are supported; `.kmz` (zipped KML) isn't. A GPX
 file's **routes**/**tracks** aren't imported — only standalone waypoints.
+
+---
+
+## Map Sheet Series
+
+Click the icon to batch-generate a numbered series of print sheets tiling
+the **current map extent** — for producing a full set of standard-size
+map sheets over a large area of operations, rather than one layout at a
+time.
+
+The dialog asks for the same page size/orientation/scale/heading/
+classification fields as New Military Layout — every sheet in the series
+shares them. Click **OK** and a grid of sheets is generated to cover the
+current extent edge-to-edge (no gaps or overlap), each registered as its
+own print layout (see **Project → Layouts Manager** to open one) — they
+aren't opened individually, since a large series could mean dozens of
+Designer windows at once.
+
+**Sheet naming**: each sheet is named after the real MGRS grid square its
+own centre falls in — `{GZD} {100km square} #{N}`, e.g. `37M EN #1`. No
+invented numbering scheme: `37M` is the UTM Grid Zone Designator and `EN`
+the MGRS 100km square, the same grids the UTM Grid and MGRS 100km Grid
+tools already generate. The `#N` at the end disambiguates sheets that
+share the same square — normal at any practical print scale, since one
+100km square is much larger than a typical sheet — and restarts at 1 for
+each distinct square rather than counting the whole series, so it never
+implies an ordering across the series.
+
+**Grid position diagram**: every layout this plugin creates — a single
+New Military Layout as much as one sheet in a series — gets a small inset
+in the map's bottom-left corner showing exactly where it sits in that same
+grid hierarchy, picked automatically from how much of it the map's own
+extent actually spans:
+
+- A small-scale map spanning more than one UTM Grid Zone Designator shows
+  a mosaic of the relevant GZDs (e.g. `37M`, `38M`).
+- A map that fits within one GZD but spans more than one MGRS 100km
+  square shows a mosaic of those squares instead (e.g. `EN`, `FN`).
+- A large-scale map (1:50,000 or finer) that fits entirely inside a single
+  100km square just shows that one square.
+
+In every case, the map's own footprint is outlined on the diagram at its
+actual position and proportions — not just "which cell is closest" — so a
+sheet that doesn't align to a grid boundary still shows exactly where
+within the shown square(s) it sits.
+
+A page size/scale combination that would produce more than 200 sheets is
+rejected with a warning instead of silently generating an impractically
+large, slow-to-build series — zoom in to a smaller extent or choose a
+larger scale denominator instead.
 
 ---
 

@@ -264,25 +264,7 @@ new subsystem, so effort/risk is low relative to Phase 10.
   adjoining-sheet diagram on each printed sheet showing its neighbors.
   **Built 2026-08-06.** Turned out to be almost entirely a batch wrapper
   around New Military Layout's own `create_layout()` (Phase 4), exactly
-  as scoped - no new print-layout geometry work beyond the adjoining-
-  sheets diagram itself.
-  - **Naming convention - researched before building, not invented**:
-    considered a paper-map-only "A1, A2, B1" scheme (meaningless outside
-    one series) against the real worldwide standard this kind of series
-    is normally built on - the International Map of the World (IMW)
-    1:1,000,000 sheet system NGA/US military topographic series (JOG
-    1:250,000, etc.) still use, dividing the globe into 4°-latitude
-    bands (lettered) x 6°-longitude columns (numbered 1-60, the same 60
-    columns UTM zones use). The coarser half of that same standard - 6°
-    zones × 8° bands - is exactly this plugin's own UTM Grid Zone
-    Designator (GZD), the grid MGRS itself is built on. Chosen scheme:
-    `{GZD}-{row-letter}{column-number}` (e.g. `37M-A1`) - the GZD prefix
-    is a real, globally unambiguous designator (not invented for this
-    feature); the row/column suffix is a simple local index within one
-    generated series (row 0 = the AO's own north-west corner), not a
-    literal reproduction of the historical IMW/JOG scale-dependent
-    subdivision rules, which would have been a much larger, historically
-    fussier undertaking for uncertain benefit here.
+  as scoped.
   - **`layout/map_sheet_series.py`** (new): `compute_sheet_grid()` tiles
     an AO extent edge-to-edge (no overlap) into a grid of sheet centres,
     doing the actual metre-based tiling math in a local UTM zone derived
@@ -294,45 +276,93 @@ new subsystem, so effort/risk is low relative to Phase 10.
     `create_layout()` itself computes (`_compute_geometry()`,
     `MAP_SIDE_MARGIN`) at the given page size/scale, so generated sheets
     tile exactly edge-to-edge against what each layout actually renders,
-    not an approximation. `_row_letters()` extends past Z the same way
-    spreadsheet columns do (AA, AB, ...) rather than wrapping back to A,
-    for a series with more than 26 rows. A `MAX_SHEETS = 200` guard
-    raises rather than silently generating an impractically large,
-    slow-to-build series from an accidental huge-AO/fine-scale
-    combination. `generate_sheet_series()` calls `create_layout()` once
-    per sheet at that sheet's own computed centre.
+    not an approximation. A `MAX_SHEETS = 200` guard raises rather than
+    silently generating an impractically large, slow-to-build series
+    from an accidental huge-AO/fine-scale combination.
+    `generate_sheet_series()` calls `create_layout()` once per sheet at
+    that sheet's own computed centre, passing `open_designer=False` (see
+    below) and reports a single message-bar summary rather than opening
+    a Designer window per sheet.
   - **Minimal, backward-compatible extension to `create_layout()`
     itself** (Phase 4's own function): added `center=None` (an explicit
     centre point, overriding the current canvas extent's own centre -
     every existing caller keeps working unchanged, since omitting it
     preserves the exact prior behaviour) and `open_designer=True`
-    (`False` skips the final `iface.openLayoutDesigner()` call - opening
-    a Designer window per sheet in a series of dozens would flood the
-    user with windows, so Map Sheet Series passes `False` for every
-    sheet and reports a single message-bar summary instead).
-  - **New `layout/sheet_diagram.py`**: the adjoining-sheets diagram - a
-    3x3 grid of small `QgsLayoutItemShape` cells + `QgsLayoutItemLabel`s
-    inset in the map item's own bottom-left corner (mirroring
-    `north_arrow.py`'s own top-right inset convention for the opposite
-    corner, so the two don't collide), the current sheet's own cell
-    highlighted with a light-blue fill and bold text, matching the
-    "index to adjoining sheets" convention real paper topographic map
-    sheets already use. Discovered live (not assumed) that
-    `QgsPrintLayout.items()` returns every graphics item in the layout's
-    scene, including plain `QGraphicsRectItem` page-background items
-    with no `id()` method at all - `remove_sheet_diagram()`'s cleanup
-    loop needed an explicit `isinstance(item, QgsLayoutItem)` guard
-    after hitting a real `AttributeError` without it.
+    (`False` skips the final `iface.openLayoutDesigner()` call).
   - **`layout/map_sheet_series_dialog.py`**: reuses `LayoutFieldsWidget`
     verbatim (the same page size/orientation/scale/heading/
     classification fields New Military Layout's own dialog uses) with
-    no separate name field, since every sheet is auto-named from its own
-    designator: no per-feature UI needed beyond what already existed.
-  - 271 tests (up from 249); verified end-to-end (real tiling math, real
-    layouts registered in the Layout Manager, correct neighbour text on
-    the diagram - e.g. a 2-row series' top sheet correctly shows a blank
-    north neighbour and its real south neighbour's designator) on both
-    QGIS 3.44.12 and 4.2.0.
+    no separate name field, since every sheet is auto-named: no per-
+    feature UI needed beyond what already existed.
+  - **2026-08-06, same-day redesign after live testing and further
+    discussion - naming and the diagram both reworked to lean entirely
+    on the plugin's own existing grid hierarchy, not an invented
+    scheme.** The first version named sheets `{GZD}-{row-letter}
+    {column-number}` (e.g. `37M-A1`, GZD from the real UTM Grid Zone
+    Designator standard, but the row/column suffix invented fresh per
+    series) and drew a fixed 3x3 "adjoining sheets" diagram of literal
+    neighbouring sheets. User feedback: the row/column suffix was still
+    a new numbering system on top of grids the plugin already draws and
+    labels (UTM GZD, MGRS 100km squares) - better to describe a sheet's
+    position purely in terms of *those*, at whichever level of the
+    hierarchy the sheet's own footprint actually needs, and to make that
+    "where am I in the grid" description standard on **every** layout
+    `create_layout()` produces, not just Map Sheet Series' batch output.
+    - **New `layout/grid_position.py`**: `compute_grid_position(extent,
+      crs)` picks one of three tiers automatically from how much of the
+      grid hierarchy a map's own footprint spans - counted directly from
+      geometry, no user input needed. (1) Footprint touches more than
+      one GZD cell (a small-scale map) - show a mosaic of real GZD
+      labels (e.g. `37M`, `38M`). (2) Footprint fits in one GZD but
+      touches more than one 100km square - show a mosaic of real 100km
+      square IDs (e.g. `EN`, `FN`) instead. (3) Footprint fits inside a
+      single 100km square (a large-scale map, 1:50,000 or finer) - show
+      just that one square. Each mosaic is expanded by one cell of
+      context margin beyond whatever's actually touched, and reuses
+      `mgrs_square_id()`/zone-band boundary math already built for the
+      UTM Grid/MGRS 100km grid layers - no new grid math invented, only
+      a new way of asking "how many of these does this footprint touch."
+      A real edge-case bug caught live before it shipped: naively
+      `floor()`-ing an extent's own far edge over-counted a cell exactly
+      100km-boundary-aligned as touching one extra column/row it didn't
+      actually reach into - fixed by treating cells as half-open
+      `[start, start+100km)` (`ceil()` on the far edge instead).
+      `grid_label_for_point(lat, lon)` gives the single real
+      `(GZD, 100km square)` pair a point falls in, used for sheet naming
+      below. Sheet naming is now `{GZD} {100km square} #{N}` (e.g.
+      `37M EN #1`) - the `#N` sequence restarts per distinct grid square
+      rather than running globally, since a sheet at any normal
+      operational scale is almost always much smaller than one 100km
+      square, so most series have several sheets legitimately sharing
+      one square's name and needing the number purely to tell them
+      apart, not to imply an ordering.
+    - **`layout/grid_position_diagram.py`** replaces the old
+      `layout/sheet_diagram.py`: draws whatever `compute_grid_position()`
+      returns as an inset mosaic in the map item's own bottom-left
+      corner (mirroring `north_arrow.py`'s own top-right inset
+      convention for the opposite corner), with the map's own footprint
+      outlined *to scale* on top of the mosaic (a `footprint_fraction`
+      the math side computes, not just "which cell is this") - so a
+      large-scale sheet that doesn't align to any grid boundary still
+      shows exactly where within its square it actually sits, not just
+      "somewhere in this cell." Carried over from the first version: the
+      live-discovered fix for `QgsPrintLayout.items()` returning plain
+      `QGraphicsRectItem` page-background items with no `id()` method,
+      guarded with `isinstance(item, QgsLayoutItem)`.
+    - **Wired into `new_layout.py`'s shared `_apply_marginalia()`**
+      (called by both `create_layout()` and `update_layout()`) rather
+      than only Map Sheet Series' own generation path - confirmed live
+      that a plain New Military Layout now gets the diagram
+      automatically too, and that resizing/rescaling an existing layout
+      (`update_layout()`) regenerates it against the new extent
+      correctly, same as every other marginalia element already does.
+  - 276 tests (up from 249, after replacing the superseded
+    designator/diagram tests with `tests/test_grid_position.py` and
+    `tests/test_grid_position_diagram.py`); verified end-to-end on both
+    QGIS 3.44.12 and 4.2.0 - real tiling math, real layouts registered in
+    the Layout Manager, correct tier/mosaic/footprint for hand-picked
+    extents at all three tiers, and a plain New Military Layout call
+    confirmed to carry the diagram automatically.
 - ✅ **GPX/KML waypoint import/export with MGRS labels** — round-trip
   waypoints with GPS units, ATAK, or similar, labeled with MGRS via the
   existing conversion functions. **Built 2026-08-06.** New `waypoints/`

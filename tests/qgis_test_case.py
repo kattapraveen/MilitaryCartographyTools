@@ -79,6 +79,12 @@ class FakeMessageBar:
     def __init__(self):
 
         self.calls = []
+        self.clear_count = 0
+
+
+    def clearWidgets(self):
+
+        self.clear_count += 1
 
 
     def pushInfo(self, title, text):
