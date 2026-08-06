@@ -22,6 +22,7 @@ military grid generation, and automated print-layout production.
 - [Viewshed](#viewshed)
 - [Waypoint Import/Export (GPX/KML)](#waypoint-importexport-gpxkml)
 - [Map Sheet Series](#map-sheet-series)
+- [Tactical Graphics - Units](#tactical-graphics---units)
 - [Expression functions](#expression-functions)
 
 ---
@@ -64,6 +65,7 @@ Left to right:
 | Waypoint dropping down into a tray | Import Waypoints |
 | Waypoint rising up out of a tray | Export Waypoints |
 | A 2×2 grid of sheets, one filled in | Map Sheet Series |
+| A unit frame (rectangle with a centre dot) | Tactical Graphics - Units |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -512,6 +514,47 @@ A page size/scale combination that would produce more than 200 sheets is
 rejected with a warning instead of silently generating an impractically
 large, slow-to-build series — zoom in to a smaller extent or choose a
 larger scale denominator instead.
+
+---
+
+## Tactical Graphics - Units
+
+Click the icon to add a **"Tactical Graphics - Units"** layer — a point
+layer where every feature automatically renders as the correct
+MIL-STD-2525/APP-6 military symbol, drawn from its own attributes. There's
+no dialog and no separate symbol picker: the layer is created empty and
+ready to use immediately.
+
+**Placing a unit**: use QGIS's own native point editing tools (toggle
+editing, **Add Point Feature**) to click a location — the same tools you'd
+use for any other point layer, with full undo/snapping/vertex-editing.
+Filling in the attribute form that appears (or opening it later from the
+attribute table) sets the unit's symbol:
+
+| Field | Notes |
+|---|---|
+| Affiliation | Friend / Hostile / Neutral / Unknown |
+| Entity | Infantry, Motorized Infantry, Mechanized Infantry, Armor, Reconnaissance, Field Artillery, or Engineer |
+| Echelon | Unspecified, Team/Crew, Squad, Section, Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or Army |
+| Status | Present / Planned (planned units render with a dashed outline) |
+| Headquarters | Checkbox — marks the unit as a headquarters element |
+| Unique designation | Free-text label (e.g. "1-501 IN") |
+
+The symbol updates immediately as soon as the attributes are saved — no
+regenerate step. This is a genuinely different kind of layer from every
+other tool in this plugin: its content is hand-placed operational data,
+not something derived from a DEM or grid, so running the toolbar action
+again never touches an existing "Tactical Graphics - Units" layer (it
+warns instead of risking any data loss) — rename an existing layer first
+if you deliberately want a second one.
+
+**Symbol rendering**: powered by the open-source
+[milsymbol](https://github.com/spatialillusions/milsymbol) library
+(MIT license, see `THIRD_PARTY_NOTICES.md`), running entirely offline
+in-process — no network access, no external services. This is only the
+unit/formation symbol layer; control measures (phase lines, boundaries,
+objectives, NAIs) are a separate, not-yet-built feature (see
+`docs/roadmap.md`'s Phase 10 entry).
 
 ---
 

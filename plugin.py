@@ -27,6 +27,7 @@ from .core.bearing_range_tool import BearingRangeTool
 from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel, show_map_sheet_series_dialog
+from .military_symbology.unit_layer import add_unit_layer
 from .terrain import (
     show_tanaka_contour_dialog,
     show_hypsometric_tint_dialog,
@@ -83,6 +84,7 @@ class MilitaryCartographyTools:
         self.import_waypoints_action = None
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
+        self.tactical_graphics_units_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -166,6 +168,7 @@ class MilitaryCartographyTools:
         self._setup_import_waypoints_action()
         self._setup_export_waypoints_action()
         self._setup_map_sheet_series_action()
+        self._setup_tactical_graphics_units_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -636,6 +639,26 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_tactical_graphics_units_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/unit_layer.py. No dialog either: unlike
+        # every other one-shot action in this plugin, there's nothing to
+        # configure at creation time (fields/styling are fixed; per-unit
+        # values are filled in via the attribute form after placing each
+        # point with QGIS's own native editing tools).
+        self.tactical_graphics_units_action = self._build_action(
+            "tactical_graphics_units.svg",
+            "Tactical Graphics - Units",
+            tooltip=(
+                "Add a units layer that renders each point's own "
+                "MIL-STD-2525/APP-6 symbol automatically from its "
+                "attributes"
+            ),
+            callback=self.create_tactical_graphics_units
+        )
+
+
     def unload(self):
         """
         Unload plugin.
@@ -741,6 +764,7 @@ class MilitaryCartographyTools:
             self.import_waypoints_action,
             self.export_waypoints_action,
             self.map_sheet_series_action,
+            self.tactical_graphics_units_action,
         ]:
 
             if action is not None:
@@ -808,6 +832,7 @@ class MilitaryCartographyTools:
         self.import_waypoints_action = None
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
+        self.tactical_graphics_units_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -1090,6 +1115,18 @@ class MilitaryCartographyTools:
         """
 
         show_map_sheet_series_dialog(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_units(self):
+        """
+        Add a "Tactical Graphics - Units" layer, ready for placing
+        MIL-STD-2525/APP-6 unit symbols with QGIS's own native point
+        editing tools.
+        """
+
+        add_unit_layer(
             self.iface
         )
 

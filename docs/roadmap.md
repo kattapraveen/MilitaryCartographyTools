@@ -523,6 +523,62 @@ Phase 8.
     build. 291 → 309 tests (`tests/test_military_symbology_sidc.py`,
     `tests/test_symbol_engine.py`) passing on both QGIS 3.44.12 and 4.2.0.
     No UI yet - sub-phase 10.2 (unit/formation point symbols) is next.
+  - **Sub-phase 10.2 (unit/formation point symbols) done 2026-08-07**:
+    `military_symbology/unit_layer.py`'s `create_unit_layer()` builds a
+    "Tactical Graphics - Units" memory point layer (in the current
+    project's own CRS) with `affiliation`/`entity`/`echelon`/`status`/
+    `headquarters`/`unique_designation` fields, a `ValueMap` dropdown per
+    vocabulary field plus a `CheckBox` for `headquarters`, and sensible
+    defaults on every field so a freshly-added point still resolves to a
+    valid symbol before it's been touched. The renderer is one
+    `QgsSvgMarkerSymbolLayer` whose own path is data-defined via
+    `mct_sidc_svg(mct_build_sidc("affiliation","entity","echelon",
+    "status","headquarters"))` - confirmed live end to end (a real
+    feature's attributes, run through the actual renderer via a
+    `QgsExpressionContext`, resolves to a valid `base64:` SVG path) that
+    QGIS re-evaluates this per feature at render time, so placing a unit
+    is just filling in a plain attribute form, never a separate symbol
+    picker. New `mct_build_sidc()` expression function
+    (`expressions/military_symbology_functions.py`) calls straight into
+    `sidc.py`'s `build_sidc()` rather than re-implementing its
+    field-position logic as a QGIS expression, so that logic stays in
+    exactly one place.
+    - **Scoped down from the plan's own "cascading dropdowns via Value
+      Relation" idea, deliberately.** With only one symbol set
+      (`ground_unit`) in the vocabulary so far, there's nothing to
+      cascade *into* yet - a full Value-Relation-with-backing-lookup-
+      layers setup would add real complexity (extra non-data helper
+      layers cluttering the project) for no visible benefit at this
+      vocabulary size. Plain independent `ValueMap` dropdowns instead;
+      revisit cascading once/if a second symbol set actually exists to
+      filter entities by.
+    - **No dialog** - confirmed during implementation there's nothing to
+      configure at layer-creation time (fields/styling are fixed;
+      per-unit values are filled in via the attribute form after placing
+      each point, not a creation-time choice). The toolbar action calls
+      `add_unit_layer(iface)` directly.
+    - **Deliberately NOT a `generate_*()`/`replace_named_layer()`
+      feature**, unlike every other layer this plugin builds. Those are
+      safe to regenerate-in-place because their content is
+      algorithmically derived from a DEM/AO/grid; this layer's content is
+      hand-placed operational data a user digitizes with QGIS's own
+      native "Add Point Feature" tool - silently replacing it on a second
+      click would be real data loss, not a convenience. `add_unit_layer()`
+      checks for an existing same-named layer first and only warns
+      (via the message bar) rather than ever touching it if one exists.
+    - `qgis.PyQt` doesn't provide a `QtQml` shim (see sub-phase 10.1
+      above); the same import fallback used there applies here too via
+      `symbol_engine.py`.
+    - New `icons/tactical_graphics_units.svg` (a generic MIL-STD-2525/
+      APP-6 unit frame - a plain rectangle with a centre dot and a short
+      stem - matching the plugin's existing flat line-art icon style).
+    - 309 → 322 tests (`tests/test_unit_layer.py`, including a
+      consistency guard that unit_layer.py's own display-label dicts
+      cover exactly the same keys as sidc.py's vocabulary, so the two
+      can't silently drift apart) passing on both QGIS 3.44.12 and 4.2.0.
+    - Manual smoke test still needed: create the layer, place a point
+      with QGIS's own "Add Point Feature" tool, fill in the attribute
+      form, confirm the correct symbol renders immediately.
 
 - ⬜ Control measures — phase lines, boundaries, axis of advance,
   objectives, named areas of interest (NAIs). Sub-phase 10.3, not started.
@@ -530,7 +586,7 @@ Phase 8.
   here rather than Phase 9, since it only earns its keep once there are
   polygons (from the above) to report on. Sub-phase 10.4, not started.
 
-**Status: In progress (sub-phase 10.1 of 4 done).** Largest remaining item on the roadmap after
+**Status: In progress (sub-phases 10.1-10.2 of 4 done).** Largest remaining item on the roadmap after
 Phase 8.
 
 ---
@@ -548,4 +604,4 @@ Phase 8.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — in progress, sub-phase 10.1 (rendering foundation) done 2026-08-07; sub-phases 10.2-10.4 (unit symbol UI, control measures, area/perimeter reporting) remain.
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — in progress, sub-phases 10.1 (rendering foundation) and 10.2 (unit/formation point symbols) done 2026-08-07; sub-phases 10.3-10.4 (control measures, area/perimeter reporting) remain.
