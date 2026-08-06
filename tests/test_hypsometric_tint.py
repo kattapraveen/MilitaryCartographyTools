@@ -11,6 +11,7 @@ import os
 
 from qgis.core import (
     Qgis,
+    QgsColorRampShader,
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
@@ -352,6 +353,49 @@ class TestGenerateHypsometricTintIntegration(QgisTestCase):
         self.assertAlmostEqual(
             output.opacity(),
             0.55
+        )
+
+
+    def test_defaults_to_a_linear_smooth_gradient(self):
+
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        output = generate_hypsometric_tint(
+            dem_layer,
+            self._extent(),
+            WGS84
+        )
+
+        shader_function = output.renderer().shader().rasterShaderFunction()
+
+        self.assertEqual(
+            shader_function.colorRampType(),
+            QgsColorRampShader.Type.Linear
+        )
+
+
+    def test_discrete_flag_switches_to_a_stepped_ramp(self):
+
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "test_dem"
+        )
+
+        output = generate_hypsometric_tint(
+            dem_layer,
+            self._extent(),
+            WGS84,
+            discrete=True
+        )
+
+        shader_function = output.renderer().shader().rasterShaderFunction()
+
+        self.assertEqual(
+            shader_function.colorRampType(),
+            QgsColorRampShader.Type.Discrete
         )
 
 

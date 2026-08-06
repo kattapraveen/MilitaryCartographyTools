@@ -137,12 +137,20 @@ def _build_source_color_ramp(items):
     )
 
 
-def _apply_raster_style(raster_layer, opacity):
+def _apply_raster_style(raster_layer, opacity, discrete=False):
 
     """
-    A single-band pseudocolor renderer driven by a linearly-
-    interpolated hypsometric colour ramp built from this raster's own
-    elevation range.
+    A single-band pseudocolor renderer driven by the hypsometric
+    colour ramp built from this raster's own elevation range - a
+    smooth gradient by default (Type.Linear), or hard-edged bands
+    (Type.Discrete, using the same stops as class upper bounds) if
+    discrete is True. Every "colourful Tanaka"/layer-tint reference
+    reviewed for this plugin (Anita Graser's tutorial, Manifold's
+    docs, the QGIS Hub style page, the GIS StackExchange "layer cake"
+    thread, TopoToolbox, Evelyn Uuemaa's tutorial) uses stepped
+    classification rather than a smooth gradient - discrete is opt-in
+    rather than the default since the smooth gradient is the
+    already-shipped, already-approved look.
     """
 
     min_elevation, max_elevation = band_min_max(raster_layer)
@@ -152,7 +160,7 @@ def _apply_raster_style(raster_layer, opacity):
     color_ramp_shader = QgsColorRampShader()
 
     color_ramp_shader.setColorRampType(
-        QgsColorRampShader.Type.Linear
+        QgsColorRampShader.Type.Discrete if discrete else QgsColorRampShader.Type.Linear
     )
 
     color_ramp_shader.setColorRampItemList(
@@ -260,13 +268,16 @@ def generate_hypsometric_tint(
     dem_layer,
     extent,
     extent_crs,
-    opacity=DEFAULT_OPACITY
+    opacity=DEFAULT_OPACITY,
+    discrete=False
 ):
 
     """
     Build a hypsometric tint raster layer from dem_layer, clipped to
     extent and coloured by elevation per the standard hypsometric
-    convention (see _hypsometric_ramp.py). Deliberately does NOT add
+    convention (see _hypsometric_ramp.py) - a smooth gradient, or
+    hard-edged discrete bands if discrete=True (see
+    _apply_raster_style()'s own docstring). Deliberately does NOT add
     the layer to the project - see core/_layer_utils.py's module
     docstring for why. Returns the layer.
     """
@@ -283,7 +294,8 @@ def generate_hypsometric_tint(
 
     _apply_raster_style(
         clipped_dem,
-        opacity
+        opacity,
+        discrete=discrete
     )
 
     return clipped_dem

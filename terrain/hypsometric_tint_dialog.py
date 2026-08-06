@@ -68,10 +68,19 @@ class HypsometricTintDialog(QDialog):
             False
         )
 
+        self.discrete_checkbox = QCheckBox(
+            "Stepped colour ramp (discrete bands, not a smooth gradient)"
+        )
+
+        self.discrete_checkbox.setChecked(
+            False
+        )
+
         form = QFormLayout()
 
         form.addRow("DEM layer", self.dem_combo)
         form.addRow("Opacity", self.opacity_spin)
+        form.addRow(self.discrete_checkbox)
         form.addRow(self.new_layer_checkbox)
 
         buttons = QDialogButtonBox(
@@ -102,6 +111,7 @@ class HypsometricTintDialog(QDialog):
         return {
             "dem_layer": self.dem_combo.currentLayer(),
             "opacity": self.opacity_spin.value() / 100.0,
+            "discrete": self.discrete_checkbox.isChecked(),
             "add_as_new_layer": self.new_layer_checkbox.isChecked(),
         }
 
@@ -133,7 +143,8 @@ def generate_from_dialog_values(iface, values):
             dem_layer,
             dem_layer.extent(),
             dem_layer.crs(),
-            opacity=values["opacity"]
+            opacity=values["opacity"],
+            discrete=values["discrete"]
         )
 
     if values["add_as_new_layer"]:

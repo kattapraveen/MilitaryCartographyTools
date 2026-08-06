@@ -296,6 +296,7 @@ above). The dialog asks for:
 |---|---|
 | DEM layer | Any loaded raster layer |
 | Opacity | 0–100%, default 100 |
+| Stepped colour ramp | Off by default (a smooth gradient). Check this for hard-edged discrete colour bands instead, matching the classic banded "layer tint" look used by most published hypsometric references, rather than a continuous blend |
 | Add as new layer | Off by default — re-running the dialog corrects the existing "Hypsometric Tint" layer in place. Check this to keep the previous layer and add a new one alongside it instead |
 
 Like Tanaka Contours, it's generated for the **DEM layer's own full

@@ -37,9 +37,16 @@ LAND_RAMP = (
     (0.2, (166, 190, 101)),
     (0.3, (216, 194, 111)),
     (0.4, (177, 132, 87)),
-    (0.55, (150, 100, 80)),
-    (0.7, (186, 129, 116)),
-    (0.85, (222, 190, 176)),
+    # 0.55-0.85 warmed toward orange/brown 2026-08-06 - the previous
+    # values ((150,100,80)/(186,129,116)/(222,190,176)) had only a
+    # 13-20 point gap between green and blue, which reads as dusty
+    # rose/mauve rather than the warm tan/brown these bands should be;
+    # widened that gap (54/58/50) so blue drops well below green, the
+    # actual channel relationship that produces orange/tan rather than
+    # pink.
+    (0.55, (188, 132, 78)),
+    (0.7, (208, 162, 104)),
+    (0.85, (230, 200, 150)),
     (1.0, (255, 255, 255)),
 )
 

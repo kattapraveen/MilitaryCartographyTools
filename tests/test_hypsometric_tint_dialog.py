@@ -65,11 +65,12 @@ class TestGenerateFromDialogValues(QgisTestCase):
             pass
 
 
-    def _values(self, add_as_new_layer=False, opacity=1.0):
+    def _values(self, add_as_new_layer=False, opacity=1.0, discrete=False):
 
         return {
             "dem_layer": self.dem_layer,
             "opacity": opacity,
+            "discrete": discrete,
             "add_as_new_layer": add_as_new_layer,
         }
 
@@ -205,4 +206,21 @@ class TestGenerateFromDialogValues(QgisTestCase):
         self.assertAlmostEqual(
             result.opacity(),
             0.4
+        )
+
+
+    def test_discrete_flag_reaches_the_generated_layer(self):
+
+        from qgis.core import QgsColorRampShader
+
+        result = generate_from_dialog_values(
+            self.iface,
+            self._values(discrete=True)
+        )
+
+        shader_function = result.renderer().shader().rasterShaderFunction()
+
+        self.assertEqual(
+            shader_function.colorRampType(),
+            QgsColorRampShader.Type.Discrete
         )
