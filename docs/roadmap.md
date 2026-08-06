@@ -161,6 +161,11 @@ Scoped 2026-08-03, consolidating the original one-line item list into better-def
   - **2026-08-04 follow-up, live-tested feedback**: two changes after actually using the feature. (1) **Colouring switched from illumination-driven to elevation-driven** - the user wanted "more colourful" contours matching the standard hypsometric ("layer tint") convention military/topographic maps use (shades of blue below sea level, green → yellow → brown → red → white with increasing elevation above it), rather than the original lit/shadow monochrome-ish blend. `_hypsometric_color()` now computes each segment's colour from its own `ELEV` against fixed absolute-elevation stops (`SEA_LEVEL_STOPS`/`LAND_STOPS`) - fixed rather than normalised to each DEM's own min/max, so the same elevation tints the same colour on any map sheet. Precomputed per-segment into new `R`/`G`/`B` int fields (same pattern as `ILLUM`) and applied via a simple `color_rgb("R", "G", "B")` data-defined expression, rather than pushing the multi-stop interpolation itself into an expression string. Stroke **width** still varies by `ILLUM` exactly as before (thin when lit, thick when shadowed) - the Tanaka relief effect is unchanged, only the colour channel's meaning changed. `lit_color`/`shadow_color` params and their dialog colour pickers were removed entirely (the hypsometric ramp isn't user-configurable colour-by-colour, matching "the standard convention" rather than asking the user to pick each one). Verified with a real headless render (not just field-value assertions) - contour colours visibly progress through the green band of `LAND_STOPS` as elevation rises across a synthetic sloped DEM. (2) **"Add as new layer" checkbox** - previously every run of the dialog created another "Tanaka Contours" layer, so tweaking settings and re-running piled up stale layers. Default (unchecked) now removes the existing "Tanaka Contours" layer before generating, correcting it in place; checking the box keeps the old layer and adds a new one alongside, for anyone who does want to compare parameter sets. The accept-flow logic was split out of `show_tanaka_contour_dialog()` into a separately-testable `generate_from_dialog_values()` so this could be covered without driving an actual modal dialog (new `tests/test_tanaka_dialog.py`). 76/76 tests passing on both QGIS 3.44.12 and 4.2.0. Manual smoke test against the real DEM (task still open from the original build) now also needs to confirm this pass's changes, not just the original pipeline.
   - **2026-08-04, second follow-up: the hypsometric ramp above was live-tested and came out wrong.** The user generated contours against a real DEM and got a single shade of brown, not a colourful spread - not a DEM/elevation-data problem as first suspected, but a real design flaw in the fixed-elevation-anchor version just shipped: a single Tanaka generation typically only covers a few hundred metres of local relief, and against a *fixed* global scale spanning 0-5500m, that local range only ever lands inside one narrow slice of it (in this case, squarely in the tan/brown band around 1250-1750m). The "same elevation tints the same colour on any map sheet" reasoning that motivated fixed anchors doesn't hold up for how this plugin is actually used (small-extent, one-area-at-a-time generation, not a single fixed-scale national atlas). **Fix**: `SEA_LEVEL_STOPS`/`LAND_STOPS` replaced with fraction-keyed `SEA_RAMP`/`LAND_RAMP` (0-1 rather than absolute metres), and `_hypsometric_color(elevation, min_elevation, max_elevation)` now normalises against *this generation's own* elevation range (computed in a first pass over the valid contour segments in `_build_output_layer()`, before colours are assigned in a second pass) rather than a fixed scale - so every run shows the full green-through-white ramp regardless of the area's absolute elevation. A real coastline (any negative elevation actually present in the output) still anchors land/sea exactly at 0 rather than at the dataset's own min, since sea level stays a physically meaningful boundary whenever it's actually in the data. Re-verified with a real headless render of the same synthetic sloped DEM used before - colours now visibly span from deep green through yellow, brown, and into near-white, not one shade of brown. `TestHypsometricColor` rewritten for the normalised signature; the integration test now asserts the lowest- and highest-elevation segments hit the first/last `LAND_RAMP` stops exactly, guarding against the ramp collapsing back into a narrow slice. 76/76 tests passing on both QGIS 3.44.12 and 4.2.0.
   - **2026-08-04, third follow-up: monochrome option added.** Requested alongside the elevation-colour ramp - some users want the classic grayscale Tanaka look (tone driven by illumination, same as width) rather than elevation colour. Added `monochrome=False` to `generate_tanaka_contours()`/`_apply_style()`: when `True`, `StrokeColor` is data-defined by a `color_mix_rgb()` blend between `MONOCHROME_SHADOW_GRAY` (40) and `MONOCHROME_LIT_GRAY` (235) driven by `ILLUM`, instead of the `color_rgb("R", "G", "B")` hypsometric expression - deliberately not full 0-255 black/white, so even a fully-shadowed segment stays legible against a white page. Line width is unaffected either way (`ILLUM`-driven in both modes) - only the meaning of colour changes. Wired into the dialog as a "Monochrome" checkbox (off by default, alongside the existing "Add as new layer" one). New `TestMonochromeStyle` in `tests/test_tanaka_contours.py` evaluates the actual `QgsProperty` against synthetic shadowed/lit features (not just string-matching the expression) to confirm it resolves to the expected grays; `tests/test_tanaka_dialog.py` covers the flag reaching the generated symbol end to end. 80/80 tests passing on both QGIS 3.44.12 and 4.2.0.
+  - ⬜ **Requested 2026-08-06, not started - three items from researching the conventional Tanaka technique** against 6 independent sources (Anita Graser's tutorial, Manifold's docs, the QGIS Hub style page, a GIS StackExchange "layer cake" thread, TopoToolbox's MATLAB writeup, and Evelyn Uuemaa's tutorial), triggered by the colour still not quite matching between Tanaka Contours and Hypsometric Tint even after the Combined Hillshade Overlay-blend fix:
+    1. **Width formula doesn't match the documented convention - a real bug, not just a style choice.** Every source agrees width should be thick at BOTH extremes (segment facing directly toward the light AND directly away from it/shadowed) and thin only at the perpendicular/grazing case - a symmetric function of the *absolute* angular deviation. `_apply_style()`'s current `scale_linear("ILLUM", -1, 1, {max_width_mm}, {min_width_mm})` is a plain linear ramp across the signed range instead: shadowed (ILLUM=-1) comes out thickest, lit (ILLUM=+1) thinnest, and the true perpendicular/grazing case (ILLUM=0) lands at a flat *medium* width rather than the intended thin minimum. Fix: `scale_linear(abs("ILLUM"), 0, 1, {min_width_mm}, {max_width_mm})`. Affects all three style modes (Elevation colour, Monochrome, and the new mode below), since width is computed identically in each.
+    2. **New third style mode: "Illuminated overlay"**, matching the "colourful Tanaka" technique multiple independent sources use (kevelyn1's tutorial, the StackExchange "layer cake" thread, a ResearchGate paper title found via search) - none of them bake elevation RGB directly into the contour line's own paint the way our current default "Elevation colour" mode does; every one keeps the line purely grayscale-by-illumination and gets colour entirely from Overlay-blending onto a hypsometric raster underneath. New mode: full 0-255 white/black `color_mix_rgb()` by `ILLUM` (not the softened 40/235 Monochrome uses - Overlay math needs true black/white to drive properly) plus `layer.setBlendMode(CompositionMode_Overlay)` set on the Tanaka Contours layer itself (`QgsMapLayer.setBlendMode()` isn't raster-only). Meant to be used with Hypsometric Tint underneath - dialog should warn if no Hypsometric Tint layer exists in the project when this mode is selected, same `QgsProject.instance().mapLayersByName(...)` pattern `hillshade_combination.default_insert_position()` already uses to detect it. Existing "Elevation colour" and "Monochrome" modes stay unchanged - this is additive, not a replacement, since Elevation colour was a deliberate, already-shipped, user-approved choice (see the 2026-08-04 follow-up above), not a mistake to walk back unprompted.
+    3. **Optional, separate from the above: a Discrete/stepped colour-ramp toggle for Hypsometric Tint** (`QgsColorRampShader.Type.Discrete` instead of the current `Type.Linear`) - every "colourful Tanaka" source reviewed uses stepped/banded raster classification, not a smooth gradient, for the underlying hypsometric layer. Not required to fix the colour-matching issue (items 1-2 address that directly); a related aesthetic option from the same research, would need its own opt-in (e.g. a checkbox next to Hypsometric Tint's existing opacity control) rather than a silent default change, since the current smooth gradient is already shipped and approved.
+    Root-cause summary for whoever picks this up: the "still slightly off" colour mismatch isn't just normalisation drift between two independently-generated layers - Combined Hillshade's Overlay blend sits structurally *between* Tanaka Contours (top, flat unblended colour) and Hypsometric Tint (bottom, gets darkened/lightened by the hillshade Overlay) in the layer stack, so even numerically-identical ramps will look different once rendered, because the raster's displayed colour has hillshade brightness baked in via blending and the contour lines' colour doesn't. Item 2 fixes this by construction (contour colour becomes nothing but an Overlay modulator itself, same as the raster) rather than by better-matching two independent ramps.
 - ✅ **Hypsometric tint** — done 2026-08-04. `terrain/hypsometric_tint.py` + `terrain/hypsometric_tint_dialog.py`, a new toolbar action. Follows directly from a real gap the user found in Tanaka Contours: its lines are colored by elevation, but the space *between* them is blank, unlike the filled "layer tint" look of the user's reference images. Rather than making Tanaka Contours paint fills (a different cartographic technique - filled raster/polygon tinting vs. illuminated contour lines, normally its own layer underneath contour lines rather than baked into them), this is a separate raster layer: clip + reproject the DEM (reusing Tanaka's own `clip_and_reproject_dem()`), then recolor it pixel-by-pixel with a `QgsColorRampShader` (`Type.Linear` for smooth interpolation - confirmed live, QGIS's own shader interpolates between stops at render time, no per-pixel Python loop needed unlike the vector case) built from the same `SEA_RAMP`/`LAND_RAMP` stops as Tanaka Contours, normalised the same way (`_build_color_ramp_items()` mirrors `hypsometric_color()`'s branch logic) so a raster fill and any Tanaka lines drawn over it agree on what color a given elevation gets. Rendered via `QgsSingleBandPseudoColorRenderer`, with a user-adjustable opacity. Since a raster is opaque and would otherwise cover any vector layers, it's explicitly inserted at the *bottom* of the layer tree root (`root.insertLayer(len(root.children()), layer)`) rather than the default top-of-stack position a plain `addMapLayer()` would use - reusing the exact z-order lesson from the MGRS/UTM grid z-order fix earlier this phase. Same "Add as new layer" checkbox pattern as Tanaka Contours (default replaces the existing "Hypsometric Tint" layer in place). Confirmed live: `QgsRasterDataProvider.bandStatistics()` emits a `DeprecationWarning` regardless of which overload/argument types are passed, on both QGIS 3.44.12 and 4.2.0 - a binding-level quirk, not fixable by calling it differently; accepted as a known, harmless warning (see `docs/developer-guide.md`) rather than something to work around, since the values returned are correct. Verified with a real headless render - a smooth green-through-white fill matching the reference images, on both QGIS versions.
   - **Shared refactor, same pass**: Tanaka Contours' own `_clip_and_reproject()` and hypsometric colour-ramp math (`SEA_RAMP`/`LAND_RAMP`/`_hypsometric_color()`) were pure logic this new feature needed unchanged, so they moved into `terrain/_dem_utils.py` (`clip_and_reproject_dem()`) and `terrain/_hypsometric_ramp.py` (`hypsometric_color()`) respectively - following the existing `grid/_style_utils.py` convention (a leading-underscore *module* name signals "shared, package-internal helper"). `terrain/tanaka_contours.py` re-imports both under their old private names (`from ._dem_utils import clip_and_reproject_dem as _clip_and_reproject`, etc.), so every existing call site, docstring, and test import kept working with zero changes needed elsewhere. Also factored the two near-identical synthetic-sloped-DEM test builders (in `tests/test_tanaka_contours.py` and `tests/test_tanaka_dialog.py`) into one shared `build_synthetic_sloped_dem()` in `tests/qgis_test_case.py`, since the new hypsometric-tint tests needed the same fixture and a third copy would have been one too many.
   - 89/89 tests passing on both QGIS 3.44.12 and 4.2.0 (`tests/test_hypsometric_tint.py`, `tests/test_hypsometric_tint_dialog.py`, plus `tests/test_plugin.py` updated for the new toolbar action).
@@ -195,7 +200,7 @@ Scoped 2026-08-03, consolidating the original one-line item list into better-def
 
 Large and mostly orthogonal to the cartography/grid focus of Phases 1–7. Positioned here, after all completed work, as the biggest deferred effort remaining before the newer navigation/tactical-graphics phases below — revisit when there's appetite for a separate large effort.
 
-**Status: Complete**, aside from the deprioritized slope/aspect wrapper and the two requested-but-deferred Viewshed multi-sensor/movable-point enhancements (2026-08-06, not started). Tanaka contours, hypsometric tint, line-of-sight/visibility, hillshade combinations, and viewshed/dead-ground done and user-confirmed; radar/sensor-siting retired as redundant once Viewshed itself became a polygon-with-max-range tool; elevation profiles and DEM acquisition closed out as not needed.
+**Status: Complete**, aside from the deprioritized slope/aspect wrapper, the two requested-but-deferred Viewshed multi-sensor/movable-point enhancements, and the three requested-but-deferred Tanaka Contours colour-matching items (all 2026-08-06, not started). Tanaka contours, hypsometric tint, line-of-sight/visibility, hillshade combinations, and viewshed/dead-ground done and user-confirmed; radar/sensor-siting retired as redundant once Viewshed itself became a polygon-with-max-range tool; elevation profiles and DEM acquisition closed out as not needed.
 
 ---
 
@@ -254,12 +259,81 @@ new subsystem, so effort/risk is low relative to Phase 10.
   rows don't auto-expand for multi-line cell content, so
   `resizeRowToContents()` is called after populating each new row.
   203 → 229 tests.
-- ⬜ **Map sheet series / index generation** — batch-generate a numbered
+- ✅ **Map sheet series / index generation** — batch-generate a numbered
   series of standard print sheets covering a large AO extent: sheet
   boundaries on a regular grid, a naming/numbering convention, and an
   adjoining-sheet diagram on each printed sheet showing its neighbors.
-  Mostly a batch wrapper around `grid/utm_grid.py` and the "New Military
-  Layout" suite (Phase 4) rather than new geometry work.
+  **Built 2026-08-06.** Turned out to be almost entirely a batch wrapper
+  around New Military Layout's own `create_layout()` (Phase 4), exactly
+  as scoped - no new print-layout geometry work beyond the adjoining-
+  sheets diagram itself.
+  - **Naming convention - researched before building, not invented**:
+    considered a paper-map-only "A1, A2, B1" scheme (meaningless outside
+    one series) against the real worldwide standard this kind of series
+    is normally built on - the International Map of the World (IMW)
+    1:1,000,000 sheet system NGA/US military topographic series (JOG
+    1:250,000, etc.) still use, dividing the globe into 4°-latitude
+    bands (lettered) x 6°-longitude columns (numbered 1-60, the same 60
+    columns UTM zones use). The coarser half of that same standard - 6°
+    zones × 8° bands - is exactly this plugin's own UTM Grid Zone
+    Designator (GZD), the grid MGRS itself is built on. Chosen scheme:
+    `{GZD}-{row-letter}{column-number}` (e.g. `37M-A1`) - the GZD prefix
+    is a real, globally unambiguous designator (not invented for this
+    feature); the row/column suffix is a simple local index within one
+    generated series (row 0 = the AO's own north-west corner), not a
+    literal reproduction of the historical IMW/JOG scale-dependent
+    subdivision rules, which would have been a much larger, historically
+    fussier undertaking for uncertain benefit here.
+  - **`layout/map_sheet_series.py`** (new): `compute_sheet_grid()` tiles
+    an AO extent edge-to-edge (no overlap) into a grid of sheet centres,
+    doing the actual metre-based tiling math in a local UTM zone derived
+    from the AO's own centre (`get_utm_crs()`, the same convention every
+    other feature needing real-world distances already uses) rather than
+    in the AO's own CRS directly, since that may be geographic (degrees,
+    not a uniform real-world distance to tile against). Per-sheet ground
+    coverage is derived from the *same* map-item-rect geometry
+    `create_layout()` itself computes (`_compute_geometry()`,
+    `MAP_SIDE_MARGIN`) at the given page size/scale, so generated sheets
+    tile exactly edge-to-edge against what each layout actually renders,
+    not an approximation. `_row_letters()` extends past Z the same way
+    spreadsheet columns do (AA, AB, ...) rather than wrapping back to A,
+    for a series with more than 26 rows. A `MAX_SHEETS = 200` guard
+    raises rather than silently generating an impractically large,
+    slow-to-build series from an accidental huge-AO/fine-scale
+    combination. `generate_sheet_series()` calls `create_layout()` once
+    per sheet at that sheet's own computed centre.
+  - **Minimal, backward-compatible extension to `create_layout()`
+    itself** (Phase 4's own function): added `center=None` (an explicit
+    centre point, overriding the current canvas extent's own centre -
+    every existing caller keeps working unchanged, since omitting it
+    preserves the exact prior behaviour) and `open_designer=True`
+    (`False` skips the final `iface.openLayoutDesigner()` call - opening
+    a Designer window per sheet in a series of dozens would flood the
+    user with windows, so Map Sheet Series passes `False` for every
+    sheet and reports a single message-bar summary instead).
+  - **New `layout/sheet_diagram.py`**: the adjoining-sheets diagram - a
+    3x3 grid of small `QgsLayoutItemShape` cells + `QgsLayoutItemLabel`s
+    inset in the map item's own bottom-left corner (mirroring
+    `north_arrow.py`'s own top-right inset convention for the opposite
+    corner, so the two don't collide), the current sheet's own cell
+    highlighted with a light-blue fill and bold text, matching the
+    "index to adjoining sheets" convention real paper topographic map
+    sheets already use. Discovered live (not assumed) that
+    `QgsPrintLayout.items()` returns every graphics item in the layout's
+    scene, including plain `QGraphicsRectItem` page-background items
+    with no `id()` method at all - `remove_sheet_diagram()`'s cleanup
+    loop needed an explicit `isinstance(item, QgsLayoutItem)` guard
+    after hitting a real `AttributeError` without it.
+  - **`layout/map_sheet_series_dialog.py`**: reuses `LayoutFieldsWidget`
+    verbatim (the same page size/orientation/scale/heading/
+    classification fields New Military Layout's own dialog uses) with
+    no separate name field, since every sheet is auto-named from its own
+    designator: no per-feature UI needed beyond what already existed.
+  - 271 tests (up from 249); verified end-to-end (real tiling math, real
+    layouts registered in the Layout Manager, correct neighbour text on
+    the diagram - e.g. a 2-row series' top sheet correctly shows a blank
+    north neighbour and its real south neighbour's designator) on both
+    QGIS 3.44.12 and 4.2.0.
 - ✅ **GPX/KML waypoint import/export with MGRS labels** — round-trip
   waypoints with GPS units, ATAK, or similar, labeled with MGRS via the
   existing conversion functions. **Built 2026-08-06.** New `waypoints/`
@@ -316,8 +390,8 @@ engine doesn't silently assume WGS84 where a transform is needed. Real
 value depends on actually working with pre-WGS84 source material —
 revisit if that need shows up, rather than building speculatively.
 
-**Status: In progress.** Bearing/range tool and GPX/KML import/export
-both done 2026-08-06; map sheet series not started.
+**Status: Complete.** Bearing/range tool, GPX/KML import/export, and
+map sheet series all done 2026-08-06.
 
 ---
 
@@ -357,5 +431,5 @@ Phase 8.
 8. ✅ ~~Phase 7's user documentation~~ — done 2026-07-28 (`docs/user-guide.md`, rewritten `README.md`, `LICENSE`).
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06, aside from the deprioritized slope/aspect wrapper (see Phase 8 above).
-11. Phase 9 — navigation & production utilities. ✅ ~~Bearing/range tool~~ and ✅ ~~GPX/KML import/export~~ — both done 2026-08-06. Map sheet series remains — a cheap win, reuses existing infrastructure, no new subsystem required.
+11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
 12. Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — largest remaining item, a new symbol-library subsystem; sequence after Phase 8 and Phase 9.
