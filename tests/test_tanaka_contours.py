@@ -19,7 +19,7 @@ from qgis.core import (
     QgsSymbolLayer,
     QgsVectorLayer,
 )
-from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtGui import QColor, QPainter
 
 from .qgis_test_case import build_synthetic_sloped_dem, QgisTestCase
 
@@ -37,6 +37,9 @@ from MilitaryCartographyTools.terrain.tanaka_contours import (
     MONOCHROME_LIT_GRAY,
     MONOCHROME_SHADOW_GRAY,
     SEA_RAMP,
+    STYLE_ELEVATION_COLOR,
+    STYLE_ILLUMINATED_OVERLAY,
+    STYLE_MONOCHROME,
 )
 
 
@@ -193,18 +196,17 @@ class TestHypsometricColor(QgisTestCase):
         )
 
 
-class TestMonochromeStyle(QgisTestCase):
+class _StyledLayerTestCase(QgisTestCase):
 
     """
-    _apply_style()'s monochrome=True mode - a plain grayscale blend
-    driven by ILLUM instead of the R/G/B hypsometric fields, for the
-    classic monochrome Tanaka look. Evaluates the actual data-defined
-    QgsProperty against synthetic features rather than just
-    string-matching the expression, so a change that keeps the same
-    text but breaks evaluation wouldn't slip through silently.
+    Shared helpers for exercising _apply_style()'s data-defined
+    StrokeColor/StrokeWidth QgsProperty objects against synthetic
+    features, rather than just string-matching the expression text -
+    a change that keeps the same text but breaks evaluation wouldn't
+    slip through silently this way.
     """
 
-    def _styled_layer(self, monochrome):
+    def _styled_layer(self, style_mode):
 
         layer = QgsVectorLayer(
             "LineString?crs=EPSG:32737&field=ELEV:double&field=ILLUM:double"
@@ -213,7 +215,7 @@ class TestMonochromeStyle(QgisTestCase):
             "memory"
         )
 
-        _apply_style(layer, 0.15, 0.6, monochrome=monochrome)
+        _apply_style(layer, 0.15, 0.6, style_mode=style_mode)
 
         return layer
 
@@ -242,9 +244,77 @@ class TestMonochromeStyle(QgisTestCase):
         return color
 
 
-    def test_shadowed_feature_is_dark_gray(self):
+    def _stroke_width_for(self, layer, illum):
 
-        layer = self._styled_layer(monochrome=True)
+        symbol_layer = layer.renderer().symbol().symbolLayer(0)
+
+        prop = symbol_layer.dataDefinedProperties().property(
+            QgsSymbolLayer.Property.StrokeWidth
+        )
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setAttribute("ILLUM", illum)
+
+        context = QgsExpressionContext()
+
+        context.setFeature(feature)
+        context.setFields(layer.fields())
+
+        width, ok = prop.valueAsDouble(context, -1.0)
+
+        self.assertTrue(ok)
+
+        return width
+
+
+class TestContourWidthFormula(_StyledLayerTestCase):
+
+    """
+    Regression coverage for a real bug found against the documented
+    Tanaka convention (confirmed against Manifold's own docs and the
+    anitagraser.com tutorial): width should be thick at BOTH extremes
+    (a segment facing directly toward the light AND one facing
+    directly away/shadowed) and thin only at the perpendicular/
+    grazing case - a symmetric function of abs(ILLUM), not a plain
+    linear ramp across the signed -1..1 range. The old linear formula
+    made a fully-LIT segment the THINNEST line on the map, the
+    opposite of every documented source - that's the case most worth
+    guarding against regressing back to.
+    """
+
+    def test_perpendicular_illumination_is_thinnest(self):
+
+        layer = self._styled_layer(STYLE_ELEVATION_COLOR)
+
+        width = self._stroke_width_for(layer, 0.0)
+
+        self.assertAlmostEqual(width, 0.15)
+
+
+    def test_fully_lit_is_thickest_not_thinnest(self):
+
+        layer = self._styled_layer(STYLE_ELEVATION_COLOR)
+
+        width = self._stroke_width_for(layer, 1.0)
+
+        self.assertAlmostEqual(width, 0.6)
+
+
+    def test_fully_shadowed_is_thickest(self):
+
+        layer = self._styled_layer(STYLE_ELEVATION_COLOR)
+
+        width = self._stroke_width_for(layer, -1.0)
+
+        self.assertAlmostEqual(width, 0.6)
+
+
+class TestContourStyleModes(_StyledLayerTestCase):
+
+    def test_shadowed_feature_is_dark_gray_in_monochrome(self):
+
+        layer = self._styled_layer(STYLE_MONOCHROME)
 
         color = self._stroke_color_for(layer, -1.0)
 
@@ -254,9 +324,9 @@ class TestMonochromeStyle(QgisTestCase):
         )
 
 
-    def test_lit_feature_is_light_gray(self):
+    def test_lit_feature_is_light_gray_in_monochrome(self):
 
-        layer = self._styled_layer(monochrome=True)
+        layer = self._styled_layer(STYLE_MONOCHROME)
 
         color = self._stroke_color_for(layer, 1.0)
 
@@ -266,9 +336,9 @@ class TestMonochromeStyle(QgisTestCase):
         )
 
 
-    def test_default_mode_is_not_monochrome(self):
+    def test_default_mode_uses_elevation_rgb_fields(self):
 
-        layer = self._styled_layer(monochrome=False)
+        layer = self._styled_layer(STYLE_ELEVATION_COLOR)
 
         symbol_layer = layer.renderer().symbol().symbolLayer(0)
 
@@ -278,6 +348,52 @@ class TestMonochromeStyle(QgisTestCase):
 
         self.assertIn('"R"', expression)
         self.assertNotIn("color_mix_rgb", expression)
+
+
+    def test_shadowed_feature_is_pure_black_in_illuminated_overlay(self):
+
+        layer = self._styled_layer(STYLE_ILLUMINATED_OVERLAY)
+
+        color = self._stroke_color_for(layer, -1.0)
+
+        self.assertEqual(
+            (color.red(), color.green(), color.blue()),
+            (0, 0, 0)
+        )
+
+
+    def test_lit_feature_is_pure_white_in_illuminated_overlay(self):
+
+        layer = self._styled_layer(STYLE_ILLUMINATED_OVERLAY)
+
+        color = self._stroke_color_for(layer, 1.0)
+
+        self.assertEqual(
+            (color.red(), color.green(), color.blue()),
+            (255, 255, 255)
+        )
+
+
+    def test_illuminated_overlay_sets_overlay_blend_mode_on_the_layer(self):
+
+        layer = self._styled_layer(STYLE_ILLUMINATED_OVERLAY)
+
+        self.assertEqual(
+            layer.blendMode(),
+            QPainter.CompositionMode.CompositionMode_Overlay
+        )
+
+
+    def test_other_modes_leave_the_layer_at_normal_blend_mode(self):
+
+        for style_mode in (STYLE_ELEVATION_COLOR, STYLE_MONOCHROME):
+
+            layer = self._styled_layer(style_mode)
+
+            self.assertEqual(
+                layer.blendMode(),
+                QPainter.CompositionMode.CompositionMode_SourceOver
+            )
 
 
 class TestSegmentIllumination(QgisTestCase):

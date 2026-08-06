@@ -210,11 +210,13 @@ on the neatline rather than labels drawn over the map content.
 ## Tanaka Contours
 
 Click the illuminated-rings icon to generate **Tanaka contours** — contour
-lines whose *width* always varies by local terrain illumination (giving a
-sense of relief without needing a hillshade raster underneath). *Color* is
-either:
+lines whose *width* always varies by local terrain illumination: thick where
+a segment faces directly toward or directly away from the light (extreme
+illumination or extreme shadow), thin only where it's perpendicular/grazing
+to it. This gives a sense of relief without needing a hillshade raster
+underneath. *Style* (color) is one of three modes:
 
-- **Elevation color** (default) — the standard hypsometric ("layer tint")
+- **Elevation colour** (default) — the standard hypsometric ("layer tint")
   convention topographic/military maps use: shades of blue below sea level,
   then green → yellow → brown → red → white with increasing elevation above
   it. The colour range is stretched across whichever elevations are actually
@@ -225,6 +227,14 @@ either:
 - **Monochrome** — the classic grayscale Tanaka look, where color (dark
   where shadowed, light where lit) comes from the same illumination value
   as the line width, instead of elevation.
+- **Illuminated overlay** — the conventional technique for combining
+  illumination with elevation colour: the line itself is pure black/white by
+  illumination, and the layer's blend mode is set to **Overlay**, so its
+  displayed colour comes from compositing against whatever's underneath at
+  render time. **Use this together with a Hypsometric Tint layer** — without
+  one, lit segments will look nearly invisible against a blank canvas (the
+  dialog warns if no Hypsometric Tint layer exists in the project when you
+  pick this mode, but still generates the layer either way).
 
 Requires a DEM (elevation raster) layer already loaded in your project;
 this plugin doesn't fetch or download one for you (see "Getting a DEM"
@@ -238,8 +248,8 @@ The dialog asks for:
 | Contour interval | Vertical spacing between contour lines, in metres |
 | Segment length | How finely each contour is subdivided for illumination to vary smoothly along it, in metres — smaller values give a smoother gradient at the cost of more features |
 | Light azimuth | Direction the virtual light comes from, in degrees (0 = north). Defaults to 315° (north-west), matching QGIS's own hillshade default |
-| Min/max line width | Line width at fully-lit and fully-shadowed, in mm |
-| Monochrome | Off by default (elevation color). Check this for the classic grayscale-by-illumination look instead |
+| Min line width (perpendicular to light) / Max line width (facing toward/away from light) | Line width at the grazing case and at either illumination extreme, in mm |
+| Style | Elevation colour (default) / Monochrome / Illuminated overlay — see above |
 | Add as new layer | Off by default — re-running the dialog corrects the existing "Tanaka Contours" layer in place. Check this to keep the previous layer and add a new one alongside it instead, e.g. to compare two parameter sets |
 
 Contours are generated for the **DEM layer's own full extent**, clipped and

@@ -14,6 +14,7 @@ from qgis.gui import QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFormLayout,
     QVBoxLayout,
@@ -22,6 +23,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from ..core._layer_utils import add_layer_at_default_position, replace_named_layer
+from .hypsometric_tint import OUTPUT_LAYER_NAME as HYPSOMETRIC_TINT_LAYER_NAME
 from .tanaka_contours import (
     generate_tanaka_contours,
     default_insert_position,
@@ -30,7 +32,11 @@ from .tanaka_contours import (
     DEFAULT_LIGHT_AZIMUTH,
     DEFAULT_MIN_WIDTH_MM,
     DEFAULT_MAX_WIDTH_MM,
+    DEFAULT_STYLE_MODE,
     OUTPUT_LAYER_NAME,
+    STYLE_ELEVATION_COLOR,
+    STYLE_ILLUMINATED_OVERLAY,
+    STYLE_MONOCHROME,
 )
 
 
@@ -133,12 +139,25 @@ class TanakaContourDialog(QDialog):
             DEFAULT_MAX_WIDTH_MM
         )
 
-        self.monochrome_checkbox = QCheckBox(
-            "Monochrome (grayscale by illumination, not elevation color)"
+        self.style_mode_combo = QComboBox()
+
+        self.style_mode_combo.addItem(
+            "Elevation colour",
+            STYLE_ELEVATION_COLOR
         )
 
-        self.monochrome_checkbox.setChecked(
-            False
+        self.style_mode_combo.addItem(
+            "Monochrome (grayscale by illumination)",
+            STYLE_MONOCHROME
+        )
+
+        self.style_mode_combo.addItem(
+            "Illuminated overlay (use with Hypsometric Tint)",
+            STYLE_ILLUMINATED_OVERLAY
+        )
+
+        self.style_mode_combo.setCurrentIndex(
+            self.style_mode_combo.findData(DEFAULT_STYLE_MODE)
         )
 
         self.new_layer_checkbox = QCheckBox(
@@ -155,9 +174,9 @@ class TanakaContourDialog(QDialog):
         form.addRow("Contour interval", self.interval_spin)
         form.addRow("Segment length", self.segment_length_spin)
         form.addRow("Light azimuth", self.azimuth_spin)
-        form.addRow("Min line width (lit)", self.min_width_spin)
-        form.addRow("Max line width (shadow)", self.max_width_spin)
-        form.addRow(self.monochrome_checkbox)
+        form.addRow("Min line width (perpendicular to light)", self.min_width_spin)
+        form.addRow("Max line width (facing toward/away from light)", self.max_width_spin)
+        form.addRow("Style", self.style_mode_combo)
         form.addRow(self.new_layer_checkbox)
 
         buttons = QDialogButtonBox(
@@ -192,7 +211,7 @@ class TanakaContourDialog(QDialog):
             "light_azimuth_deg": self.azimuth_spin.value(),
             "min_width_mm": self.min_width_spin.value(),
             "max_width_mm": self.max_width_spin.value(),
-            "monochrome": self.monochrome_checkbox.isChecked(),
+            "style_mode": self.style_mode_combo.currentData(),
             "add_as_new_layer": self.new_layer_checkbox.isChecked(),
         }
 
@@ -216,6 +235,22 @@ def generate_from_dialog_values(iface, values):
 
         return None
 
+    if (
+        values["style_mode"] == STYLE_ILLUMINATED_OVERLAY
+        and not QgsProject.instance().mapLayersByName(HYPSOMETRIC_TINT_LAYER_NAME)
+    ):
+
+        # Non-blocking - the layer is still useful (e.g. Hypsometric
+        # Tint might get added afterwards), this mode just needs it
+        # to actually look like anything other than near-invisible
+        # white/near-black lines against a blank canvas.
+        iface.messageBar().pushWarning(
+            "Military Cartography Tools",
+            "Illuminated overlay mode is meant to be used together with "
+            "a Hypsometric Tint layer - without one, lit segments will "
+            "look nearly invisible."
+        )
+
     dem_layer = values["dem_layer"]
 
     def generate():
@@ -229,7 +264,7 @@ def generate_from_dialog_values(iface, values):
             light_azimuth_deg=values["light_azimuth_deg"],
             min_width_mm=values["min_width_mm"],
             max_width_mm=values["max_width_mm"],
-            monochrome=values["monochrome"]
+            style_mode=values["style_mode"]
         )
 
     if values["add_as_new_layer"]:

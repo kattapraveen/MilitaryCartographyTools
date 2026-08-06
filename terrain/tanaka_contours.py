@@ -26,6 +26,7 @@ from qgis.core import (
 )
 
 from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtGui import QPainter
 
 from ._dem_utils import (
     band_min_max as _band_min_max,
@@ -300,24 +301,53 @@ def _build_output_layer(
 MONOCHROME_SHADOW_GRAY = 40
 MONOCHROME_LIT_GRAY = 235
 
+# The three contour styling modes - see _apply_style()'s own
+# docstring for what each one does.
+STYLE_ELEVATION_COLOR = "elevation_color"
+STYLE_MONOCHROME = "monochrome"
+STYLE_ILLUMINATED_OVERLAY = "illuminated_overlay"
 
-def _apply_style(layer, min_width_mm, max_width_mm, monochrome=False):
+DEFAULT_STYLE_MODE = STYLE_ELEVATION_COLOR
+
+
+def _apply_style(layer, min_width_mm, max_width_mm, style_mode=DEFAULT_STYLE_MODE):
 
     """
     One line symbol whose width is always data-defined by each
-    feature's own ILLUM value (thin where illuminated, thick where
-    shadowed - the classic Tanaka relief effect).
+    feature's own ILLUM value - thick where a segment faces directly
+    toward OR directly away from the light (extreme illumination or
+    extreme shadow), thin only where it's perpendicular/grazing to
+    the light (ILLUM near 0). Confirmed against multiple independent
+    descriptions of the classic Tanaka technique (Manifold's own
+    docs, the anitagraser.com tutorial) that this is meant to be
+    symmetric in the *magnitude* of illumination, not a plain ramp
+    from one extreme to the other - a segment fully facing the light
+    should be exactly as thick as one fully in shadow, not the
+    thinnest line on the map.
 
-    Color is data-defined two different ways depending on
-    monochrome:
-    - False (default): each feature's own precomputed R/G/B
-      hypsometric-tint fields (see _hypsometric_color()) - color
-      carries elevation, independently of the illumination-driven
-      width.
-    - True: a grayscale blend driven by ILLUM instead (dark where
-      shadowed, light where lit) - the classic monochrome Tanaka
-      look, where both width and tone come from the same
-      illumination value.
+    Color is data-defined three different ways depending on
+    style_mode:
+    - STYLE_ELEVATION_COLOR (default): each feature's own precomputed
+      R/G/B hypsometric-tint fields (see _hypsometric_color()) -
+      color carries elevation, independently of the illumination-
+      driven width. Not how any conventional Tanaka source actually
+      does it (see STYLE_ILLUMINATED_OVERLAY below), but this is the
+      look already shipped and approved - kept as the default.
+    - STYLE_MONOCHROME: a soft grayscale blend driven by ILLUM (dark
+      where shadowed, light where lit) - the classic monochrome
+      Tanaka look, using MONOCHROME_SHADOW_GRAY/MONOCHROME_LIT_GRAY
+      rather than full black/white so a fully-shadowed line stays
+      legible standing alone against a white page.
+    - STYLE_ILLUMINATED_OVERLAY: the conventional "colourful Tanaka"
+      technique multiple independent sources use to combine
+      elevation colour with illumination - the line itself carries
+      full 0-255 black/white by ILLUM (not the softened monochrome
+      range; Overlay blending needs true black/white to drive
+      properly) and the layer's own blend mode is set to Overlay, so
+      its actual displayed colour comes from compositing against
+      whatever's underneath (a Hypsometric Tint layer, ideally) at
+      render time, rather than carrying independent elevation colour
+      that could drift out of sync with it.
     """
 
     symbol = QgsLineSymbol.createSimple(
@@ -333,16 +363,25 @@ def _apply_style(layer, min_width_mm, max_width_mm, monochrome=False):
     symbol_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.StrokeWidth,
         QgsProperty.fromExpression(
-            f'scale_linear("ILLUM", -1, 1, {max_width_mm}, {min_width_mm})'
+            f'scale_linear(abs("ILLUM"), 0, 1, {min_width_mm}, {max_width_mm})'
         )
     )
 
-    if monochrome:
+    if style_mode == STYLE_MONOCHROME:
 
         color_expression = (
             "color_mix_rgb("
             f"color_rgb({MONOCHROME_SHADOW_GRAY}, {MONOCHROME_SHADOW_GRAY}, {MONOCHROME_SHADOW_GRAY}), "
             f"color_rgb({MONOCHROME_LIT_GRAY}, {MONOCHROME_LIT_GRAY}, {MONOCHROME_LIT_GRAY}), "
+            'scale_linear("ILLUM", -1, 1, 0, 1))'
+        )
+
+    elif style_mode == STYLE_ILLUMINATED_OVERLAY:
+
+        color_expression = (
+            "color_mix_rgb("
+            "color_rgb(0, 0, 0), "
+            "color_rgb(255, 255, 255), "
             'scale_linear("ILLUM", -1, 1, 0, 1))'
         )
 
@@ -359,6 +398,16 @@ def _apply_style(layer, min_width_mm, max_width_mm, monochrome=False):
 
     layer.renderer().setSymbol(
         symbol
+    )
+
+    # Overlay only for the illuminated-overlay mode - explicitly set
+    # back to the ordinary compositing mode for the other two rather
+    # than relying on a fresh layer's own default, since this is the
+    # one place that owns this layer's rendering.
+    layer.setBlendMode(
+        QPainter.CompositionMode.CompositionMode_Overlay
+        if style_mode == STYLE_ILLUMINATED_OVERLAY
+        else QPainter.CompositionMode.CompositionMode_SourceOver
     )
 
     layer.triggerRepaint()
@@ -389,19 +438,18 @@ def generate_tanaka_contours(
     light_azimuth_deg=DEFAULT_LIGHT_AZIMUTH,
     min_width_mm=DEFAULT_MIN_WIDTH_MM,
     max_width_mm=DEFAULT_MAX_WIDTH_MM,
-    monochrome=False
+    style_mode=DEFAULT_STYLE_MODE
 ):
 
     """
     Build a Tanaka (illuminated) contour layer from dem_layer,
     clipped to extent. Line width is always data-defined by local
-    terrain illumination relative to light_azimuth_deg (thin where
-    lit, thick where shadowed). Color is data-defined by each
-    contour's own elevation, per the standard hypsometric convention
-    (see _hypsometric_color()), unless monochrome=True, in which case
-    it's a grayscale blend driven by illumination instead (the
-    classic monochrome Tanaka look). Adds the result to the current
-    project and returns it.
+    terrain illumination relative to light_azimuth_deg (thick where a
+    segment faces directly toward or away from the light, thin only
+    where perpendicular/grazing to it). Color/blend mode depend on
+    style_mode - see _apply_style()'s own docstring for what each of
+    STYLE_ELEVATION_COLOR/STYLE_MONOCHROME/STYLE_ILLUMINATED_OVERLAY
+    does. Adds the result to the current project and returns it.
     """
 
     clipped_dem = _clip_and_reproject(
@@ -433,7 +481,7 @@ def generate_tanaka_contours(
         output_layer,
         min_width_mm,
         max_width_mm,
-        monochrome=monochrome
+        style_mode=style_mode
     )
 
     return output_layer

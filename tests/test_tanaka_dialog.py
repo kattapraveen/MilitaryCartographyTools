@@ -32,7 +32,15 @@ from .qgis_test_case import (
     make_canvas,
 )
 
-from MilitaryCartographyTools.terrain.tanaka_contours import OUTPUT_LAYER_NAME
+from MilitaryCartographyTools.terrain.hypsometric_tint import (
+    OUTPUT_LAYER_NAME as HYPSOMETRIC_TINT_LAYER_NAME,
+)
+from MilitaryCartographyTools.terrain.tanaka_contours import (
+    OUTPUT_LAYER_NAME,
+    STYLE_ELEVATION_COLOR,
+    STYLE_ILLUMINATED_OVERLAY,
+    STYLE_MONOCHROME,
+)
 from MilitaryCartographyTools.terrain.tanaka_dialog import generate_from_dialog_values
 
 
@@ -68,7 +76,7 @@ class TestGenerateFromDialogValues(QgisTestCase):
             pass
 
 
-    def _values(self, add_as_new_layer=False, monochrome=False):
+    def _values(self, add_as_new_layer=False, style_mode=STYLE_ELEVATION_COLOR):
 
         return {
             "dem_layer": self.dem_layer,
@@ -77,7 +85,7 @@ class TestGenerateFromDialogValues(QgisTestCase):
             "light_azimuth_deg": 315.0,
             "min_width_mm": 0.15,
             "max_width_mm": 0.6,
-            "monochrome": monochrome,
+            "style_mode": style_mode,
             "add_as_new_layer": add_as_new_layer,
         }
 
@@ -135,7 +143,7 @@ class TestGenerateFromDialogValues(QgisTestCase):
         )
 
 
-    def test_monochrome_flag_reaches_the_generated_symbol(self):
+    def test_style_mode_reaches_the_generated_symbol(self):
 
         def stroke_color_expression(layer):
 
@@ -150,14 +158,14 @@ class TestGenerateFromDialogValues(QgisTestCase):
         # replace-in-place behaviour is covered separately above).
         color_result = generate_from_dialog_values(
             self.iface,
-            self._values(monochrome=False, add_as_new_layer=True)
+            self._values(style_mode=STYLE_ELEVATION_COLOR, add_as_new_layer=True)
         )
 
         color_expression = stroke_color_expression(color_result)
 
         monochrome_result = generate_from_dialog_values(
             self.iface,
-            self._values(monochrome=True, add_as_new_layer=True)
+            self._values(style_mode=STYLE_MONOCHROME, add_as_new_layer=True)
         )
 
         monochrome_expression = stroke_color_expression(monochrome_result)
@@ -176,6 +184,63 @@ class TestGenerateFromDialogValues(QgisTestCase):
             '"R"',
             stroke_color_expression(monochrome_result)
         )
+
+
+    def test_illuminated_overlay_sets_overlay_blend_mode_on_the_layer(self):
+
+        from qgis.PyQt.QtGui import QPainter
+
+        result = generate_from_dialog_values(
+            self.iface,
+            self._values(style_mode=STYLE_ILLUMINATED_OVERLAY)
+        )
+
+        self.assertEqual(
+            result.blendMode(),
+            QPainter.CompositionMode.CompositionMode_Overlay
+        )
+
+
+    def test_illuminated_overlay_without_hypsometric_tint_warns_but_still_generates(self):
+
+        result = generate_from_dialog_values(
+            self.iface,
+            self._values(style_mode=STYLE_ILLUMINATED_OVERLAY)
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+    def test_illuminated_overlay_with_hypsometric_tint_present_does_not_warn(self):
+
+        tint_layer = QgsVectorLayer(
+            "Point?crs=EPSG:4326",
+            HYPSOMETRIC_TINT_LAYER_NAME,
+            "memory"
+        )
+
+        QgsProject.instance().addMapLayer(
+            tint_layer
+        )
+
+        result = generate_from_dialog_values(
+            self.iface,
+            self._values(style_mode=STYLE_ILLUMINATED_OVERLAY)
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(len(self.iface.messageBar().calls), 0)
+
+
+    def test_other_style_modes_do_not_warn_about_hypsometric_tint(self):
+
+        generate_from_dialog_values(
+            self.iface,
+            self._values(style_mode=STYLE_ELEVATION_COLOR)
+        )
+
+        self.assertEqual(len(self.iface.messageBar().calls), 0)
 
 
     def test_regenerate_preserves_manually_moved_layer_position(self):
