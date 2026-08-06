@@ -342,12 +342,23 @@ def _apply_style(layer, min_width_mm, max_width_mm, style_mode=DEFAULT_STYLE_MOD
       technique multiple independent sources use to combine
       elevation colour with illumination - the line itself carries
       full 0-255 black/white by ILLUM (not the softened monochrome
-      range; Overlay blending needs true black/white to drive
-      properly) and the layer's own blend mode is set to Overlay, so
-      its actual displayed colour comes from compositing against
-      whatever's underneath (a Hypsometric Tint layer, ideally) at
-      render time, rather than carrying independent elevation colour
-      that could drift out of sync with it.
+      range; both Overlay and Soft Light blending need true black/
+      white to drive properly) and the layer's own blend mode is set
+      to Soft Light, so its actual displayed colour comes from
+      compositing against whatever's underneath (a Hypsometric Tint
+      layer, ideally) at render time, rather than carrying independent
+      elevation colour that could drift out of sync with it. Soft
+      Light rather than Overlay - confirmed live against a real DEM
+      with densely-packed 200m contour rings on steep terrain: Overlay
+      applies its full darken/lighten swing per segment, and with many
+      short (50m) segments flipping between strongly lit and strongly
+      shadowed as a ring's bearing rotates around a peak, the shadowed
+      sides darkened the tint's own light peak colours into a muddy
+      dark red/maroon rather than the clean bright highlights
+      references show. Soft Light applies a gentler version of the
+      same darken/lighten effect (never pushes all the way to black/
+      white the way Overlay can), which keeps the tint's own hue
+      recognisable through the shading instead of overpowering it.
     """
 
     symbol = QgsLineSymbol.createSimple(
@@ -400,12 +411,12 @@ def _apply_style(layer, min_width_mm, max_width_mm, style_mode=DEFAULT_STYLE_MOD
         symbol
     )
 
-    # Overlay only for the illuminated-overlay mode - explicitly set
-    # back to the ordinary compositing mode for the other two rather
-    # than relying on a fresh layer's own default, since this is the
-    # one place that owns this layer's rendering.
+    # Soft Light only for the illuminated-overlay mode - explicitly
+    # set back to the ordinary compositing mode for the other two
+    # rather than relying on a fresh layer's own default, since this
+    # is the one place that owns this layer's rendering.
     layer.setBlendMode(
-        QPainter.CompositionMode.CompositionMode_Overlay
+        QPainter.CompositionMode.CompositionMode_SoftLight
         if style_mode == STYLE_ILLUMINATED_OVERLAY
         else QPainter.CompositionMode.CompositionMode_SourceOver
     )

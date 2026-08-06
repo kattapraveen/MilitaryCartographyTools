@@ -237,9 +237,13 @@ underneath. *Style* (color) is one of three modes:
   as the line width, instead of elevation.
 - **Illuminated overlay** — the conventional technique for combining
   illumination with elevation colour: the line itself is pure black/white by
-  illumination, and the layer's blend mode is set to **Overlay**, so its
+  illumination, and the layer's blend mode is set to **Soft Light**, so its
   displayed colour comes from compositing against whatever's underneath at
-  render time. **Use this together with a Hypsometric Tint layer** — without
+  render time. Soft Light rather than Overlay — Overlay's stronger swing
+  darkened shadowed contour rings on steep terrain into a muddy dark red
+  instead of clean highlights; Soft Light gives a gentler version of the
+  same effect that keeps the tint's own hue recognisable. **Use this
+  together with a Hypsometric Tint layer** — without
   one, lit segments will look nearly invisible against a blank canvas (the
   dialog warns if no Hypsometric Tint layer exists in the project when you
   pick this mode, but still generates the layer either way).

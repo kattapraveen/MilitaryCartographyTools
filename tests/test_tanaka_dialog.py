@@ -186,7 +186,7 @@ class TestGenerateFromDialogValues(QgisTestCase):
         )
 
 
-    def test_illuminated_overlay_sets_overlay_blend_mode_on_the_layer(self):
+    def test_illuminated_overlay_sets_soft_light_blend_mode_on_the_layer(self):
 
         from qgis.PyQt.QtGui import QPainter
 
@@ -197,7 +197,7 @@ class TestGenerateFromDialogValues(QgisTestCase):
 
         self.assertEqual(
             result.blendMode(),
-            QPainter.CompositionMode.CompositionMode_Overlay
+            QPainter.CompositionMode.CompositionMode_SoftLight
         )
 
 

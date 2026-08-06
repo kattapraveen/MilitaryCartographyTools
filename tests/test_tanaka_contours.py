@@ -374,13 +374,19 @@ class TestContourStyleModes(_StyledLayerTestCase):
         )
 
 
-    def test_illuminated_overlay_sets_overlay_blend_mode_on_the_layer(self):
+    def test_illuminated_overlay_sets_soft_light_blend_mode_on_the_layer(self):
 
+        # Soft Light, not Overlay - confirmed live against a real DEM
+        # with densely-packed contour rings that Overlay's full
+        # darken/lighten swing muddied shadowed peak colours into a
+        # dark red/maroon instead of the clean highlights references
+        # show; Soft Light's gentler effect keeps the tint's own hue
+        # recognisable. See _apply_style()'s own docstring.
         layer = self._styled_layer(STYLE_ILLUMINATED_OVERLAY)
 
         self.assertEqual(
             layer.blendMode(),
-            QPainter.CompositionMode.CompositionMode_Overlay
+            QPainter.CompositionMode.CompositionMode_SoftLight
         )
 
 
