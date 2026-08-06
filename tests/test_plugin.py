@@ -57,6 +57,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "Export Waypoints",
                 "Map Sheet Series",
                 "Tactical Graphics - Units",
+                "Tactical Graphics - Control Measures",
             ):
 
                 self.assertIn(expected, texts)
@@ -118,6 +119,7 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.export_waypoints_action)
         self.assertIsNone(plugin.map_sheet_series_action)
         self.assertIsNone(plugin.tactical_graphics_units_action)
+        self.assertIsNone(plugin.control_measures_action)
 
 
     def test_init_gui_then_unload_then_init_gui_again_does_not_error(self):

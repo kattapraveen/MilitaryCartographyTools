@@ -580,13 +580,65 @@ Phase 8.
       with QGIS's own "Add Point Feature" tool, fill in the attribute
       form, confirm the correct symbol renders immediately.
 
-- ⬜ Control measures — phase lines, boundaries, axis of advance,
-  objectives, named areas of interest (NAIs). Sub-phase 10.3, not started.
+- 🟡 Control measures — phase lines, boundaries, axis of advance,
+  objectives, named areas of interest (NAIs). Sub-phase 10.3 done
+  2026-08-07.
+  - **`military_symbology/control_measures.py`**: two layers (a
+    `QgsVectorLayer` is always a single geometry type, so one "Lines"
+    layer for phase lines/boundaries/axis of advance and one "Areas"
+    layer for objectives/NAIs, not one mixed layer), each with a
+    `measure_type` `ValueMap` dropdown and a `unique_designation` text
+    field, styled via a `QgsRuleBasedRenderer` keyed on `measure_type` -
+    mirrors `grid/mgrs_sub_grid.py`'s own existing rule-based renderer
+    pattern (`QgsRuleBasedRenderer.Rule(None)` root, one child rule per
+    type with its own `setFilterExpression()`). Both layers also get
+    basic PAL labelling on `unique_designation` (`Qgis.LabelPlacement.
+    Line` for the lines layer, `OverPoint` for areas), since control
+    measures are normally labelled on the map, not just drawn.
+  - **Honestly flagged as an approximation, unlike sub-phase 10.1's
+    point symbols.** `sidc.py`'s SIDC field positions/codes were verified
+    exactly against milsymbol.js's own parsing source; no equivalent
+    authoritative source exists for tactical graphics lines/areas -
+    milsymbol.js's own source has no multipoint/polygon/linestring code
+    at all, and the one library that attempted this (`milgraphics`) is
+    archived/incomplete (see sub-phase 10.1's own research notes above).
+    The styling here (phase line: plain solid line; boundary: a
+    dash-dash-dot pattern via `QgsSimpleLineSymbolLayer.
+    setCustomDashVector()`; axis of advance: a solid line with a
+    `QgsMarkerLineSymbolLayer` arrowhead at `Placement.LastVertex`;
+    objective: solid unfilled outline; NAI: dashed unfilled outline via
+    `QgsFillSymbol.createSimple({"outline_style": "dash", ...})`) is a
+    hand-authored, practically-recognisable rendition of the standard
+    conventions, not a verified-correct one - said so plainly in the
+    module's own docstring rather than implied to carry the same
+    confidence as the point-symbol side of Phase 10.
+  - **Same data-safety property as sub-phase 10.2's unit layer, and for
+    the same reason**: neither layer is a `generate_*()`/
+    `replace_named_layer()` feature. Both layers' content is hand-drawn
+    operational data (digitized with QGIS's own native "Add Line/Polygon
+    Feature" tools, never a custom drawing tool), so `add_control_
+    measures_lines_layer()`/`add_control_measures_areas_layer()` each
+    check for an existing same-named layer first and only warn - never
+    replace - if one exists.
+  - **One toolbar action, not two** - "Tactical Graphics - Control
+    Measures" adds both layers in one click (conceptually one feature,
+    per this roadmap bullet's own framing), each with its own
+    independent already-exists guard, so clicking again with one layer
+    already present adds only the missing one and warns about the other.
+  - New `icons/control_measures.svg` (a dashed line transitioning into a
+    solid arrow, evoking "boundary into axis of advance" - distinct from
+    the plain unit-frame icon).
+  - 322 → 336 tests (`tests/test_control_measures.py`) passing on both
+    QGIS 3.44.12 and 4.2.0.
+  - Manual smoke test still needed: create both layers, digitize a line
+    and a polygon with QGIS's own native tools, set `measure_type` on
+    each, confirm the expected dash/arrow/outline pattern and label
+    render correctly.
 - ⬜ AO/NAI area & perimeter reporting in military units — folded in
   here rather than Phase 9, since it only earns its keep once there are
   polygons (from the above) to report on. Sub-phase 10.4, not started.
 
-**Status: In progress (sub-phases 10.1-10.2 of 4 done).** Largest remaining item on the roadmap after
+**Status: In progress (sub-phases 10.1-10.3 of 4 done).** Largest remaining item on the roadmap after
 Phase 8.
 
 ---
@@ -604,4 +656,4 @@ Phase 8.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — in progress, sub-phases 10.1 (rendering foundation) and 10.2 (unit/formation point symbols) done 2026-08-07; sub-phases 10.3-10.4 (control measures, area/perimeter reporting) remain.
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — in progress, sub-phases 10.1 (rendering foundation), 10.2 (unit/formation point symbols), and 10.3 (control measures) done 2026-08-07; sub-phase 10.4 (area/perimeter reporting) remains.

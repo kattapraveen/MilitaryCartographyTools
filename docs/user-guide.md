@@ -23,6 +23,7 @@ military grid generation, and automated print-layout production.
 - [Waypoint Import/Export (GPX/KML)](#waypoint-importexport-gpxkml)
 - [Map Sheet Series](#map-sheet-series)
 - [Tactical Graphics - Units](#tactical-graphics---units)
+- [Tactical Graphics - Control Measures](#tactical-graphics---control-measures)
 - [Expression functions](#expression-functions)
 
 ---
@@ -66,6 +67,7 @@ Left to right:
 | Waypoint rising up out of a tray | Export Waypoints |
 | A 2×2 grid of sheets, one filled in | Map Sheet Series |
 | A unit frame (rectangle with a centre dot) | Tactical Graphics - Units |
+| A dashed line into a solid arrow | Tactical Graphics - Control Measures |
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -553,8 +555,39 @@ if you deliberately want a second one.
 (MIT license, see `THIRD_PARTY_NOTICES.md`), running entirely offline
 in-process — no network access, no external services. This is only the
 unit/formation symbol layer; control measures (phase lines, boundaries,
-objectives, NAIs) are a separate, not-yet-built feature (see
-`docs/roadmap.md`'s Phase 10 entry).
+objectives, NAIs) are a separate feature — see below.
+
+---
+
+## Tactical Graphics - Control Measures
+
+Click the icon to add two layers for control measures — a "Lines" layer
+(phase lines, boundaries, axis of advance) and an "Areas" layer
+(objectives, named areas of interest). Both are created empty and ready
+to use immediately; there's no dialog, and clicking the icon again never
+replaces a layer that already exists (each is checked independently, so
+if only one of the two still exists it adds back just the missing one).
+
+**Drawing a control measure**: use QGIS's own native line/polygon editing
+tools (toggle editing, **Add Line Feature** or **Add Polygon Feature**) to
+digitize the measure, then set its type in the attribute form:
+
+| Layer | Measure type | Style |
+|---|---|---|
+| Lines | Phase Line | Plain solid line |
+| Lines | Boundary | Dash-dash-dot pattern |
+| Lines | Axis of Advance | Solid line with an arrowhead at its last point — draw it in the direction of advance |
+| Areas | Objective | Solid, unfilled outline |
+| Areas | Named Area of Interest (NAI) | Dashed, unfilled outline |
+
+Both layers also have a **Unique designation** text field, labelled
+directly on the map (e.g. "PL RED", "OBJ EAGLE", "NAI 7").
+
+**A note on accuracy**: unlike the unit symbols above (verified exactly
+against the MIL-STD-2525/APP-6 SIDC specification via the milsymbol
+library), there's no equivalent verified rendering engine for tactical
+graphics lines and areas — these styles are a practical, recognisable
+approximation of the standard conventions, not a spec-exact rendition.
 
 ---
 

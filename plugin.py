@@ -28,6 +28,10 @@ from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel, show_map_sheet_series_dialog
 from .military_symbology.unit_layer import add_unit_layer
+from .military_symbology.control_measures import (
+    add_control_measures_lines_layer,
+    add_control_measures_areas_layer,
+)
 from .terrain import (
     show_tanaka_contour_dialog,
     show_hypsometric_tint_dialog,
@@ -85,6 +89,7 @@ class MilitaryCartographyTools:
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
         self.tactical_graphics_units_action = None
+        self.control_measures_action = None
 
         self.sub_grid_button = None
         self.sub_grid_menu = None
@@ -169,6 +174,7 @@ class MilitaryCartographyTools:
         self._setup_export_waypoints_action()
         self._setup_map_sheet_series_action()
         self._setup_tactical_graphics_units_action()
+        self._setup_control_measures_action()
 
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
@@ -659,6 +665,25 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_control_measures_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/control_measures.py. Adds both the lines
+        # and areas control-measures layers in one click - conceptually
+        # one feature (per docs/roadmap.md's own Phase 10 bullet), even
+        # though QGIS needs two separate layers since a vector layer is
+        # always a single geometry type.
+        self.control_measures_action = self._build_action(
+            "control_measures.svg",
+            "Tactical Graphics - Control Measures",
+            tooltip=(
+                "Add layers for control measures (phase lines, "
+                "boundaries, axis of advance, objectives, NAIs)"
+            ),
+            callback=self.create_control_measures
+        )
+
+
     def unload(self):
         """
         Unload plugin.
@@ -765,6 +790,7 @@ class MilitaryCartographyTools:
             self.export_waypoints_action,
             self.map_sheet_series_action,
             self.tactical_graphics_units_action,
+            self.control_measures_action,
         ]:
 
             if action is not None:
@@ -833,6 +859,7 @@ class MilitaryCartographyTools:
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
         self.tactical_graphics_units_action = None
+        self.control_measures_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
         # widget (added via addWidget), so sip.delete(self.
@@ -1127,6 +1154,22 @@ class MilitaryCartographyTools:
         """
 
         add_unit_layer(
+            self.iface
+        )
+
+
+    def create_control_measures(self):
+        """
+        Add the control-measures layers (lines: phase lines,
+        boundaries, axis of advance; areas: objectives, NAIs), ready
+        for digitizing with QGIS's own native editing tools.
+        """
+
+        add_control_measures_lines_layer(
+            self.iface
+        )
+
+        add_control_measures_areas_layer(
             self.iface
         )
 
