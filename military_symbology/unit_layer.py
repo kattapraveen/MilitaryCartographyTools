@@ -64,13 +64,63 @@ _AFFILIATION_LABELS = {
 }
 
 _ENTITY_LABELS = {
+    # Command & signal
+    "command_and_control": "Command and Control",
+    "signal": "Signal",
+    "liaison": "Liaison",
+    # Maneuver
     "infantry": "Infantry",
     "motorized_infantry": "Motorized Infantry",
     "mechanized_infantry": "Mechanized Infantry",
     "armor": "Armor",
     "reconnaissance": "Reconnaissance",
+    "antitank": "Antitank/Antiarmor",
+    "combined_arms": "Combined Arms",
+    "aviation_rotary_wing": "Aviation (Rotary Wing)",
+    "aviation_fixed_wing": "Aviation (Fixed Wing)",
+    "air_assault": "Air Assault",
+    "amphibious": "Amphibious",
+    "special_forces": "Special Forces",
+    "ranger": "Ranger",
+    "sniper": "Sniper",
+    "surveillance": "Surveillance",
+    "unmanned_systems": "Unmanned Systems",
+    # Fires
     "field_artillery": "Field Artillery",
+    "field_artillery_self_propelled": "Field Artillery, Self-Propelled",
+    "field_artillery_observer": "Field Artillery Observer",
+    "mortar": "Mortar",
+    "missile": "Missile",
+    "joint_fire_support": "Joint Fire Support",
+    # Air defense
+    "air_defense": "Air Defense",
+    "air_defense_gun": "Air Defense Gun",
+    "air_defense_missile": "Air Defense Missile",
+    "air_and_missile_defense": "Air and Missile Defense",
+    # Combat support
     "engineer": "Engineer",
+    "engineer_mechanized": "Engineer, Mechanized",
+    "cbrn": "CBRN (Chemical, Biological, Radiological, Nuclear)",
+    "explosive_ordnance_disposal": "Explosive Ordnance Disposal (EOD)",
+    "military_police": "Military Police",
+    "mine_clearing": "Mine Clearing",
+    "search_and_rescue": "Search and Rescue",
+    "security": "Security",
+    # Intelligence & electronic warfare
+    "military_intelligence": "Military Intelligence",
+    "electronic_warfare": "Electronic Warfare",
+    "counter_intelligence": "Counter-Intelligence",
+    "sensor": "Sensor",
+    # Combat service support
+    "sustainment": "Sustainment",
+    "maintenance": "Maintenance",
+    "medical": "Medical",
+    "supply": "Supply",
+    "transportation": "Transportation",
+    "quartermaster": "Quartermaster",
+    "ordnance": "Ordnance",
+    "ammunition": "Ammunition",
+    "petroleum_oil_lubricants": "Petroleum, Oil, and Lubricants (POL)",
 }
 
 _ECHELON_LABELS = {

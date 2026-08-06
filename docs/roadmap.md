@@ -579,6 +579,30 @@ Phase 8.
     - Manual smoke test still needed: create the layer, place a point
       with QGIS's own "Add Point Feature" tool, fill in the attribute
       form, confirm the correct symbol renders immediately.
+  - **2026-08-07, follow-up: broader common-vocabulary pass, requested
+    after live testing found real gaps** (e.g. Air Defense units had no
+    entity at all). `sidc.py`'s `ENTITIES["ground_unit"]` grew from 7 to
+    42 entries, organised by the standard functional-area breakdown
+    (command/signal, maneuver, fires, air defense, combat support,
+    intelligence/EW, combat service support) - every code sourced
+    directly from `landunit.js` the same way as the original seven, not
+    recalled from memory. Deliberately still not the full spec:
+    `landunit.js` alone has ~140 top-level entities; excluded the more
+    peripheral administrative categories (band, postal, religious
+    support, and similar) and the civilian law-enforcement-agency
+    entries the same symbol set also covers (FBI, DEA, Customs, and
+    similar), neither of which read as "military formations" for this
+    plugin's purpose. One real terminology clarification surfaced during
+    this pass: "Heavy Artillery Gun" isn't itself a distinct SIDC entity
+    - the spec's actual distinction is Field Artillery vs. Field
+    Artillery, Self-Propelled (now both present); "heavy" would
+    conventionally be a text amplifier (e.g. caliber) on the unit's own
+    label, not a separate symbol. `unit_layer.py`'s own `_ENTITY_LABELS`
+    grown to match exactly (the existing consistency-guard test catches
+    any future drift between the two). 338 → 339 tests (one spot-check
+    of the new codes, alongside the existing consistency guard which
+    already covers the size increase automatically) passing on both
+    QGIS 3.44.12 and 4.2.0.
 
 - ✅ Control measures — phase lines, boundaries, axis of advance,
   objectives, named areas of interest (NAIs). Sub-phase 10.3 done

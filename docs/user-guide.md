@@ -536,11 +536,36 @@ attribute table) sets the unit's symbol:
 | Field | Notes |
 |---|---|
 | Affiliation | Friend / Hostile / Neutral / Unknown |
-| Entity | Infantry, Motorized Infantry, Mechanized Infantry, Armor, Reconnaissance, Field Artillery, or Engineer |
+| Entity | 42 common unit types across command/signal, maneuver, fires, air defense, combat support, intelligence, and combat service support — see below |
 | Echelon | Unspecified, Team/Crew, Squad, Section, Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or Army |
 | Status | Present / Planned (planned units render with a dashed outline) |
 | Headquarters | Checkbox — marks the unit as a headquarters element |
 | Unique designation | Free-text label (e.g. "1-501 IN") |
+
+**Entity types**, by functional area:
+
+- **Command & signal**: Command and Control, Signal, Liaison
+- **Maneuver**: Infantry, Motorized Infantry, Mechanized Infantry, Armor,
+  Reconnaissance, Antitank/Antiarmor, Combined Arms, Aviation (Rotary
+  Wing), Aviation (Fixed Wing), Air Assault, Amphibious, Special Forces,
+  Ranger, Sniper, Surveillance, Unmanned Systems
+- **Fires**: Field Artillery, Field Artillery (Self-Propelled), Field
+  Artillery Observer, Mortar, Missile, Joint Fire Support
+- **Air defense**: Air Defense, Air Defense Gun, Air Defense Missile, Air
+  and Missile Defense
+- **Combat support**: Engineer, Engineer (Mechanized), CBRN, Explosive
+  Ordnance Disposal (EOD), Military Police, Mine Clearing, Search and
+  Rescue, Security
+- **Intelligence & electronic warfare**: Military Intelligence,
+  Electronic Warfare, Counter-Intelligence, Sensor
+- **Combat service support**: Sustainment, Maintenance, Medical, Supply,
+  Transportation, Quartermaster, Ordnance, Ammunition, Petroleum/Oil/
+  Lubricants (POL)
+
+This is a curated common-vocabulary subset, not the full MIL-STD-2525/
+APP-6 spec — the rendering engine already supports the complete standard,
+so growing this list further is straightforward if you need an entity
+that isn't here yet.
 
 The symbol updates immediately as soon as the attributes are saved — no
 regenerate step. This is a genuinely different kind of layer from every

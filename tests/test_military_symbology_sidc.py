@@ -52,6 +52,30 @@ class TestBuildSidc(QgisTestCase):
         self.assertEqual(sidc[10:16], "120500")
 
 
+    def test_broader_vocabulary_entity_codes(self):
+
+        # Spot-checks a few of the entities added in the broader
+        # common-vocabulary pass, against the same real
+        # src/numbersidc/sidc/landunit.js codes as the original seven.
+        expected = {
+            "air_defense": "130100",
+            "air_defense_missile": "130102",
+            "field_artillery_self_propelled": "130301",
+            "military_intelligence": "151000",
+            "medical": "161300",
+        }
+
+        for entity, code in expected.items():
+
+            sidc = build_sidc(affiliation="friend", entity=entity)
+
+            self.assertEqual(
+                sidc[10:16],
+                code,
+                f"entity={entity}"
+            )
+
+
     def test_status_planned_occupies_position_7(self):
 
         sidc = build_sidc(

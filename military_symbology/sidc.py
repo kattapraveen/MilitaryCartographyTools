@@ -72,18 +72,78 @@ SYMBOL_SETS = {
 # Entity base codes (the first 6 characters of the 10-character function-ID
 # field), keyed by symbol set - real codes from milsymbol-3.0.4's own
 # src/numbersidc/sidc/landunit.js, e.g. sId["121100"] for infantry. A
-# curated starting subset per the Phase 10 plan, not the full spec - growing
-# this is additive (milsymbol already renders any valid code we build; this
-# dict only limits what's reachable through this plugin's own UI).
+# curated common-vocabulary subset per the Phase 10 plan, not the full
+# spec (landunit.js alone has ~140 top-level entities, plus every other
+# symbol set) - deliberately excludes the more peripheral administrative
+# categories (band, postal, religious support, laundry/bath, and similar)
+# and the civilian law-enforcement-agency entries the same symbol set
+# also covers (FBI, DEA, Customs, and similar), neither of which read as
+# "military formations" in the operational-mapping sense this plugin is
+# for. Growing this further is additive (milsymbol already renders any
+# valid code we build; this dict only limits what's reachable through
+# this plugin's own UI) - organised by the standard functional-area
+# breakdown (command/signal, maneuver, fires, air defense, combat
+# support, intelligence, combat service support) rather than
+# alphabetically, to make it easier to find a related entity nearby.
 ENTITIES = {
     "ground_unit": {
+        # Command & signal
+        "command_and_control": "110000",
+        "signal": "111000",
+        "liaison": "110500",
+        # Maneuver
         "infantry": "121100",
         "motorized_infantry": "121104",
         "mechanized_infantry": "121102",
         "armor": "120500",
         "reconnaissance": "121300",
+        "antitank": "120400",
+        "combined_arms": "121000",
+        "aviation_rotary_wing": "120600",
+        "aviation_fixed_wing": "120800",
+        "air_assault": "120100",
+        "amphibious": "120300",
+        "special_forces": "121700",
+        "ranger": "122000",
+        "sniper": "121500",
+        "surveillance": "121600",
+        "unmanned_systems": "121900",
+        # Fires
         "field_artillery": "130300",
+        "field_artillery_self_propelled": "130301",
+        "field_artillery_observer": "130400",
+        "mortar": "130800",
+        "missile": "130700",
+        "joint_fire_support": "130500",
+        # Air defense
+        "air_defense": "130100",
+        "air_defense_gun": "130101",
+        "air_defense_missile": "130102",
+        "air_and_missile_defense": "130103",
+        # Combat support
         "engineer": "140700",
+        "engineer_mechanized": "140701",
+        "cbrn": "140100",
+        "explosive_ordnance_disposal": "140800",
+        "military_police": "141200",
+        "mine_clearing": "141400",
+        "search_and_rescue": "141800",
+        "security": "141700",
+        # Intelligence & electronic warfare
+        "military_intelligence": "151000",
+        "electronic_warfare": "150500",
+        "counter_intelligence": "150200",
+        "sensor": "151200",
+        # Combat service support
+        "sustainment": "160000",
+        "maintenance": "161100",
+        "medical": "161300",
+        "supply": "163400",
+        "transportation": "163600",
+        "quartermaster": "162900",
+        "ordnance": "162300",
+        "ammunition": "160400",
+        "petroleum_oil_lubricants": "162500",
     },
 }
 
