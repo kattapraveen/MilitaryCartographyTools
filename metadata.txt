@@ -6,9 +6,25 @@ description=Military cartography, MGRS, and terrain analysis tools for QGIS. Run
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=0.2.1
+version=0.3.0
 
-changelog=0.2.1
+changelog=0.3.0
+    - New navigation and production tools (Phase 9): a Bearing/Range tool,
+      GPX/KML waypoint import/export, and Map Sheet Series - batch-generate
+      a numbered series of print sheets tiling a large area, each sheet
+      named after the real UTM/MGRS grid square it falls in, not an
+      invented numbering scheme.
+    - Every print layout now includes an automatic grid-position diagram
+      showing where the map sits in the UTM/MGRS grid hierarchy, with the
+      map's own footprint outlined to scale.
+    - Line of Sight and Viewshed dialogs now show MGRS alongside latitude/
+      longitude.
+    - Hypsometric Tint gained an optional stepped/discrete colour ramp
+      (in addition to the existing smooth gradient), and the shared
+      colour ramp it uses with Tanaka Contours was warmed from a dusty
+      rose toward a proper orange/brown hue in the mid-to-high elevation
+      bands.
+    0.2.1
     - Fixed Plugin Repository validator findings from the 0.2.0 upload:
       3 Qt6 forward-compatibility enum-scoping errors in the new
       Line of Sight/Viewshed marker code, and a security finding
@@ -35,7 +51,7 @@ changelog=0.2.1
       print-layout production, grid convergence and magnetic declination
       (WMM2025) expression functions.
 
-about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, cartographic utilities, and terrain analysis (illuminated contours, hypsometric tint, line of sight, combined hillshade, and viewshed/dead-ground analysis). Every tool runs entirely offline against local data - GDAL/QGIS Processing, a bundled World Magnetic Model, and your own DEM - with no external services, API calls, or telemetry of any kind, making it suitable for use with sensitive or classified data.
+about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, cartographic utilities, terrain analysis (illuminated contours, hypsometric tint, line of sight, combined hillshade, and viewshed/dead-ground analysis), and navigation/production tools (bearing/range, GPX/KML waypoint import/export, and batch print-sheet generation tiling a large area). Every tool runs entirely offline against local data - GDAL/QGIS Processing, a bundled World Magnetic Model, and your own DEM - with no external services, API calls, or telemetry of any kind, making it suitable for use with sensitive or classified data.
 
 tracker=https://github.com/kattapraveen/MilitaryCartographyTools/issues
 repository=https://github.com/kattapraveen/MilitaryCartographyTools
@@ -49,4 +65,4 @@ deprecated=False
 
 hasProcessingProvider=False
 
-tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline
+tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline,GPX,KML,waypoints,bearing,range,print layout
