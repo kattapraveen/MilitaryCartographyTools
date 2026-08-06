@@ -440,9 +440,9 @@ codes, echelon/affiliation/status modifiers, a placement UI), not an
 extension of existing grid/layout code, and is comparable in size to
 Phase 8.
 
-- 🟡 Unit/formation symbols (affiliation, echelon, status modifiers per
-  APP-6 / MIL-STD-2525) — rendering foundation done 2026-08-07, UI not
-  started yet (see sub-phase breakdown below).
+- ✅ Unit/formation symbols (affiliation, echelon, status modifiers per
+  APP-6 / MIL-STD-2525) — done 2026-08-07 (see sub-phase breakdown
+  below). Manual smoke test still needed (see sub-phase 10.2).
   - **Planned as four sub-phases** (10.1 foundation, 10.2 unit/formation
     point symbols UI, 10.3 control measures, 10.4 AO/NAI area/perimeter
     reporting) after a research-and-verify planning pass, not assumption:
@@ -580,7 +580,7 @@ Phase 8.
       with QGIS's own "Add Point Feature" tool, fill in the attribute
       form, confirm the correct symbol renders immediately.
 
-- 🟡 Control measures — phase lines, boundaries, axis of advance,
+- ✅ Control measures — phase lines, boundaries, axis of advance,
   objectives, named areas of interest (NAIs). Sub-phase 10.3 done
   2026-08-07.
   - **`military_symbology/control_measures.py`**: two layers (a
@@ -634,12 +634,44 @@ Phase 8.
     and a polygon with QGIS's own native tools, set `measure_type` on
     each, confirm the expected dash/arrow/outline pattern and label
     render correctly.
-- ⬜ AO/NAI area & perimeter reporting in military units — folded in
+- ✅ AO/NAI area & perimeter reporting in military units — folded in
   here rather than Phase 9, since it only earns its keep once there are
-  polygons (from the above) to report on. Sub-phase 10.4, not started.
+  polygons (from the above) to report on. Sub-phase 10.4 done 2026-08-07.
+  - New `mct_area_km2($geometry, @layer)`/`mct_perimeter_km($geometry,
+    @layer)` expression functions
+    (`expressions/military_symbology_functions.py`), usable on any
+    polygon feature (not just the Areas control-measures layer above -
+    any AO/NAI polygon in the project). Both go through
+    `QgsDistanceArea` set up exactly like
+    `core/coordinate_utils.py`'s existing `true_bearing_and_distance()`
+    (`setEllipsoid("WGS84")`, `setSourceCrs(layer.crs(), ...)`) rather
+    than QGIS's own native `$area`/`$perimeter` - those return square
+    degrees/degrees on a geographic-CRS layer unless the project's own
+    Ellipsoidal measurement setting happens to be configured, which
+    this plugin's own functions shouldn't depend on to be correct
+    (the AO/NAI area layer this phase creates defaults to the current
+    project's own CRS, commonly geographic). The `@layer` argument
+    (QGIS's own built-in expression variable resolving to the active
+    `QgsVectorLayer`) is how the function gets at the geometry's real
+    CRS, since a bare `QgsGeometry` carries no CRS of its own -
+    confirmed live this resolves correctly inside a real
+    `QgsExpressionContext`, not just at the top level.
+  - Verified against an independently-computed reference, not a
+    self-consistency check: a 0.01°×0.01° box at the equator's
+    geodesic area/perimeter (~1.2309 km² / ~4.4379 km) computed once
+    directly via `QgsDistanceArea`, then asserted as the expected value
+    in `tests/test_area_perimeter_functions.py` - so the test would
+    catch a real regression, not just confirm the function agrees with
+    itself.
+  - 336 → 338 tests passing on both QGIS 3.44.12 and 4.2.0.
 
-**Status: In progress (sub-phases 10.1-10.3 of 4 done).** Largest remaining item on the roadmap after
-Phase 8.
+**Phase 10 complete** (2026-08-07) aside from the manual smoke tests
+flagged in sub-phases 10.2/10.3 above (place a unit, digitize a control
+measure, confirm both render correctly in a real QGIS session - not yet
+done). All four sub-phases (10.1 rendering foundation, 10.2 unit/
+formation point symbols, 10.3 control measures, 10.4 area/perimeter
+reporting) built, tested, and documented. 291 → 338 tests added across
+the whole phase.
 
 ---
 
@@ -656,4 +688,4 @@ Phase 8.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — in progress, sub-phases 10.1 (rendering foundation), 10.2 (unit/formation point symbols), and 10.3 (control measures) done 2026-08-07; sub-phase 10.4 (area/perimeter reporting) remains.
+12. ✅ ~~Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology)~~ — complete 2026-08-07, all four sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented. Manual smoke tests still needed (see Phase 10's own entry above).

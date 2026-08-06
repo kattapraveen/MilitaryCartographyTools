@@ -640,6 +640,21 @@ These are live: reference them in a layout label's expression (e.g.
 pan, zoom, or rescale the map in the Designer — this is what drives the
 metadata block and center-of-map label in every New Military Layout.
 
+### Military symbology
+
+| Function | Returns |
+|---|---|
+| `mct_build_sidc(affiliation, entity, echelon, status, headquarters)` | A 20-character SIDC from named components — see [Tactical Graphics - Units](#tactical-graphics---units) |
+| `mct_sidc_svg(sidc)` | A rendered symbol as a `"base64:<...>"` path, usable directly as a `QgsSvgMarkerSymbolLayer` path |
+| `mct_area_km2($geometry, @layer)` | A polygon's geodesic area in km² — for AO/NAI reporting on any polygon feature, not just the Areas control-measures layer |
+| `mct_perimeter_km($geometry, @layer)` | A polygon's geodesic perimeter in km |
+
+The last two need `@layer` (QGIS's own built-in variable for the active
+layer) as well as `$geometry`, since a bare geometry carries no CRS of its
+own — the function needs the layer's CRS to compute a real-world,
+geodesically-correct value rather than a meaningless one in whatever units
+the layer's own CRS happens to use (square degrees, for a geographic CRS).
+
 Every function returns a short error string (e.g. `"Layout not found"`,
 `"Need latitude, longitude"`) instead of failing silently if its arguments
 don't resolve.

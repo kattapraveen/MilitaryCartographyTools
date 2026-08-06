@@ -5,10 +5,37 @@ Military symbology expression functions
 for Military Cartography Tools
 """
 
-from qgis.core import QgsExpression, qgsfunction
+from qgis.core import QgsDistanceArea, QgsExpression, QgsProject, qgsfunction
 
 from ..military_symbology.sidc import build_sidc
 from ..military_symbology.symbol_engine import render_symbol_base64_path
+
+
+def _distance_area_for(layer):
+
+    """
+    A QgsDistanceArea set up for geodesic (ellipsoid-surface)
+    measurement in layer's own CRS - matches
+    core/coordinate_utils.py's true_bearing_and_distance() convention
+    exactly, rather than a flat-plane calculation that would silently
+    return nonsense (square degrees) for a layer in a geographic CRS
+    like the AO/NAI area layers this plugin creates by default (see
+    military_symbology/control_measures.py, which uses the current
+    project's own CRS).
+    """
+
+    distance_area = QgsDistanceArea()
+
+    distance_area.setEllipsoid(
+        "WGS84"
+    )
+
+    distance_area.setSourceCrs(
+        layer.crs(),
+        QgsProject.instance().transformContext()
+    )
+
+    return distance_area
 
 
 # ============================================================
@@ -78,9 +105,67 @@ def mct_build_sidc(values, feature=None, parent=None):
         return str(error)
 
 
+# ============================================================
+# AO/NAI area & perimeter reporting
+# ============================================================
+
+@qgsfunction(
+    'mct_area_km2',
+    group='Military Cartography Tools'
+)
+def mct_area_km2(values, feature=None, parent=None):
+
+    """
+    A polygon's own geodesic area in square kilometres - the standard
+    military reporting unit for an AO/NAI - via QgsDistanceArea rather
+    than QGIS's own $area (which returns square DEGREES, not metres,
+    on a layer in a geographic CRS unless the project's own Ellipsoidal
+    measurement settings happen to be configured - not something this
+    function should depend on to be correct). Use as
+    mct_area_km2($geometry, @layer).
+    """
+
+    if len(values) < 2:
+        return "Need a geometry and a layer (e.g. $geometry, @layer)"
+
+    geometry, layer = values[:2]
+
+    area_m2 = _distance_area_for(layer).measureArea(
+        geometry
+    )
+
+    return area_m2 / 1_000_000.0
+
+
+@qgsfunction(
+    'mct_perimeter_km',
+    group='Military Cartography Tools'
+)
+def mct_perimeter_km(values, feature=None, parent=None):
+
+    """
+    A polygon's own geodesic perimeter in kilometres - see
+    mct_area_km2()'s own docstring for why QgsDistanceArea rather than
+    QGIS's own $perimeter. Use as mct_perimeter_km($geometry, @layer).
+    """
+
+    if len(values) < 2:
+        return "Need a geometry and a layer (e.g. $geometry, @layer)"
+
+    geometry, layer = values[:2]
+
+    perimeter_m = _distance_area_for(layer).measurePerimeter(
+        geometry
+    )
+
+    return perimeter_m / 1000.0
+
+
 _FUNCTIONS = [
     mct_sidc_svg,
     mct_build_sidc,
+    mct_area_km2,
+    mct_perimeter_km,
 ]
 
 
