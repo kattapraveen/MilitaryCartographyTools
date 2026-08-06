@@ -8,3 +8,8 @@ dist/
 Tanzania_SRTM30meters/
 *.tif
 *.tiff
+
+# Raw milsymbol.js source/dev download (repo, tests, build tooling) - only
+# the built dist/milsymbol.js file we vendor into military_symbology/vendor/
+# is actually part of the plugin; see THIRD_PARTY_NOTICES.md.
+milsymbol-3.0.4/

@@ -20,6 +20,7 @@ from qgis.PyQt import sip
 from qgis.core import Qgis, QgsMessageLog, QgsLayoutItemMap
 
 from .expressions import mgrs_functions
+from .expressions import military_symbology_functions
 from .core.layout_refresh import connect_layout_refresh, disconnect_layout_refresh
 from .core.coordinate_probe_tool import CoordinateProbeTool
 from .core.bearing_range_tool import BearingRangeTool
@@ -133,6 +134,7 @@ class MilitaryCartographyTools:
         """
 
         mgrs_functions.register()
+        military_symbology_functions.register()
 
         self.log(
             "MGRS expression functions registered."
@@ -640,6 +642,7 @@ class MilitaryCartographyTools:
         """
 
         mgrs_functions.unregister()
+        military_symbology_functions.unregister()
 
         disconnect_layout_refresh()
 

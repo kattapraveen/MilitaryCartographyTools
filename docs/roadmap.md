@@ -440,15 +440,97 @@ codes, echelon/affiliation/status modifiers, a placement UI), not an
 extension of existing grid/layout code, and is comparable in size to
 Phase 8.
 
-- ⬜ Unit/formation symbols (affiliation, echelon, status modifiers per
-  APP-6 / MIL-STD-2525)
+- 🟡 Unit/formation symbols (affiliation, echelon, status modifiers per
+  APP-6 / MIL-STD-2525) — rendering foundation done 2026-08-07, UI not
+  started yet (see sub-phase breakdown below).
+  - **Planned as four sub-phases** (10.1 foundation, 10.2 unit/formation
+    point symbols UI, 10.3 control measures, 10.4 AO/NAI area/perimeter
+    reporting) after a research-and-verify planning pass, not assumption:
+    several symbol-data sources were investigated and ruled in/out on
+    their actual merits before committing to an approach.
+    - **Esri's `joint-military-symbology-xml`** (raw layered SVG assets,
+      Apache-2.0) was the initial direction, but would have needed us to
+      hand-build the SIDC-to-asset composition logic ourselves.
+    - An existing QGIS plugin, **`qgis_app6d`**, was found - not usable
+      directly (GPLv2-only, QGIS 3.16-3.44 only with no confirmed QGIS
+      4.x support, points-only) - but it revealed the real working
+      pattern: it bundles **milsymbol.js** and renders locally, no
+      Node.js, no extra Python packages.
+    - **milsymbol.js** (MIT license, actively maintained, single
+      dependency-free file, full MIL-STD-2525B/C/D/E + APP-6B/D/E
+      coverage) turned out to be a far better foundation than the Esri
+      raw-asset approach - its own README explicitly lists "QtJSEngine in
+      C++" as a supported integration target.
+    - **Verified hands-on before committing, not just researched**:
+      `QJSEngine` is confirmed available in both QGIS 3.44.12 (PyQt5) and
+      QGIS 4.2.0 (PyQt6)'s bundled Python - the user downloaded milsymbol
+      v3.0.4 and it was loaded into `QJSEngine` on both QGIS versions,
+      producing correct MIL-STD-2525 SVG output end to end
+      (`new ms.Symbol(sidc, {size:35}).asSVG()` → the right affiliation
+      colour, frame, `getAnchor()`/`getSize()`). Separately verified: a
+      `base64:<svg>` path string works directly with
+      `QgsSvgMarkerSymbolLayer`/`QgsSvgCache` (`svgAsImage()` returns a
+      valid non-null image) - so a rendered symbol never touches disk.
+    - milsymbol has **no line/polygon (tactical graphics) support** -
+      confirmed by reading its actual source, not just its docs (`src/`
+      has no multipoint/polygon/linestring code at all - a companion
+      library, `milgraphics`, attempted this but is archived/incomplete).
+      **Control measures (10.3) need hand-curated QGIS-native line/fill
+      styling** - a much smaller, tractable problem than unit symbols'
+      ~1000+ function-ID combinatorics.
+    - **Licensing**: MIT needs no GPL version bump (unlike the Apache-2.0
+      Esri path would have) - just a `THIRD_PARTY_NOTICES.md` entry,
+      matching the existing MGRS engine/WMM2025 entries.
+    - **Interaction model, decided explicitly**: no custom map
+      tools/digitizing anywhere in Phase 10. Users place points and draw
+      lines/polygons with QGIS's own native "Add Feature" editing toolbar
+      (undo/snapping/vertex-editing already exist and work well) - this
+      plugin's job is only to pre-configure the layer (fields + styling)
+      so a feature's own attributes render the correct symbol
+      automatically, never a custom placement tool.
+  - **Sub-phase 10.1 (foundation) done 2026-08-07**: `military_symbology/`
+    package - `vendor/milsymbol.js` (v3.0.4, MIT, noted in
+    `THIRD_PARTY_NOTICES.md`), `sidc.py` (builds a 20-character
+    MIL-STD-2525D/APP-6D SIDC from named components - affiliation,
+    symbol set, entity, echelon, status, headquarters - with a curated
+    starting vocabulary of common ground-unit entities: infantry,
+    motorized/mechanized infantry, armor, reconnaissance, field
+    artillery, engineer), `symbol_engine.py` (the `QJSEngine` bridge -
+    `render_symbol_svg()`/`render_symbol_base64_path()`, both cached per
+    SIDC+options combination since QGIS may re-evaluate a feature's style
+    expression on every repaint/pan/zoom). Every field position/code in
+    `sidc.py` is sourced directly from milsymbol.js's own parsing logic
+    (`src/numbersidc/metadata.js`, `src/ms/symbol/getmetadata.js`,
+    `src/numbersidc/sidc/landunit.js`'s real function-ID codes) rather
+    than recalled from memory, to avoid a subtly-wrong position/digit
+    silently producing an incorrect symbol (e.g. a hostile unit rendering
+    as friendly) - a real risk this specific domain has zero tolerance
+    for. New `expressions/military_symbology_functions.py`'s
+    `mct_sidc_svg(sidc)` - the one link between a feature's own
+    attributes and its rendered symbol at render time, registered via the
+    same `_FUNCTIONS`/`register()`/`unregister()` pattern
+    `expressions/mgrs_functions.py` already established, wired into
+    `plugin.py`'s `initGui()`/`unload()` the same way. `qgis.PyQt`
+    doesn't provide a `QtQml` shim (confirmed live - only the commonly-
+    used submodules are aliased there), so `symbol_engine.py` is the one
+    module in this plugin importing directly from whichever PyQt binding
+    is active (`try: from PyQt5.QtQml import QJSEngine except ImportError:
+    from PyQt6.QtQml import QJSEngine` - confirmed this resolves correctly
+    on both QGIS versions, mirroring exactly what QGIS's own
+    `qgis.PyQt.QtCore` shim does internally). `military_symbology` added
+    to `package_plugin.sh`'s `INCLUDE` array from the start, avoiding a
+    repeat of the exact bug that once shipped `terrain/` missing from a
+    build. 291 → 309 tests (`tests/test_military_symbology_sidc.py`,
+    `tests/test_symbol_engine.py`) passing on both QGIS 3.44.12 and 4.2.0.
+    No UI yet - sub-phase 10.2 (unit/formation point symbols) is next.
+
 - ⬜ Control measures — phase lines, boundaries, axis of advance,
-  objectives, named areas of interest (NAIs)
+  objectives, named areas of interest (NAIs). Sub-phase 10.3, not started.
 - ⬜ AO/NAI area & perimeter reporting in military units — folded in
   here rather than Phase 9, since it only earns its keep once there are
-  polygons (from the above) to report on
+  polygons (from the above) to report on. Sub-phase 10.4, not started.
 
-**Status: Not started.** Largest remaining item on the roadmap after
+**Status: In progress (sub-phase 10.1 of 4 done).** Largest remaining item on the roadmap after
 Phase 8.
 
 ---
@@ -466,4 +548,4 @@ Phase 8.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — largest remaining item, a new symbol-library subsystem; sequence after Phase 8 and Phase 9.
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — in progress, sub-phase 10.1 (rendering foundation) done 2026-08-07; sub-phases 10.2-10.4 (unit symbol UI, control measures, area/perimeter reporting) remain.

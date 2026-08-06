@@ -38,6 +38,7 @@ INCLUDE=(
     expressions
     terrain
     waypoints
+    military_symbology
     icons
     docs
     LICENSE

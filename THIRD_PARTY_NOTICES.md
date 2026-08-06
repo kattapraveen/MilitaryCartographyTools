@@ -101,3 +101,55 @@ Vendored unmodified apart from a short attribution header comment
 in each file. Military Cartography Tools adds the QGIS expression
 functions (mct_magnetic_declination, mct_map_magnetic_declination)
 and the decimal-year/date-handling wrapper around this code.
+
+
+--------------------------------------------------
+
+
+## Milsymbol (MIL-STD-2525 / APP-6 Symbol Rendering)
+
+Military Cartography Tools includes a vendored copy of milsymbol,
+a military symbology rendering library originally developed by:
+
+Måns Beckman
+www.spatialillusions.com
+
+Original source:
+https://github.com/spatialillusions/milsymbol
+
+Version vendored:
+3.0.4 (dist/milsymbol.js, minified UMD build)
+
+Vendored file:
+military_symbology/vendor/milsymbol.js
+
+License:
+MIT License
+
+Copyright (c) 2017 Måns Beckman - www.spatialillusions.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Vendored unmodified. Milsymbol runs entirely offline, in-process,
+via Qt's own QJSEngine (no Node.js, no browser, no network access of
+any kind) - Military Cartography Tools adds the QJSEngine bridge
+(military_symbology/symbol_engine.py), the SIDC data model
+(military_symbology/sidc.py), and the QGIS expression function
+(mct_sidc_svg) that connects a feature's own attributes to a
+rendered symbol at render time.
