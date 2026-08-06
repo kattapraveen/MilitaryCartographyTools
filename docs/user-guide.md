@@ -299,8 +299,9 @@ Click the two-dots-and-a-line icon to activate, then click two points on the
 map canvas: the first sets the **observer**, the second sets the **target**.
 Each click drops a marker on the map so it's obvious it registered — a blue
 cross for the observer, a red X for the target. A small **Line of Sight**
-window opens on the first click, showing each point's coordinates as you set
-them, and the check runs automatically as soon as both are set.
+window opens on the first click, showing each point's coordinates (both
+latitude/longitude and full-precision MGRS) as you set them, and the check
+runs automatically as soon as both are set.
 
 The result is drawn as a line between the two points — **green** where the
 target is visible from the observer, **red** where it's blocked — with the
@@ -375,8 +376,8 @@ itself, so it won't cover any grid or contour layers.
 
 Click the radiating-arcs icon to activate, then click a point on the map:
 that's the **observer**, marked with a blue cross. A small **Viewshed**
-window opens showing the observer's coordinates, and generates a coverage
-layer automatically.
+window opens showing the observer's coordinates (both latitude/longitude
+and full-precision MGRS), and generates a coverage layer automatically.
 
 Unlike Line of Sight, which checks visibility to one target point, Viewshed
 sweeps every direction out to a chosen range and draws a single **green**

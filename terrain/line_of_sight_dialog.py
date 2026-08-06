@@ -22,6 +22,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
+from ..core import MGRSConverter
 from ..core._layer_utils import add_layer_at_default_position, replace_named_layer
 from .line_of_sight import (
     generate_line_of_sight,
@@ -34,16 +35,25 @@ from .line_of_sight import (
 
 NO_POINT_TEXT = "-"
 
-# Matches CoordinateProbeDialog's own lat/lon display precision, for
-# consistency between the two coordinate-showing dialogs.
+# Matches CoordinateProbeDialog's own lat/lon display precision and
+# full 1m MGRS precision, for consistency across every coordinate-
+# showing dialog.
 LAT_LON_DECIMALS = 6
+MGRS_PRECISION = 5
 
 MAX_HEIGHT_M = 9999.0
 
 
-def _format_lonlat(lonlat):
+def _format_lonlat(lonlat, converter):
 
-    return f"{lonlat.y():.{LAT_LON_DECIMALS}f}, {lonlat.x():.{LAT_LON_DECIMALS}f}"
+    mgrs = converter.format(
+        converter.convert(lonlat.y(), lonlat.x())
+    )
+
+    return (
+        f"{lonlat.y():.{LAT_LON_DECIMALS}f}, {lonlat.x():.{LAT_LON_DECIMALS}f}\n"
+        f"{mgrs}"
+    )
 
 
 class LineOfSightDialog(QDialog):
@@ -53,6 +63,10 @@ class LineOfSightDialog(QDialog):
         super().__init__(parent)
 
         self.iface = iface
+
+        self.converter = MGRSConverter(
+            precision=MGRS_PRECISION
+        )
 
         self.observer_lonlat = None
         self.target_lonlat = None
@@ -159,7 +173,7 @@ class LineOfSightDialog(QDialog):
 
         self.observer_lonlat = lonlat
         self.observer_label.setText(
-            _format_lonlat(lonlat)
+            _format_lonlat(lonlat, self.converter)
         )
 
         self.target_lonlat = None
@@ -184,7 +198,7 @@ class LineOfSightDialog(QDialog):
 
         self.target_lonlat = lonlat
         self.target_label.setText(
-            _format_lonlat(lonlat)
+            _format_lonlat(lonlat, self.converter)
         )
 
         self._update_generate_enabled()

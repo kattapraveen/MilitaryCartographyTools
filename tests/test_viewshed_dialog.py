@@ -314,4 +314,27 @@ class TestViewshedDialog(QgisTestCase):
 
         dialog.set_observer(self.observer_lonlat)
 
+
+    def test_observer_label_shows_mgrs_on_a_second_line(self):
+
+        dialog = ViewshedDialog(self.iface)
+
+        dialog.dem_combo.setLayer(
+            self.dem_layer
+        )
+
+        dialog.set_observer(self.observer_lonlat)
+
+        expected_mgrs = dialog.converter.format(
+            dialog.converter.convert(
+                self.observer_lonlat.y(),
+                self.observer_lonlat.x()
+            )
+        )
+
+        lines = dialog.observer_label.text().split("\n")
+
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[1], expected_mgrs)
+
         self.assertNotEqual(dialog.observer_label.text(), "-")

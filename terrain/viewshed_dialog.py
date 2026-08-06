@@ -23,6 +23,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 
+from ..core import MGRSConverter
 from ..core._layer_utils import add_layer_at_default_position, replace_named_layer
 from .line_of_sight import DEFAULT_OBSERVER_HEIGHT_M, DEFAULT_TARGET_HEIGHT_M
 from .viewshed import (
@@ -36,9 +37,10 @@ from .viewshed import (
 NO_POINT_TEXT = "-"
 
 # Matches LineOfSightDialog's/CoordinateProbeDialog's own lat/lon
-# display precision, for consistency between all three
-# coordinate-showing dialogs.
+# display precision and full 1m MGRS precision, for consistency
+# across every coordinate-showing dialog.
 LAT_LON_DECIMALS = 6
+MGRS_PRECISION = 5
 
 MAX_HEIGHT_M = 9999.0
 
@@ -46,9 +48,16 @@ MIN_DISTANCE_M = 50.0
 MAX_DISTANCE_M = 50000.0
 
 
-def _format_lonlat(lonlat):
+def _format_lonlat(lonlat, converter):
 
-    return f"{lonlat.y():.{LAT_LON_DECIMALS}f}, {lonlat.x():.{LAT_LON_DECIMALS}f}"
+    mgrs = converter.format(
+        converter.convert(lonlat.y(), lonlat.x())
+    )
+
+    return (
+        f"{lonlat.y():.{LAT_LON_DECIMALS}f}, {lonlat.x():.{LAT_LON_DECIMALS}f}\n"
+        f"{mgrs}"
+    )
 
 
 class ViewshedDialog(QDialog):
@@ -58,6 +67,10 @@ class ViewshedDialog(QDialog):
         super().__init__(parent)
 
         self.iface = iface
+
+        self.converter = MGRSConverter(
+            precision=MGRS_PRECISION
+        )
 
         self.observer_lonlat = None
 
@@ -188,7 +201,7 @@ class ViewshedDialog(QDialog):
         self.observer_lonlat = lonlat
 
         self.observer_label.setText(
-            _format_lonlat(lonlat)
+            _format_lonlat(lonlat, self.converter)
         )
 
         self.generate_button.setEnabled(

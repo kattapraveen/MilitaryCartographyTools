@@ -356,6 +356,37 @@ class TestDialogResultLabel(QgisTestCase):
         self.assertNotEqual(dialog.result_label.text(), "-")
 
 
+    def test_observer_and_target_labels_show_mgrs_on_a_second_line(self):
+
+        dialog = LineOfSightDialog(self.iface)
+
+        dialog.set_observer(self.observer_lonlat)
+        dialog.set_target(self.target_lonlat)
+
+        expected_observer_mgrs = dialog.converter.format(
+            dialog.converter.convert(
+                self.observer_lonlat.y(),
+                self.observer_lonlat.x()
+            )
+        )
+
+        expected_target_mgrs = dialog.converter.format(
+            dialog.converter.convert(
+                self.target_lonlat.y(),
+                self.target_lonlat.x()
+            )
+        )
+
+        observer_lines = dialog.observer_label.text().split("\n")
+        target_lines = dialog.target_label.text().split("\n")
+
+        self.assertEqual(len(observer_lines), 2)
+        self.assertEqual(observer_lines[1], expected_observer_mgrs)
+
+        self.assertEqual(len(target_lines), 2)
+        self.assertEqual(target_lines[1], expected_target_mgrs)
+
+
     def test_result_label_resets_when_a_new_pair_starts(self):
 
         dialog = LineOfSightDialog(self.iface)
