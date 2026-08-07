@@ -11,6 +11,7 @@ Military Cartography Tools
 """
 
 import math
+from collections import defaultdict
 
 import processing
 
@@ -61,6 +62,15 @@ OUTPUT_LAYER_NAME = "Tanaka Contours"
 # the same DEM pixel on both sides at coarse resolutions; too large
 # starts sampling terrain that isn't really local to this segment.
 UPHILL_SAMPLE_OFFSET_M = 15.0
+
+# How many consecutive segments (along the same original contour
+# line) to average a raw ILLUM value across - see
+# _smooth_illumination()'s own docstring for why this exists. Chosen
+# empirically: cut the flip rate by roughly half per doubling of this
+# window size across every noise level tested, with diminishing
+# returns well before this point relative to the risk of smearing
+# away genuine, larger-scale illumination transitions.
+ILLUMINATION_SMOOTHING_WINDOW = 9
 
 
 def _generate_contour_segments(dem_layer, interval, segment_length):
@@ -193,6 +203,89 @@ def _segment_illumination(segment_geometry, dem_provider, light_vector):
     )
 
 
+def _smooth_illumination(raw_segments):
+
+    """
+    A centred moving average of each segment's own raw ILLUM value
+    along its original contour line. raw_segments is a list of dicts
+    (see _build_output_layer()), each carrying "line_id"/"order" -
+    native:splitlinesbylength's own "ID"/"order" output fields,
+    passed through under clearer names - confirmed live that segments
+    aren't necessarily emitted in globally contiguous geometric order,
+    but these two fields reliably identify which original line a
+    piece came from and its position along it.
+
+    Real-world DEM regression, not a synthetic test artifact:
+    _segment_illumination() decides "which side is uphill" from just
+    two raw point samples a fixed UPHILL_SAMPLE_OFFSET_M apart. On
+    genuinely low-relief terrain (a gentle bathymetric shelf, for
+    example - confirmed live against a real GMRT DEM, where this
+    showed up as a fine alternating light/dark "barcode" pattern
+    along otherwise smooth, well-formed contour lines), the true
+    elevation difference across that narrow sampling window can be
+    smaller than ordinary DEM noise (measurement/interpolation noise,
+    or reprojection quantization), making the raw per-segment
+    comparison flip essentially at random from one segment to the
+    next even though the *line itself* is smooth and correctly
+    traced. Confirmed via synthetic reproduction before writing this
+    fix (noisy, gentle-gradient DEMs run through the real pipeline,
+    including the same nearest-neighbour reprojection production code
+    uses): the flip rate scales directly with the noise-to-true-
+    gradient ratio, and this along-line moving average consistently
+    cut it substantially - roughly halving per doubling of window
+    size - without smearing away genuine, larger-scale illumination
+    transitions, since the default window (9 segments x the default
+    50m segment length = ~450m) is small relative to any real terrain
+    feature this matters for. Widening the raw sample offset instead,
+    or averaging several sample points per segment, were both tried
+    first and confirmed NOT reliably effective (noise doesn't average
+    out just by relocating or duplicating a single noisy read) -
+    smoothing the resulting sequence is the mechanism that actually
+    worked.
+
+    Known limitation, not fixed here: for a closed contour ring, this
+    doesn't wrap the window across the seam where "order" resets back
+    to 0 - a small, localised residual rough spot can remain right at
+    that one point per ring, negligible next to the widespread
+    striping this replaces.
+    """
+
+    groups = defaultdict(list)
+
+    for index, entry in enumerate(raw_segments):
+
+        groups[entry["line_id"]].append(
+            index
+        )
+
+    smoothed = [
+        entry["illum"] for entry in raw_segments
+    ]
+
+    half_window = ILLUMINATION_SMOOTHING_WINDOW // 2
+
+    for indices in groups.values():
+
+        indices.sort(
+            key=lambda index: raw_segments[index]["order"]
+        )
+
+        values = [
+            raw_segments[index]["illum"] for index in indices
+        ]
+
+        for position, index in enumerate(indices):
+
+            window_start = max(0, position - half_window)
+            window_end = min(len(values), position + half_window + 1)
+
+            window = values[window_start:window_end]
+
+            smoothed[index] = sum(window) / len(window)
+
+    return smoothed
+
+
 def _build_output_layer(
     segment_layer,
     dem_layer,
@@ -216,6 +309,13 @@ def _build_output_layer(
     layers over the same area. Using the same source for both fixes
     that: an identical DEM/extent now produces identical colours in
     both.
+
+    Two passes rather than one: every segment's raw illumination is
+    computed first, then smoothed along its own original contour line
+    (see _smooth_illumination()) before any feature is built - the
+    smoothed value needs to see every raw value on its line, including
+    ones after it, so it can't be computed as each feature is built
+    one at a time.
     """
 
     output_layer = QgsVectorLayer(
@@ -242,7 +342,7 @@ def _build_output_layer(
         light_azimuth_deg
     )
 
-    features = []
+    raw_segments = []
 
     for segment in segment_layer.getFeatures():
 
@@ -255,10 +355,26 @@ def _build_output_layer(
         if illumination is None:
             continue
 
-        elevation = segment["ELEV"]
+        raw_segments.append(
+            {
+                "geometry": segment.geometry(),
+                "elevation": segment["ELEV"],
+                "illum": illumination,
+                "line_id": segment["ID"],
+                "order": segment["order"],
+            }
+        )
+
+    smoothed_illumination = _smooth_illumination(
+        raw_segments
+    )
+
+    features = []
+
+    for entry, illumination in zip(raw_segments, smoothed_illumination):
 
         red, green, blue = _hypsometric_color(
-            elevation,
+            entry["elevation"],
             min_elevation,
             max_elevation
         )
@@ -268,12 +384,12 @@ def _build_output_layer(
         )
 
         feature.setGeometry(
-            segment.geometry()
+            entry["geometry"]
         )
 
         feature.setAttributes(
             [
-                elevation,
+                entry["elevation"],
                 illumination,
                 red,
                 green,

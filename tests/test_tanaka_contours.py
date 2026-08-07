@@ -31,6 +31,7 @@ from MilitaryCartographyTools.terrain.tanaka_contours import (
     _hypsometric_color,
     _light_vector,
     _segment_illumination,
+    _smooth_illumination,
     default_insert_position,
     generate_tanaka_contours,
     LAND_RAMP,
@@ -479,6 +480,127 @@ class TestSegmentIllumination(QgisTestCase):
 
         self.assertIsNone(
             _segment_illumination(single_point, provider, _light_vector(0.0))
+        )
+
+
+class TestSmoothIllumination(QgisTestCase):
+
+    """
+    _smooth_illumination() - the along-line moving average that fixes
+    a real regression: on genuinely low-relief terrain (a gentle
+    bathymetric shelf, confirmed live against a real GMRT DEM), DEM
+    noise smaller than the true elevation difference across
+    _segment_illumination()'s narrow sampling window can make the raw
+    per-segment "which side is uphill" comparison flip essentially at
+    random, showing up as an alternating light/dark "barcode" pattern
+    along an otherwise smooth, correctly-traced contour line.
+    """
+
+    def _entries(self, illum_values, line_id="A"):
+
+        return [
+            {
+                "geometry": None,
+                "elevation": 0.0,
+                "illum": value,
+                "line_id": line_id,
+                "order": order,
+            }
+            for order, value in enumerate(illum_values)
+        ]
+
+
+    def test_noisy_minority_flips_are_smoothed_toward_the_true_trend(self):
+
+        # A segment sequence that should read as consistently lit
+        # (true signal +1), with roughly a third of values flipped to
+        # -1 by noise - matching the flip rates actually measured
+        # live against noisy synthetic DEMs (5-40%, never a clean
+        # 50/50 split), i.e. a real majority signal with a real but
+        # not-dominant minority of noise-flipped segments - exactly
+        # the "barcode" pattern reported live. A moving average
+        # across several segments should pull the smoothed values
+        # back toward the true, consistently-lit majority sign. (A
+        # perfectly symmetric 50/50 alternation, unlike this, is
+        # genuinely zero-mean noise with no real trend to recover -
+        # not what a moving average is being asked to fix here.)
+        noisy = [-1.0 if i % 3 == 0 else 1.0 for i in range(30)]
+
+        smoothed = _smooth_illumination(
+            self._entries(noisy)
+        )
+
+        positive_fraction = sum(1 for v in smoothed if v > 0) / len(smoothed)
+
+        self.assertGreater(
+            positive_fraction,
+            0.8
+        )
+
+
+    def test_consistent_sequence_is_left_unchanged(self):
+
+        # Smoothing a signal with no noise to average out shouldn't
+        # perturb it - guards against the fix introducing drift on
+        # the common, well-behaved case (which is also what every
+        # existing synthetic-DEM integration test already exercises).
+        consistent = [0.707] * 20
+
+        smoothed = _smooth_illumination(
+            self._entries(consistent)
+        )
+
+        for value in smoothed:
+            self.assertAlmostEqual(value, 0.707, places=9)
+
+
+    def test_different_lines_are_not_smoothed_into_each_other(self):
+
+        # Two separate original contour lines, one fully lit and one
+        # fully shadowed - the fully-shadowed line's own values must
+        # stay negative rather than being pulled toward the other
+        # line's values, which grouping by "line_id" (not just
+        # position in the input list) is what prevents.
+        entries = (
+            self._entries([1.0] * 5, line_id="A")
+            + self._entries([-1.0] * 5, line_id="B")
+        )
+
+        smoothed = _smooth_illumination(
+            entries
+        )
+
+        self.assertTrue(
+            all(v > 0 for v in smoothed[:5])
+        )
+
+        self.assertTrue(
+            all(v < 0 for v in smoothed[5:])
+        )
+
+
+    def test_window_clamps_at_the_ends_of_a_short_line(self):
+
+        # A line shorter than the smoothing window shouldn't error or
+        # reach outside its own bounds - every position's window
+        # should just clamp to whatever segments actually exist.
+        short_line = [1.0, -1.0, 1.0]
+
+        smoothed = _smooth_illumination(
+            self._entries(short_line)
+        )
+
+        self.assertEqual(
+            len(smoothed),
+            len(short_line)
+        )
+
+
+    def test_empty_input_returns_empty(self):
+
+        self.assertEqual(
+            _smooth_illumination([]),
+            []
         )
 
 
