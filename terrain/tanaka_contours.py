@@ -170,19 +170,25 @@ def _segment_illumination(segment_geometry, dem_provider, light_vector, sample_o
 
     """
     -1 (fully shadowed) to +1 (fully lit) for one contour segment:
-    the dot product of its local uphill direction and the light
-    source's direction.
+    the dot product of its local downhill direction (the slope's own
+    aspect - the compass direction it faces, standard in every
+    hillshade formula, e.g. GDAL's own `cos(azimuth - aspect)` term)
+    and the light source's direction. A slope is lit when it faces
+    TOWARD the light (its downhill direction points at the light
+    source, i.e. the high ground behind it is on the far side, away
+    from the light) - not when its uphill/peak side points at the
+    light, which is the shadowed case.
 
     A contour segment's own bearing is always perpendicular to the
     true slope direction at that point (a contour traces constant
     elevation), so no separate aspect raster is needed - just
     whichever of the two perpendicular directions from the segment
-    is higher, sampled directly from the DEM.
+    is lower, sampled directly from the DEM.
 
     sample_offset_m should be at least the DEM's own reprojected
     pixel size (see UPHILL_SAMPLE_OFFSET_PIXEL_MARGIN) - otherwise
     both perpendicular sample points routinely land in the same DEM
-    pixel, and the tie-break below (always favouring perpendicular_a)
+    pixel, and the tie-break below (always favouring perpendicular_b)
     combines with a contour's rotating tangent direction to produce a
     dense, near-uniform alternating light/dark "barcode" pattern
     regardless of true terrain relief or noise.
@@ -232,11 +238,21 @@ def _segment_illumination(segment_geometry, dem_provider, light_vector, sample_o
     if not (ok_a and ok_b):
         return None
 
-    uphill = perpendicular_a if value_a >= value_b else perpendicular_b
+    # Illumination is driven by which way the slope FACES (its aspect
+    # - the downhill direction, standard in every hillshade formula,
+    # e.g. GDAL's own `cos(azimuth - aspect)` term), not which way is
+    # uphill - a slope whose peak sits toward the light is the one
+    # turned AWAY from it, not lit by it. Confirmed live: a previous
+    # version of this dotted the uphill direction directly against
+    # light_vector, which put the lit/shadowed sides exactly backwards
+    # relative to the chosen azimuth (e.g. with a 315 degree/NW light,
+    # it lit the SE-facing slopes and shadowed the NW-facing ones -
+    # the opposite of every reference hillshade convention).
+    downhill = perpendicular_b if value_a >= value_b else perpendicular_a
 
     return (
-        uphill[0] * light_vector[0]
-        + uphill[1] * light_vector[1]
+        downhill[0] * light_vector[0]
+        + downhill[1] * light_vector[1]
     )
 
 

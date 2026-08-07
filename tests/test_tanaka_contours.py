@@ -426,23 +426,14 @@ class TestSegmentIllumination(QgisTestCase):
         )
 
 
-    def test_light_from_the_uphill_side_is_fully_lit(self):
+    def test_light_from_the_downhill_side_is_fully_lit(self):
 
-        provider = _FakeRasterProvider(lambda x, y: y)
-
-        segment = self._segment(0, 0, 10, 0)
-
-        illumination = _segment_illumination(
-            segment,
-            provider,
-            _light_vector(0.0)
-        )
-
-        self.assertAlmostEqual(illumination, 1.0, places=6)
-
-
-    def test_light_from_the_downhill_side_is_fully_shadowed(self):
-
+        # Terrain rises northward, so this segment's downhill/facing
+        # direction is south - a light source also to the south
+        # (azimuth 180) shines directly onto that face, matching
+        # every standard hillshade convention (e.g. GDAL's own
+        # `cos(azimuth - aspect)`, maximal when a slope's aspect -
+        # its downhill-facing direction - equals the light azimuth).
         provider = _FakeRasterProvider(lambda x, y: y)
 
         segment = self._segment(0, 0, 10, 0)
@@ -451,6 +442,26 @@ class TestSegmentIllumination(QgisTestCase):
             segment,
             provider,
             _light_vector(180.0)
+        )
+
+        self.assertAlmostEqual(illumination, 1.0, places=6)
+
+
+    def test_light_from_the_uphill_side_is_fully_shadowed(self):
+
+        # Same rising-northward terrain, but the light is on the
+        # uphill (north) side instead - this segment's downhill/
+        # facing side (south) points directly away from it, so it's
+        # fully in shadow (the peak sits between the segment and the
+        # light).
+        provider = _FakeRasterProvider(lambda x, y: y)
+
+        segment = self._segment(0, 0, 10, 0)
+
+        illumination = _segment_illumination(
+            segment,
+            provider,
+            _light_vector(0.0)
         )
 
         self.assertAlmostEqual(illumination, -1.0, places=6)
@@ -755,12 +766,13 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
         )
 
         # The slope rises eastward everywhere, so every contour's
-        # uphill direction is east - with the default NW light
-        # azimuth, that's the shadowed side, so illumination should
-        # be consistently negative across the whole layer rather
-        # than a random mix.
+        # downhill/facing direction is west - with the default NW
+        # light azimuth, a west-facing slope is partially lit (NW is
+        # 45 degrees off due west), so illumination should be
+        # consistently positive across the whole layer rather than a
+        # random mix.
         self.assertTrue(
-            all(value < 0 for value in illumination_values)
+            all(value > 0 for value in illumination_values)
         )
 
 
