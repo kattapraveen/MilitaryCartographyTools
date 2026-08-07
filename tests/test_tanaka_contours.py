@@ -9,6 +9,8 @@ Military Cartography Tools
 
 import os
 
+from unittest.mock import patch
+
 from qgis.core import (
     QgsExpressionContext,
     QgsFeature,
@@ -21,13 +23,15 @@ from qgis.core import (
 )
 from qgis.PyQt.QtGui import QColor, QPainter
 
-from .qgis_test_case import build_synthetic_sloped_dem, QgisTestCase
+from .qgis_test_case import build_synthetic_cone_dem, build_synthetic_sloped_dem, QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
 from MilitaryCartographyTools.terrain.tanaka_contours import (
     _apply_style,
     _band_min_max,
+    _build_output_layer,
     _clip_and_reproject,
+    _generate_contour_segments,
     _hypsometric_color,
     _light_vector,
     _segment_illumination,
@@ -41,6 +45,8 @@ from MilitaryCartographyTools.terrain.tanaka_contours import (
     STYLE_ELEVATION_COLOR,
     STYLE_ILLUMINATED_OVERLAY,
     STYLE_MONOCHROME,
+    UPHILL_SAMPLE_OFFSET_M,
+    UPHILL_SAMPLE_OFFSET_PIXEL_MARGIN,
 )
 
 
@@ -834,3 +840,189 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
             [c.name() for c in root.children()],
             [output.name(), "Existing"]
         )
+
+
+class TestUphillSampleOffsetPixelSizeAwareness(QgisTestCase):
+
+    """
+    Regression test for a real, live-confirmed bug: on a curving
+    contour ring (see build_synthetic_cone_dem()'s own docstring for
+    why a straight-line DEM, like every other synthetic DEM in this
+    test file, can't expose it), a perpendicular sampling offset
+    smaller than the DEM's own reprojected pixel size makes both of
+    _segment_illumination()'s sample points routinely land in the
+    exact same pixel - an exact tie, whose tie-break always favours
+    perpendicular_a - which, combined with a ring's continuously
+    rotating tangent direction, produces a dense, near-uniform
+    alternating illumination sign along an otherwise smooth, correctly
+    traced contour line, even with zero injected noise. Confirmed live
+    against both a clean synthetic cone DEM (52.65% flip rate at the
+    old fixed 15m offset, dropping under 1% once the offset reached
+    the DEM's own pixel size) and a real GMRT DEM reported to actually
+    show this pattern (35.6% -> 4.1%).
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        # A coarse pixel size (reprojects to roughly 40m at this
+        # latitude) so the old fixed 15m offset sits well inside a
+        # single pixel, deterministically reproducing the tie.
+        self._dem_path = build_synthetic_cone_dem(
+            width=60,
+            height=60,
+            pixel_size=0.00035
+        )
+
+        dem_layer = QgsRasterLayer(
+            self._dem_path,
+            "cone_dem"
+        )
+
+        self.assertTrue(
+            dem_layer.isValid()
+        )
+
+        self._clipped_dem = _clip_and_reproject(
+            dem_layer,
+            dem_layer.extent(),
+            dem_layer.crs()
+        )
+
+        self._pixel_size_m = self._clipped_dem.rasterUnitsPerPixelX()
+
+        # A real elevation range wide enough to actually draw several
+        # concentric rings, so there's more than one ring's worth of
+        # tangent rotation to measure flips across.
+        self._segment_layer = _generate_contour_segments(
+            self._clipped_dem,
+            interval=50.0,
+            segment_length=20.0
+        )
+
+
+    def tearDown(self):
+
+        try:
+            os.remove(self._dem_path)
+        except OSError:
+            pass
+
+
+    def _flip_rate(self, sample_offset_m):
+
+        dem_provider = self._clipped_dem.dataProvider()
+
+        light_vector = _light_vector(315.0)
+
+        by_line = {}
+
+        for segment in self._segment_layer.getFeatures():
+
+            illumination = _segment_illumination(
+                segment.geometry(),
+                dem_provider,
+                light_vector,
+                sample_offset_m
+            )
+
+            if illumination is None:
+                continue
+
+            by_line.setdefault(segment["ID"], []).append(
+                (segment["order"], illumination)
+            )
+
+        flips = 0
+        total = 0
+
+        for entries in by_line.values():
+
+            entries.sort(key=lambda entry: entry[0])
+
+            for (_, a), (_, b) in zip(entries, entries[1:]):
+
+                total += 1
+
+                if (a > 0) != (b > 0):
+                    flips += 1
+
+        self.assertGreater(
+            total, 0,
+            "test DEM produced no adjacent segment pairs to compare"
+        )
+
+        return flips / total
+
+
+    def test_offset_smaller_than_pixel_size_flips_illumination_often(self):
+
+        self.assertGreater(
+            self._flip_rate(UPHILL_SAMPLE_OFFSET_M),
+            0.2
+        )
+
+
+    def test_offset_scaled_to_pixel_size_rarely_flips_illumination(self):
+
+        effective_offset = max(
+            UPHILL_SAMPLE_OFFSET_M,
+            UPHILL_SAMPLE_OFFSET_PIXEL_MARGIN * self._pixel_size_m
+        )
+
+        self.assertLess(
+            self._flip_rate(effective_offset),
+            0.05
+        )
+
+
+    def test_build_output_layer_widens_the_offset_for_a_coarse_dem(self):
+
+        # _build_output_layer() is production's own wiring point - a
+        # unit test that the right offset actually reaches
+        # _segment_illumination() from there, independent of the flip-
+        # rate mechanism proved above, so a future refactor that
+        # accidentally drops the pixel-size scaling (while leaving
+        # _segment_illumination() itself untouched) still fails a test.
+        expected_offset = max(
+            UPHILL_SAMPLE_OFFSET_M,
+            UPHILL_SAMPLE_OFFSET_PIXEL_MARGIN * self._pixel_size_m
+        )
+
+        self.assertGreater(
+            expected_offset,
+            UPHILL_SAMPLE_OFFSET_M,
+            "test DEM's pixel size doesn't actually exercise the widening path"
+        )
+
+        min_elevation, max_elevation = _band_min_max(
+            self._clipped_dem
+        )
+
+        with patch(
+            "MilitaryCartographyTools.terrain.tanaka_contours._segment_illumination",
+            wraps=_segment_illumination
+        ) as spy:
+
+            _build_output_layer(
+                self._segment_layer,
+                self._clipped_dem,
+                315.0,
+                self._clipped_dem.crs(),
+                min_elevation,
+                max_elevation
+            )
+
+        self.assertGreater(
+            spy.call_count,
+            0
+        )
+
+        for call in spy.call_args_list:
+
+            self.assertAlmostEqual(
+                call.args[3],
+                expected_offset,
+                places=6
+            )

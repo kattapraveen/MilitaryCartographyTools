@@ -331,6 +331,74 @@ def build_synthetic_ridge_dem(
     return path
 
 
+def build_synthetic_cone_dem(
+    width=80,
+    height=80,
+    pixel_size=0.0001,
+    origin_lon=37.34,
+    origin_lat=-3.09,
+    peak_elevation=1000.0,
+    slope_per_pixel=10.0
+):
+
+    """
+    A small synthetic GeoTIFF DEM shaped like a radially symmetric
+    cone (elevation falls off from a single peak at the raster's own
+    centre, in every direction, at a constant rate per pixel of
+    distance from it) - unlike build_synthetic_sloped_dem()'s single,
+    constant gradient direction, a cone's own contour rings genuinely
+    curve, so a segment's tangent (and therefore its perpendicular
+    sampling direction) keeps rotating all the way around each ring.
+    Needed to reproduce a real regression: a fixed, too-small
+    perpendicular sampling offset in Tanaka Contours' own
+    _segment_illumination() produced a dense, near-uniform alternating
+    light/dark "barcode" pattern specifically on curving rings like
+    these, even with zero injected noise - a straight-line DEM like
+    build_synthetic_sloped_dem()'s can't expose that, since its
+    tangent direction never rotates. Returns the file path; the caller
+    owns deleting it (e.g. in tearDown()).
+    """
+
+    import numpy
+    from osgeo import gdal, osr
+
+    path = tempfile.mktemp(suffix=".tif")
+
+    driver = gdal.GetDriverByName("GTiff")
+
+    dataset = driver.Create(
+        path, width, height, 1, gdal.GDT_Float32
+    )
+
+    dataset.SetGeoTransform(
+        [origin_lon, pixel_size, 0, origin_lat, 0, -pixel_size]
+    )
+
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    dataset.SetProjection(srs.ExportToWkt())
+
+    center_row, center_col = height / 2.0, width / 2.0
+
+    def elevation(row, col):
+
+        distance = numpy.hypot(row - center_row, col - center_col)
+
+        return peak_elevation - distance * slope_per_pixel
+
+    band = numpy.fromfunction(
+        elevation,
+        (height, width),
+        dtype="float32"
+    )
+
+    dataset.GetRasterBand(1).WriteArray(band)
+    dataset.FlushCache()
+    dataset = None
+
+    return path
+
+
 class QgisTestCase(unittest.TestCase):
 
     """
