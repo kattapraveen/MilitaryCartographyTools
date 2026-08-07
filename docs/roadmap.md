@@ -1091,6 +1091,142 @@ tested, not claimed as done here.
     immediately, friend vs. hostile colouring differs on the map as
     expected) - no crash, no issue found.
 
+- ✅ **Sub-phase 10.7 - Maneuver/Defensive/Offensive control measures
+  (H.5.11-H.5.14) and Mission Task symbols (H.5.26).** Done 2026-08-07,
+  built by a background worktree agent while sub-phase 10.6 above was
+  being built in-session, reading the actual MIL-STD-2525D PDF's own
+  anchor-point/draw-rule text for each measure type (not milsymbol.js,
+  which has no tactical-graphics coverage at all - see sub-phase 10.3
+  above) before approximating, the same standard-first discipline as this
+  phase's earlier passes.
+  - **From H.5.11-H.5.14** (`military_symbology/control_measures.py`),
+    added to the Lines layer: `forward_line_of_troops` (FLOT, 140100),
+    `line_of_contact` (140200), `forward_edge_of_battle_area` (FEBA,
+    140400), `principal_direction_of_fire` (PDF, 140500), and
+    `direction_of_attack` (H.5.13.2, 140600 - explicitly requested, since
+    axis_of_advance already covered H.5.13.1 but not this). Added to the
+    Areas layer: `battle_position` (151200), `strong_point` (151203),
+    `engagement_area` (151300), `assembly_area` (150200), and
+    `encirclement` (151800).
+  - **From H.5.26**, added to the Lines layer:
+    `block`/`breach`/`canalize`/`disrupt`/`fix`/`penetrate`/`delay`/
+    `withdraw` (plain arrow/tick-based approximations) plus
+    `isolate`/`secure`/`seize` (a centre+radius circle generated from a
+    2-point line via a new `QgsGeometryGeneratorSymbolLayer` technique -
+    see below). `retain` was also added using that same circle technique,
+    but turned out on reading the standard's own text to actually be a
+    H.5.12.1 Defensive maneuver control measure (code 151205), not a
+    Mission Task at all, despite being requested alongside them - kept in
+    this sub-phase anyway since it shares the exact circle shape, and
+    documented plainly in `control_measures.py`'s own docstring/
+    `_retain_symbol()` comment rather than silently miscategorized.
+  - **Two new approximation techniques**, reused across several measure
+    types rather than one-off per type: a "tick mark" (a stroke-only
+    "line"-shape marker rotated 90 degrees on top of a marker line's own
+    tangent rotation, standing perpendicular to the line it's placed on -
+    Block's cross-bar, Strong Point's fortification ticks, Disrupt's
+    ladder, Penetrate's perpendicular arrow), and a "circle from a line"
+    (`QgsGeometryGeneratorSymbolLayer` computing
+    `buffer(start_point($geometry), length($geometry))` - a circle
+    centred on a 2-point line's first vertex with the line's own length
+    as radius, for Isolate/Secure/Seize/Retain, all defined by the
+    standard as exactly this centre+radius shape; the standard's own
+    30-degree opening arc is rendered as a full closed circle instead,
+    since QGIS has no simple "arc with a gap" primitive to build on).
+  - **Confirmed real findings from reading the standard directly, not
+    assumed from a task name**: "Disengage" (one of the tasks originally
+    asked for) does not appear anywhere in MIL-STD-2525D at all - text-
+    searched the entire 885-page PDF, not just Appendix H - so nothing
+    was built under that name rather than invent a mapping the standard
+    doesn't make. "Contain" (also asked for) IS in the standard, but as a
+    Defensive maneuver control measure (H.5.12.1, code 151204) with a
+    real semicircle-plus-arrow geometry, not a Mission Task - deferred
+    rather than rushed, alongside the rest of the exact-shape work
+    sub-phase 10.3 already deferred (NAI's real hexagon, boundary's
+    echelon-symbol line ends). Observation Post (H.5.12.2) and the
+    Mission Tasks Destroy/Interdict/Neutralize are all genuinely
+    single-anchor-point STATIC symbols per the standard's own text, not
+    lines or areas - out of scope for this module's Lines/Areas layers;
+    a Points-type control-measures layer for exactly these three-plus-OP
+    (still native QGIS markers, not the sidc.py/symbol_engine.py pipeline
+    sub-phase 10.6 uses) is a separate design decision left for a future
+    sub-phase. The rest of Appendix H's tactical graphics (H.5.15-H.5.25,
+    H.5.27 onward, plus every H.5.11-H.5.14/H.5.26 entry not named above
+    - Assault/Attack Position, Bypass, Clear, Counterattack, the
+    Drop/Extraction/Landing/Pickup Zones, Infiltration Lane, Limit of
+    Advance, Line of Departure, Occupy, Probable Line of Deployment,
+    Relief in Place, Retire/Retirement, Withdraw Under Pressure, and the
+    friendly/enemy/planned-or-on-order sub-variants of nearly every
+    entry) was intentionally not attempted - this sub-phase covers the
+    sections and named tasks actually requested, not the whole of
+    Appendix H.
+  - New tests in `tests/test_control_measures.py` for every new
+    measure_type (symbol-layer-type/placement assertions per type, plus
+    the existing generic affiliation-colour and rule-tree-registration
+    tests, which already cover every measure_type in
+    `LINE_MEASURE_TYPE_LABELS`/`AREA_MEASURE_TYPE_LABELS` generically and
+    so automatically extended to cover all of these too). 354 → 374
+    tests added by this sub-phase; 388 tests passing overall on both
+    QGIS 3.44.12 and 4.2.0 once combined with sub-phase 10.6 above (the
+    two were built independently in parallel with no file overlap, then
+    merged - verified by re-running the full suite after merging, not
+    just trusting each piece's own count). One more regression test
+    added during the render-based cross-check below brings the total to
+    389.
+  - **Cross-checked against actual rendered output 2026-08-07**, the same
+    "verify the real render, not just the code" standard this module's
+    own tests already hold themselves to: every new measure_type was
+    rendered offscreen via `QgsMapRendererCustomPainterJob` (no live QGIS
+    session needed for this pass) and visually compared against the
+    standard's own anchor-point rules. `principal_direction_of_fire`'s
+    two arrows were confirmed correct (both point away from the shared
+    vertex, not back into it). Two real bugs were found this way and
+    fixed:
+    - **`_tick_marker_symbol()`'s perpendicular tick was rendering
+      parallel to the line instead** - confirmed by rendering it against
+      a genuinely diagonal (non-axis-aligned) test line, where the
+      mistake is visually unambiguous (a purely horizontal/vertical test
+      line can't tell "rotated 90 degrees" apart from "not rotated at
+      all", which is how this slipped past the original build). The
+      earlier code added an extra 90 degrees on top of
+      `QgsMarkerLineSymbolLayer`'s own tangent-following rotation, on the
+      mistaken assumption that a "line"-shape marker's neutral pose is
+      parallel to the line; it's actually already perpendicular once
+      auto-rotated, at every placement type tested (CentralPoint,
+      Interval, FirstVertex, LastVertex). This fully hid the tick inside
+      the base line's own stroke for Block, Breach, Canalize, Disrupt,
+      and Strong Point. Fixed by dropping the extra rotation (angle 90 ->
+      0) and, since even correctly oriented the original 3mm/0.5mm size
+      proved too faint to read reliably, bumping the tick's default size
+      to 5mm/0.9mm.
+    - **Seize's circle radius was inflated by its own arrow point** -
+      `_circle_from_line_symbol()`'s geometry generator used
+      `length($geometry)` as the radius, which sums every segment of the
+      line. Isolate/Secure/Retain only ever use a 2-point line so this
+      was invisible there, but Seize's own standard definition adds a 3rd
+      point for its arrow (H.5.26, "point 4 defines the end of the
+      arrow"), and summing both segments roughly doubled the circle's
+      size the moment that 3rd point was added - confirmed by rendering
+      the 2-point and 3-point forms side by side. Fixed by taking the
+      radius from the centre-to-2nd-vertex distance only
+      (`distance(start_point($geometry), point_n($geometry, 2))`),
+      regardless of how many further vertices follow. A new regression
+      test (`test_seize_radius_is_not_inflated_by_the_arrow_point`)
+      locks this in by evaluating the real geometry expression against
+      both a 2-point and 3-point line and asserting equal area. 388 → 389
+      tests, passing on both QGIS 3.44.12 and 4.2.0.
+  - **Still not live-smoke-tested in a real interactive QGIS session** -
+    the offscreen-render cross-check above is a strong signal (it's what
+    actually caught the two bugs above) but isn't a full substitute;
+    every tick/circle approximation's on-screen legibility at ordinary
+    map zoom, and the attribute-form/digitizing workflow itself, are
+    still left for the project maintainer's own interactive pass.
+  - **Phase 10 remains open** - this sub-phase is additive, not a
+    closing pass; the deferred items above (exact shapes from sub-phase
+    10.3, Contain, a Points-type layer for Observation Post/Destroy/
+    Interdict/Neutralize, and the rest of Appendix H's sections) are all
+    still open.
+
 ---
 
 ## Suggested near-term order
@@ -1106,4 +1242,4 @@ tested, not claimed as done here.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") is done; the line/area Maneuver/Mission Task expansion is in progress separately in a background worktree agent, not yet merged (see Phase 10's own entry above for all of the above in detail).
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail).
