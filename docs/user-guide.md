@@ -536,36 +536,62 @@ attribute table) sets the unit's symbol:
 | Field | Notes |
 |---|---|
 | Affiliation | Friend / Hostile / Neutral / Unknown |
-| Entity | 42 common unit types across command/signal, maneuver, fires, air defense, combat support, intelligence, and combat service support — see below |
-| Echelon | Unspecified, Team/Crew, Squad, Section, Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or Army |
+| Symbol Set | Ground Unit / Air / Sea Surface / Subsurface — which domain's entity list Entity is drawn from |
+| Entity | Only the entities belonging to whichever Symbol Set you've chosen — pick Symbol Set first, then Entity's own options update to match. See below for the full list per symbol set |
+| Echelon | Unspecified, Team/Crew, Squad, Section, Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or Army — **a Ground Unit concept only**; per the standard's own Echelon/Mobility amplifier table, this represents organizational unit size (a battalion, a brigade), which doesn't apply to a single platform like an aircraft or ship. Leave this **Unspecified** for Air/Sea Surface/Subsurface entities — the standard's real equivalent for platforms is a completely different "mobility" vocabulary (wheeled/tracked/towed/amphibious/etc.) that this plugin doesn't expose yet |
 | Status | Present / Planned (planned units render with a dashed outline) |
 | Headquarters | Checkbox — marks the unit as a headquarters element |
 | Unique designation | Free-text label (e.g. "1-501 IN") |
 
-**Entity types**, by functional area:
+**Entity types**, by symbol set:
 
-- **Command & signal**: Command and Control, Signal, Liaison
-- **Maneuver**: Infantry, Motorized Infantry, Mechanized Infantry, Armor,
-  Reconnaissance, Antitank/Antiarmor, Combined Arms, Aviation (Rotary
-  Wing), Aviation (Fixed Wing), Air Assault, Amphibious, Special Forces,
-  Ranger, Sniper, Surveillance, Unmanned Systems
-- **Fires**: Field Artillery, Field Artillery (Self-Propelled), Field
-  Artillery Observer, Mortar, Missile, Joint Fire Support
-- **Air defense**: Air Defense, Air Defense Gun, Air Defense Missile, Air
-  and Missile Defense
-- **Combat support**: Engineer, Engineer (Mechanized), CBRN, Explosive
-  Ordnance Disposal (EOD), Military Police, Mine Clearing, Search and
-  Rescue, Security
-- **Intelligence & electronic warfare**: Military Intelligence,
-  Electronic Warfare, Counter-Intelligence, Sensor
-- **Combat service support**: Sustainment, Maintenance, Medical, Supply,
-  Transportation, Quartermaster, Ordnance, Ammunition, Petroleum/Oil/
-  Lubricants (POL)
+- **Ground Unit**, by functional area:
+  - **Command & signal**: Command and Control, Signal, Liaison
+  - **Maneuver**: Infantry, Motorized Infantry, Mechanized Infantry, Armor,
+    Reconnaissance, Antitank/Antiarmor, Combined Arms, Aviation (Rotary
+    Wing), Aviation (Fixed Wing), Air Assault, Amphibious, Special Forces,
+    Ranger, Sniper, Surveillance, Unmanned Systems
+  - **Fires**: Field Artillery, Field Artillery (Self-Propelled), Field
+    Artillery Observer, Mortar, Missile, Joint Fire Support
+  - **Air defense**: Air Defense, Air Defense Gun, Air Defense Missile, Air
+    and Missile Defense
+  - **Combat support**: Engineer, Engineer (Mechanized), CBRN, Explosive
+    Ordnance Disposal (EOD), Military Police, Mine Clearing, Search and
+    Rescue, Security
+  - **Intelligence & electronic warfare**: Military Intelligence,
+    Electronic Warfare, Counter-Intelligence, Sensor
+  - **Combat service support**: Sustainment, Maintenance, Medical, Supply,
+    Transportation, Quartermaster, Ordnance, Ammunition, Petroleum/Oil/
+    Lubricants (POL)
+- **Air**: Military (Generic), Fixed-Wing, Attack/Strike, Bomber, Fighter,
+  Fighter/Bomber, Cargo/Transport, Electronic Warfare (Jammer/ECM),
+  Tanker, Patrol, Reconnaissance, Trainer, Utility, Airborne Early
+  Warning, Antisubmarine Warfare, Medical Evacuation, Combat Search and
+  Rescue, Special Operations Forces, Rotary Wing (Helicopter), Unmanned
+  Aerial Vehicle (UAV)
+- **Sea Surface**: Carrier, Cruiser, Destroyer, Frigate, Corvette,
+  Littoral Combat Ship, Amphibious Assault Ship, Landing Ship, Landing
+  Craft, Minelayer, Minesweeper, Mine Countermeasures Ship, Patrol Craft,
+  Unmanned Surface Vehicle (USV), Auxiliary Ship, Hospital Ship, Cargo
+  Ship, Oiler (Replenishment), Submarine Tender, Tug (Ocean Going)
+- **Subsurface**: Military (Generic), Submarine, Submarine (Surfaced),
+  Submarine (Snorkeling), Other Submersible, Autonomous Underwater
+  Vehicle (AUV/UUV), Diver (Military), Torpedo
 
 This is a curated common-vocabulary subset, not the full MIL-STD-2525/
-APP-6 spec — the rendering engine already supports the complete standard,
-so growing this list further is straightforward if you need an entity
-that isn't here yet.
+APP-6 spec — the rendering engine already supports the complete standard
+(all four of these symbol sets plus Space, Land Equipment, Land
+Installation, Activities, and more), so growing any of these lists
+further, or adding another symbol set entirely, is straightforward if
+you need an entity that isn't here yet.
+
+**A note on the Entity dropdown**: it's backed by a small hidden
+reference layer (not shown in the Layers panel) that QGIS uses to filter
+the options to whichever Symbol Set you've picked. This is the standard
+QGIS mechanism for a cascading dropdown, but if you notice it behaving
+oddly (e.g. showing every entity regardless of Symbol Set, or an empty
+list), that's worth reporting — this exact live-filtering behaviour
+couldn't be fully verified outside a real QGIS session while building it.
 
 The symbol updates immediately as soon as the attributes are saved — no
 regenerate step. This is a genuinely different kind of layer from every
@@ -607,6 +633,21 @@ digitize the measure, then set its type in the attribute form:
 
 Both layers also have a **Unique designation** text field, labelled
 directly on the map (e.g. "PL RED", "OBJ EAGLE", "NAI 7").
+
+**Auto-populated measurements**: the Lines layer has a **Length (km)**
+field, and the Areas layer has **Area (km²)** and **Perimeter (km)**
+fields — all computed automatically the moment you finish digitizing
+(via `mct_length_km`/`mct_area_km2`/`mct_perimeter_km`, below), and kept
+up to date if you later reshape the feature. Nothing to fill in by hand.
+
+**Affiliation and colour**: both layers also have an **Affiliation**
+field (Friend/Hostile/Neutral/Unknown, defaulting to Unknown) that drives
+the control measure's colour — friendly in blue, hostile in red, and
+neutral/unknown in black — per MIL-STD-2525D's own Coloring rule
+(Appendix H, section H.5.3: friendly control measures in black or blue,
+hostile in red). The shapes themselves (dash pattern, arrowhead
+placement, outline style) are unaffected by affiliation; only colour
+changes.
 
 **A note on accuracy**: unlike the unit symbols above (verified exactly
 against the MIL-STD-2525/APP-6 SIDC specification via the milsymbol
@@ -669,16 +710,23 @@ metadata block and center-of-map label in every New Military Layout.
 
 | Function | Returns |
 |---|---|
-| `mct_build_sidc(affiliation, entity, echelon, status, headquarters)` | A 20-character SIDC from named components — see [Tactical Graphics - Units](#tactical-graphics---units) |
+| `mct_build_sidc(affiliation, entity, symbol_set, echelon, status, headquarters)` | A 20-character SIDC from named components — see [Tactical Graphics - Units](#tactical-graphics---units) |
 | `mct_sidc_svg(sidc)` | A rendered symbol as a `"base64:<...>"` path, usable directly as a `QgsSvgMarkerSymbolLayer` path |
-| `mct_area_km2($geometry, @layer)` | A polygon's geodesic area in km² — for AO/NAI reporting on any polygon feature, not just the Areas control-measures layer |
-| `mct_perimeter_km($geometry, @layer)` | A polygon's geodesic perimeter in km |
+| `mct_area_km2($geometry)` | A polygon's geodesic area in km² — for AO/NAI reporting on any polygon feature, not just the Areas control-measures layer |
+| `mct_perimeter_km($geometry)` | A polygon's geodesic perimeter in km |
+| `mct_length_km($geometry)` | A line's geodesic length in km — for phase lines/boundaries/axis of advance |
 
-The last two need `@layer` (QGIS's own built-in variable for the active
-layer) as well as `$geometry`, since a bare geometry carries no CRS of its
-own — the function needs the layer's CRS to compute a real-world,
-geodesically-correct value rather than a meaningless one in whatever units
-the layer's own CRS happens to use (square degrees, for a geographic CRS).
+These three take only `$geometry` — a bare geometry carries no CRS of its
+own, so they measure against the current **project's** CRS (via
+`QgsProject.instance().crs()`) rather than needing a layer passed in
+explicitly. An earlier version took `$geometry, @layer`, but `@layer`
+turned out not to be reliably populated by every QGIS expression entry
+point — notably the attribute table's own in-place field calculator
+toolbar, which silently evaluated it as NULL (shown as `nan`) even though
+`$geometry` itself resolved correctly. Correct for any layer this plugin
+creates itself (they're always built in the project's own CRS); if you
+reuse these functions on a layer whose CRS was later changed independently
+of the project, reproject the layer to match first.
 
 Every function returns a short error string (e.g. `"Layout not found"`,
 `"Need latitude, longitude"`) instead of failing silently if its arguments

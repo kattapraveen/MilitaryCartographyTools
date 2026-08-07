@@ -13,12 +13,25 @@ there is no equivalent programmatic renderer for MIL-STD-2525/APP-6
 tactical graphics lines and areas to verify against: milsymbol.js's own
 source has no multipoint/polygon/linestring code at all, and the one
 library that attempted this (milgraphics) is archived/incomplete (see
-docs/roadmap.md's Phase 10 entry). The styling below is a hand-authored,
-practically-recognisable approximation of the standard conventions
-(dashed/dotted boundary lines, an arrowhead for axis of advance, dashed
-outlines for NAIs) rather than a verified-correct rendition of the
-written specification - flagged here plainly rather than implied to be
-as exact as the point-symbol side of Phase 10.
+docs/roadmap.md's Phase 10 entry). The line/area SHAPES below (dashed
+boundary pattern, arrowhead placement, NAI's dashed-outline-on-any-polygon)
+remain a hand-authored, practically-recognisable approximation rather
+than a verified-correct rendition of MIL-STD-2525D Appendix H's own
+templates (which specify, e.g., an actual hexagon for NAI and
+echelon-symbol line ends for boundaries) - a further pass to match those
+templates precisely is tracked as a future sub-phase in docs/roadmap.md,
+deliberately deferred since it needs custom QGIS symbol construction with
+no rendering library to lean on, unlike the point-symbol side.
+
+The COLOURING, however, is verified directly against the standard's own
+H.5.3 Coloring rule (read from the actual MIL-STD-2525D PDF, not a
+paraphrase): friendly control measures in black or blue, hostile in red.
+This module uses the same "affiliation" vocabulary as sidc.py's own
+AFFILIATIONS (friend/hostile/neutral/unknown) and colours friend=blue,
+hostile=red, neutral/unknown=black (black is also the default affiliation,
+matching "black as standard" for a control measure with no stated
+affiliation) - a data-defined colour expression applied on top of each
+measure type's own shape, not a rule-tree branch per affiliation.
 
 Two separate layers, not one, because a QgsVectorLayer is always a single
 geometry type - there's no "LineString or Polygon" layer in QGIS.
@@ -37,8 +50,10 @@ from qgis.core import (
     QgsMarkerSymbol,
     QgsPalLayerSettings,
     QgsProject,
+    QgsProperty,
     QgsRuleBasedRenderer,
     QgsSimpleLineSymbolLayer,
+    QgsSymbolLayer,
     QgsTemplatedLineSymbolLayerBase,
     QgsVectorLayer,
     QgsVectorLayerSimpleLabeling,
@@ -49,6 +64,7 @@ from qgis.PyQt.QtGui import QColor
 
 from ..core._layer_utils import add_layer_at_default_position
 from ..core.text_format import build_text_format
+from .sidc import AFFILIATIONS
 
 
 LINES_LAYER_NAME = "Tactical Graphics - Control Measures (Lines)"
@@ -67,6 +83,55 @@ AREA_MEASURE_TYPE_LABELS = {
     "nai": "Named Area of Interest (NAI)",
 }
 
+# Keys match sidc.py's own AFFILIATIONS (the same "standard identity"
+# concept MIL-STD-2525D uses for units) - labels are this module's own
+# presentation layer, same separation-of-concerns convention as
+# unit_layer.py's _AFFILIATION_LABELS.
+AFFILIATION_LABELS = {
+    "friend": "Friend",
+    "hostile": "Hostile",
+    "neutral": "Neutral",
+    "unknown": "Unknown",
+}
+
+DEFAULT_AFFILIATION = "unknown"
+
+# Per MIL-STD-2525D H.5.3 Coloring, as scoped by the user: friendly control
+# measures in blue, hostile in red, everything else (neutral/unknown/the
+# default) in black - "black as standard". A single shared expression
+# applied to every measure type's own stroke/fill colour, rather than
+# threading affiliation through each symbol builder's own parameters.
+_AFFILIATION_COLOR_EXPRESSION = (
+    "CASE "
+    "WHEN \"affiliation\" = 'friend' THEN color_rgb(0, 0, 255) "
+    "WHEN \"affiliation\" = 'hostile' THEN color_rgb(255, 0, 0) "
+    "ELSE color_rgb(0, 0, 0) "
+    "END"
+)
+
+
+def _apply_affiliation_color(symbol_layer, properties):
+
+    """
+    Makes the given symbol_layer's colour properties (e.g. StrokeColor,
+    FillColor) data-defined by _AFFILIATION_COLOR_EXPRESSION, so every
+    control measure's own "affiliation" attribute drives its colour
+    automatically - the same data-defined-property pattern
+    unit_layer.py's own SIDC rendering already uses, rather than
+    QgsRuleBasedRenderer rules per affiliation (which would multiply
+    the existing measure_type rule tree by every affiliation value for
+    no benefit, since only colour - not shape - varies by affiliation).
+    """
+
+    color_property = QgsProperty.fromExpression(_AFFILIATION_COLOR_EXPRESSION)
+
+    for property_key in properties:
+
+        symbol_layer.setDataDefinedProperty(
+            property_key,
+            color_property
+        )
+
 
 def _value_map(labels):
 
@@ -75,12 +140,19 @@ def _value_map(labels):
 
 def _phase_line_symbol():
 
-    return QgsLineSymbol.createSimple(
+    symbol = QgsLineSymbol.createSimple(
         {
             "line_color": "0,0,0",
             "line_width": "0.4",
         }
     )
+
+    _apply_affiliation_color(
+        symbol.symbolLayer(0),
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    return symbol
 
 
 def _boundary_symbol():
@@ -106,6 +178,11 @@ def _boundary_symbol():
         [8, 2, 1, 2, 1, 2]
     )
 
+    _apply_affiliation_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
     symbol = QgsLineSymbol()
 
     symbol.changeSymbolLayer(
@@ -127,12 +204,30 @@ def _axis_of_advance_symbol():
         }
     )
 
+    # "arrowhead" is a stroke-only shape (no fillable interior), so its
+    # boldness comes entirely from outline_width - the createSimple()
+    # default is outline_width=0, which Qt draws as a 1-device-pixel
+    # cosmetic hairline regardless of zoom, reading as too faint next to
+    # the 0.5mm line it caps. Set explicitly, heavier than the line
+    # itself so the arrowhead reads clearly.
     arrow_marker = QgsMarkerSymbol.createSimple(
         {
             "name": "arrowhead",
             "color": "0,0,0",
+            "outline_color": "0,0,0",
+            "outline_width": "0.8",
             "size": "4",
         }
+    )
+
+    _apply_affiliation_color(
+        symbol.symbolLayer(0),
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    _apply_affiliation_color(
+        arrow_marker.symbolLayer(0),
+        [QgsSymbolLayer.Property.FillColor, QgsSymbolLayer.Property.StrokeColor]
     )
 
     marker_line = QgsMarkerLineSymbolLayer()
@@ -154,7 +249,7 @@ def _axis_of_advance_symbol():
 
 def _objective_symbol():
 
-    return QgsFillSymbol.createSimple(
+    symbol = QgsFillSymbol.createSimple(
         {
             "style": "no",
             "outline_style": "solid",
@@ -163,10 +258,17 @@ def _objective_symbol():
         }
     )
 
+    _apply_affiliation_color(
+        symbol.symbolLayer(0),
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    return symbol
+
 
 def _nai_symbol():
 
-    return QgsFillSymbol.createSimple(
+    symbol = QgsFillSymbol.createSimple(
         {
             "style": "no",
             "outline_style": "dash",
@@ -174,6 +276,13 @@ def _nai_symbol():
             "outline_width": "0.4",
         }
     )
+
+    _apply_affiliation_color(
+        symbol.symbolLayer(0),
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    return symbol
 
 
 _LINE_SYMBOL_BUILDERS = {
@@ -211,6 +320,31 @@ def _build_rule_based_renderer(root_symbol, symbol_builders):
         )
 
     return QgsRuleBasedRenderer(root_rule)
+
+
+def _configure_affiliation_field(layer):
+
+    """
+    Shared by both layers - a "Friend"/"Hostile"/"Neutral"/"Unknown"
+    ValueMap dropdown driving _AFFILIATION_COLOR_EXPRESSION, defaulting
+    to DEFAULT_AFFILIATION ("unknown", which renders black - "black as
+    standard" per the user's own scoping of this feature).
+    """
+
+    affiliation_idx = layer.fields().indexOf("affiliation")
+
+    layer.setEditorWidgetSetup(
+        affiliation_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(AFFILIATION_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        affiliation_idx,
+        QgsDefaultValue(f"'{DEFAULT_AFFILIATION}'")
+    )
 
 
 def _configure_designation_labeling(layer, placement):
@@ -256,7 +390,9 @@ def create_control_measures_lines_layer(name=LINES_LAYER_NAME):
     layer.dataProvider().addAttributes(
         [
             QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("length_km", QMetaType.Type.Double),
         ]
     )
 
@@ -275,6 +411,18 @@ def create_control_measures_lines_layer(name=LINES_LAYER_NAME):
     layer.setDefaultValueDefinition(
         measure_type_idx,
         QgsDefaultValue("'phase_line'")
+    )
+
+    _configure_affiliation_field(layer)
+
+    # applyOnUpdate=True ("Recalculate value on update") keeps this in
+    # sync as the line is reshaped, not just at initial digitizing -
+    # confirmed live via QgsVectorLayerUtils.createFeature() (what the
+    # GUI's own "Add Line Feature" tool calls) and via a geometry-only
+    # edit through updateFeature()/commitChanges().
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("length_km"),
+        QgsDefaultValue("mct_length_km($geometry)", True)
     )
 
     layer.setRenderer(
@@ -308,7 +456,10 @@ def create_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     layer.dataProvider().addAttributes(
         [
             QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("area_km2", QMetaType.Type.Double),
+            QgsField("perimeter_km", QMetaType.Type.Double),
         ]
     )
 
@@ -327,6 +478,23 @@ def create_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     layer.setDefaultValueDefinition(
         measure_type_idx,
         QgsDefaultValue("'objective'")
+    )
+
+    _configure_affiliation_field(layer)
+
+    # applyOnUpdate=True - see create_control_measures_lines_layer()'s
+    # own comment on length_km for why, and
+    # expressions/military_symbology_functions.py's _distance_area()
+    # docstring for why these expressions take only $geometry, not
+    # $geometry + @layer.
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("area_km2"),
+        QgsDefaultValue("mct_area_km2($geometry)", True)
+    )
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("perimeter_km"),
+        QgsDefaultValue("mct_perimeter_km($geometry)", True)
     )
 
     layer.setRenderer(

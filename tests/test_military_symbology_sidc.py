@@ -76,6 +76,41 @@ class TestBuildSidc(QgisTestCase):
             )
 
 
+    def test_air_sea_surface_subsurface_symbol_sets(self):
+
+        # Spot-checks the air/sea_surface/subsurface symbol sets added
+        # 2026-08-07 - real codes from milsymbol-3.0.4's own
+        # src/numbersidc/sidc/air.js, sea.js, subsurface.js.
+        cases = [
+            ("air", "fighter", "01", "110104"),
+            ("air", "cargo", "01", "110107"),
+            ("air", "rotary_wing", "01", "110200"),
+            ("sea_surface", "destroyer", "30", "120203"),
+            ("sea_surface", "carrier", "30", "120100"),
+            ("subsurface", "submarine", "35", "110100"),
+        ]
+
+        for symbol_set, entity, symbol_set_code, entity_code in cases:
+
+            sidc = build_sidc(
+                affiliation="friend",
+                entity=entity,
+                symbol_set=symbol_set
+            )
+
+            self.assertEqual(
+                sidc[4:6],
+                symbol_set_code,
+                f"symbol_set={symbol_set}"
+            )
+
+            self.assertEqual(
+                sidc[10:16],
+                entity_code,
+                f"symbol_set={symbol_set}, entity={entity}"
+            )
+
+
     def test_status_planned_occupies_position_7(self):
 
         sidc = build_sidc(

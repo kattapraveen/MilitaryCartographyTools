@@ -30,6 +30,7 @@ from MilitaryCartographyTools.military_symbology.sidc import (
     ECHELONS,
     ENTITIES,
     STATUS,
+    SYMBOL_SETS,
 )
 from MilitaryCartographyTools.military_symbology.unit_layer import (
     OUTPUT_LAYER_NAME,
@@ -61,11 +62,22 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
         )
 
 
-    def test_entity_labels_cover_every_ground_unit_entity(self):
+    def test_entity_labels_cover_every_entity_in_every_symbol_set(self):
+
+        for symbol_set in ENTITIES:
+
+            self.assertEqual(
+                set(unit_layer._ENTITY_LABELS_BY_SYMBOL_SET[symbol_set]),
+                set(ENTITIES[symbol_set]),
+                symbol_set
+            )
+
+
+    def test_symbol_set_labels_cover_every_sidc_symbol_set(self):
 
         self.assertEqual(
-            set(unit_layer._ENTITY_LABELS),
-            set(ENTITIES[unit_layer.DEFAULT_SYMBOL_SET])
+            set(unit_layer._SYMBOL_SET_LABELS),
+            set(SYMBOL_SETS)
         )
 
 
@@ -113,6 +125,7 @@ class TestCreateUnitLayer(QgisTestCase):
             field_names,
             [
                 "affiliation",
+                "symbol_set",
                 "entity",
                 "echelon",
                 "status",
@@ -133,7 +146,7 @@ class TestCreateUnitLayer(QgisTestCase):
 
         layer = create_unit_layer()
 
-        for field_name in ("affiliation", "entity", "echelon", "status"):
+        for field_name in ("affiliation", "symbol_set", "echelon", "status"):
 
             idx = layer.fields().indexOf(field_name)
 
@@ -141,6 +154,86 @@ class TestCreateUnitLayer(QgisTestCase):
                 layer.editorWidgetSetup(idx).type(),
                 "ValueMap"
             )
+
+
+    def test_entity_field_uses_a_cascading_value_relation_widget(self):
+
+        # "Entity" is deliberately not a ValueMap like the other
+        # dropdowns - it's a ValueRelation filtered by "Symbol Set" via
+        # current_value(), so only entities belonging to the currently
+        # chosen symbol set are offered (see unit_layer.py's own
+        # _configure_entity_field() docstring, including the caveat
+        # about a native crash hit testing current_value() directly at
+        # the API level - this test only checks the widget config is
+        # structurally correct, not the live cascading behaviour
+        # itself, which needs a real interactive form to exercise).
+        layer = create_unit_layer()
+
+        idx = layer.fields().indexOf("entity")
+
+        setup = layer.editorWidgetSetup(idx)
+
+        self.assertEqual(setup.type(), "ValueRelation")
+
+        config = setup.config()
+
+        self.assertEqual(config["Key"], "entity")
+        self.assertEqual(config["Value"], "label")
+        self.assertEqual(
+            config["FilterExpression"],
+            "\"symbol_set\" = current_value('symbol_set')"
+        )
+
+        lookup_layer = QgsProject.instance().mapLayer(config["Layer"])
+
+        self.assertIsNotNone(lookup_layer)
+        self.assertEqual(lookup_layer.name(), unit_layer.ENTITY_LOOKUP_LAYER_NAME)
+
+
+    def test_entity_lookup_layer_is_hidden_from_the_legend(self):
+
+        create_unit_layer()
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        names = [child.name() for child in root.children()]
+
+        self.assertNotIn(unit_layer.ENTITY_LOOKUP_LAYER_NAME, names)
+
+        # But still resolvable by ID, as ValueRelation needs.
+        matching = QgsProject.instance().mapLayersByName(
+            unit_layer.ENTITY_LOOKUP_LAYER_NAME
+        )
+        self.assertEqual(len(matching), 1)
+
+
+    def test_entity_lookup_layer_has_one_row_per_entity(self):
+
+        create_unit_layer()
+
+        lookup_layer = QgsProject.instance().mapLayersByName(
+            unit_layer.ENTITY_LOOKUP_LAYER_NAME
+        )[0]
+
+        rows = {
+            (f["symbol_set"], f["entity"]): f["label"]
+            for f in lookup_layer.getFeatures()
+        }
+
+        expected_count = sum(
+            len(entities)
+            for entities in unit_layer._ENTITY_LABELS_BY_SYMBOL_SET.values()
+        )
+
+        self.assertEqual(len(rows), expected_count)
+        self.assertEqual(
+            rows[("air", "fighter")],
+            "Air - Fighter"
+        )
+        self.assertEqual(
+            rows[("ground_unit", "infantry")],
+            "Ground Unit - Infantry"
+        )
 
 
     def test_headquarters_uses_a_checkbox_widget(self):
@@ -181,8 +274,50 @@ class TestCreateUnitLayer(QgisTestCase):
         feature = QgsFeature(layer.fields())
         feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
         feature.setAttribute("affiliation", "hostile")
+        feature.setAttribute("symbol_set", "ground_unit")
         feature.setAttribute("entity", "armor")
         feature.setAttribute("echelon", "battalion")
+        feature.setAttribute("status", "present")
+        feature.setAttribute("headquarters", False)
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(
+            QgsExpressionContextUtils.layerScope(layer)
+        )
+        expr_context.setFeature(feature)
+
+        render_context = QgsRenderContext()
+        render_context.setExpressionContext(expr_context)
+
+        symbol = layer.renderer().symbol().clone()
+        symbol.startRender(render_context, layer.fields())
+
+        svg_layer = symbol.symbolLayer(0)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name,
+            expr_context,
+            ""
+        )
+
+        self.assertTrue(ok)
+        self.assertTrue(path.startswith("base64:"))
+
+
+    def test_a_non_ground_unit_symbol_set_resolves_to_a_valid_symbol_path(self):
+
+        # Added 2026-08-07 alongside the air/sea_surface/subsurface
+        # symbol sets - confirms the "symbol_set" field actually reaches
+        # mct_build_sidc() end to end, not just ground_unit's own
+        # (unchanged) default pairing.
+        layer = create_unit_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("symbol_set", "air")
+        feature.setAttribute("entity", "fighter")
+        feature.setAttribute("echelon", "unspecified")
         feature.setAttribute("status", "present")
         feature.setAttribute("headquarters", False)
 

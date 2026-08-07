@@ -442,7 +442,7 @@ Phase 8.
 
 - ✅ Unit/formation symbols (affiliation, echelon, status modifiers per
   APP-6 / MIL-STD-2525) — done 2026-08-07 (see sub-phase breakdown
-  below). Manual smoke test still needed (see sub-phase 10.2).
+  below). Manual smoke test completed 2026-08-07 (see sub-phase 10.2).
   - **Planned as four sub-phases** (10.1 foundation, 10.2 unit/formation
     point symbols UI, 10.3 control measures, 10.4 AO/NAI area/perimeter
     reporting) after a research-and-verify planning pass, not assumption:
@@ -576,9 +576,14 @@ Phase 8.
       consistency guard that unit_layer.py's own display-label dicts
       cover exactly the same keys as sidc.py's vocabulary, so the two
       can't silently drift apart) passing on both QGIS 3.44.12 and 4.2.0.
-    - Manual smoke test still needed: create the layer, place a point
-      with QGIS's own "Add Point Feature" tool, fill in the attribute
-      form, confirm the correct symbol renders immediately.
+    - **Manual smoke test completed 2026-08-07**: created the layer,
+      placed points with QGIS's own "Add Point Feature" tool, filled in
+      the attribute form - symbols rendered correctly immediately (a
+      friendly armor unit and a hostile air-defense-missile unit both
+      confirmed against the correct MIL-STD-2525 frame/fill/glyph), no
+      issues found on this layer specifically. Issues found during the
+      same session's smoke test of control measures and area/perimeter
+      reporting are documented under sub-phases 10.3/10.4 above.
   - **2026-08-07, follow-up: broader common-vocabulary pass, requested
     after live testing found real gaps** (e.g. Air Defense units had no
     entity at all). `sidc.py`'s `ENTITIES["ground_unit"]` grew from 7 to
@@ -654,10 +659,64 @@ Phase 8.
     the plain unit-frame icon).
   - 322 → 336 tests (`tests/test_control_measures.py`) passing on both
     QGIS 3.44.12 and 4.2.0.
-  - Manual smoke test still needed: create both layers, digitize a line
-    and a polygon with QGIS's own native tools, set `measure_type` on
-    each, confirm the expected dash/arrow/outline pattern and label
-    render correctly.
+  - **2026-08-07, manual smoke test follow-up**: user tested against a
+    real QGIS session and found the axis-of-advance arrowhead too faint
+    to read. Root cause: `QgsMarkerSymbol.createSimple()`'s `"arrowhead"`
+    shape has no fillable interior (it's a stroke-only chevron shape),
+    so its boldness comes entirely from `outline_width` -
+    `createSimple()`'s own default there is `0`, which Qt draws as a
+    barely-visible 1-device-pixel cosmetic hairline regardless of zoom.
+    `color`/`size` being set had no bearing on this, since there's no
+    fill area for them to apply to. Fixed by setting `outline_width`
+    (`0.8`, heavier than the 0.5mm line it caps) and `outline_color`
+    explicitly in `_axis_of_advance_symbol()`'s `createSimple()` call.
+    New `test_axis_of_advance_arrowhead_has_a_visible_outline_width` in
+    `tests/test_control_measures.py`, asserting `strokeWidth() > 0` on
+    the marker's own symbol layer - guards against this regressing back
+    to an invisible default. 339 → 340 tests passing on both QGIS
+    3.44.12 and 4.2.0 (this follow-up landed after the vocabulary
+    expansion below, same day).
+  - **2026-08-07, second follow-up: affiliation-based colouring, per the
+    actual standard.** The user provided the official MIL-STD-2525D PDF
+    (885 pages) and asked that Phase 10 not be marked complete until it
+    had been checked against directly, rather than only against
+    milsymbol.js's own interpretation. Reading Appendix H (Control
+    Measure Symbols) directly turned up a real, previously-missing
+    requirement: **H.5.3 Coloring** - "All friendly control measure
+    symbols will be shown in black or blue... Hostile control measure
+    symbols shall be shown in red" - and our lines/areas had no
+    affiliation concept at all, always plain black. (The same review
+    also found the actual specified line/area *shapes* are considerably
+    more elaborate than this module's approximation - e.g. NAI is a
+    specific hexagon, not "any polygon, dashed outline," and boundaries
+    are built from real unit-echelon symbols at their line ends, not a
+    dash-dot pattern - tracked as a separate, larger, explicitly
+    deferred sub-phase below, since matching those shapes needs custom
+    QGIS symbol construction with no rendering library to lean on,
+    unlike the point-symbol side. The user chose to fix colouring now
+    and defer shapes.) Fixed by adding an `affiliation` field (Friend/
+    Hostile/Neutral/Unknown - the same vocabulary as `sidc.py`'s own
+    `AFFILIATIONS`, reused directly since MIL-STD-2525D's "Standard
+    Identity" is literally the same concept for units and control
+    measures) to both Lines and Areas layers, defaulting to Unknown, and
+    a shared `_apply_affiliation_color()` helper that makes each measure
+    type's own stroke/fill colour data-defined via one CASE expression
+    (friend → blue, hostile → red, else → black - scoped down from the
+    standard's "black or blue" to exactly this by the user's own
+    request, with black doubling as the default) - applied on top of
+    each measure type's existing shape/dash/arrowhead styling rather
+    than multiplying the rule tree by affiliation, matching
+    `unit_layer.py`'s own preference for data-defined properties over
+    combinatorial rules. New `TestAffiliationLabelsMatchSidc` (the same
+    drift-guard shape as `unit_layer.py`'s own vocabulary-consistency
+    test) plus real colour-resolution tests per measure type and
+    affiliation in `tests/test_control_measures.py`, verified through
+    `QgsProperty.valueAsColor()` against a real
+    `layer.createExpressionContext()`, not just string-matching the
+    expression. 343 → 348 tests passing on both QGIS 3.44.12 and 4.2.0
+    (this follow-up landed after the `@layer`/auto-populate fixes in
+    10.4 below, same day - see that entry for why the count jumps to
+    343 first).
 - ✅ AO/NAI area & perimeter reporting in military units — folded in
   here rather than Phase 9, since it only earns its keep once there are
   polygons (from the above) to report on. Sub-phase 10.4 done 2026-08-07.
@@ -688,14 +747,246 @@ Phase 8.
     catch a real regression, not just confirm the function agrees with
     itself.
   - 336 → 338 tests passing on both QGIS 3.44.12 and 4.2.0.
+  - **2026-08-07, manual smoke test follow-up: `@layer` turned out not
+    to be reliably populated.** User reported `mct_area_km2($geometry,
+    @layer)` returning `nan` for every feature in QGIS's attribute-table
+    in-place field calculator toolbar, while the native `area(@geometry)`
+    worked fine on the same features - the project CRS was confirmed to
+    be plain EPSG:4326, ruling out a CRS-transform failure (already
+    exhaustively tested against WGS84, Web Mercator, UTM, and even
+    British National Grid's non-WGS84 datum, all computing correctly
+    headless). Root-caused by direct comparison: `layer.
+    createExpressionContext()` (the standard API) populates `@layer`
+    correctly, but the attribute table's in-place calculator toolbar
+    evidently builds its own context without a layer scope - `@layer`
+    silently resolves to `NULL`, our function correctly returns Python
+    `None` for that, and QGIS's own numeric-preview widget renders a
+    `NULL` double-typed field value as literal `"nan"` text. Since
+    `$geometry` resolved fine throughout and the failure was 100%
+    reproducible across every feature (not data-dependent), `@layer`
+    was the one variable not exercised by the working comparison
+    expression.
+    **Fix**: `mct_area_km2()`/`mct_perimeter_km()` no longer take a
+    layer argument at all - `_distance_area()` (renamed from
+    `_distance_area_for(layer)`) now uses `QgsProject.instance().crs()`
+    directly, a plain Python singleton call with no expression-context
+    dependency whatsoever, sidestepping the whole class of "does this
+    particular UI populate `@layer`" fragility. Correct for every layer
+    this plugin creates itself (both `unit_layer.py` and
+    `control_measures.py` build their layers in the project's own CRS);
+    documented as the one caveat in both the functions' own docstrings
+    and `docs/user-guide.md`. New `mct_length_km($geometry)` added
+    alongside (`QgsDistanceArea.measureLength()`, verified against a
+    0.01° line at the equator - ~1.1132 km, matching the well-known
+    ~111.32 km/degree of longitude there) for the Lines layer's own
+    length reporting.
+  - **New: auto-populated measurement fields**, addressing a second
+    piece of live feedback (why isn't this just filled in automatically
+    when you draw the shape?). The Areas layer gained `area_km2`/
+    `perimeter_km` fields, the Lines layer gained `length_km` - each
+    wired via `QgsDefaultValue(expression, applyOnUpdate=True)` (the
+    same "Recalculate value on update" mechanism QGIS's own Fields
+    config exposes, already used elsewhere in this plugin for
+    `measure_type`'s default, just without `applyOnUpdate` there since
+    that field isn't derived). Confirmed live via
+    `QgsVectorLayerUtils.createFeature()` (what the GUI's own "Add
+    Line/Polygon Feature" tool actually calls to build a new feature,
+    unlike calling `addFeature()` directly) that the default applies at
+    creation time, and via a geometry-only `updateFeature()`/
+    `commitChanges()` edit that it recalculates on reshape, not just
+    once at digitizing.
+  - 340 → 343 tests (`tests/test_area_perimeter_functions.py`'s new
+    length test plus two new integration tests in
+    `tests/test_control_measures.py` covering the auto-populate fields
+    end to end) passing on both QGIS 3.44.12 and 4.2.0.
 
-**Phase 10 complete** (2026-08-07) aside from the manual smoke tests
-flagged in sub-phases 10.2/10.3 above (place a unit, digitize a control
-measure, confirm both render correctly in a real QGIS session - not yet
-done). All four sub-phases (10.1 rendering foundation, 10.2 unit/
-formation point symbols, 10.3 control measures, 10.4 area/perimeter
-reporting) built, tested, and documented. 291 → 338 tests added across
-the whole phase.
+**Phase 10 NOT yet complete** - reopened 2026-08-07. All four
+sub-phases (10.1 rendering foundation, 10.2 unit/formation point
+symbols, 10.3 control measures, 10.4 area/perimeter reporting) are
+built, tested, and documented, and the manual smoke test flagged in
+10.2/10.3 has now actually been run in a real QGIS session (place a
+unit, digitize control measures, evaluate the area/perimeter/length
+expressions) - it found three real issues, all fixed same-day and
+documented in place above: the axis-of-advance arrowhead's invisible
+default outline width (10.3), `@layer` not reliably populating across
+every QGIS expression entry point (10.4), and the request to
+auto-populate area/perimeter/length instead of requiring a manual Field
+Calculator run (10.4). 291 → 354 tests added across the whole phase so
+far (as of sub-phase 10.5 below - the count keeps moving since the
+standard-verification pass below is still in progress).
+
+**2026-08-07: the user provided the official MIL-STD-2525D standard**
+(PDF, 885 pages) and asked that the phase not be marked complete until
+checked against it directly, rather than only against milsymbol.js's own
+interpretation or this plugin's own hand-authored approximation. Review
+findings and the resulting scope, in the order the user chose to take
+them:
+
+1. **Confirmed real gap: Air/Sea/Subsurface units are part of the
+   standard, not yet part of this plugin.** The standard's own table of
+   contents lists dedicated appendices - C (Air Symbols), E (Sea Surface
+   Symbols), F (Subsurface Symbols) - alongside D (Land, the only one
+   `sidc.py` currently implements as `"ground_unit"`). Confirmed the
+   vendored `milsymbol.js` already renders all of them (its own source
+   has `AirFriend`/`SeaFriend`/`SubsurfaceFriend`/etc. as first-class
+   dimensions) - this is the same "vocabulary vs. rendering capability"
+   situation as the ground-unit entity expansion, not a new rendering
+   problem. **Done same-day** - see sub-phase 10.5 below.
+2. **Confirmed real gap: control-measure colouring didn't follow the
+   standard at all.** Reading Appendix H (Control Measure Symbols)
+   directly surfaced H.5.3 Coloring's actual requirement (friendly in
+   black or blue, hostile in red) - `control_measures.py` had no
+   affiliation concept, always plain black. **Fixed same-day** - see the
+   dedicated follow-up entry under sub-phase 10.3 above.
+3. **Confirmed the control-measure line/area shapes are a real
+   simplification, not just an "approximation" in the abstract.**
+   Appendix H's own templates are considerably more specific than what
+   this plugin draws - e.g. Named Area of Interest is a specific
+   hexagon shape (not "any polygon, dashed outline"), and boundaries are
+   built from actual unit-echelon symbols at their line ends with
+   perpendicular unit-designation labels (not a plain dash-dot line).
+   Control measures also carry their own MIL-STD-2525D numeric codes
+   (Symbol Set 25 - e.g. Boundary = 110100, NAI = 120200), which
+   `control_measures.py` doesn't currently store or expose at all.
+   **Explicitly deferred, by the user's own choice**, to a future,
+   smaller sub-phase - rebuilding these shapes needs custom QGIS symbol
+   construction with no rendering library to lean on (unlike the
+   point-symbol side), a meaningfully larger and different kind of
+   effort than steps 1-2 above.
+
+- ✅ **Sub-phase 10.5 - Air/Sea Surface/Subsurface unit symbol sets.**
+  Done 2026-08-07, same day as the standard review that surfaced the gap
+  (item 1 above).
+  - **`sidc.py`**: three new `SYMBOL_SETS` entries - `"air"` = `"01"`,
+    `"sea_surface"` = `"30"`, `"subsurface"` = `"35"` - confirmed against
+    milsymbol.js's own `dimensionMapping` table
+    (`src/numbersidc/metadata.js`), the same sourcing rigor as every
+    other code in this module. New curated `ENTITIES` sub-dicts for each
+    (19-20 entries apiece - fighters/bombers/transports/helicopters for
+    Air, destroyers/frigates/carriers/landing craft for Sea Surface,
+    submarine variants for Subsurface), every code read directly from
+    milsymbol-3.0.4's own `src/numbersidc/sidc/air.js`/`sea.js`/
+    `subsurface.js`, not guessed. All six spot-checked combinations
+    rendered as valid SVG through the real `QJSEngine`/milsymbol.js
+    pipeline before being wired into the UI at all.
+  - **Two real key collisions found and fixed during this pass**, not
+    just avoided by luck: `sidc.py`'s combined vocabulary check (every
+    entity key across all four symbol sets, since `unit_layer.py`'s
+    "Entity" dropdown is one flat list spanning all of them - see
+    below) found `ground_unit`'s own `"reconnaissance"` colliding with
+    an unrelated Air entity, and `ground_unit`'s own
+    `"electronic_warfare"` colliding with an unrelated Air one (airborne
+    jammer/ECM) - both would have silently overwritten the
+    already-shipped `ground_unit` entry in the combined dropdown's
+    underlying dict, a real data-loss-in-the-UI bug caught by actually
+    computing the union programmatically rather than eyeballing four
+    separate lists. Fixed by renaming the Air-specific ones to
+    `air_reconnaissance`/`airborne_electronic_warfare` in `sidc.py`
+    itself (the two are unrelated codes in unrelated symbol sets - a
+    UI-clarity rename only, `ground_unit`'s own two keys are unchanged
+    for backward compatibility with already-saved projects). One
+    remaining 3-way share (`"military"`, generic, in Air/Sea
+    Surface/Subsurface) is benign - all three map to the identical
+    function code `"110000"`, so picking any of the three
+    domain-labelled options is correct paired with any of those three
+    `symbol_set` values.
+  - **`expressions/military_symbology_functions.py`**: `mct_build_sidc()`
+    grew a `symbol_set` parameter (now 6 values, not 5 -
+    `affiliation, entity, symbol_set, echelon, status, headquarters`,
+    matching `build_sidc()`'s own argument order) - an internal-only
+    change, since `unit_layer.py`'s own generated expression string is
+    the sole caller anywhere in this codebase.
+  - **`unit_layer.py`**: new `symbol_set` field (ValueMap: Ground
+    Unit/Air/Sea Surface/Subsurface, defaulting to `ground_unit` -
+    unchanged behaviour for anyone already using the layer). "Entity"
+    stayed a single flat ValueMap dropdown rather than becoming a
+    cascading `symbol_set` -> `entity` Value Relation (a real cascading
+    setup needs backing lookup layers and is more complexity than
+    today's UI needs - explicitly flagged as the thing to revisit if
+    this combined list gets unwieldy, matching the existing note this
+    module already had about growing the vocabulary) - each entity's
+    label is now prefixed with its domain (e.g. "Air - Fighter",
+    "Ground Unit - Infantry" - the latter relabelled too, for scanning
+    consistency now that multiple domains share one dropdown; the
+    stored value string is unchanged, so this doesn't affect existing
+    saved data). Correctness of a chosen `entity` still depends on
+    `symbol_set` being set to match - `mct_build_sidc()` already surfaces
+    a clear error string rather than silently rendering the wrong thing
+    if they don't agree, the same contract as an unrecognised entity has
+    always had.
+  - New `test_air_sea_surface_subsurface_symbol_sets` in
+    `tests/test_military_symbology_sidc.py` (spot-checks real codes for
+    all three new sets); `tests/test_unit_layer.py`'s consistency-guard
+    test extended to check every symbol set's entity labels against
+    `sidc.py`'s own `ENTITIES` (not just `ground_unit`'s), plus a new
+    `test_symbol_set_labels_cover_every_sidc_symbol_set` and a
+    `test_a_non_ground_unit_symbol_set_resolves_to_a_valid_symbol_path`
+    integration test (an Air Fighter resolving to a real rendered
+    `base64:` SVG path end to end, mirroring the existing ground_unit
+    version of the same test). 348 → 351 tests passing on both QGIS
+    3.44.12 and 4.2.0.
+  - **2026-08-07, follow-up from live testing: Entity wasn't actually
+    restricted by Symbol Set.** The combined dropdown above let you
+    pick e.g. Symbol Set = Ground Unit with Entity = Fighter (an Air
+    entity) - correctness depended entirely on the user picking a
+    matching pair by hand, `mct_build_sidc()` only caught the mismatch
+    as an error string after the fact. Fixed with the real QGIS
+    mechanism for this: a small hidden `NoGeometry` reference layer
+    (`ENTITY_LOOKUP_LAYER_NAME`, one row per `(symbol_set, entity,
+    label)`, registered in the project with `addToLegend=False` so it
+    never appears in the Layers panel) backing a `ValueRelation` widget
+    on "Entity", filtered via `FilterExpression: "symbol_set" =
+    current_value('symbol_set')` - QGIS's standard, documented way to
+    build a dropdown whose options depend on a sibling field's current
+    value. `create_unit_layer()`'s own "never touches the project" rule
+    (see this module's docstring) now has one narrow, explicit
+    exception for this lookup layer, since it holds no user data and is
+    safe to always rebuild - the Units layer itself is still never
+    added.
+  - **A real crash was found and is flagged plainly, not hidden**:
+    `current_value()` inside a `ValueRelation` `FilterExpression`
+    caused a native crash every time it was exercised directly through
+    `QgsValueRelationFieldFormatter.createCache()` during development -
+    reproduced repeatedly, including with a real layer-backed feature,
+    not just a synthetic one (`exit code 139`/SIGSEGV). This is
+    nonetheless the standard, widely-documented QGIS pattern for
+    cascading dropdowns and is expected to work correctly through the
+    real interactive attribute form (which sets up expression-context
+    scope this direct low-level API call may not) - but that could not
+    be verified without a live QGIS session, since this plugin's test
+    harness can only drive the API layer, not a real form UI. **User's
+    own call, after being shown this finding**: ship it and smoke-test
+    live; if it proves unstable in practice, the documented fallback is
+    a field constraint expression instead (validates the "entity"/
+    "symbol_set" combination on save rather than filtering the dropdown
+    live - an ordinary per-feature expression with no `current_value()`
+    dependency, so it doesn't share this risk). **Confirmed safe
+    2026-08-07**: user smoke-tested the real interactive attribute form
+    live - the cascading dropdown works correctly, no crash. The
+    createCache()-level crash found during development is specific to
+    calling that low-level API directly outside a real form (as
+    suspected above), not a problem with the shipped feature itself.
+  - **Echelon clarified, not restricted, per the user's own choice**:
+    reading MIL-STD-2525D Appendix A's own Table A-VI (Echelon/
+    Mobility/Towed Array Amplifier) directly confirmed the "echelon"
+    field is a Land/organizational-unit concept (Team/Crew through
+    Command) - it doesn't apply to individual platforms the way the new
+    Air/Sea Surface/Subsurface entities are (a single Fighter or
+    Destroyer isn't a "battalion"). The standard's real equivalent for
+    platforms is a completely different "mobility" vocabulary (modes
+    3-6 of the same field: wheeled/tracked/towed/amphibious/naval towed
+    array) that this plugin doesn't expose. Documented in
+    `docs/user-guide.md` as a "leave Unspecified for non-Ground-Unit
+    entities" note rather than restricted/hidden in the form itself, to
+    avoid the same `current_value()`-adjacent risk found above for no
+    strong benefit.
+  - New `test_entity_field_uses_a_cascading_value_relation_widget`
+    (widget config structure only, not the live cascading behaviour
+    itself - see the crash note above for why),
+    `test_entity_lookup_layer_is_hidden_from_the_legend`, and
+    `test_entity_lookup_layer_has_one_row_per_entity` in
+    `tests/test_unit_layer.py`. 351 → 354 tests passing on both QGIS
+    3.44.12 and 4.2.0.
 
 ---
 
@@ -712,4 +1003,4 @@ the whole phase.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. ✅ ~~Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology)~~ — complete 2026-08-07, all four sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented. Manual smoke tests still needed (see Phase 10's own entry above).
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (flagging a native crash found in direct testing of the underlying `current_value()` mechanism - shipped anyway at the user's own call, pending their live smoke test, with a documented crash-free fallback if it proves unstable); control-measure line/area shapes precisely matching the standard's own templates (e.g. NAI as a hexagon, echelon-symbol boundary line ends) remains explicitly deferred to a future sub-phase by the user's own choice (see Phase 10's own entry above for all of the above in detail).

@@ -67,6 +67,16 @@ ECHELONS = {
 
 SYMBOL_SETS = {
     "ground_unit": "10",
+    # Confirmed against milsymbol.js's own dimensionMapping (src/
+    # numbersidc/metadata.js) - "01" = Air, "30" = Sea (surface), "35" =
+    # Subsurface - matching MIL-STD-2525D's own Appendix C/E/F
+    # (Air/Sea Surface/Subsurface Symbols), which milsymbol.js already
+    # fully renders. Added 2026-08-07 after the user confirmed these
+    # were missing entirely (only "ground_unit" existed) while cross-
+    # checking Phase 10 against the official standard.
+    "air": "01",
+    "sea_surface": "30",
+    "subsurface": "35",
 }
 
 # Entity base codes (the first 6 characters of the 10-character function-ID
@@ -144,6 +154,73 @@ ENTITIES = {
         "ordnance": "162300",
         "ammunition": "160400",
         "petroleum_oil_lubricants": "162500",
+    },
+    # Real codes from milsymbol-3.0.4's own src/numbersidc/sidc/air.js
+    # (symbolSet == "01"). Two entries are renamed purely to avoid
+    # colliding with ground_unit's own keys in unit_layer.py's combined
+    # entity dropdown - "reconnaissance" -> "air_reconnaissance" and
+    # "electronic_warfare" -> "airborne_electronic_warfare" (ground_unit
+    # already has its own "electronic_warfare" for a land EW unit, a
+    # different code entirely) - each pair are unrelated codes in
+    # unrelated symbol sets, these are UI-clarity renames only.
+    "air": {
+        "military": "110000",
+        "fixed_wing": "110100",
+        "attack": "110102",
+        "bomber": "110103",
+        "fighter": "110104",
+        "fighter_bomber": "110105",
+        "cargo": "110107",
+        "airborne_electronic_warfare": "110108",
+        "tanker": "110109",
+        "patrol": "110110",
+        "air_reconnaissance": "110111",
+        "trainer": "110112",
+        "utility": "110113",
+        "airborne_early_warning": "110116",
+        "antisubmarine_warfare": "110118",
+        "medical_evacuation": "110101",
+        "combat_search_and_rescue": "110120",
+        "special_operations_forces": "110126",
+        "rotary_wing": "110200",
+        "unmanned_aerial_vehicle": "110300",
+    },
+    # Real codes from milsymbol-3.0.4's own src/numbersidc/sidc/sea.js
+    # (symbolSet == "30").
+    "sea_surface": {
+        "military": "110000",
+        "carrier": "120100",
+        "cruiser": "120202",
+        "destroyer": "120203",
+        "frigate": "120204",
+        "corvette": "120205",
+        "littoral_combat_ship": "120206",
+        "amphibious_assault_ship": "120302",
+        "landing_ship": "120307",
+        "landing_craft": "120308",
+        "minelayer": "120401",
+        "minesweeper": "120402",
+        "mine_countermeasures_ship": "120405",
+        "patrol_craft": "120501",
+        "unmanned_surface_vehicle": "120700",
+        "auxiliary_ship": "130100",
+        "hospital_ship": "130107",
+        "cargo_ship": "130108",
+        "oiler": "130110",
+        "submarine_tender": "130112",
+        "tug": "130113",
+    },
+    # Real codes from milsymbol-3.0.4's own
+    # src/numbersidc/sidc/subsurface.js (symbolSet == "35").
+    "subsurface": {
+        "military": "110000",
+        "submarine": "110100",
+        "submarine_surfaced": "110101",
+        "submarine_snorkeling": "110102",
+        "other_submersible": "110200",
+        "autonomous_underwater_vehicle": "110400",
+        "diver_military": "110500",
+        "torpedo": "130100",
     },
 }
 
