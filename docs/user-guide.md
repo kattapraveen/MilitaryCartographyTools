@@ -612,12 +612,13 @@ objectives, NAIs) are a separate feature — see below.
 
 ## Tactical Graphics - Control Measures
 
-Click the icon to add two layers for control measures — a "Lines" layer
-(phase lines, boundaries, axis of advance) and an "Areas" layer
-(objectives, named areas of interest). Both are created empty and ready
-to use immediately; there's no dialog, and clicking the icon again never
-replaces a layer that already exists (each is checked independently, so
-if only one of the two still exists it adds back just the missing one).
+Click the icon to add three layers for control measures — a "Lines" layer
+(phase lines, boundaries, axis of advance), an "Areas" layer (objectives,
+named areas of interest), and a "Control Measure Points" layer (checkpoints,
+decision points, supply points, and similar). All three are created empty
+and ready to use immediately; there's no dialog, and clicking the icon
+again never replaces a layer that already exists (each is checked
+independently, so it only adds back whichever ones are still missing).
 
 **Drawing a control measure**: use QGIS's own native line/polygon editing
 tools (toggle editing, **Add Line Feature** or **Add Polygon Feature**) to
@@ -654,6 +655,38 @@ against the MIL-STD-2525/APP-6 SIDC specification via the milsymbol
 library), there's no equivalent verified rendering engine for tactical
 graphics lines and areas — these styles are a practical, recognisable
 approximation of the standard conventions, not a spec-exact rendition.
+
+### Control Measure Points
+
+The "Control Measure Points" layer covers MIL-STD-2525D Appendix H's own
+point-type control measures — command/control points (checkpoint, contact
+point, decision point, rally point, ...), observation posts, target and
+fire-support points, obstacle/mine/shelter/CBRN-event points, and
+sustainment/supply points (ammunition supply point, casualty collection
+point, MEDEVAC pick-up point, ...). Unlike the Lines/Areas layers above,
+these ARE rendered through the same verified milsymbol library as the
+Units layer, not hand-built QGIS symbology — so they're spec-exact, not an
+approximation.
+
+Place points with QGIS's own native **Add Point Feature** tool, then fill
+in the attribute form:
+
+- **Affiliation** — Friend/Hostile/Neutral/Unknown. Colour follows
+  MIL-STD-2525D's own H.5.3 rule for control measures specifically
+  (confirmed by rendering real examples through the library and reading
+  the actual SVG output): friendly/neutral/unknown draw in black, hostile
+  draws in red.
+- **Entity** — which point control measure this is (e.g. "Checkpoint",
+  "Decision Point", "Ammunition Supply Point"). About 80 of the
+  standard's ~260 point control measures are available; the more
+  Navy/anti-submarine-warfare-specific ones (sonobuoy types and similar)
+  and the granular per-nation supply-class variants aren't currently
+  included.
+- **Status** — Present or Planned.
+
+There's no "Symbol Set" field here the way the Units layer has one — this
+layer only ever draws from Appendix H's control-measure set, so there's
+nothing to choose between.
 
 ---
 

@@ -77,6 +77,14 @@ SYMBOL_SETS = {
     "air": "01",
     "sea_surface": "30",
     "subsurface": "35",
+    # Appendix H's own point-type control measures (checkpoints, contact/
+    # decision points, target points, sustainment/supply points, and
+    # similar) - a different rendering mechanism from control_measures.py's
+    # hand-built line/area symbology (that module covers H's LINE/AREA
+    # control measures; this symbol set covers H's POINT ones, which
+    # milsymbol.js already renders same as any other symbol set). Added
+    # 2026-08-07 - see military_symbology/control_measure_points.py.
+    "control_measure": "25",
 }
 
 # Entity base codes (the first 6 characters of the 10-character function-ID
@@ -221,6 +229,109 @@ ENTITIES = {
         "autonomous_underwater_vehicle": "110400",
         "diver_military": "110500",
         "torpedo": "130100",
+    },
+    # Real codes from milsymbol-3.0.4's own
+    # src/numbersidc/sidc/control-measure.js (symbolSet == "25"), which
+    # has ~260 point-type control measure entries in total - this is a
+    # curated subset of ~80, the same "common vocabulary now, growable
+    # later" approach as every other symbol set above. Deliberately
+    # excludes the ~110 Maritime Control Points entries almost entirely
+    # (deeply Navy/ASW-specific jargon - sonobuoy types, acoustic fix
+    # types, and similar - not "military cartography" in the general
+    # operational-mapping sense this plugin is for, mirroring why
+    # ground_unit's own curation above excludes band/postal/religious
+    # support), the granular per-nation/per-class supply point variants
+    # (NATO/US Class I-X - 16 entries, kept to the two generic ones
+    # instead), and a handful of entries that were clearly data-quality
+    # artifacts in milsymbol's own source (an empty icon reference, a
+    # "FIX TODO" comment left in by its own maintainers).
+    "control_measure": {
+        # Command and control points
+        "unspecified_control_point": "130100",
+        "amnesty_point": "130200",
+        "checkpoint": "130300",
+        "center_of_main_effort": "130400",
+        "contact_point": "130500",
+        "coordination_point": "130600",
+        "decision_point": "130700",
+        "distress_call": "130800",
+        "entry_control_point": "130900",
+        "linkup_point": "131100",
+        "passage_point": "131200",
+        "point_of_interest": "131300",
+        "rally_point": "131400",
+        "release_point": "131500",
+        "start_point": "131600",
+        "special_point": "131700",
+        "waypoint": "131800",
+        "airfield": "131900",
+        "target_handover": "132000",
+        "key_terrain": "132100",
+        # Maneuver / observation points
+        "observation_post": "160100",
+        "observation_post_reconnaissance": "160201",
+        "observation_post_forward_observer": "160202",
+        "observation_post_cbrn": "160203",
+        "observation_post_sensor_listening": "160204",
+        "observation_post_combat": "160205",
+        "target_reference_point": "160300",
+        "point_of_departure": "160400",
+        # Maritime hazards / reference points
+        "distressed_vessel": "218000",
+        "downed_aircraft": "218100",
+        "iceberg": "218300",
+        "oil_rig": "218500",
+        "sea_mine_like_contact": "218600",
+        # Fires
+        "point_target": "240601",
+        "nuclear_target": "240602",
+        "target_recorded": "240603",
+        "fire_support_station": "240900",
+        "firing_point": "250100",
+        "hide_point": "250200",
+        "launch_point": "250300",
+        "reload_point": "250400",
+        "survey_control_point": "250500",
+        # Protection (obstacles, mines, shelters, CBRN events)
+        "abatis": "280100",
+        "antipersonnel_mine": "280200",
+        "antitank_mine": "280300",
+        "unspecified_mine": "280600",
+        "booby_trap": "280700",
+        "engineer_regulating_point": "280800",
+        "shelter": "280900",
+        "shelter_above_ground": "281000",
+        "shelter_below_ground": "281100",
+        "fort": "281200",
+        "chemical_event": "281300",
+        "biological_event": "281400",
+        "nuclear_event": "281500",
+        "radiological_event": "281700",
+        # Sustainment, supply, casualty & personnel handling
+        "ambulance_exchange_point": "320100",
+        "ammunition_supply_point": "320200",
+        "ammunition_transfer_point": "320300",
+        "cannibalization_point": "320400",
+        "casualty_collection_point": "320500",
+        "civilian_collection_point": "320600",
+        "detainee_collection_point": "320700",
+        "enemy_prisoner_of_war_collection_point": "320800",
+        "logistics_release_point": "320900",
+        "maintenance_collection_point": "321000",
+        "medevac_pickup_point": "321100",
+        "rearm_refuel_resupply_point": "321200",
+        "refuel_on_the_move_point": "321300",
+        "traffic_control_post": "321400",
+        "trailer_transfer_point": "321500",
+        "unit_maintenance_collection_point": "321600",
+        "general_supply_point": "321700",
+        "medical_supply_point": "321800",
+        # Mission tasks (point form - control_measures.py separately
+        # covers the arrow/line-graphic form some of these same task
+        # names also take under H.5.26, a different rendering mechanism)
+        "destroy_point": "340900",
+        "interdict_point": "341400",
+        "neutralize_point": "341600",
     },
 }
 

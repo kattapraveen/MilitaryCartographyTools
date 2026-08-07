@@ -64,7 +64,12 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
 
     def test_entity_labels_cover_every_entity_in_every_symbol_set(self):
 
-        for symbol_set in ENTITIES:
+        # "control_measure" is deliberately excluded - it's not a unit
+        # domain, it's Appendix H's own point control measures, which
+        # get their own layer/dropdown in control_measure_points.py
+        # (see that module's docstring for why it isn't folded into
+        # this layer's cascading "Symbol Set" dropdown).
+        for symbol_set in unit_layer._SYMBOL_SET_LABELS:
 
             self.assertEqual(
                 set(unit_layer._ENTITY_LABELS_BY_SYMBOL_SET[symbol_set]),
@@ -73,11 +78,14 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
             )
 
 
-    def test_symbol_set_labels_cover_every_sidc_symbol_set(self):
+    def test_symbol_set_labels_cover_every_unit_symbol_set(self):
 
+        # Every sidc.SYMBOL_SETS entry except "control_measure" (see
+        # comment above) is a unit domain this layer's own "Symbol Set"
+        # dropdown should offer.
         self.assertEqual(
             set(unit_layer._SYMBOL_SET_LABELS),
-            set(SYMBOL_SETS)
+            set(SYMBOL_SETS) - {"control_measure"}
         )
 
 

@@ -111,6 +111,40 @@ class TestBuildSidc(QgisTestCase):
             )
 
 
+    def test_control_measure_symbol_set(self):
+
+        # Spot-checks the "control_measure" symbol set (Appendix H's
+        # own point control measures) added 2026-08-07 - real codes
+        # from milsymbol-3.0.4's own
+        # src/numbersidc/sidc/control-measure.js.
+        cases = [
+            ("checkpoint", "130300"),
+            ("decision_point", "130700"),
+            ("observation_post", "160100"),
+            ("ammunition_supply_point", "320200"),
+        ]
+
+        for entity, entity_code in cases:
+
+            sidc = build_sidc(
+                affiliation="friend",
+                entity=entity,
+                symbol_set="control_measure"
+            )
+
+            self.assertEqual(
+                sidc[4:6],
+                "25",
+                f"entity={entity}"
+            )
+
+            self.assertEqual(
+                sidc[10:16],
+                entity_code,
+                f"entity={entity}"
+            )
+
+
     def test_status_planned_occupies_position_7(self):
 
         sidc = build_sidc(

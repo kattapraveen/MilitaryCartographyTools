@@ -28,6 +28,9 @@ from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel, show_map_sheet_series_dialog
 from .military_symbology.unit_layer import add_unit_layer
+from .military_symbology.control_measure_points import (
+    add_control_measure_points_layer,
+)
 from .military_symbology.control_measures import (
     add_control_measures_lines_layer,
     add_control_measures_areas_layer,
@@ -668,17 +671,20 @@ class MilitaryCartographyTools:
     def _setup_control_measures_action(self):
 
         # One-shot action, not a map tool - see
-        # military_symbology/control_measures.py. Adds both the lines
-        # and areas control-measures layers in one click - conceptually
-        # one feature (per docs/roadmap.md's own Phase 10 bullet), even
-        # though QGIS needs two separate layers since a vector layer is
-        # always a single geometry type.
+        # military_symbology/control_measures.py and
+        # military_symbology/control_measure_points.py. Adds the lines,
+        # areas, AND control-measure-points layers in one click -
+        # conceptually one feature (per docs/roadmap.md's own Phase 10
+        # bullet), even though QGIS needs separate layers since a vector
+        # layer is always a single geometry type.
         self.control_measures_action = self._build_action(
             "control_measures.svg",
             "Tactical Graphics - Control Measures",
             tooltip=(
                 "Add layers for control measures (phase lines, "
-                "boundaries, axis of advance, objectives, NAIs)"
+                "boundaries, axis of advance, objectives, NAIs, and "
+                "point control measures like checkpoints/decision "
+                "points/supply points)"
             ),
             callback=self.create_control_measures
         )
@@ -1161,8 +1167,10 @@ class MilitaryCartographyTools:
     def create_control_measures(self):
         """
         Add the control-measures layers (lines: phase lines,
-        boundaries, axis of advance; areas: objectives, NAIs), ready
-        for digitizing with QGIS's own native editing tools.
+        boundaries, axis of advance; areas: objectives, NAIs; points:
+        checkpoints, decision points, supply points, and similar),
+        ready for digitizing/placing with QGIS's own native editing
+        tools.
         """
 
         add_control_measures_lines_layer(
@@ -1170,6 +1178,10 @@ class MilitaryCartographyTools:
         )
 
         add_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_control_measure_points_layer(
             self.iface
         )
 

@@ -988,6 +988,109 @@ them:
     `tests/test_unit_layer.py`. 351 → 354 tests passing on both QGIS
     3.44.12 and 4.2.0.
 
+**2026-08-07, later the same day: broader scope review.** After the
+standard-verification pass above, the user asked directly whether there's
+still a lot more of MIL-STD-2525D left uncovered beyond unit/formation
+symbols - tactical-task graphics (BLOCK/DISRUPT/etc.) and equipment icons
+were named as examples. Cross-referencing the standard's own table of
+contents against the vendored `milsymbol.js`'s actual (unminified) source
+tree confirmed: yes, substantially more, now concretely scoped rather than
+left as a vague "more to do":
+
+- **Already rendered by milsymbol.js, purely a vocabulary gap on our
+  side** (same shape of work as sub-phase 10.5 above): Appendix D.7-D.9
+  (Land Civilian/Equipment/Installation - `landcivilian.js`/
+  `landequipment.js`/`landinstallation.js`), Appendix F.7 (Mine Warfare,
+  a subsection of Subsurface our existing `"subsurface"` set doesn't yet
+  cover), Appendix G (Activities - `activites.js`), Appendix H's own
+  **point**-type control measures (`control-measure.js`, symbol set
+  `"25"` - see sub-phase 10.6 below, the first of these tackled),
+  Appendix J (SIGINT), Appendix L (Cyberspace), Appendix B (Space -
+  probably not relevant to this plugin's field-mapping use case).
+- **No milsymbol.js support at all - hand-authored QGIS symbology is the
+  only option**, same category as the already-deferred control-measure
+  shape rebuild: Appendix H's **line/area** control measures beyond the 5
+  already built (H.5.5, H.5.7-9, H.5.11-18, H.5.21-23, H.5.26-27) -
+  confirmed by reading milsymbol's actual source, there is no
+  MultiPoint/polygon/linestring rendering code anywhere in it. This is
+  where Mission Task graphics (BLOCK/BREACH/CANALIZE/DISRUPT/etc., H.5.26)
+  actually live - not a separate feature from the deferred shape-rebuild
+  work, but a large expansion of its scope once looked at directly
+  (H.5.11-27 alone span ~230 pages of the standard).
+- **Appendix I (METOC)** has no milsymbol.js support either, and unlike
+  every other gap above, no rendering library to lean on for it at all -
+  a bigger, standalone lift nobody has scoped yet.
+
+Decided with the user: start with the biggest already-unused asset
+(Appendix H's point control measures, 733 lines of working milsymbol.js
+code sitting entirely unreferenced - sub-phase 10.6 below), continue
+in-session rather than handing this off (the design judgment calls
+involved, like the coloring investigation below, benefit from staying
+interactive). Separately, the user asked to hand the line/area Mission
+Task/Maneuver expansion specifically to a background agent working in an
+isolated git worktree, given its size and that it doesn't depend on
+what sub-phase 10.6 touches - that work was still in progress as of this
+writing and will get its own roadmap entry once reviewed, merged, and
+tested, not claimed as done here.
+
+- ✅ **Sub-phase 10.6 - Control-measure point symbols (Appendix H, symbol
+  set `"25"`).** Done 2026-08-07.
+  - **Coloring came free, no extra code needed** - the open question
+    going in was whether milsymbol.js's control-measure points would
+    render with the standard 4-colour unit scheme (friend=cyan,
+    hostile=red, neutral=green, unknown=yellow) or something else, since
+    H.5.3 requires control measures specifically to use only
+    black/blue (friendly) and red (hostile). Rendered real control-measure
+    SIDCs (checkpoint, decision point, contact point) across all four
+    affiliations through the actual `QJSEngine`/milsymbol.js pipeline and
+    inspected the raw SVG directly: friend/neutral/unknown all came back
+    `stroke="black"`, hostile came back `stroke="rgb(255, 0, 0)"` -
+    already exactly H.5.3-compliant, with zero color-override code needed
+    (unlike `control_measures.py`'s hand-built lines/areas, which had to
+    implement H.5.3 themselves via a data-defined colour expression).
+    Turned into a permanent regression test
+    (`TestControlMeasurePointColouring` in the new test file below) so
+    this doesn't silently regress on a future milsymbol.js upgrade.
+  - **`sidc.py`**: new `SYMBOL_SETS["control_measure"] = "25"`, and a
+    curated ~80-entry `ENTITIES["control_measure"]` sub-dict, sourced
+    directly from milsymbol-3.0.4's own
+    `src/numbersidc/sidc/control-measure.js` (~260 entries total).
+    Deliberately excludes the ~110-entry Maritime Control Points category
+    almost entirely (deeply Navy/ASW-specific jargon - sonobuoy types,
+    acoustic fix types - not general operational mapping, mirroring why
+    `ground_unit`'s own curation already excludes band/postal/religious
+    support) and the granular per-nation/per-class supply point variants
+    (NATO/US Class I-X, 16 entries, kept to two generic ones instead) -
+    same "curated common vocabulary, growable later" approach as every
+    other symbol set in this module.
+  - **New `military_symbology/control_measure_points.py`** - a new point
+    layer ("Tactical Graphics - Control Measure Points"), same
+    data-defined-SVG-marker rendering mechanism as `unit_layer.py`, but
+    deliberately simpler: no "Symbol Set" field (this layer only ever
+    draws from the one `"control_measure"` set, so "Entity" is a plain
+    `ValueMap` dropdown, not a cascading `ValueRelation` - sidesteps that
+    mechanism's own crash-risk caveat entirely by not needing it), and no
+    "Echelon"/"Headquarters" fields (not listed among H.5.1.1's
+    control-measure amplifiers, unlike "Status", which is kept - a
+    proposed vs. active checkpoint is a real distinction). Bundled into
+    the existing "Tactical Graphics - Control Measures" toolbar action
+    alongside the lines/areas layers (one click now adds three layers,
+    not two) rather than a new toolbar icon.
+  - New `tests/test_control_measure_points.py` (vocabulary-consistency
+    guards, field/widget structure, a real-feature-to-valid-SVG
+    integration test, and the affiliation-colouring regression test
+    above) and a new spot-check in
+    `tests/test_military_symbology_sidc.py`. `tests/test_unit_layer.py`'s
+    own consistency guards updated to explicitly exclude
+    `"control_measure"` from the Units layer's own symbol-set/entity
+    checks, since it's a separate layer, not a fifth unit domain. 368
+    tests passing on both QGIS 3.44.12 and 4.2.0.
+  - **Confirmed safe 2026-08-07**: user live-smoke-tested in a real QGIS
+    session (toolbar action adds all three layers correctly, Entity
+    dropdown populates and reads cleanly, a placed point renders
+    immediately, friend vs. hostile colouring differs on the map as
+    expected) - no crash, no issue found.
+
 ---
 
 ## Suggested near-term order
@@ -1003,4 +1106,4 @@ them:
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (flagging a native crash found in direct testing of the underlying `current_value()` mechanism - shipped anyway at the user's own call, pending their live smoke test, with a documented crash-free fallback if it proves unstable); control-measure line/area shapes precisely matching the standard's own templates (e.g. NAI as a hexagon, echelon-symbol boundary line ends) remains explicitly deferred to a future sub-phase by the user's own choice (see Phase 10's own entry above for all of the above in detail).
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") is done; the line/area Maneuver/Mission Task expansion is in progress separately in a background worktree agent, not yet merged (see Phase 10's own entry above for all of the above in detail).
