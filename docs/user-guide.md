@@ -592,6 +592,15 @@ in-process — no network access, no external services. These are only
 the point-symbol layers; control measures (phase lines, boundaries,
 objectives, NAIs) are a separate feature — see below.
 
+**Not covered**: MIL-STD-2525D Appendix I (Meteorological and
+Oceanographic — METOC) symbology isn't built. Unlike every layer above,
+milsymbol has no support for it at all, so its roughly 400 symbols
+(pressure systems, fronts, sea ice, wave heights, and similar) would all
+be custom hand-drawn graphics rather than a lookup into an existing
+renderer — a scope decided not worth building without a concrete need.
+If you need METOC symbology, open an issue or a pull request and we can
+scope it together.
+
 ---
 
 ## Tactical Graphics - Control Measures

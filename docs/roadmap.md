@@ -1888,6 +1888,43 @@ tested, not claimed as done here.
       `tests/test_plugin.py`'s toolbar-action-list and
       unload-clears-references tests updated for the new action. 461
       tests passing on both QGIS 3.44.12 and 4.2.0.
+  - **Appendix I (METOC) - triaged 2026-08-08, decided not needed, no
+    code written.** Read the appendix's own scope section (I.1-I.5.3)
+    and counted every entry across its three tables directly from the
+    standard: Table I-I Atmospheric (symbol set `45`, 205 entries -
+    Pressure Systems, Turbulence, Icing, Winds, Cloud Coverage, Weather
+    Symbols, Bounded Areas of Weather, Isopleths, State of the Ground),
+    Table I-II Oceanographic (symbol set `46`, 206 entries - Ice
+    Systems, Hydrography, Oceanography, Geophysics/Acoustics, Limits,
+    Man-Made Structures), and Table I-III Meteorological Space (symbol
+    set `47`, exactly 1 entry - a hierarchy-only placeholder, nothing to
+    build there). Confirmed directly against milsymbol-3.0.4's own
+    source, three separate ways - its `dimensionMapping` (every symbol
+    set it recognizes at all), every actual `symbolSet == "NN"` dispatch
+    check across every `sidc/*.js` file, and a direct grep of the
+    vendored built file this plugin ships - that **none of symbol sets
+    `45`/`46`/`47` exist anywhere in milsymbol**, unlike every other
+    appendix covered so far (B-G), which all leaned on milsymbol's own
+    rendering. Every one of the ~411 real entries (410 excluding the
+    trivial placeholder) would need fully custom hand-built SVG/QGIS
+    symbology from scratch - many with dynamic draw rules (a
+    pressure-tendency digit next to a plot circle, variable-feather wind
+    barbs, periodic teeth/scallops on a front line) and literal,
+    non-affiliation-based colors, closer in kind to Appendix H's
+    hand-drawn control measures than to B-G's icon-in-frame lookups, but
+    at roughly the scale of the entire rest of the standard combined.
+    Presented this triage to the user with three scoping options
+    (curated core subset / full 411-entry coverage / one-category-at-a-
+    time); **the user decided to skip Appendix I entirely - "no felt
+    need"** for this plugin's own use case, rather than commit to any
+    partial build. Explicitly not a technical blocker and not
+    permanently closed: if a future need for METOC symbology comes up,
+    it's a normal collaboration/feature request, not a re-triage - the
+    counts and category breakdown above are the starting point. Skipped
+    with no source, test, or plugin-wiring changes; `docs/user-guide.md`
+    gets a short "not covered" note in its own tactical-graphics section
+    for anyone looking for it. Appendix J (SIGINT) is next per the
+    plan's strict document order.
 
 ---
 
