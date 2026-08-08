@@ -46,35 +46,28 @@ experimental, so tick **"Show also experimental plugins"** under **Plugins
 
 ## The toolbar, at a glance
 
+The toolbar has one standalone icon (About / plugin info) plus six
+grouped dropdown buttons — click a button to open its menu, then pick
+the specific tool. The same six groups are mirrored as submenus under
+**Plugins → Military Cartography Tools**, so every tool is reachable
+from either place.
+
 Left to right:
 
-| Icon | Action |
-|---|---|
-| Grid with a highlighted square + crosshair | About / plugin info |
-| Coarse 3×2 grid | Toggle the UTM Grid Zone Designator grid |
-| Fine grid with a highlighted square | Toggle the MGRS 100km square grid |
-| Fine grid + crosshair, with a dropdown | Sub Grid spacing (Off / 10km / 5km / 1km) |
-| Grid with a red X | Clear Grid — remove every grid layer |
-| Crosshair reticle | Coordinate Probe |
-| Point with a north tick, angle arc, and line to a second point | Bearing / Range |
-| Page with a heading bar and a small map | New Military Layout |
-| Illuminated concentric rings | Tanaka Contours |
-| Filled concentric colour bands | Hypsometric Tint |
-| Two dots joined by a line, with a small crossing tick | Line of Sight |
-| Hill silhouette lit by two crossed arrows | Hillshade Combinations |
-| Observer point with radiating coverage arcs | Viewshed |
-| Waypoint dropping down into a tray | Import Waypoints |
-| Waypoint rising up out of a tray | Export Waypoints |
-| A 2×2 grid of sheets, one filled in | Map Sheet Series |
-| A planet with an orbiting satellite | Tactical Graphics - Space |
-| A simple aircraft silhouette | Tactical Graphics - Air |
-| A unit frame over a ground hatch | Tactical Graphics - Land |
-| A ship hull over waves | Tactical Graphics - Sea Surface |
-| A submarine hull below a wave line | Tactical Graphics - Subsurface |
-| An alert triangle | Tactical Graphics - Activities |
-| An antenna mast radiating signal arcs | Tactical Graphics - SIGINT |
-| A server rack with a network node | Tactical Graphics - Cyberspace |
-| A dashed line into a solid arrow | Tactical Graphics - Control Measures |
+| Icon | Button | Opens |
+|---|---|---|
+| Grid with a highlighted square + crosshair | *(standalone)* | About / plugin info |
+| 3×3 grid | **Grid** | UTM Grid, MGRS 100km Grid, Sub Grid (10km/5km/1km spacing, itself a nested flyout), Clear Grid |
+| Compass rose | **Navigation** | Coordinate Probe, Bearing / Range |
+| Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed |
+| Location pin | **Waypoints** | Import Waypoints, Export Waypoints |
+| Printed sheet with a folded corner | **Print Production** | New Military Layout, Map Sheet Series |
+| Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/APP-6 point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |
+
+Each individual tool keeps its own icon and behaviour exactly as
+described in its own section below (checkable tools still show as
+checked/unchecked inside the dropdown, same as they did as standalone
+toolbar buttons) — grouping only changes *where* you click to reach it.
 
 Each Layout Designer window (opened from a print layout) additionally gets
 its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
@@ -528,11 +521,12 @@ larger scale denominator instead.
 
 ## Tactical Graphics - point symbol layers
 
-Eight toolbar actions, each adding one or more point layers where every
-feature automatically renders as the correct MIL-STD-2525D/APP-6
-military symbol, drawn from its own attributes. There's no dialog and no
-separate symbol picker: each layer is created empty and ready to use
-immediately.
+Eight actions inside the toolbar's **NATO Symbols** dropdown (see [The
+toolbar, at a glance](#the-toolbar-at-a-glance)), each adding one or
+more point layers where every feature automatically renders as the
+correct MIL-STD-2525D/APP-6 military symbol, drawn from its own
+attributes. There's no dialog and no separate symbol picker: each layer
+is created empty and ready to use immediately.
 
 **Placing a symbol**: use QGIS's own native point editing tools (toggle
 editing, **Add Point Feature**) to click a location — the same tools

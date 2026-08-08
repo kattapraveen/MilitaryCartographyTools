@@ -30,8 +30,12 @@ def make_plugin():
 
 class TestPluginLifecycle(QgisTestCase):
 
-    def test_init_gui_builds_expected_toolbar_actions(self):
+    def test_init_gui_only_the_about_action_is_standalone_on_the_toolbar(self):
 
+        # Housekeeping (2026-08-08): every other action now lives
+        # inside one of six grouped toolbar buttons instead of the
+        # toolbar directly - see test_init_gui_builds_expected_groups
+        # for the group contents themselves.
         plugin, iface, window, canvas = make_plugin()
 
         plugin.initGui()
@@ -40,43 +44,104 @@ class TestPluginLifecycle(QgisTestCase):
 
             texts = [action.text() for action in plugin.toolbar.actions()]
 
-            for expected in (
-                "Military Cartography Tools",
+            self.assertIn("Military Cartography Tools", texts)
+
+            for grouped_text in (
                 "UTM Grid",
-                "MGRS 100km Grid",
-                "Clear Grid",
                 "Coordinate Probe",
-                "Bearing / Range",
                 "New Military Layout",
                 "Tanaka Contours",
-                "Hypsometric Tint",
-                "Line of Sight",
-                "Hillshade Combinations",
-                "Viewshed",
                 "Import Waypoints",
-                "Export Waypoints",
-                "Map Sheet Series",
                 "Tactical Graphics - Space",
-                "Tactical Graphics - Air",
-                "Tactical Graphics - Land",
-                "Tactical Graphics - Sea Surface",
-                "Tactical Graphics - Subsurface",
-                "Tactical Graphics - Activities",
-                "Tactical Graphics - SIGINT",
-                "Tactical Graphics - Cyberspace",
-                "Tactical Graphics - Control Measures",
             ):
 
-                self.assertIn(expected, texts)
+                self.assertNotIn(grouped_text, texts)
 
-            # Coordinate Probe, then Bearing/Range, sit immediately
-            # before New Military Layout, per request.
-            probe_index = texts.index("Coordinate Probe")
-            bearing_range_index = texts.index("Bearing / Range")
-            layout_index = texts.index("New Military Layout")
+        finally:
 
-            self.assertEqual(bearing_range_index - probe_index, 1)
-            self.assertEqual(layout_index - bearing_range_index, 1)
+            plugin.unload()
+
+
+    def test_init_gui_builds_expected_groups(self):
+
+        plugin, iface, window, canvas = make_plugin()
+
+        plugin.initGui()
+
+        try:
+
+            self.assertEqual(
+                set(plugin.group_menus),
+                {
+                    "grid",
+                    "navigation",
+                    "terrain_analysis",
+                    "waypoints",
+                    "print_production",
+                    "nato_symbols",
+                }
+            )
+
+            expected_group_items = {
+                "grid": [
+                    "UTM Grid",
+                    "MGRS 100km Grid",
+                    "Sub Grid",
+                    "Clear Grid",
+                ],
+                "navigation": [
+                    "Coordinate Probe",
+                    "Bearing / Range",
+                ],
+                "terrain_analysis": [
+                    "Tanaka Contours",
+                    "Hypsometric Tint",
+                    "Hillshade Combinations",
+                    "Line of Sight",
+                    "Viewshed",
+                ],
+                "waypoints": [
+                    "Import Waypoints",
+                    "Export Waypoints",
+                ],
+                "print_production": [
+                    "New Military Layout",
+                    "Map Sheet Series",
+                ],
+                "nato_symbols": [
+                    "Tactical Graphics - Space",
+                    "Tactical Graphics - Air",
+                    "Tactical Graphics - Land",
+                    "Tactical Graphics - Sea Surface",
+                    "Tactical Graphics - Subsurface",
+                    "Tactical Graphics - Activities",
+                    "Tactical Graphics - SIGINT",
+                    "Tactical Graphics - Cyberspace",
+                    "Tactical Graphics - Control Measures",
+                ],
+            }
+
+            for key, expected_texts in expected_group_items.items():
+
+                with self.subTest(group=key):
+
+                    actual_texts = [
+                        action.text()
+                        for action in plugin.group_menus[key].actions()
+                    ]
+
+                    self.assertEqual(actual_texts, expected_texts)
+
+            # "Sub Grid" nests as its own flyout inside Grid, not a
+            # flat entry - its own 4 options are unaffected by grouping.
+            sub_grid_option_texts = [
+                action.text() for action in plugin.sub_grid_menu.actions()
+            ]
+
+            self.assertEqual(
+                sub_grid_option_texts,
+                ["Off", "10 km", "5 km", "1 km"]
+            )
 
         finally:
 
@@ -134,6 +199,9 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_sigint_action)
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
         self.assertIsNone(plugin.control_measures_action)
+        self.assertIsNone(plugin.sub_grid_menu)
+        self.assertIsNone(plugin.sub_grid_group)
+        self.assertEqual(plugin.group_menus, {})
 
 
     def test_init_gui_then_unload_then_init_gui_again_does_not_error(self):

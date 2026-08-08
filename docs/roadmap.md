@@ -2048,6 +2048,67 @@ tested, not claimed as done here.
       symbol appendices (A-G, J, L) - only Appendix H (Control
       Measures, held at the user's request) and the already-skipped
       Appendix I (METOC) remain.
+  - **UI housekeeping (2026-08-08) - too many flat toolbar icons after
+    eight appendices' worth of tactical graphics actions accumulated
+    alongside every other tool.** The main toolbar had grown to 25
+    individual top-level items (one "About" action plus 24 more); the
+    user asked for logical grouping in both the toolbar and the Plugins
+    menu. Grouped everything except "About" into six dropdown buttons
+    (`_setup_toolbar_groups()`/`_build_toolbar_group()` in `plugin.py`,
+    new `icons/group_*.svg`): **Grid** (UTM/MGRS 100km/Sub Grid/Clear
+    Grid), **Navigation** (Coordinate Probe/Bearing-Range), **Terrain
+    Analysis** (Tanaka Contours/Hypsometric Tint/Hillshade
+    Combinations/Line of Sight/Viewshed), **Waypoints** (Import/
+    Export), **Print Production** (New Military Layout/Map Sheet
+    Series), and **NATO Symbols** (all eight point-symbol layers plus
+    Control Measures - named per the user's own explicit request for a
+    single common icon over "these symbology, the mil-std ones").
+    - **One QMenu per group, shared by both surfaces** - a QToolButton
+      with an InstantPopup dropdown on the toolbar (same mechanism the
+      existing Sub Grid control already used, just generalised), and
+      the SAME QMenu instance's own `menuAction()` added once via
+      `iface.addPluginToMenu()` to nest as a nested Plugins-menu
+      submenu - clicking either surface shows identical items in
+      identical (checked/unchecked) state, since they're the literal
+      same QAction objects underneath, not two independently-built
+      copies that could drift apart.
+    - **`_build_action()` gained a `standalone` parameter** (every
+      individual action's own call site now passes `standalone=False`
+      explicitly - kept as an explicit per-call decision rather than
+      flipping the method's own default, matching this project's
+      general preference for explicit over implicit) - when `False`,
+      the action is built (icon/tooltip/callback wired) but not
+      auto-attached to the toolbar/Plugins menu; the new grouping step
+      places it instead, once every individual action already exists.
+    - **Sub Grid folded into the Grid group as a nested flyout**
+      (`sub_grid_menu.addMenu()`-style nesting) rather than staying a
+      second standalone toolbar widget next to the new Grid button -
+      the old `sub_grid_button` QToolButton wrapper was removed
+      entirely (the bare QMenu now nests directly), simplifying
+      `_setup_sub_grid_menu()` and removing four individual
+      `addPluginToMenu()` calls for its own spacing options (now
+      reachable solely through the Grid group's own single menu entry).
+    - `unload()`'s own Plugins-menu detach step shrank from a
+      25-entry explicit list down to `[self.action] + [menu.menuAction()
+      for menu in self.group_menus.values()]` - only top-level entries
+      need explicit detaching before `sip.delete(self.toolbar)`, since
+      individual grouped actions were never registered with the
+      Plugins menu directly in the first place, only added into their
+      own group's QMenu.
+    - `tests/test_plugin.py`'s toolbar-structure test rewritten
+      entirely - it used to assert flat toolbar action text; now
+      asserts the "About" action is the only standalone toolbar item
+      and that each of the six `plugin.group_menus[key].actions()`
+      lists match the expected per-group order exactly (plus Sub
+      Grid's own 4 nested options unaffected by the move).
+      `docs/user-guide.md`'s "toolbar, at a glance" table rewritten for
+      the new grouped structure; its "Tactical Graphics" section
+      re-pointed to describe the NATO Symbols dropdown instead of
+      implying standalone toolbar buttons. 486 tests passing on both
+      QGIS 3.44.12 and 4.2.0. Not yet smoke-tested live in QGIS itself
+      (headless tests can verify the Qt object structure - menu
+      contents, nesting, action identity - but not the actual rendered
+      dropdown appearance).
 
 ---
 

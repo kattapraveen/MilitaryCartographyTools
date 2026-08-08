@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- compass rose, evoking the Navigation tools group (Coordinate Probe/Bearing-Range) -->
+  <circle cx="12" cy="12" r="9" fill="none" stroke="#1f3a5f" stroke-width="1.5"/>
+  <path d="M12 5.5 L14.3 12 L12 18.5 L9.7 12 Z" fill="#1f3a5f"/>
+  <line x1="12" y1="2.5" x2="12" y2="4.3" stroke="#1f3a5f" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="12" y1="19.7" x2="12" y2="21.5" stroke="#1f3a5f" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="2.5" y1="12" x2="4.3" y2="12" stroke="#1f3a5f" stroke-width="1.3" stroke-linecap="round"/>
+  <line x1="19.7" y1="12" x2="21.5" y2="12" stroke="#1f3a5f" stroke-width="1.3" stroke-linecap="round"/>
+</svg>

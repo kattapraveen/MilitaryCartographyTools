@@ -108,9 +108,14 @@ class MilitaryCartographyTools:
         self.tactical_graphics_cyberspace_action = None
         self.control_measures_action = None
 
-        self.sub_grid_button = None
         self.sub_grid_menu = None
         self.sub_grid_group = None
+
+        # Toolbar-button/Plugins-submenu grouping (housekeeping
+        # 2026-08-08, see _setup_toolbar_groups()) - keyed by group
+        # key ("grid", "navigation", etc.), each value the QMenu shared
+        # by that group's toolbar dropdown and Plugins submenu.
+        self.group_menus = {}
 
         self.grid_manager = None
         self.coordinate_probe_tool = None
@@ -200,6 +205,12 @@ class MilitaryCartographyTools:
         self._setup_tactical_graphics_cyberspace_action()
         self._setup_control_measures_action()
 
+        # Assembles every action built above (all built with
+        # standalone=False, plus the sub-grid menu) into the grouped
+        # toolbar buttons/Plugins submenus below - must run last, once
+        # every individual action/menu already exists.
+        self._setup_toolbar_groups()
+
         # Add the grid-frame toolbar to every print layout window -
         # each Layout Designer gets its own small toolbar, since a
         # print layout's map item has its own extent/scale,
@@ -261,16 +272,21 @@ class MilitaryCartographyTools:
         text,
         tooltip=None,
         checkable=False,
-        callback=None
+        callback=None,
+        standalone=True
     ):
 
         """
-        A QAction with an icon from icons/icon_name, added to the
-        main toolbar and the Plugins menu - shared by every
-        top-level action initGui() builds below, since they all
-        follow the same icon+tooltip+toolbar+menu shape (only the
-        main "about" action and the sub-grid dropdown, which isn't
-        a QAction at all, are built separately).
+        A QAction with an icon from icons/icon_name - shared by every
+        top-level action initGui() builds below, since they all follow
+        the same icon+tooltip+callback shape (only the main "about"
+        action and the sub-grid dropdown, which isn't a QAction at all,
+        are built separately). `standalone` (default True) controls
+        whether this action is placed directly on the main toolbar and
+        in the flat Plugins menu, the same as before every action got
+        grouped - pass False for an action that instead belongs inside
+        one of _setup_toolbar_groups()'s own group menus, which places
+        it there itself once every individual action has been built.
         """
 
         action = QAction(
@@ -299,14 +315,16 @@ class MilitaryCartographyTools:
                 callback
             )
 
-        self.toolbar.addAction(
-            action
-        )
+        if standalone:
 
-        self.iface.addPluginToMenu(
-            PLUGIN_NAME,
-            action
-        )
+            self.toolbar.addAction(
+                action
+            )
+
+            self.iface.addPluginToMenu(
+                PLUGIN_NAME,
+                action
+            )
 
         return action
 
@@ -344,7 +362,8 @@ class MilitaryCartographyTools:
             "UTM Grid",
             tooltip="Show/hide the UTM Grid Zone Designator grid",
             checkable=True,
-            callback=self.toggle_utm_grid
+            callback=self.toggle_utm_grid,
+            standalone=False
         )
 
         self.mgrs100k_action = self._build_action(
@@ -352,20 +371,27 @@ class MilitaryCartographyTools:
             "MGRS 100km Grid",
             tooltip="Show/hide the MGRS 100km square grid",
             checkable=True,
-            callback=self.toggle_mgrs100k_grid
+            callback=self.toggle_mgrs100k_grid,
+            standalone=False
         )
 
 
     def _setup_sub_grid_menu(self):
 
-        # QToolBar.addWidget() reparents the widget to the
-        # toolbar, so parenting the menu/actions to the button
-        # (rather than the main window) means sip.delete(self.
-        # toolbar) in unload() cascades and cleans all of this
-        # up too - same reasoning as the toolbar fix above.
-        self.sub_grid_button = QToolButton()
+        # A plain QMenu (not a standalone toolbar button, unlike
+        # before the toolbar/menu grouping housekeeping) - nested
+        # into the Grid group's own menu by _setup_toolbar_groups(),
+        # both on the toolbar and in the Plugins menu, as a "Sub
+        # Grid" flyout alongside UTM/MGRS 100km/Clear Grid. Parented
+        # to the toolbar (not the main window) so sip.delete(self.
+        # toolbar) in unload() cascades and cleans this up too, same
+        # reasoning as every other toolbar-owned widget here.
+        self.sub_grid_menu = QMenu(
+            "Sub Grid",
+            self.toolbar
+        )
 
-        self.sub_grid_button.setIcon(
+        self.sub_grid_menu.setIcon(
             QIcon(
                 str(
                     self.plugin_dir / "icons" / "sub_grid.svg"
@@ -373,28 +399,14 @@ class MilitaryCartographyTools:
             )
         )
 
-        self.sub_grid_button.setText(
-            "Sub Grid"
-        )
+        self.sub_grid_menu.setToolTipsVisible(True)
 
-        self.sub_grid_button.setToolTip(
+        self.sub_grid_menu.menuAction().setToolTip(
             "Sub Grid (10km / 5km / 1km) spacing"
         )
 
-        self.sub_grid_button.setToolButtonStyle(
-            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
-        )
-
-        self.sub_grid_button.setPopupMode(
-            QToolButton.ToolButtonPopupMode.InstantPopup
-        )
-
-        self.sub_grid_menu = QMenu(
-            self.sub_grid_button
-        )
-
         self.sub_grid_group = QActionGroup(
-            self.sub_grid_button
+            self.sub_grid_menu
         )
 
         # Nothing is generated until the user picks an option -
@@ -403,7 +415,7 @@ class MilitaryCartographyTools:
 
             option_action = QAction(
                 label,
-                self.sub_grid_button
+                self.sub_grid_menu
             )
 
             option_action.setCheckable(True)
@@ -424,19 +436,6 @@ class MilitaryCartographyTools:
                 option_action
             )
 
-            self.iface.addPluginToMenu(
-                PLUGIN_NAME,
-                option_action
-            )
-
-        self.sub_grid_button.setMenu(
-            self.sub_grid_menu
-        )
-
-        self.toolbar.addWidget(
-            self.sub_grid_button
-        )
-
 
     def _setup_clear_action(self):
 
@@ -449,7 +448,8 @@ class MilitaryCartographyTools:
             "clear_grid.svg",
             "Clear Grid",
             tooltip="Remove all grid layers and turn every grid off",
-            callback=self.clear_grids
+            callback=self.clear_grids,
+            standalone=False
         )
 
 
@@ -466,7 +466,8 @@ class MilitaryCartographyTools:
                 "Create a new print layout with a chosen page "
                 "size, orientation, and starting scale"
             ),
-            callback=self.create_new_layout
+            callback=self.create_new_layout,
+            standalone=False
         )
 
 
@@ -481,7 +482,8 @@ class MilitaryCartographyTools:
                 "Generate illuminated (Tanaka) contours from a DEM "
                 "for the current map extent"
             ),
-            callback=self.create_tanaka_contours
+            callback=self.create_tanaka_contours,
+            standalone=False
         )
 
 
@@ -496,7 +498,8 @@ class MilitaryCartographyTools:
                 "Generate a filled hypsometric (elevation colour) "
                 "raster from a DEM for the current map extent"
             ),
-            callback=self.create_hypsometric_tint
+            callback=self.create_hypsometric_tint,
+            standalone=False
         )
 
 
@@ -513,7 +516,8 @@ class MilitaryCartographyTools:
                 "light azimuths averaged) from a DEM for the "
                 "current map extent"
             ),
-            callback=self.create_hillshade_combination
+            callback=self.create_hillshade_combination,
+            standalone=False
         )
 
 
@@ -539,7 +543,8 @@ class MilitaryCartographyTools:
                 "clipboard"
             ),
             checkable=True,
-            callback=self.toggle_coordinate_probe
+            callback=self.toggle_coordinate_probe,
+            standalone=False
         )
 
         self.iface.mapCanvas().mapToolSet.connect(
@@ -568,7 +573,8 @@ class MilitaryCartographyTools:
                 "and magnetic azimuth and distance between them"
             ),
             checkable=True,
-            callback=self.toggle_bearing_range
+            callback=self.toggle_bearing_range,
+            standalone=False
         )
 
 
@@ -594,7 +600,8 @@ class MilitaryCartographyTools:
                 "terrain and earth curvature/refraction"
             ),
             checkable=True,
-            callback=self.toggle_line_of_sight
+            callback=self.toggle_line_of_sight,
+            standalone=False
         )
 
 
@@ -620,7 +627,8 @@ class MilitaryCartographyTools:
                 "terrain and earth curvature/refraction"
             ),
             checkable=True,
-            callback=self.toggle_viewshed
+            callback=self.toggle_viewshed,
+            standalone=False
         )
 
 
@@ -635,7 +643,8 @@ class MilitaryCartographyTools:
                 "Import waypoints from a GPX or KML file, labelled "
                 "with their MGRS grid reference"
             ),
-            callback=self.create_import_waypoints
+            callback=self.create_import_waypoints,
+            standalone=False
         )
 
 
@@ -650,7 +659,8 @@ class MilitaryCartographyTools:
                 "Export a point layer to a GPX or KML file, with "
                 "each waypoint's name set to its MGRS grid reference"
             ),
-            callback=self.create_export_waypoints
+            callback=self.create_export_waypoints,
+            standalone=False
         )
 
 
@@ -665,7 +675,8 @@ class MilitaryCartographyTools:
                 "Batch-generate a numbered series of print sheets "
                 "tiling the current map extent"
             ),
-            callback=self.create_map_sheet_series
+            callback=self.create_map_sheet_series,
+            standalone=False
         )
 
 
@@ -683,7 +694,8 @@ class MilitaryCartographyTools:
                 "renders each point's own symbol automatically from its "
                 "attributes"
             ),
-            callback=self.create_tactical_graphics_space
+            callback=self.create_tactical_graphics_space,
+            standalone=False
         )
 
 
@@ -701,7 +713,8 @@ class MilitaryCartographyTools:
                 "renders each point's own symbol automatically from its "
                 "attributes"
             ),
-            callback=self.create_tactical_graphics_air
+            callback=self.create_tactical_graphics_air,
+            standalone=False
         )
 
 
@@ -720,7 +733,8 @@ class MilitaryCartographyTools:
                 "(MIL-STD-2525D Appendix D) that render each point's "
                 "own symbol automatically from its attributes"
             ),
-            callback=self.create_tactical_graphics_land
+            callback=self.create_tactical_graphics_land,
+            standalone=False
         )
 
 
@@ -736,7 +750,8 @@ class MilitaryCartographyTools:
                 "that renders each point's own symbol automatically "
                 "from its attributes"
             ),
-            callback=self.create_tactical_graphics_sea_surface
+            callback=self.create_tactical_graphics_sea_surface,
+            standalone=False
         )
 
 
@@ -753,7 +768,8 @@ class MilitaryCartographyTools:
                 "Appendix F) that render each point's own symbol "
                 "automatically from its attributes"
             ),
-            callback=self.create_tactical_graphics_subsurface
+            callback=self.create_tactical_graphics_subsurface,
+            standalone=False
         )
 
 
@@ -769,7 +785,8 @@ class MilitaryCartographyTools:
                 "that renders each point's own symbol automatically "
                 "from its attributes"
             ),
-            callback=self.create_tactical_graphics_activities
+            callback=self.create_tactical_graphics_activities,
+            standalone=False
         )
 
 
@@ -785,7 +802,8 @@ class MilitaryCartographyTools:
                 "that renders each point's own symbol automatically "
                 "from its attributes"
             ),
-            callback=self.create_tactical_graphics_sigint
+            callback=self.create_tactical_graphics_sigint,
+            standalone=False
         )
 
 
@@ -801,7 +819,8 @@ class MilitaryCartographyTools:
                 "that renders each point's own symbol automatically "
                 "from its attributes"
             ),
-            callback=self.create_tactical_graphics_cyberspace
+            callback=self.create_tactical_graphics_cyberspace,
+            standalone=False
         )
 
 
@@ -823,8 +842,205 @@ class MilitaryCartographyTools:
                 "point control measures like checkpoints/decision "
                 "points/supply points)"
             ),
-            callback=self.create_control_measures
+            callback=self.create_control_measures,
+            standalone=False
         )
+
+
+    def _setup_toolbar_groups(self):
+
+        # Housekeeping (2026-08-08): every action above is now built
+        # with standalone=False, so none of them land on the main
+        # toolbar or the flat Plugins menu by themselves - this groups
+        # them into six logical toolbar buttons (each a QToolButton
+        # with an InstantPopup dropdown, the same mechanism the
+        # existing Sub Grid control already used) mirrored as six
+        # nested submenus in the Plugins menu (the group's own QMenu,
+        # added once via its own menuAction() - see
+        # _build_toolbar_group()). Only the main "about" action stays
+        # a standalone top-level item. Must run after every individual
+        # action/menu above has been built.
+        groups = [
+            (
+                "grid",
+                "group_grid.svg",
+                "Grid",
+                "UTM/MGRS grid toggles, sub-grid spacing, and Clear Grid",
+                [
+                    self.utm_action,
+                    self.mgrs100k_action,
+                    self.sub_grid_menu,
+                    self.clear_action,
+                ],
+            ),
+            (
+                "navigation",
+                "group_navigation.svg",
+                "Navigation",
+                "Coordinate Probe and Bearing/Range measurement tools",
+                [
+                    self.coordinate_probe_action,
+                    self.bearing_range_action,
+                ],
+            ),
+            (
+                "terrain_analysis",
+                "group_terrain_analysis.svg",
+                "Terrain Analysis",
+                (
+                    "DEM-derived terrain analysis: Tanaka Contours, "
+                    "Hypsometric Tint, Hillshade Combinations, Line of "
+                    "Sight, Viewshed"
+                ),
+                [
+                    self.tanaka_contours_action,
+                    self.hypsometric_tint_action,
+                    self.hillshade_combination_action,
+                    self.line_of_sight_action,
+                    self.viewshed_action,
+                ],
+            ),
+            (
+                "waypoints",
+                "group_waypoints.svg",
+                "Waypoints",
+                "Import/export waypoints (GPX/KML)",
+                [
+                    self.import_waypoints_action,
+                    self.export_waypoints_action,
+                ],
+            ),
+            (
+                "print_production",
+                "group_print_production.svg",
+                "Print Production",
+                "New Military Layout and Map Sheet Series",
+                [
+                    self.new_layout_action,
+                    self.map_sheet_series_action,
+                ],
+            ),
+            (
+                "nato_symbols",
+                "group_nato_symbols.svg",
+                "NATO Symbols",
+                (
+                    "MIL-STD-2525D/APP-6 tactical graphics: point symbol "
+                    "layers (Space/Air/Land/Sea Surface/Subsurface/"
+                    "Activities/SIGINT/Cyberspace) and Control Measures"
+                ),
+                [
+                    self.tactical_graphics_space_action,
+                    self.tactical_graphics_air_action,
+                    self.tactical_graphics_land_action,
+                    self.tactical_graphics_sea_surface_action,
+                    self.tactical_graphics_subsurface_action,
+                    self.tactical_graphics_activities_action,
+                    self.tactical_graphics_sigint_action,
+                    self.tactical_graphics_cyberspace_action,
+                    self.control_measures_action,
+                ],
+            ),
+        ]
+
+        for key, icon_name, title, tooltip, items in groups:
+
+            self.group_menus[key] = self._build_toolbar_group(
+                key,
+                icon_name,
+                title,
+                tooltip,
+                items
+            )
+
+
+    def _build_toolbar_group(self, key, icon_name, title, tooltip, items):
+
+        """
+        One QToolButton (added to the main toolbar, InstantPopup
+        dropdown) and one nested Plugins-menu submenu, both backed by
+        the SAME QMenu instance - clicking either shows identical
+        items in identical (checked/unchecked, etc.) state, since
+        they're literally the same QAction objects underneath. `items`
+        is a list of QAction and/or QMenu instances (a QMenu - e.g.
+        Sub Grid - nests as its own flyout via QMenu.addMenu()). Returns
+        the QMenu, which the caller keeps in self.group_menus for
+        unload() to detach cleanly from the Plugins menu before the
+        toolbar (and this menu, one of its children) gets destroyed.
+        """
+
+        icon = QIcon(
+            str(
+                self.plugin_dir / "icons" / icon_name
+            )
+        )
+
+        # Parented to the toolbar (not the main window) so
+        # sip.delete(self.toolbar) in unload() cascades and cleans
+        # this up too, same reasoning as the Sub Grid menu above.
+        menu = QMenu(
+            title,
+            self.toolbar
+        )
+
+        menu.setIcon(
+            icon
+        )
+
+        for item in items:
+
+            if isinstance(item, QMenu):
+
+                menu.addMenu(
+                    item
+                )
+
+            else:
+
+                menu.addAction(
+                    item
+                )
+
+        button = QToolButton()
+
+        button.setIcon(
+            icon
+        )
+
+        button.setText(
+            title
+        )
+
+        button.setToolTip(
+            tooltip
+        )
+
+        button.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+
+        button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup
+        )
+
+        button.setMenu(
+            menu
+        )
+
+        button.setObjectName(
+            f"{PLUGIN_ID}_group_{key}"
+        )
+
+        self.toolbar.addWidget(
+            button
+        )
+
+        self.iface.addPluginToMenu(
+            PLUGIN_NAME,
+            menu.menuAction()
+        )
+
+        return menu
 
 
     def unload(self):
@@ -911,48 +1127,22 @@ class MilitaryCartographyTools:
 
         self.layout_panels.clear()
 
-        # Detach every action from the Plugins menu before the
-        # toolbar teardown below destroys the ones parented to
-        # it (sub-grid option actions) - removing a QAction from
-        # a QMenu after its underlying object is already gone
-        # would leave a dangling reference in that menu.
-        for action in [
-            self.action,
-            self.utm_action,
-            self.mgrs100k_action,
-            self.clear_action,
-            self.new_layout_action,
-            self.coordinate_probe_action,
-            self.bearing_range_action,
-            self.tanaka_contours_action,
-            self.hypsometric_tint_action,
-            self.line_of_sight_action,
-            self.hillshade_combination_action,
-            self.viewshed_action,
-            self.import_waypoints_action,
-            self.export_waypoints_action,
-            self.map_sheet_series_action,
-            self.tactical_graphics_space_action,
-            self.tactical_graphics_air_action,
-            self.tactical_graphics_land_action,
-            self.tactical_graphics_sea_surface_action,
-            self.tactical_graphics_subsurface_action,
-            self.tactical_graphics_activities_action,
-            self.tactical_graphics_sigint_action,
-            self.tactical_graphics_cyberspace_action,
-            self.control_measures_action,
+        # Detach every top-level Plugins-menu entry - the main
+        # "about" action plus each group's own menuAction() (see
+        # _build_toolbar_group()) - before the toolbar teardown below
+        # destroys the QMenu objects backing the latter (all parented
+        # to the toolbar). Removing a QAction from a QMenu after its
+        # underlying object is already gone would leave a dangling
+        # reference in that menu; individual grouped actions (UTM
+        # Grid, Tanaka Contours, and so on) were never registered with
+        # the Plugins menu directly, only ever added into their own
+        # group's QMenu, so detaching each group's single menuAction()
+        # here is sufficient - nothing further to do per child action.
+        for action in [self.action] + [
+            menu.menuAction() for menu in self.group_menus.values()
         ]:
 
             if action is not None:
-
-                self.iface.removePluginMenu(
-                    PLUGIN_NAME,
-                    action
-                )
-
-        if self.sub_grid_menu is not None:
-
-            for action in self.sub_grid_menu.actions():
 
                 self.iface.removePluginMenu(
                     PLUGIN_NAME,
@@ -1018,12 +1208,13 @@ class MilitaryCartographyTools:
         self.tactical_graphics_cyberspace_action = None
         self.control_measures_action = None
 
-        # sub_grid_button/menu/group ARE children of the toolbar
-        # widget (added via addWidget), so sip.delete(self.
-        # toolbar) above already destroyed them.
-        self.sub_grid_button = None
+        # sub_grid_menu/group and every group_menus entry ARE
+        # parented to the toolbar (see _setup_sub_grid_menu()/
+        # _build_toolbar_group()), so sip.delete(self.toolbar) above
+        # already destroyed them.
         self.sub_grid_menu = None
         self.sub_grid_group = None
+        self.group_menus = {}
 
         self.log(
             f"{PLUGIN_NAME} unloaded."

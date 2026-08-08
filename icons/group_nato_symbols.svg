@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- generic unframed tactical symbol (hexagon frame + center dot), evoking the
+       NATO Symbols group (all MIL-STD-2525D/APP-6 point + control measure layers) -->
+  <path d="M8 3 H16 L21 12 L16 21 H8 L3 12 Z" fill="none" stroke="#1f3a5f" stroke-width="1.6" stroke-linejoin="round"/>
+  <circle cx="12" cy="12" r="2.2" fill="#1f3a5f"/>
+</svg>
