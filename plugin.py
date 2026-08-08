@@ -27,7 +27,12 @@ from .core.bearing_range_tool import BearingRangeTool
 from .grid import GridManager, add_grid_frame, remove_grid_frame
 from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel, show_map_sheet_series_dialog
-from .military_symbology.unit_layer import add_unit_layer
+from .military_symbology.space_layer import add_space_layer
+from .military_symbology.air_layer import add_air_layer
+from .military_symbology.land_layer import add_land_layers
+from .military_symbology.sea_surface_layer import add_sea_surface_layer
+from .military_symbology.subsurface_layer import add_subsurface_layers
+from .military_symbology.activities_layer import add_activities_layer
 from .military_symbology.control_measure_points import (
     add_control_measure_points_layer,
 )
@@ -91,7 +96,12 @@ class MilitaryCartographyTools:
         self.import_waypoints_action = None
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
-        self.tactical_graphics_units_action = None
+        self.tactical_graphics_space_action = None
+        self.tactical_graphics_air_action = None
+        self.tactical_graphics_land_action = None
+        self.tactical_graphics_sea_surface_action = None
+        self.tactical_graphics_subsurface_action = None
+        self.tactical_graphics_activities_action = None
         self.control_measures_action = None
 
         self.sub_grid_button = None
@@ -176,7 +186,12 @@ class MilitaryCartographyTools:
         self._setup_import_waypoints_action()
         self._setup_export_waypoints_action()
         self._setup_map_sheet_series_action()
-        self._setup_tactical_graphics_units_action()
+        self._setup_tactical_graphics_space_action()
+        self._setup_tactical_graphics_air_action()
+        self._setup_tactical_graphics_land_action()
+        self._setup_tactical_graphics_sea_surface_action()
+        self._setup_tactical_graphics_subsurface_action()
+        self._setup_tactical_graphics_activities_action()
         self._setup_control_measures_action()
 
         # Add the grid-frame toolbar to every print layout window -
@@ -648,23 +663,107 @@ class MilitaryCartographyTools:
         )
 
 
-    def _setup_tactical_graphics_units_action(self):
+    def _setup_tactical_graphics_space_action(self):
 
         # One-shot action, not a map tool - see
-        # military_symbology/unit_layer.py. No dialog either: unlike
-        # every other one-shot action in this plugin, there's nothing to
-        # configure at creation time (fields/styling are fixed; per-unit
-        # values are filled in via the attribute form after placing each
-        # point with QGIS's own native editing tools).
-        self.tactical_graphics_units_action = self._build_action(
-            "tactical_graphics_units.svg",
-            "Tactical Graphics - Units",
+        # military_symbology/space_layer.py. Covers both of Appendix B's
+        # sections (Space Equipment/Platform and the single Space
+        # Missile entity) in one layer.
+        self.tactical_graphics_space_action = self._build_action(
+            "tactical_graphics_space.svg",
+            "Tactical Graphics - Space",
             tooltip=(
-                "Add a units layer that renders each point's own "
-                "MIL-STD-2525/APP-6 symbol automatically from its "
+                "Add a Space layer (MIL-STD-2525D Appendix B) that "
+                "renders each point's own symbol automatically from its "
                 "attributes"
             ),
-            callback=self.create_tactical_graphics_units
+            callback=self.create_tactical_graphics_space
+        )
+
+
+    def _setup_tactical_graphics_air_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/air_layer.py. Covers both of Appendix C's
+        # sections (Air Equipment/Platform and the single Air Missile
+        # entity) in one layer.
+        self.tactical_graphics_air_action = self._build_action(
+            "tactical_graphics_air.svg",
+            "Tactical Graphics - Air",
+            tooltip=(
+                "Add an Air layer (MIL-STD-2525D Appendix C) that "
+                "renders each point's own symbol automatically from its "
+                "attributes"
+            ),
+            callback=self.create_tactical_graphics_air
+        )
+
+
+    def _setup_tactical_graphics_land_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/land_layer.py. Adds all four of Appendix
+        # D's layers (Land Unit/Civilian/Equipment/Installation) in one
+        # click - each is a genuinely distinct, substantial vocabulary
+        # (unlike Space/Air Missile, not folded into a shared layer).
+        self.tactical_graphics_land_action = self._build_action(
+            "tactical_graphics_land.svg",
+            "Tactical Graphics - Land",
+            tooltip=(
+                "Add Land Unit/Civilian/Equipment/Installation layers "
+                "(MIL-STD-2525D Appendix D) that render each point's "
+                "own symbol automatically from its attributes"
+            ),
+            callback=self.create_tactical_graphics_land
+        )
+
+
+    def _setup_tactical_graphics_sea_surface_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/sea_surface_layer.py.
+        self.tactical_graphics_sea_surface_action = self._build_action(
+            "tactical_graphics_sea_surface.svg",
+            "Tactical Graphics - Sea Surface",
+            tooltip=(
+                "Add a Sea Surface layer (MIL-STD-2525D Appendix E) "
+                "that renders each point's own symbol automatically "
+                "from its attributes"
+            ),
+            callback=self.create_tactical_graphics_sea_surface
+        )
+
+
+    def _setup_tactical_graphics_subsurface_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/subsurface_layer.py. Adds both of Appendix
+        # F's layers (Subsurface, Mine Warfare) in one click.
+        self.tactical_graphics_subsurface_action = self._build_action(
+            "tactical_graphics_subsurface.svg",
+            "Tactical Graphics - Subsurface",
+            tooltip=(
+                "Add Subsurface and Mine Warfare layers (MIL-STD-2525D "
+                "Appendix F) that render each point's own symbol "
+                "automatically from its attributes"
+            ),
+            callback=self.create_tactical_graphics_subsurface
+        )
+
+
+    def _setup_tactical_graphics_activities_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/activities_layer.py.
+        self.tactical_graphics_activities_action = self._build_action(
+            "tactical_graphics_activities.svg",
+            "Tactical Graphics - Activities",
+            tooltip=(
+                "Add an Activities layer (MIL-STD-2525D Appendix G) "
+                "that renders each point's own symbol automatically "
+                "from its attributes"
+            ),
+            callback=self.create_tactical_graphics_activities
         )
 
 
@@ -795,7 +894,12 @@ class MilitaryCartographyTools:
             self.import_waypoints_action,
             self.export_waypoints_action,
             self.map_sheet_series_action,
-            self.tactical_graphics_units_action,
+            self.tactical_graphics_space_action,
+            self.tactical_graphics_air_action,
+            self.tactical_graphics_land_action,
+            self.tactical_graphics_sea_surface_action,
+            self.tactical_graphics_subsurface_action,
+            self.tactical_graphics_activities_action,
             self.control_measures_action,
         ]:
 
@@ -864,7 +968,12 @@ class MilitaryCartographyTools:
         self.import_waypoints_action = None
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
-        self.tactical_graphics_units_action = None
+        self.tactical_graphics_space_action = None
+        self.tactical_graphics_air_action = None
+        self.tactical_graphics_land_action = None
+        self.tactical_graphics_sea_surface_action = None
+        self.tactical_graphics_subsurface_action = None
+        self.tactical_graphics_activities_action = None
         self.control_measures_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
@@ -1152,14 +1261,74 @@ class MilitaryCartographyTools:
         )
 
 
-    def create_tactical_graphics_units(self):
+    def create_tactical_graphics_space(self):
         """
-        Add a "Tactical Graphics - Units" layer, ready for placing
-        MIL-STD-2525/APP-6 unit symbols with QGIS's own native point
+        Add a "Tactical Graphics - Space" layer (MIL-STD-2525D Appendix
+        B), ready for placing symbols with QGIS's own native point
         editing tools.
         """
 
-        add_unit_layer(
+        add_space_layer(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_air(self):
+        """
+        Add a "Tactical Graphics - Air" layer (MIL-STD-2525D Appendix
+        C), ready for placing symbols with QGIS's own native point
+        editing tools.
+        """
+
+        add_air_layer(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_land(self):
+        """
+        Add "Tactical Graphics - Land Unit/Civilian/Equipment/
+        Installation" layers (MIL-STD-2525D Appendix D), ready for
+        placing symbols with QGIS's own native point editing tools.
+        """
+
+        add_land_layers(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_sea_surface(self):
+        """
+        Add a "Tactical Graphics - Sea Surface" layer (MIL-STD-2525D
+        Appendix E), ready for placing symbols with QGIS's own native
+        point editing tools.
+        """
+
+        add_sea_surface_layer(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_subsurface(self):
+        """
+        Add "Tactical Graphics - Subsurface" and "Tactical Graphics -
+        Mine Warfare" layers (MIL-STD-2525D Appendix F), ready for
+        placing symbols with QGIS's own native point editing tools.
+        """
+
+        add_subsurface_layers(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_activities(self):
+        """
+        Add a "Tactical Graphics - Activities" layer (MIL-STD-2525D
+        Appendix G), ready for placing symbols with QGIS's own native
+        point editing tools.
+        """
+
+        add_activities_layer(
             self.iface
         )
 

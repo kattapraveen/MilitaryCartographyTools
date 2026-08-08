@@ -22,7 +22,7 @@ military grid generation, and automated print-layout production.
 - [Viewshed](#viewshed)
 - [Waypoint Import/Export (GPX/KML)](#waypoint-importexport-gpxkml)
 - [Map Sheet Series](#map-sheet-series)
-- [Tactical Graphics - Units](#tactical-graphics---units)
+- [Tactical Graphics - point symbol layers](#tactical-graphics---point-symbol-layers)
 - [Tactical Graphics - Control Measures](#tactical-graphics---control-measures)
 - [Expression functions](#expression-functions)
 
@@ -66,7 +66,12 @@ Left to right:
 | Waypoint dropping down into a tray | Import Waypoints |
 | Waypoint rising up out of a tray | Export Waypoints |
 | A 2×2 grid of sheets, one filled in | Map Sheet Series |
-| A unit frame (rectangle with a centre dot) | Tactical Graphics - Units |
+| A planet with an orbiting satellite | Tactical Graphics - Space |
+| A simple aircraft silhouette | Tactical Graphics - Air |
+| A unit frame over a ground hatch | Tactical Graphics - Land |
+| A ship hull over waves | Tactical Graphics - Sea Surface |
+| A submarine hull below a wave line | Tactical Graphics - Subsurface |
+| An alert triangle | Tactical Graphics - Activities |
 | A dashed line into a solid arrow | Tactical Graphics - Control Measures |
 
 Each Layout Designer window (opened from a print layout) additionally gets
@@ -519,93 +524,72 @@ larger scale denominator instead.
 
 ---
 
-## Tactical Graphics - Units
+## Tactical Graphics - point symbol layers
 
-Click the icon to add a **"Tactical Graphics - Units"** layer — a point
-layer where every feature automatically renders as the correct
-MIL-STD-2525/APP-6 military symbol, drawn from its own attributes. There's
-no dialog and no separate symbol picker: the layer is created empty and
-ready to use immediately.
+Six toolbar actions, each adding one or more point layers where every
+feature automatically renders as the correct MIL-STD-2525D/APP-6
+military symbol, drawn from its own attributes. There's no dialog and no
+separate symbol picker: each layer is created empty and ready to use
+immediately.
 
-**Placing a unit**: use QGIS's own native point editing tools (toggle
-editing, **Add Point Feature**) to click a location — the same tools you'd
-use for any other point layer, with full undo/snapping/vertex-editing.
-Filling in the attribute form that appears (or opening it later from the
-attribute table) sets the unit's symbol:
+**Placing a symbol**: use QGIS's own native point editing tools (toggle
+editing, **Add Point Feature**) to click a location — the same tools
+you'd use for any other point layer, with full undo/snapping/
+vertex-editing. Filling in the attribute form that appears (or opening
+it later from the attribute table) sets the symbol. Every layer shares
+the same core fields:
 
 | Field | Notes |
 |---|---|
 | Affiliation | Friend / Hostile / Neutral / Unknown |
-| Symbol Set | Ground Unit / Air / Sea Surface / Subsurface — which domain's entity list Entity is drawn from |
-| Entity | Only the entities belonging to whichever Symbol Set you've chosen — pick Symbol Set first, then Entity's own options update to match. See below for the full list per symbol set |
-| Echelon | Unspecified, Team/Crew, Squad, Section, Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or Army — **a Ground Unit concept only**; per the standard's own Echelon/Mobility amplifier table, this represents organizational unit size (a battalion, a brigade), which doesn't apply to a single platform like an aircraft or ship. Leave this **Unspecified** for Air/Sea Surface/Subsurface entities — the standard's real equivalent for platforms is a completely different "mobility" vocabulary (wheeled/tracked/towed/amphibious/etc.) that this plugin doesn't expose yet |
-| Status | Present / Planned (planned units render with a dashed outline) |
-| Headquarters | Checkbox — marks the unit as a headquarters element |
+| Entity | The full entity vocabulary for that layer's own domain — open the dropdown to see every option; see the table below for scope/size per layer |
+| Status | Present / Planned (planned symbols render with a dashed outline) |
 | Unique designation | Free-text label (e.g. "1-501 IN") |
 
-**Entity types**, by symbol set:
+Some layers add further fields, since MIL-STD-2525D's own amplifier
+tables don't apply the same fields to every domain (a battalion has an
+Echelon; a single ship or aircraft doesn't):
 
-- **Ground Unit**, by functional area:
-  - **Command & signal**: Command and Control, Signal, Liaison
-  - **Maneuver**: Infantry, Motorized Infantry, Mechanized Infantry, Armor,
-    Reconnaissance, Antitank/Antiarmor, Combined Arms, Aviation (Rotary
-    Wing), Aviation (Fixed Wing), Air Assault, Amphibious, Special Forces,
-    Ranger, Sniper, Surveillance, Unmanned Systems
-  - **Fires**: Field Artillery, Field Artillery (Self-Propelled), Field
-    Artillery Observer, Mortar, Missile, Joint Fire Support
-  - **Air defense**: Air Defense, Air Defense Gun, Air Defense Missile, Air
-    and Missile Defense
-  - **Combat support**: Engineer, Engineer (Mechanized), CBRN, Explosive
-    Ordnance Disposal (EOD), Military Police, Mine Clearing, Search and
-    Rescue, Security
-  - **Intelligence & electronic warfare**: Military Intelligence,
-    Electronic Warfare, Counter-Intelligence, Sensor
-  - **Combat service support**: Sustainment, Maintenance, Medical, Supply,
-    Transportation, Quartermaster, Ordnance, Ammunition, Petroleum/Oil/
-    Lubricants (POL)
-- **Air**: Military (Generic), Fixed-Wing, Attack/Strike, Bomber, Fighter,
-  Fighter/Bomber, Cargo/Transport, Electronic Warfare (Jammer/ECM),
-  Tanker, Patrol, Reconnaissance, Trainer, Utility, Airborne Early
-  Warning, Antisubmarine Warfare, Medical Evacuation, Combat Search and
-  Rescue, Special Operations Forces, Rotary Wing (Helicopter), Unmanned
-  Aerial Vehicle (UAV)
-- **Sea Surface**: Carrier, Cruiser, Destroyer, Frigate, Corvette,
-  Littoral Combat Ship, Amphibious Assault Ship, Landing Ship, Landing
-  Craft, Minelayer, Minesweeper, Mine Countermeasures Ship, Patrol Craft,
-  Unmanned Surface Vehicle (USV), Auxiliary Ship, Hospital Ship, Cargo
-  Ship, Oiler (Replenishment), Submarine Tender, Tug (Ocean Going)
-- **Subsurface**: Military (Generic), Submarine, Submarine (Surfaced),
-  Submarine (Snorkeling), Other Submersible, Autonomous Underwater
-  Vehicle (AUV/UUV), Diver (Military), Torpedo
+| Layer(s) | Echelon | Headquarters | Sector 1 / 2 Modifier |
+|---|---|---|---|
+| Land Unit | ✅ | ✅ | — |
+| Land Civilian / Equipment / Installation | — | ✅ | — |
+| Space, Air, Sea Surface, Subsurface | — | — | ✅ / ✅ |
+| Activities | — | — | ✅ / — (no sector 2 in this appendix) |
+| Mine Warfare | — | — | — |
 
-This is a curated common-vocabulary subset, not the full MIL-STD-2525/
-APP-6 spec — the rendering engine already supports the complete standard
-(all four of these symbol sets plus Space, Land Equipment, Land
-Installation, Activities, and more), so growing any of these lists
-further, or adding another symbol set entirely, is straightforward if
-you need an entity that isn't here yet.
+**Echelon** (where present): Unspecified, Team/Crew, Squad, Section,
+Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or
+Army. **Headquarters** (where present): a checkbox marking the symbol as
+a headquarters element. **Sector 1/2 Modifier** (where present): a
+second small icon shown beside the main one — e.g. a ship's warfare
+role, a submarine's propulsion type, or (Activities only) a crime/IED/
+incident qualifier — each with an explicit **"(None)"** option.
 
-**A note on the Entity dropdown**: it's backed by a small hidden
-reference layer (not shown in the Layers panel) that QGIS uses to filter
-the options to whichever Symbol Set you've picked. This is the standard
-QGIS mechanism for a cascading dropdown, but if you notice it behaving
-oddly (e.g. showing every entity regardless of Symbol Set, or an empty
-list), that's worth reporting — this exact live-filtering behaviour
-couldn't be fully verified outside a real QGIS session while building it.
+**The six actions / seven layers**:
+
+| Toolbar action | Layer(s) added | MIL-STD-2525D | Coverage |
+|---|---|---|---|
+| Tactical Graphics - Space | "Tactical Graphics - Space" | Appendix B (symbol sets 05, 06 merged) | Full vocabulary — every space platform/equipment entity, plus Space Missile folded in |
+| Tactical Graphics - Air | "Tactical Graphics - Air" | Appendix C (symbol sets 01, 02 merged) | Full vocabulary — every air platform entity, plus Air Missile folded in |
+| Tactical Graphics - Land | "Tactical Graphics - Land Unit", "...Land Civilian", "...Land Equipment", "...Land Installation" (four layers, one click) | Appendix D (symbol sets 10, 11, 15, 20) | Curated common-vocabulary subset for each — Land Unit organised by functional area (maneuver, fires, air defense, combat support, intelligence, combat service support); Equipment/Installation cover the common platform and facility types. Not the full spec — the rendering engine supports the complete standard, so growing any of these is a vocabulary-only change |
+| Tactical Graphics - Sea Surface | "Tactical Graphics - Sea Surface" | Appendix E (symbol set 30) | Full vocabulary — every surface vessel entity, including "Own Ship" and "Fused Track" |
+| Tactical Graphics - Subsurface | "Tactical Graphics - Subsurface", "...Mine Warfare" (two layers, one click) | Appendix F (symbol sets 35, 36) | Full vocabulary for both, including Mine Warfare's confidence-level (1-5) sub-variants for each mine position |
+| Tactical Graphics - Activities | "Tactical Graphics - Activities" | Appendix G (symbol set 40) | Full vocabulary — incidents, civil disturbance, operations, fire/hazmat events, transportation incidents, natural events, and personalities |
 
 The symbol updates immediately as soon as the attributes are saved — no
-regenerate step. This is a genuinely different kind of layer from every
-other tool in this plugin: its content is hand-placed operational data,
-not something derived from a DEM or grid, so running the toolbar action
-again never touches an existing "Tactical Graphics - Units" layer (it
-warns instead of risking any data loss) — rename an existing layer first
-if you deliberately want a second one.
+regenerate step. These are a genuinely different kind of layer from
+every other tool in this plugin: their content is hand-placed
+operational data, not something derived from a DEM or grid, so running
+a toolbar action again never touches an existing layer of the same name
+(it warns instead of risking any data loss) — rename an existing layer
+first if you deliberately want a second one.
 
 **Symbol rendering**: powered by the open-source
 [milsymbol](https://github.com/spatialillusions/milsymbol) library
 (MIT license, see `THIRD_PARTY_NOTICES.md`), running entirely offline
-in-process — no network access, no external services. This is only the
-unit/formation symbol layer; control measures (phase lines, boundaries,
+in-process — no network access, no external services. These are only
+the point-symbol layers; control measures (phase lines, boundaries,
 objectives, NAIs) are a separate feature — see below.
 
 ---
@@ -743,7 +727,7 @@ metadata block and center-of-map label in every New Military Layout.
 
 | Function | Returns |
 |---|---|
-| `mct_build_sidc(affiliation, entity, symbol_set, echelon, status, headquarters)` | A 20-character SIDC from named components — see [Tactical Graphics - Units](#tactical-graphics---units) |
+| `mct_build_sidc(affiliation, entity, symbol_set, echelon, status, headquarters, [sector1_modifier], [sector2_modifier])` | A 20-character SIDC from named components — see [Tactical Graphics - point symbol layers](#tactical-graphics---point-symbol-layers) |
 | `mct_sidc_svg(sidc)` | A rendered symbol as a `"base64:<...>"` path, usable directly as a `QgsSvgMarkerSymbolLayer` path |
 | `mct_area_km2($geometry)` | A polygon's geodesic area in km² — for AO/NAI reporting on any polygon feature, not just the Areas control-measures layer |
 | `mct_perimeter_km($geometry)` | A polygon's geodesic perimeter in km |

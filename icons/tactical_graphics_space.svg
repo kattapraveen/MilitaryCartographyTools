@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- planet with an orbiting satellite, evoking Appendix B (Space) -->
+  <circle cx="11" cy="13" r="3.4" fill="#1f3a5f"/>
+  <ellipse cx="11" cy="13" rx="10" ry="4.2" fill="none" stroke="#1f3a5f" stroke-width="1.5" transform="rotate(-20 11 13)"/>
+  <circle cx="20.5" cy="7.8" r="1.7" fill="#1f3a5f"/>
+</svg>

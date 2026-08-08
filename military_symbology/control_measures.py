@@ -508,19 +508,111 @@ def _marker_line_layer(marker_symbol, placement, interval=None):
     return layer
 
 
-def _arrow_line_symbol(line_width=0.4, line_style="solid", arrow_size=4, arrow_outline_width=0.8):
+def _wavy_line_layers(interval=4, outline_width=0.6, offset=0):
 
     """
-    A plain line - solid or dashed - ending in a single filled arrowhead
-    at its last vertex. Several Mission Task (H.5.26) graphics and
-    direction_of_attack (H.5.13.2) reduce to exactly this shape once
-    approximated down to what QGIS's native symbol layers can build (the
-    standard's own tables give each of these its own precise arrowhead
-    length/width ratio and, for delay/withdraw, an additional 180-degree
-    arc at the base - none of that further detail is attempted here, the
-    same "recognisable, not exact" approximation this module's docstring
-    already applies to axis_of_advance's own wide-arrow-band
-    simplification).
+    Two marker-line layers that together draw a continuous serpentine/wave
+    line, matching the standard's own actual drawn appearance for FLOT
+    (H.5.11, Table H-VII, code 140101) - found only by rendering the
+    template page's own picture, since the "Anchor Points"/"Size/Shape"
+    text just says "requires at least two points... to define the line"
+    with no mention of the line being wavy at all (this module's own
+    recurring lesson: text alone is not enough). QGIS has no built-in wavy
+    pen style (Qt's own PenStyle enum only offers
+    solid/dash/dot/dash-dot/dash-dot-dot), so this approximates one from two
+    "half_arc" marker-line layers repeating at the same interval but offset
+    by half of it from each other, with opposite rotations (angle 0 vs
+    180) - each layer's arcs alternate with the other's, producing one
+    continuous-looking wave rather than a row of disconnected bumps.
+    Returns a list of layers (not a full symbol) so line_of_contact can
+    combine two offset copies - one per side - into a single symbol.
+    """
+
+    layers = []
+
+    for angle, offset_along_line in ((0, 0), (180, interval / 2.0)):
+
+        marker = QgsMarkerSymbol.createSimple(
+            {
+                "name": "half_arc",
+                "color": "0,0,0",
+                "outline_color": "0,0,0",
+                "outline_width": str(outline_width),
+                "size": str(interval),
+                "angle": str(angle),
+            }
+        )
+
+        _apply_affiliation_color(
+            marker.symbolLayer(0),
+            [QgsSymbolLayer.Property.StrokeColor]
+        )
+
+        layer = QgsMarkerLineSymbolLayer()
+        layer.setSubSymbol(marker)
+        layer.setPlacements(QgsTemplatedLineSymbolLayerBase.Placement.Interval)
+        layer.setInterval(interval)
+        layer.setOffsetAlongLine(offset_along_line)
+        layer.setOffset(offset)
+
+        layers.append(layer)
+
+    return layers
+
+
+def _wavy_line_symbol(interval=4, outline_width=0.6):
+
+    """A single wavy line - see _wavy_line_layers() for the technique."""
+
+    layers = _wavy_line_layers(interval=interval, outline_width=outline_width)
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(
+        0,
+        layers[0]
+    )
+
+    symbol.appendSymbolLayer(
+        layers[1]
+    )
+
+    return symbol
+
+
+def _arrow_line_symbol(
+    line_width=0.4,
+    line_style="solid",
+    arrow_size=4,
+    arrow_outline_width=0.8,
+    tip_at_first_vertex=False
+):
+
+    """
+    A plain line - solid or dashed - ending in a single filled arrowhead.
+    Several Mission Task (H.5.26) graphics and direction_of_attack
+    (H.5.13.2) reduce to exactly this shape once approximated down to what
+    QGIS's native symbol layers can build (the standard's own tables give
+    each of these its own precise arrowhead length/width ratio and, for
+    delay/withdraw, an additional 180-degree arc at the base - none of that
+    further detail is attempted here, the same "recognisable, not exact"
+    approximation this module's docstring already applies to
+    axis_of_advance's own wide-arrow-band simplification).
+
+    `tip_at_first_vertex` matters and is NOT cosmetic: most of these
+    graphics' own text doesn't say which end is the tip (direction_of_attack
+    and axis_of_advance both leave it to "orientation is determined by the
+    anchor points", so the default/False case - arrowhead at the LAST
+    vertex, matching axis_of_advance's own already-confirmed-correct
+    behaviour - is used). But Delay and Fix explicitly say "point 1 defines
+    the tip of the arrowhead, point 2 defines the rear" - the opposite of
+    the default - found only by reading that text carefully, not assumed
+    from the shared shape. When True, the arrow is placed at FirstVertex
+    with a 180-degree marker rotation on top of QgsMarkerLineSymbolLayer's
+    own tangent-following rotation, so it points away from the rest of the
+    line rather than back into it - the exact same rotation
+    principal_direction_of_fire's own FirstVertex arrow already uses for
+    the same reason.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -549,17 +641,30 @@ def _arrow_line_symbol(line_width=0.4, line_style="solid", arrow_size=4, arrow_o
         line_layer
     )
 
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
+    if tip_at_first_vertex:
+
+        arrow_layer = _marker_line_layer(
+            _arrow_marker_symbol(
+                size=arrow_size, outline_width=arrow_outline_width, angle=180
+            ),
+            QgsTemplatedLineSymbolLayerBase.Placement.FirstVertex
+        )
+
+    else:
+
+        arrow_layer = _marker_line_layer(
             _arrow_marker_symbol(size=arrow_size, outline_width=arrow_outline_width),
             QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
         )
+
+    symbol.appendSymbolLayer(
+        arrow_layer
     )
 
     return symbol
 
 
-def _circle_from_line_symbol(outline_style="solid", outline_width=0.4):
+def _circle_from_line_symbol(outline_style="solid", outline_width=0.4, with_ticks=False):
 
     """
     Several Mission Task (H.5.26) graphics - Isolate, Secure, Seize - and
@@ -584,6 +689,15 @@ def _circle_from_line_symbol(outline_style="solid", outline_width=0.4):
     circle has a 30-degree open arc (the friendly side); a full closed
     circle instead is a deliberate simplification, since QGIS has no
     simple "arc with a gap" primitive to build on here.
+
+    `with_ticks` adds perpendicular tick marks around the whole
+    circumference (Retain's own template shows exactly this - "the
+    default tic length should be the same as the text height of the
+    echelon field", the same tick convention Strong Point already uses on
+    its own polygon boundary) - reusing that same "a nominally Fill
+    symbol's layer(0) can be a plain line layer, with a QgsMarkerLineSymbolLayer
+    appended for the ticks" trick, just applied to this generated circle
+    instead of a digitized polygon.
     """
 
     fill_symbol = QgsFillSymbol.createSimple(
@@ -599,6 +713,16 @@ def _circle_from_line_symbol(outline_style="solid", outline_width=0.4):
         fill_symbol.symbolLayer(0),
         [QgsSymbolLayer.Property.StrokeColor]
     )
+
+    if with_ticks:
+
+        fill_symbol.appendSymbolLayer(
+            _marker_line_layer(
+                _tick_marker_symbol(),
+                QgsTemplatedLineSymbolLayerBase.Placement.Interval,
+                interval=4
+            )
+        )
 
     circle_layer = QgsGeometryGeneratorSymbolLayer.create({})
 
@@ -625,81 +749,235 @@ def _circle_from_line_symbol(outline_style="solid", outline_width=0.4):
     return symbol
 
 
+def _p1_p2_vertical_line_layer():
+
+    """
+    Block and Penetrate (H.5.26) are both a genuine 3-anchor-point shape:
+    "Points 1 and 2 define the endpoints of the graphic's vertical line.
+    Point 3 defines the endpoint of the [...] line, which will project
+    perpendicularly from the MIDPOINT of the vertical line." An earlier
+    version of both functions approximated this as an ordinary 2-point
+    digitized line plus a small FIXED-size tick/arrow at its own
+    CentralPoint - which ignored point 3 entirely, rendering a decorative
+    mark instead of a real anchor-point-driven shape (caught by comparing
+    a real render against the standard's own template diagram, which
+    shows point 3 placed far from the vertical line, not adjacent to it).
+    This helper renders just the P1-P2 segment (the "vertical line" - any
+    length/orientation the user digitizes, not necessarily true vertical,
+    same "the diagram's labels are illustrative, not compass directions"
+    convention every other multi-anchor-point shape in this module
+    already follows, e.g. principal_direction_of_fire). See
+    _p3_to_midpoint_layer() for the P3 side.
+    """
+
+    layer = QgsGeometryGeneratorSymbolLayer.create({})
+
+    layer.setGeometryExpression(
+        "make_line(point_n($geometry, 1), point_n($geometry, 2))"
+    )
+
+    layer.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    line = QgsSimpleLineSymbolLayer()
+    line.setColor(QColor(0, 0, 0))
+    line.setWidth(0.4)
+
+    _apply_affiliation_color(
+        line,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    sub_symbol = QgsLineSymbol()
+
+    sub_symbol.changeSymbolLayer(
+        0,
+        line
+    )
+
+    layer.setSubSymbol(
+        sub_symbol
+    )
+
+    return layer
+
+
+def _p3_to_midpoint_layer(sub_symbol):
+
+    """
+    The P3 side of Block/Penetrate's 3-anchor-point shape (see
+    _p1_p2_vertical_line_layer() above) - a line from point 3 to the
+    MIDPOINT of the P1-P2 segment, whose length is however far the user
+    actually places point 3, not a fixed size. `sub_symbol` carries
+    whatever is drawn along that segment: a plain line for Block, or a
+    line ending in an arrowhead at the midpoint end for Penetrate (its
+    own arrow points INTO the vertical line, matching "point 3 defines
+    the REAR of the symbol" - point 3 is the arrow's tail).
+    """
+
+    layer = QgsGeometryGeneratorSymbolLayer.create({})
+
+    layer.setGeometryExpression(
+        "make_line(point_n($geometry, 3),"
+        " centroid(make_line(point_n($geometry, 1), point_n($geometry, 2))))"
+    )
+
+    layer.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    layer.setSubSymbol(
+        sub_symbol
+    )
+
+    return layer
+
+
+def _bracket_symbol():
+
+    """
+    Breach (340200) and Canalize (340400) share one exact 3-anchor-point
+    shape - confirmed identical by comparing their two template pictures
+    side by side, not assumed from their similar-sounding text alone (the
+    same "text alone doesn't prove two things are identical" caution this
+    module already applies elsewhere, e.g. FLOT vs. phase_line). "Points 1
+    and 2 define the endpoints of the symbol's opening and point 3 defines
+    the rear of the symbol... the vertical line at the rear of the symbol
+    will be the same height as the opening and parallel to it" - an open
+    bracket/"C" shape: an earlier version of both functions approximated
+    this as a plain 2-point dashed line with a decorative tick, dropping
+    the opening/rear-line structure entirely (the same class of mistake as
+    Block's own earlier version - a fixed decorative mark standing in for
+    a real anchor-point-driven shape).
+
+    Reconstructed as ONE continuous 5-point path -
+    P1 -> rear-top -> P3 -> rear-bottom -> P2 - where the rear corners are
+    computed from P3 (the rear's own position) offset by half of P1-P2's
+    own length, along P1-P2's own direction (so the rear segment really is
+    "the same height as the opening and parallel to it", for whatever
+    height/orientation the user's own P1/P2 happen to give it). QGIS has
+    no vector/perpendicular-offset expression function directly, but
+    `project(point, distance, azimuth)` plus `azimuth(point1, point2)`
+    together do the same job, chained through `with_variable()` so the
+    height/azimuth are each computed once rather than repeated in every
+    branch of the expression.
+    """
+
+    layer = QgsGeometryGeneratorSymbolLayer.create({})
+
+    layer.setGeometryExpression(
+        "with_variable('h',"
+        " distance(point_n($geometry, 1), point_n($geometry, 2)),"
+        " with_variable('az',"
+        " azimuth(point_n($geometry, 1), point_n($geometry, 2)),"
+        " make_line("
+        "  point_n($geometry, 1),"
+        "  project(point_n($geometry, 3), @h / 2, @az + pi()),"
+        "  point_n($geometry, 3),"
+        "  project(point_n($geometry, 3), @h / 2, @az),"
+        "  point_n($geometry, 2)"
+        " )))"
+    )
+
+    layer.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    line = QgsSimpleLineSymbolLayer()
+    line.setColor(QColor(0, 0, 0))
+    line.setWidth(0.4)
+
+    _apply_affiliation_color(
+        line,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    sub_symbol = QgsLineSymbol()
+
+    sub_symbol.changeSymbolLayer(
+        0,
+        line
+    )
+
+    layer.setSubSymbol(
+        sub_symbol
+    )
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(
+        0,
+        layer
+    )
+
+    return symbol
+
+
 # --- H.5.11 Maneuver Control Measure Symbols (Table H-VII) ---------------
 
 def _forward_line_of_troops_symbol():
 
-    # Code 140100. The standard's own table gives FLOT no distinguishing
-    # line style beyond being a plain line (same generic anchor-point/
-    # size-shape/orientation boilerplate as several other entries in
-    # Table H-VII) - real-world convention differentiates it from a
-    # Phase Line only via the text label placed on it (e.g. writing
-    # "FLOT"), not a different stroke. Kept as its own measure_type
-    # (rather than reusing "phase_line") since it is its own named
-    # control measure with its own function-ID code, even though the
-    # rendering recipe is identical.
-    symbol = QgsLineSymbol.createSimple(
-        {
-            "line_color": "0,0,0",
-            "line_width": "0.4",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
+    # Code 140100/140101. The extracted DRAW RULES text gives FLOT no
+    # distinguishing line style beyond "requires at least two points... to
+    # define the line" - which reads like a plain line, and an earlier
+    # version of this function rendered exactly that. The template
+    # PICTURE (page 410, "Friendly Present") shows otherwise: a real
+    # serpentine/wave line, not a straight one - only caught by rendering
+    # the actual page image, this module's own recurring lesson that text
+    # alone is not enough. See _wavy_line_layers()'s own comment for the
+    # technique.
+    return _wavy_line_symbol()
 
 
 def _line_of_contact_symbol():
 
     # Code 140200. "The line of contact symbol is created when both the
     # friendly and enemy forward line of troops symbols are displayed" -
-    # approximated as a doubled line (two thin parallel strokes, offset
-    # +/-0.2mm) rather than a single stroke, evoking "two FLOTs
-    # overlapping" without actually rendering a second, independently
-    # coloured enemy FLOT underneath (this layer's "affiliation" field is
-    # one value per feature, not two).
-    near_layer = QgsSimpleLineSymbolLayer()
-    near_layer.setColor(QColor(0, 0, 0))
-    near_layer.setWidth(0.3)
-    near_layer.setOffset(0.2)
-
-    far_layer = QgsSimpleLineSymbolLayer()
-    far_layer.setColor(QColor(0, 0, 0))
-    far_layer.setWidth(0.3)
-    far_layer.setOffset(-0.2)
-
-    for layer in (near_layer, far_layer):
-
-        _apply_affiliation_color(
-            layer,
-            [QgsSymbolLayer.Property.StrokeColor]
-        )
-
+    # the template page (412) shows this literally: two parallel wavy FLOT
+    # lines (see _wavy_line_layers()'s own comment - an earlier version of
+    # this function used two plain offset straight lines instead, the same
+    # "text alone doesn't show the wave" gap FLOT itself had). Approximated
+    # as two wavy lines offset to either side, rather than actually
+    # rendering a second, independently coloured enemy FLOT underneath
+    # (this layer's "affiliation" field is one value per feature, not two)
+    # - the template's own small connecting "hook" marks between the two
+    # lines and its circled coordination-point markers are not attempted.
     symbol = QgsLineSymbol()
+
+    near_layers = _wavy_line_layers(offset=3)
+    far_layers = _wavy_line_layers(offset=-3)
 
     symbol.changeSymbolLayer(
         0,
-        near_layer
+        near_layers[0]
     )
 
-    symbol.appendSymbolLayer(
-        far_layer
-    )
+    for layer in (near_layers[1], far_layers[0], far_layers[1]):
+
+        symbol.appendSymbolLayer(
+            layer
+        )
 
     return symbol
 
 
 def _forward_edge_of_battle_area_symbol():
 
-    # Code 140400. Same "no distinguishing stroke given beyond a plain
-    # line labelled FEBA" situation as FLOT above - rendered slightly
-    # heavier (0.6mm vs FLOT/phase_line's 0.4mm) purely so the two
-    # visually-similar line types can be told apart on screen at a
-    # glance, not because the standard specifies a different weight.
+    # Code 140400. The template page (413) shows a distinctive shape - a
+    # small triangular peak in the middle of the line, labelled PT1 (left
+    # baseline end), PT2 (the peak), PT3 (right baseline end) - which reads
+    # like it needs special construction, but doesn't: it's simply the raw
+    # 3-vertex path P1->P2->P3, exactly the same "additional points can be
+    # defined to extend the line" convention Phase Line/FLOT already
+    # support, with point 2 placed above the P1-P3 baseline. Confirmed by
+    # rendering a real 3-vertex feature through this exact plain-line
+    # symbol - no geometry-generator or other special-case code was
+    # needed, only checking whether one was before assuming so. The line
+    # itself is rendered slightly heavier (0.6mm vs FLOT/phase_line's
+    # 0.4mm) purely so the visually-similar line types can be told apart
+    # on screen at a glance, not because the standard specifies a
+    # different weight.
     symbol = QgsLineSymbol.createSimple(
         {
             "line_color": "0,0,0",
@@ -854,14 +1132,20 @@ def _strong_point_symbol():
 def _engagement_area_symbol():
 
     # Code 151300. "An area where the commander intends to contain and
-    # destroy an enemy force" - an unfilled outline, same recipe as
-    # _nai_symbol() but with a "dash dot" pen style (vs. NAI's plain
-    # "dash") so the two dashed-outline area types remain visually
-    # distinguishable in the Layers panel/on screen.
+    # destroy an enemy force" - the template page (424) shows a plain
+    # SOLID outline, no dash pattern at all. An earlier version of this
+    # function gave it an invented "dash dot" style to keep it visually
+    # distinct from NAI on screen - but the standard doesn't use dash
+    # style to distinguish area TYPES from each other at all (it reserves
+    # dash for a "planned/on-order" STATUS variant of the same area type,
+    # e.g. Battle Position/Assembly Area's own Present-vs-Planned pair,
+    # which this layer has no status field to represent) - confirmed by
+    # checking the actual template picture, not assumed from wanting two
+    # area types to look different.
     symbol = QgsFillSymbol.createSimple(
         {
             "style": "no",
-            "outline_style": "dash dot",
+            "outline_style": "solid",
             "outline_color": "0,0,0",
             "outline_width": "0.4",
         }
@@ -880,14 +1164,18 @@ def _engagement_area_symbol():
 def _assembly_area_symbol():
 
     # Code 150200. "An area in which a command is assembled preparatory
-    # to further action" - an unfilled outline with a "dash dot dot" pen
-    # style, distinguishing it from both NAI ("dash") and Engagement Area
-    # ("dash dot") while following the same generic anchor-point/
-    # unfilled-outline recipe every other area-type measure here uses.
+    # to further action" - the template page (415) shows a plain SOLID
+    # outline ("Friendly Present" - the dashed variant shown right below
+    # it is a separate, unimplemented "Planned/On Order" status this
+    # layer has no field for). An earlier version of this function used an
+    # invented "dash dot dot" style to keep it visually distinct from NAI/
+    # Engagement Area on screen - see _engagement_area_symbol()'s own
+    # comment for why that reasoning doesn't hold up against the actual
+    # template picture.
     symbol = QgsFillSymbol.createSimple(
         {
             "style": "no",
-            "outline_style": "dash dot dot",
+            "outline_style": "solid",
             "outline_color": "0,0,0",
             "outline_width": "0.4",
         }
@@ -946,9 +1234,13 @@ def _retain_symbol():
     # graphic's start point and radius... The opening will be a 30-degree
     # arc of the circle" - the same centre+radius circle shape as the
     # H.5.26 Isolate/Secure/Seize graphics below, so it reuses
-    # _circle_from_line_symbol(), with a "dash dot" outline distinguishing
-    # it from Isolate's "dash"/Secure's "solid"/Seize's "solid"+arrow.
-    return _circle_from_line_symbol(outline_style="dash dot", outline_width=0.4)
+    # _circle_from_line_symbol(). The template page's own picture (423)
+    # shows the circle bristling with perpendicular tick marks all around
+    # it (matching the text: "the default tic length should be the same
+    # as the text height of the echelon field") - an earlier version of
+    # this function used an invented "dash dot" outline instead, which
+    # doesn't match the picture at all.
+    return _circle_from_line_symbol(outline_width=0.4, with_ticks=True)
 
 
 # --- H.5.26 Mission Task Symbols (Table H-XXIV) ---------------------------
@@ -958,33 +1250,38 @@ def _block_symbol():
     # Code 340100. "Points 1 and 2 define the endpoints of the graphic's
     # vertical line. Point 3 defines the endpoint of the graphic's
     # horizontal line, which will project perpendicularly from the
-    # MIDPOINT of the vertical line" - a "T" shape. Approximated as the
-    # digitized line itself (the "vertical line") plus a perpendicular
-    # tick at its CentralPoint (the "horizontal line", projecting from
-    # the midpoint, matching the standard's own placement exactly, unlike
-    # the fixed-size/interval approximation this module uses elsewhere
-    # for ticks whose size the standard ties to echelon text height).
-    line_layer = QgsSimpleLineSymbolLayer()
-    line_layer.setColor(QColor(0, 0, 0))
-    line_layer.setWidth(0.4)
+    # MIDPOINT of the vertical line" - a genuine 3-anchor-point shape (see
+    # _p1_p2_vertical_line_layer()'s own comment for why an earlier
+    # 2-point-plus-fixed-tick version of this function was wrong, not
+    # just approximate). Requires a 3-vertex digitized line (P1, P2, P3,
+    # in that order) - with only 2 vertices, point_n($geometry, 3)
+    # resolves to NULL and the horizontal line simply doesn't render,
+    # degrading to a plain P1-P2 line rather than erroring.
+    plain_line = QgsSimpleLineSymbolLayer()
+    plain_line.setColor(QColor(0, 0, 0))
+    plain_line.setWidth(0.4)
 
     _apply_affiliation_color(
-        line_layer,
+        plain_line,
         [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    horizontal_sub_symbol = QgsLineSymbol()
+
+    horizontal_sub_symbol.changeSymbolLayer(
+        0,
+        plain_line
     )
 
     symbol = QgsLineSymbol()
 
     symbol.changeSymbolLayer(
         0,
-        line_layer
+        _p1_p2_vertical_line_layer()
     )
 
     symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _tick_marker_symbol(size=5, outline_width=0.6),
-            QgsTemplatedLineSymbolLayerBase.Placement.CentralPoint
-        )
+        _p3_to_midpoint_layer(horizontal_sub_symbol)
     )
 
     return symbol
@@ -995,79 +1292,24 @@ def _breach_symbol():
     # Code 340200. "Points 1 and 2 define the endpoints of the symbol's
     # opening and point 3 defines the rear of the symbol... The vertical
     # line at the rear of the symbol will be the same height as the
-    # opening and parallel to it" - an open bracket shape. Approximated
-    # as a dashed line (evoking the "opening") ending in a perpendicular
-    # tick at its last vertex (standing in for the parallel rear
-    # vertical line).
-    line_layer = QgsSimpleLineSymbolLayer()
-    line_layer.setColor(QColor(0, 0, 0))
-    line_layer.setWidth(0.4)
-    line_layer.setPenStyle(QgsSymbolLayerUtils.decodePenStyle("dash"))
-
-    _apply_affiliation_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        line_layer
-    )
-
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _tick_marker_symbol(size=5, outline_width=0.5),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-    )
-
-    return symbol
+    # opening and parallel to it" - a real open bracket/"C" shape,
+    # confirmed identical to Canalize's own template picture. An earlier
+    # version of this function dropped that shape entirely (a plain dashed
+    # 2-point line with a decorative tick standing in for it) - see
+    # _bracket_symbol()'s own comment for the real construction and why it
+    # was wrong.
+    return _bracket_symbol()
 
 
 def _canalize_symbol():
 
-    # Code 340400. Same opening-plus-parallel-rear-line family as Breach
-    # above ("Points 1 and 2 define the... height and point 3 determines
-    # its length. The vertical line at the rear of the symbol will be the
-    # same height as the opening and parallel to it") - approximated the
-    # same way as Breach but with ticks at BOTH ends (evoking a
-    # channel/funnel with walls at each end) rather than only the rear,
-    # the one deliberate visual difference from Breach's own
-    # approximation.
-    line_layer = QgsSimpleLineSymbolLayer()
-    line_layer.setColor(QColor(0, 0, 0))
-    line_layer.setWidth(0.4)
-    line_layer.setPenStyle(QgsSymbolLayerUtils.decodePenStyle("dash"))
-
-    _apply_affiliation_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        line_layer
-    )
-
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _tick_marker_symbol(size=5, outline_width=0.5),
-            QgsTemplatedLineSymbolLayerBase.Placement.FirstVertex
-        )
-    )
-
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _tick_marker_symbol(size=5, outline_width=0.5),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-    )
-
-    return symbol
+    # Code 340400. Same exact bracket shape as Breach above - see
+    # _bracket_symbol()'s own comment. Confirmed identical (not merely
+    # similar-sounding text) by comparing both control measures' template
+    # pictures side by side; kept as its own measure_type/rule despite
+    # sharing Breach's exact rendering recipe, the same reason
+    # delay/withdraw are kept separate despite an identical shape.
+    return _bracket_symbol()
 
 
 def _disrupt_symbol():
@@ -1109,15 +1351,20 @@ def _disrupt_symbol():
 
 def _fix_symbol():
 
-    # Code 341100. "Points 1 and 2 determine the length of the graphic,
-    # which varies only in length" - the standard gives Fix no
-    # distinguishing stroke/arrowhead detail beyond "an arrow that points
-    # toward enemy forces", the plainest of every arrow-shaped Mission
-    # Task here. Rendered dashed purely so it stays visually
-    # distinguishable on screen from direction_of_attack's own solid
-    # arrow (both being, per their own text, otherwise the same shape) -
-    # not because the standard specifies a dashed style.
-    return _arrow_line_symbol(line_width=0.3, line_style="dash", arrow_size=3, arrow_outline_width=0.7)
+    # Code 341100. "This graphic requires 2 anchor points. Point 1 defines
+    # the tip of the arrowhead, and point 2 defines the rear of the
+    # graphic" - explicit, and the OPPOSITE of this module's own default
+    # arrow-line convention (last vertex = tip, matching axis_of_advance's
+    # already-confirmed-correct behaviour) - found only by reading this
+    # text carefully, a real bug in the first version of this function
+    # which put the tip at point 2 instead. Rendered dashed purely so it
+    # stays visually distinguishable on screen from direction_of_attack's
+    # own solid arrow (both being, per their own text, otherwise the same
+    # shape) - not because the standard specifies a dashed style.
+    return _arrow_line_symbol(
+        line_width=0.3, line_style="dash", arrow_size=3, arrow_outline_width=0.7,
+        tip_at_first_vertex=True
+    )
 
 
 def _penetrate_symbol():
@@ -1125,31 +1372,47 @@ def _penetrate_symbol():
     # Code 341800. "Points 1 and 2 define the endpoints of the symbol's
     # vertical line. Point 3 defines the rear of the symbol... The arrow
     # will project perpendicularly from the midpoint of the vertical
-    # line" - the same "T"-family shape as Block above, but with an
-    # actual arrowhead (not a plain tick) projecting from the midpoint,
-    # rotated 90 degrees so it points perpendicular to the drawn line
-    # rather than along it.
-    line_layer = QgsSimpleLineSymbolLayer()
-    line_layer.setColor(QColor(0, 0, 0))
-    line_layer.setWidth(0.4)
+    # line" - the same genuine 3-anchor-point shape as Block above (see
+    # _p1_p2_vertical_line_layer()'s own comment), except the P3-side
+    # segment ends in an arrowhead at the midpoint end rather than a
+    # plain line: point 3 is "the rear of the symbol" (the arrow's tail),
+    # so the arrow points FROM point 3 INTO the vertical line, matching
+    # Penetrate's own meaning of piercing through a position. The default
+    # (unrotated) arrow marker already points in the drawn direction of
+    # travel - from P3 toward the midpoint here - so no extra angle is
+    # needed, unlike this module's other perpendicular-tick uses.
+    shaft_line = QgsSimpleLineSymbolLayer()
+    shaft_line.setColor(QColor(0, 0, 0))
+    shaft_line.setWidth(0.4)
 
     _apply_affiliation_color(
-        line_layer,
+        shaft_line,
         [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    arrow_sub_symbol = QgsLineSymbol()
+
+    arrow_sub_symbol.changeSymbolLayer(
+        0,
+        shaft_line
+    )
+
+    arrow_sub_symbol.appendSymbolLayer(
+        _marker_line_layer(
+            _arrow_marker_symbol(size=4, outline_width=0.7),
+            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
+        )
     )
 
     symbol = QgsLineSymbol()
 
     symbol.changeSymbolLayer(
         0,
-        line_layer
+        _p1_p2_vertical_line_layer()
     )
 
     symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _arrow_marker_symbol(size=4, outline_width=0.7, angle=90),
-            QgsTemplatedLineSymbolLayerBase.Placement.CentralPoint
-        )
+        _p3_to_midpoint_layer(arrow_sub_symbol)
     )
 
     return symbol
@@ -1161,13 +1424,18 @@ def _delay_symbol():
     # defines the end of the straight line portion of the symbol. Point 3
     # defines the diameter and orientation of the 180 degree circular
     # arc" - an arrow with a perpendicular semicircular arc at its base.
-    # Approximated as a plain arrow line (the arc detail is dropped
-    # entirely, the same "recognisable core shape only" simplification
-    # this module already applies to axis_of_advance's own wide-band
-    # shape) - see _withdraw_symbol()'s own comment for why it shares
-    # this exact same approximation and is kept as a separate
-    # measure_type anyway.
-    return _arrow_line_symbol(line_width=0.4, arrow_size=4, arrow_outline_width=0.8)
+    # Point 1 = tip is explicit and, like Fix, the opposite of this
+    # module's own default arrow-line convention - the first version of
+    # this function put the tip at point 2 instead, a real bug. The arc
+    # detail is dropped entirely (approximated as a plain arrow line), the
+    # same "recognisable core shape only" simplification this module
+    # already applies to axis_of_advance's own wide-band shape - see
+    # _withdraw_symbol()'s own comment for why it shares this exact same
+    # approximation and is kept as a separate measure_type anyway.
+    return _arrow_line_symbol(
+        line_width=0.4, arrow_size=4, arrow_outline_width=0.8,
+        tip_at_first_vertex=True
+    )
 
 
 def _withdraw_symbol():
@@ -1181,8 +1449,11 @@ def _withdraw_symbol():
     # documented for forward_line_of_troops vs. phase_line. Kept as its
     # own measure_type/rule despite sharing _delay_symbol()'s exact
     # rendering recipe, for the same reason FLOT is kept separate from
-    # Phase Line.
-    return _arrow_line_symbol(line_width=0.4, arrow_size=4, arrow_outline_width=0.8)
+    # Phase Line - including the same point-1-is-the-tip fix.
+    return _arrow_line_symbol(
+        line_width=0.4, arrow_size=4, arrow_outline_width=0.8,
+        tip_at_first_vertex=True
+    )
 
 
 def _isolate_symbol():
@@ -1207,20 +1478,73 @@ def _secure_symbol():
 
 def _seize_symbol():
 
-    # Code 342300. Same centre+radius circle as Isolate/Secure above,
-    # plus "Point 4 defines the end of the arrow" (the standard's own
-    # 3-or-4-point variants add an arrow identifying the unit assigned
-    # the task) - approximated by appending an arrowhead at the drawn
-    # line's own last vertex on top of the circle-from-line layer, so a
-    # user who digitizes a 3rd point gets a small arrow alongside the
-    # generated circle.
+    # Code 342300. The standard actually defines TWO different point
+    # recipes, not one "3-or-4-point variant" as an earlier version of
+    # this comment assumed - reading the full text (not just the "point 4
+    # defines the end of the arrow" fragment) matters here:
+    #   - Where FOUR points are available: point 1 = circle centre, point 2
+    #     = circle radius, point 3 = curvature of the connecting arc, point
+    #     4 = end of the arrow.
+    #   - Where THREE points are available: point 1 = circle centre, point
+    #     2 = the tip of the arrowhead DIRECTLY (no radius role at all),
+    #     point 3 = which side a 90-degree arc sits on. The circle's size
+    #     isn't derived from any point in this recipe - it's auto-sized
+    #     "large enough to accommodate a tactical symbol".
+    # These two recipes assign completely different meanings to point 2 -
+    # radius in one, arrowhead tip in the other - so a 3-point input can't
+    # be safely reinterpreted as a trimmed-down 4-point one (an earlier
+    # version of this function effectively did exactly that, appending an
+    # arrow at whatever the digitized line's own last vertex happened to
+    # be). Rather than guess which recipe a given point count means, this
+    # only implements the 4-point recipe explicitly - centre/radius from
+    # points 1-2 (via _circle_from_line_symbol(), already shared with
+    # Isolate/Secure/Retain) plus an arrow from point 2's own position on
+    # the circle's edge to point 4 - and drops the arc-curvature detail of
+    # point 3 (the same "recognisable core shape only" simplification this
+    # module already applies elsewhere). With only 2 or 3 points, only the
+    # plain circle renders - no arrow - rather than rendering one in a
+    # position the standard doesn't actually specify for that point count.
     symbol = _circle_from_line_symbol(outline_style="solid", outline_width=0.4)
 
-    symbol.appendSymbolLayer(
+    shaft_line = QgsSimpleLineSymbolLayer()
+    shaft_line.setColor(QColor(0, 0, 0))
+    shaft_line.setWidth(0.4)
+
+    _apply_affiliation_color(
+        shaft_line,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    arrow_shaft = QgsLineSymbol()
+
+    arrow_shaft.changeSymbolLayer(
+        0,
+        shaft_line
+    )
+
+    arrow_shaft.appendSymbolLayer(
         _marker_line_layer(
             _arrow_marker_symbol(size=3.5, outline_width=0.7),
             QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
         )
+    )
+
+    arrow_layer = QgsGeometryGeneratorSymbolLayer.create({})
+
+    arrow_layer.setGeometryExpression(
+        "make_line(point_n($geometry, 2), point_n($geometry, 4))"
+    )
+
+    arrow_layer.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    arrow_layer.setSubSymbol(
+        arrow_shaft
+    )
+
+    symbol.appendSymbolLayer(
+        arrow_layer
     )
 
     return symbol

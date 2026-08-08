@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- simple ship hull over waves, evoking Appendix E (Sea Surface) -->
+  <path d="M5 14 L7 9 L17 9 L19 14 Z" fill="none" stroke="#1f3a5f" stroke-width="1.6"/>
+  <line x1="12" y1="9" x2="12" y2="5" stroke="#1f3a5f" stroke-width="1.4"/>
+  <path d="M3 17 Q5 15.5 7 17 T11 17 T15 17 T19 17 T21 17" fill="none" stroke="#1f3a5f" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M3 20 Q5 18.5 7 20 T11 20 T15 20 T19 20 T21 20" fill="none" stroke="#1f3a5f" stroke-width="1.4" stroke-linecap="round"/>
+</svg>

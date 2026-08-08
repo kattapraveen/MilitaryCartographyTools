@@ -56,7 +56,12 @@ class TestPluginLifecycle(QgisTestCase):
                 "Import Waypoints",
                 "Export Waypoints",
                 "Map Sheet Series",
-                "Tactical Graphics - Units",
+                "Tactical Graphics - Space",
+                "Tactical Graphics - Air",
+                "Tactical Graphics - Land",
+                "Tactical Graphics - Sea Surface",
+                "Tactical Graphics - Subsurface",
+                "Tactical Graphics - Activities",
                 "Tactical Graphics - Control Measures",
             ):
 
@@ -118,7 +123,12 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.import_waypoints_action)
         self.assertIsNone(plugin.export_waypoints_action)
         self.assertIsNone(plugin.map_sheet_series_action)
-        self.assertIsNone(plugin.tactical_graphics_units_action)
+        self.assertIsNone(plugin.tactical_graphics_space_action)
+        self.assertIsNone(plugin.tactical_graphics_air_action)
+        self.assertIsNone(plugin.tactical_graphics_land_action)
+        self.assertIsNone(plugin.tactical_graphics_sea_surface_action)
+        self.assertIsNone(plugin.tactical_graphics_subsurface_action)
+        self.assertIsNone(plugin.tactical_graphics_activities_action)
         self.assertIsNone(plugin.control_measures_action)
 
 

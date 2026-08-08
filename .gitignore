@@ -13,3 +13,8 @@ Tanzania_SRTM30meters/
 # the built dist/milsymbol.js file we vendor into military_symbology/vendor/
 # is actually part of the plugin; see THIRD_PARTY_NOTICES.md.
 milsymbol-3.0.4/
+
+# Local copy of the MIL-STD-2525D standard itself (copyrighted reference
+# material, not part of the plugin) - kept locally for verifying symbols
+# against the standard's own text/diagrams.
+reference/

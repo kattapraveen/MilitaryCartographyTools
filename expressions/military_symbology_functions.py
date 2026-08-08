@@ -92,13 +92,17 @@ def mct_build_sidc(values, feature=None, parent=None):
 
     """
     Builds a 20-character SIDC from named components (affiliation, entity,
-    symbol_set, echelon, status, headquarters) - calls straight into
+    symbol_set, echelon, status, headquarters, and optionally
+    sector1_modifier, sector2_modifier) - calls straight into
     military_symbology/sidc.py's build_sidc() rather than re-implementing
     its field-position/code logic here, so that logic lives in exactly one
     place. Lets a unit layer's renderer go straight from a feature's own
     friendly attribute values to a rendered symbol
     (mct_sidc_svg(mct_build_sidc(...))) with no intermediate stored SIDC
-    field to keep in sync.
+    field to keep in sync. The two modifier arguments are optional (a
+    6-argument call still works, e.g. mine_warfare's own expression,
+    which has no sector modifier fields at all) - omitted or empty/falsy
+    means "no modifier", matching build_sidc()'s own default.
     """
 
     if len(values) < 6:
@@ -108,6 +112,8 @@ def mct_build_sidc(values, feature=None, parent=None):
         )
 
     affiliation, entity, symbol_set, echelon, status, headquarters = values[:6]
+    sector1_modifier = values[6] if len(values) > 6 else None
+    sector2_modifier = values[7] if len(values) > 7 else None
 
     try:
 
@@ -117,7 +123,9 @@ def mct_build_sidc(values, feature=None, parent=None):
             symbol_set=str(symbol_set),
             echelon=str(echelon),
             status=str(status),
-            headquarters=bool(headquarters)
+            headquarters=bool(headquarters),
+            sector1_modifier=str(sector1_modifier) if sector1_modifier else None,
+            sector2_modifier=str(sector2_modifier) if sector2_modifier else None,
         )
 
     except KeyError as error:

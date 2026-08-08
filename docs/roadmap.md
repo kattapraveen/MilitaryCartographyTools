@@ -169,7 +169,6 @@ Scoped 2026-08-03, consolidating the original one-line item list into better-def
       - **2026-08-07, live-tested striping bug found deeper than the fixes above - two distinct causes, fixed in two passes.** User reported (via screenshots) a dense, near-uniform alternating light/dark "barcode" pattern along otherwise smooth, correctly-traced contour lines, in both Monochrome and Illuminated overlay + Hypsometric Tint modes, on both flat and steep terrain - reproduced against a real GMRT bathymetric DEM, not assumed from the screenshots alone.
         1. **DEM noise vs. a weak true-gradient signal (fixed first, `368f244`).** On genuinely low-relief terrain, the true elevation difference across `_segment_illumination()`'s narrow two-point sampling window can be smaller than ordinary DEM noise, making the raw per-segment "which side is uphill" comparison flip essentially at random. Widening the sample offset or averaging multiple point samples per segment were both tried first and confirmed NOT reliably effective for this mechanism - noise doesn't average out just by relocating or duplicating a single noisy read. Fixed instead with a new `_smooth_illumination()`: a centred moving average of each segment's raw `ILLUM` value along its own original contour line (grouped via `native:splitlinesbylength`'s own `ID`/`order` fields, new `ILLUMINATION_SMOOTHING_WINDOW = 9`), applied as a second pass in `_build_output_layer()` before styling. Verified through the unmodified pipeline: flip rate dropped from 41.3% to 15.9% in an extreme near-flat stress test, 32.3% to 4.3% in a moderate-noise case.
         2. **Real, dominant cause - found after the fix above was live-tested and the striping persisted, including on a steep, well-defined hillside with abundant true signal, directly contradicting the noise-vs-signal explanation.** Every earlier synthetic reproduction used straight, parallel contour lines from a constant-gradient DEM, which structurally can't expose a bug tied to a *rotating* segment tangent direction - only a genuinely curving contour ring can. A new radially-symmetric cone DEM (`tests/qgis_test_case.py`'s `build_synthetic_cone_dem()`) reproduced severe flipping (52.65%) with zero injected noise. Root cause: the fixed `UPHILL_SAMPLE_OFFSET_M` (15m) is routinely smaller than a real reprojected DEM's own pixel size (confirmed 60.72m for the reported GMRT DEM) - both of `_segment_illumination()`'s perpendicular sample points then land in the exact same pixel, an exact tie its tie-break always resolves the same way (`perpendicular_a`), and as a ring's tangent direction rotates all the way around, that fixed tie-break keeps flipping which real-world side gets picked - independent of terrain steepness or noise. Fixed with a new `UPHILL_SAMPLE_OFFSET_PIXEL_MARGIN = 1.25`: `_build_output_layer()` now widens the offset it passes to `_segment_illumination()` (which gained an explicit `sample_offset_m` parameter, defaulting to the old fixed constant for its own direct callers/tests) to `max(UPHILL_SAMPLE_OFFSET_M, UPHILL_SAMPLE_OFFSET_PIXEL_MARGIN * dem_layer.rasterUnitsPerPixelX())`, so both samples land at least about one pixel apart on coarse DEMs while staying at the original 15m on fine ones. Verified against both the clean synthetic cone DEM (52.65% -> 0.90%) and the real GMRT DEM that reported the bug (35.6% -> 4.1% on the same offset ratio; a fresh full-pipeline re-run afterwards measured 36.16% -> 4.28%), both through the unmodified pipeline. `_smooth_illumination()` from fix 1 above stays in place as a secondary safety net for whatever residual noise remains. New `TestUphillSampleOffsetPixelSizeAwareness` in `tests/test_tanaka_contours.py` (flip-rate proof against the cone DEM, plus a call-spy confirming `_build_output_layer()` actually passes the widened offset to production's own `_segment_illumination()`). 397/397 tests passing on both QGIS 3.44.12 and 4.2.0.
-      - **2026-08-07, a second and separate bug found from the same live smoke test - the lit/shadowed sides were on the wrong side of the light azimuth entirely.** After the striping fix above, the project maintainer pointed out that with the default 315-degree (NW) light, the lit and shadowed sides in the new screenshots looked swapped from what a NW light should produce. Confirmed mathematically against the standard hillshade formula every GIS tool uses (GDAL's own `cos(azimuth - aspect)` term, maximal when a slope's *aspect* - the compass direction it faces downhill - matches the light's azimuth): `_segment_illumination()` was dotting the segment's **uphill** direction against the light vector, not its **downhill**/facing direction (aspect) - the exact negative of the correct formula, present since the very first Tanaka Contours build and never previously caught, since every earlier check tuned colour/blend/width/noise without checking absolute compass direction against the chosen azimuth. Fixed by dotting the downhill side instead (`downhill = perpendicular_b if value_a >= value_b else perpendicular_a`, i.e. whichever side samples *lower*) - a pure sign correction; width's `abs("ILLUM")` and both colour modes' existing "+1 = lit" mapping needed no changes, since they already treated the value's meaning correctly, only its previously-inverted sign was wrong. `TestSegmentIllumination`'s two tests were themselves asserting the inverted convention (`test_light_from_the_uphill_side_is_fully_lit`) - renamed and their expected signs flipped (`test_light_from_the_downhill_side_is_fully_lit`/`test_light_from_the_uphill_side_is_fully_shadowed`), plus the integration test's own east-rising-slope assertion flipped from asserting all-negative to all-positive (a west-facing slope under the default NW light is partially lit, not shadowed). Independent of, and unaffected by, the striping/offset fix above - a uniform sign flip doesn't change which adjacent segments agree or disagree with each other, only which absolute side is called lit. 397/397 tests passing on both QGIS 3.44.12 and 4.2.0.
     3. ✅ **Discrete/stepped colour-ramp toggle for Hypsometric Tint - done 2026-08-06.** Every "colourful Tanaka" source reviewed uses stepped/banded raster classification, not a smooth gradient, for the underlying hypsometric layer. `_apply_raster_style()`/`generate_hypsometric_tint()` gained a `discrete=False` parameter - `False` keeps the existing `QgsColorRampShader.Type.Linear` smooth gradient (already shipped, already approved, unaffected), `True` switches to `Type.Discrete` using the exact same `SEA_RAMP`/`LAND_RAMP` stops as hard class boundaries rather than interpolation anchors, so no separate stop set was needed. Wired into `hypsometric_tint_dialog.py` as an opt-in "Stepped colour ramp" checkbox next to the existing opacity control, off by default. New `test_defaults_to_a_linear_smooth_gradient`/`test_discrete_flag_switches_to_a_stepped_ramp` in `tests/test_hypsometric_tint.py`, `test_discrete_flag_reaches_the_generated_layer` in `tests/test_hypsometric_tint_dialog.py`.
   - ⬜ **Requested 2026-08-06, not started: a caution about long generation times.** Tanaka Contours can take noticeably long to generate against a large DEM and/or a small contour interval - more of the DEM to clip/contour, and/or a finer interval producing far more contour lines (each further subdivided into `segment_length`-sized pieces, each needing its own two-sided DEM sample for illumination), multiply directly into a much bigger `native:splitlinesbylength` + per-segment sampling workload. No warning today - the dialog just appears to hang until it's done. Likely needs a `tanaka_dialog.py` message-bar caution (e.g. `pushInfo` before calling `generate_tanaka_contours()`) when the DEM's pixel count and/or `dem_extent_area / interval` implies a heavy run - exact thresholds would need picking against real timing data rather than guessed, so this needs its own scoping pass before implementation.
 - ✅ **Hypsometric tint** — done 2026-08-04. `terrain/hypsometric_tint.py` + `terrain/hypsometric_tint_dialog.py`, a new toolbar action. Follows directly from a real gap the user found in Tanaka Contours: its lines are colored by elevation, but the space *between* them is blank, unlike the filled "layer tint" look of the user's reference images. Rather than making Tanaka Contours paint fills (a different cartographic technique - filled raster/polygon tinting vs. illuminated contour lines, normally its own layer underneath contour lines rather than baked into them), this is a separate raster layer: clip + reproject the DEM (reusing Tanaka's own `clip_and_reproject_dem()`), then recolor it pixel-by-pixel with a `QgsColorRampShader` (`Type.Linear` for smooth interpolation - confirmed live, QGIS's own shader interpolates between stops at render time, no per-pixel Python loop needed unlike the vector case) built from the same `SEA_RAMP`/`LAND_RAMP` stops as Tanaka Contours, normalised the same way (`_build_color_ramp_items()` mirrors `hypsometric_color()`'s branch logic) so a raster fill and any Tanaka lines drawn over it agree on what color a given elevation gets. Rendered via `QgsSingleBandPseudoColorRenderer`, with a user-adjustable opacity. Since a raster is opaque and would otherwise cover any vector layers, it's explicitly inserted at the *bottom* of the layer tree root (`root.insertLayer(len(root.children()), layer)`) rather than the default top-of-stack position a plain `addMapLayer()` would use - reusing the exact z-order lesson from the MGRS/UTM grid z-order fix earlier this phase. Same "Add as new layer" checkbox pattern as Tanaka Contours (default replaces the existing "Hypsometric Tint" layer in place). Confirmed live: `QgsRasterDataProvider.bandStatistics()` emits a `DeprecationWarning` regardless of which overload/argument types are passed, on both QGIS 3.44.12 and 4.2.0 - a binding-level quirk, not fixable by calling it differently; accepted as a known, harmless warning (see `docs/developer-guide.md`) rather than something to work around, since the values returned are correct. Verified with a real headless render - a smooth green-through-white fill matching the reference images, on both QGIS versions.
@@ -1219,17 +1218,676 @@ tested, not claimed as done here.
       locks this in by evaluating the real geometry expression against
       both a 2-point and 3-point line and asserting equal area. 388 → 389
       tests, passing on both QGIS 3.44.12 and 4.2.0.
+  - **A third, more fundamental bug found by the project maintainer
+    2026-08-07**, comparing a real render against the standard's own
+    template diagram directly (not just its text): Block was rendering
+    as a 2-point line with a small FIXED-size decorative tick at its
+    centre, when the standard's own Block template requires a genuine
+    **3-anchor-point** shape - points 1/2 define the vertical line,
+    point 3 is an independent anchor whose distance from that line
+    defines the horizontal line's own real length (the template diagram
+    shows point 3 placed far away, not adjacent to the vertical line).
+    The earlier code's own comment claimed the fixed-tick approach
+    "match[ed] the standard's own placement exactly" - it matched the
+    *midpoint* placement but silently dropped point 3 entirely, which
+    only became obvious by looking at the template's picture, not its
+    prose. Penetrate shares the exact same construction (its own code
+    comment already said so) and had the identical bug. Both rebuilt
+    using two `QgsGeometryGeneratorSymbolLayer`s that reconstruct the
+    real shape from the 3 raw digitized vertices - one draws P1-P2
+    verbatim, the other draws a line from P3 to the midpoint of P1-P2
+    (`centroid(make_line(point_n($geometry,1), point_n($geometry,2)))`),
+    with Penetrate's version ending in an arrowhead at the midpoint end
+    (point 3 is "the rear of the symbol" per the standard - the arrow's
+    tail - so it points from P3 INTO the vertical line, matching what
+    "penetrate" means). Verified by evaluating both expressions against
+    a real 3-vertex feature and rendering the result side by side with
+    the template diagram - both new tests check the actual reconstructed
+    geometry, not just that some symbol-layer structure exists. Requires
+    a real 3-vertex digitized line for Block/Penetrate now, not 2 - with
+    only 2 vertices, `point_n($geometry, 3)` resolves to NULL and the
+    horizontal line/arrow simply doesn't render, degrading to a plain
+    P1-P2 line rather than erroring.
   - **Still not live-smoke-tested in a real interactive QGIS session** -
     the offscreen-render cross-check above is a strong signal (it's what
-    actually caught the two bugs above) but isn't a full substitute;
-    every tick/circle approximation's on-screen legibility at ordinary
-    map zoom, and the attribute-form/digitizing workflow itself, are
-    still left for the project maintainer's own interactive pass.
+    actually caught all three bugs above) but isn't a full substitute;
+    every remaining tick/circle approximation's on-screen legibility at
+    ordinary map zoom, and the attribute-form/digitizing workflow itself
+    (including whether a 3-vertex line is easy enough to digitize for
+    Block/Penetrate/principal_direction_of_fire in practice), are still
+    left for the project maintainer's own interactive pass.
+  - **A staged completion plan adopted 2026-08-07** for all of the
+    standard's remaining, much larger scope (~190 more Appendix H pages
+    alone, plus several whole point-symbol domains milsymbol.js already
+    renders) - go through Appendix H strictly in the standard's own
+    section order (H.5.15 onward) before touching any other appendix, and
+    for every symbol check the actual template PICTURE (not just
+    extracted text) before writing code, reusing established construction
+    techniques first. Full plan at
+    `/Users/kpr/.claude/plans/structured-moseying-shell.md`.
+  - **Stage A of that plan (closing out 10.7's own bugs) completed
+    2026-08-07**, found entirely by finally checking template PICTURES
+    instead of text for symbols already marked "done" above:
+    - **FLOT/Line of Contact**: the standard draws these as a real
+      wavy/serpentine line, not the plain straight line this module had.
+      New shared `_wavy_line_layers()` helper - two `QgsMarkerLineSymbolLayer`
+      "half_arc" markers, offset by half their own interval and rotated
+      180 degrees from each other, producing one continuous wave.
+    - **Delay/Withdraw/Fix**: "point 1 defines the tip of the arrowhead"
+      - the opposite of this module's own default arrow-line convention
+      (last vertex = tip). `_arrow_line_symbol()` gained a
+      `tip_at_first_vertex` parameter for this.
+    - **Seize**: the standard defines two genuinely different point
+      recipes (3-point: point 2 = arrowhead tip directly; 4-point: point
+      2 = radius, point 4 = arrow end) that an earlier version conflated,
+      appending an arrow at whatever the raw digitized line's last vertex
+      happened to be. Now only the 4-point recipe is implemented
+      explicitly (point 2 to point 4); with fewer points, only the plain
+      circle renders.
+    - **Breach/Canalize**: confirmed identical shapes (compared their two
+      template pictures side by side) - a real open bracket/"C", not the
+      2-point-dashed-line-plus-tick approximation this module had. New
+      shared `_bracket_symbol()` reconstructs the true 5-point path (P1 ->
+      rear-top -> P3 -> rear-bottom -> P2) via `with_variable()` +
+      `project()` + `azimuth()`, the first use of vector-projection
+      expressions in this module.
+    - **Retain**: the template shows the circle bristling with
+      perpendicular tick marks all around it (matching Strong Point's own
+      convention), not a "dash dot" outline. `_circle_from_line_symbol()`
+      gained a `with_ticks` parameter for this.
+    - **Engagement Area, Assembly Area**: both are plain SOLID outlines in
+      their own template pictures ("Friendly Present" status) - an
+      earlier version invented dash-dot/dash-dot-dot styles purely to
+      keep every area type visually distinct from every other on screen,
+      which the standard doesn't actually do (it reserves dash style for
+      a Present-vs-Planned STATUS distinction this layer has no field
+      for, not for telling area TYPES apart).
+    - **FEBA**: checked and confirmed to have NO bug at all - its
+      template's small triangular "hump" (PT1/PT3 baseline, PT2 a peak)
+      is simply the raw 3-vertex digitized path, the same
+      "additional points extend the line" convention Phase Line/FLOT
+      already support. No code changed, only the comment clarified - a
+      reminder that this same picture-checking discipline also proves
+      some suspected bugs aren't bugs at all.
+    - Block, Penetrate, Battle Position, Strong Point, Direction of
+      Attack, Isolate/Secure's point-2-is-radius handling, and
+      Canalize/Breach's now-shared construction were all re-confirmed
+      correct against their own template pictures in the same pass.
+    - 388 -> 398 tests, all checking actual evaluated geometry/rendered
+      structure per the standing methodology, not just that some
+      symbol-layer type exists. Passing on both QGIS 3.44.12 and 4.2.0.
+  - **Bigger findings from the same picture-checking pass, NOT yet fixed,
+    scope decision pending**: Encirclement's own template (page 440)
+    shows a spiky "sun/gear" boundary (outward-pointing triangular teeth
+    all around a closed area), not the dotted oval this module has.
+    Isolate's template (page 646) shows the exact same spiky treatment
+    applied to its generated circle, not a plain dashed circle. Secure
+    likely shares it too (not yet confirmed). Seize's real shape (page
+    653) is a circle plus a smoothly CURVED arrow (a genuine arc, closer
+    to a boomerang than a straight line) - substantially more elaborate
+    than the circle-plus-straight-arrow already built. All three need a
+    new "spiky boundary" technique and/or real curve-drawing support
+    QGIS doesn't have a simple built-in for, a bigger lift than anything
+    else fixed in this pass - left for a deliberate follow-up rather than
+    folded in here.
   - **Phase 10 remains open** - this sub-phase is additive, not a
     closing pass; the deferred items above (exact shapes from sub-phase
     10.3, Contain, a Points-type layer for Observation Post/Destroy/
     Interdict/Neutralize, and the rest of Appendix H's sections) are all
     still open.
+  - **2026-08-08, plan rewind: appendix-by-appendix completion plan,
+    replacing the prior stage-based (A-E) plan.** The user went through
+    the standard directly against the live plugin and found the previous
+    plan's scope was still too narrow in two ways: (1) point symbols have
+    real bugs too, not just control-measure lines/areas - e.g.
+    `sidc.py`'s `ENTITIES["subsurface"]` lists a `"military"` generic
+    entity that doesn't actually render correctly for Subsurface even
+    though the identical code renders fine for Air/Sea Surface (copied
+    across symbol sets without checking milsymbol.js's own
+    `subsurface.js` specifically); (2) the "Stage A" pass's own
+    "re-confirmed correct" list (Block, Penetrate, Direction of Attack,
+    Isolate/Secure, Canalize/Breach and others) still has real
+    unaddressed defects per the user's own detailed read-through (missing
+    echelon symbols on Boundary, missing B/C letters and slash-marks on
+    Breach/Canalize, missing D label and curved arc on Delay, an
+    incomplete Direction of Attack variant set, Disrupt/Fix each
+    conflating an obstacle-control-measure SIDC with an unrelated
+    mission-task SIDC, and more). New plan at
+    `/Users/kpr/.claude/plans/delightful-wishing-whale.md`: go through
+    the standard in its own document order, appendix by appendix
+    (A through L, skipping K which isn't a symbol set), each with its own
+    dedicated plugin layer + icon, each checked against the standard's
+    real template pictures (not just extracted text or milsymbol.js's own
+    interpretation) before being called correct, each its own stop/test/
+    check-in point. Appendix H (control measures, by far the largest) is
+    further split at the standard's own H.5.x section boundaries. The
+    full 885-page standard is now available locally at
+    `reference/MIL-STD-2525D.pdf` (gitignored - copyrighted reference
+    material, confirmed internal PDF page = printed page + 16).
+    - **Mini-Phase A (SIDC structure, Appendix A) audited, no changes
+      needed.** Cross-checked `sidc.py`'s `AFFILIATIONS`, `STATUS`,
+      `HEADQUARTERS_CODE`/`NO_HEADQUARTERS_CODE`, `ECHELONS` and
+      `SYMBOL_SETS` directly against the standard's own Tables A-II,
+      A-IV, A-V, A-VI and A-III (not just against milsymbol.js) -
+      every code matches exactly. Confirms sub-phase 10.1's original,
+      more careful construction of this module (vs. the vocabulary
+      dicts added in later follow-ups) holds up under direct
+      standard cross-checking.
+    - **Mini-Phase B (Appendix B, Space) done 2026-08-08.** New
+      `military_symbology/_point_symbol_layer.py` - a shared, reusable
+      factory for a single-symbol-set "Tactical Graphics - <Domain>"
+      point layer, factored out of `unit_layer.py`'s own pattern. This
+      resolves the "each appendix is its own layer" architecture
+      question the plan flagged: rather than every domain sharing one
+      layer with a cascading symbol_set/entity dropdown (today's
+      `unit_layer.py` still does this for ground_unit/air/sea_surface/
+      subsurface, untouched for now - it'll be split domain-by-domain
+      when Appendices C/D/E/F reach their own mini-phases, not all at
+      once), a single-domain layer bakes its one SIDC `symbol_set` in as
+      a literal in the renderer expression and only needs a plain
+      `ValueMap` entity dropdown, no lookup layer or `current_value()`
+      cascading. `_point_symbol_layer.py` also supports a small
+      `entity_symbol_set_overrides` escape hatch - a handful of entities
+      that resolve to a different SIDC symbol_set than the layer's own
+      default, via a `CASE` expression on the feature's "entity" value
+      rather than a whole second layer. New
+      `military_symbology/space_layer.py` builds one "Tactical Graphics
+      - Space" layer under one new toolbar action/icon
+      (`icons/tactical_graphics_space.svg`) covering both of Appendix
+      B's sections - B.6 Space Equipment/Platform (symbol set `05`) and
+      B.7 Space Missile (symbol set `06`) - folding Space Missile's
+      single entity into the same layer's entity dropdown via that
+      override mechanism instead of a whole second layer for one entity
+      (revised after the user pointed out two layers was overkill for a
+      single-entity domain). `sidc.py` gained `ENTITIES["space"]` (36
+      entities) and `ENTITIES["space_missile"]` (1 entity - modifiers
+      for missile type/range aren't exposed for any symbol set yet, a
+      pre-existing scope limit, not new to Space) - sourced from
+      milsymbol-3.0.4's own `space.js`/`spacemissile.js`, then
+      cross-checked entity-by-entity against the standard's own Table
+      B-III text directly (not just trusted from milsymbol.js),
+      confirming the codes align. Unlike `ground_unit`'s curated subset,
+      nothing was excluded here - Space's full vocabulary is small
+      enough and none of it reads as peripheral/administrative. 409
+      tests (`tests/test_space_layer.py`) passing on both QGIS 3.44.12
+      and 4.2.0, including an integration test that a real feature
+      (both a plain Space entity and the overridden "missile" entity)
+      resolves to a valid `base64:` SVG path through the actual renderer
+      (the same check sub-phase 10.2 used to
+      confirm the QJSEngine/milsymbol pipeline end to end - not yet
+      exercised with symbol sets `05`/`06` before this).
+    - **Same-day follow-up: echelon/headquarters are now opt-in, not
+      automatic.** User asked why the Space layer had an Echelon/
+      Headquarters Staff Indicator field at all, since re-checking
+      Appendix B's own Table B-II (already read this session) confirms
+      it lists neither field for space symbols. `_point_symbol_layer.py`
+      gained `include_echelon`/`include_headquarters` params (default
+      `True`, matching `unit_layer.py`'s older always-on behaviour) -
+      when a domain opts out, that field doesn't exist on the layer at
+      all, and `mct_build_sidc()`'s corresponding argument becomes a
+      literal (`'unspecified'`/`false`) baked into the renderer
+      expression rather than a field reference. `space_layer.py` now
+      passes `include_echelon=False, include_headquarters=False` -
+      "Tactical Graphics - Space" has exactly 4 fields (affiliation/
+      entity/status/unique_designation). New
+      `tests/test_point_symbol_layer.py` exercises the shared factory's
+      own include/exclude behaviour directly (decoupled from Space's own
+      data), plus `tests/test_space_layer.py` updated for the smaller
+      field list. 412 tests passing on both QGIS 3.44.12 and 4.2.0. This
+      also sets the precedent every later appendix mini-phase should
+      follow: check that appendix's own amplifier table before assuming
+      echelon/headquarters apply, rather than defaulting both on the way
+      `unit_layer.py` originally did.
+    - **Mini-Phase C (Appendix C, Air) done 2026-08-08.** New
+      `military_symbology/air_layer.py` builds one "Tactical Graphics -
+      Air" layer, following Space's now-established pattern exactly:
+      both of Appendix C's sections (C.6 Air Equipment/Platform, symbol
+      set `01`; C.7 Air Missile, symbol set `02`) in one layer via the
+      `entity_symbol_set_overrides` mechanism, `include_echelon=False,
+      include_headquarters=False` after confirming Table C-II (read this
+      session) lists neither field for air symbols either. `sidc.py`'s
+      `ENTITIES["air"]` was **replaced**, not just expanded: the
+      previous version was a curated 19-entry subset built for
+      `unit_layer.py`'s old shared multi-domain layer, with two entries
+      (`air_reconnaissance`, `airborne_electronic_warfare`) renamed
+      purely to dodge a key collision with `ground_unit`'s own
+      vocabulary in that one combined dropdown. Now that Air has its own
+      dedicated layer (no collision risk), it's milsymbol's FULL entity
+      list from `air.js` (52 entities, every code `110000`-`140000`
+      except `110106`, which milsymbol's own source marks "Reserved for
+      Future Use" with an empty icon list) with plain, un-prefixed key
+      names, cross-checked against the standard's own Table C-III
+      directly. New `ENTITIES["air_missile"]` (1 entity, from
+      `airmissile.js`) and `SYMBOL_SETS["air_missile"] = "02"` (Table
+      A-III). "air" removed entirely from `unit_layer.py`'s own
+      `_SYMBOL_SET_LABELS`/`_ENTITY_LABELS_BY_SYMBOL_SET` (Sea
+      Surface/Subsurface still live there, pending Appendices E/F);
+      `tests/test_unit_layer.py` updated accordingly (its
+      "non-ground_unit symbol_set" integration test now uses
+      `sea_surface`/`frigate` instead of the no-longer-offered
+      `air`/`fighter`). New `icons/tactical_graphics_air.svg` and
+      `tests/test_air_layer.py` (mirrors `test_space_layer.py`). 421
+      tests passing on both QGIS 3.44.12 and 4.2.0.
+    - **Foundational: sector 1/2 modifier support, added 2026-08-08
+      before starting Appendix D.** User asked whether modifiers were
+      being skipped entirely - they were: every layer built so far only
+      ever set SIDC positions 17-20 (sector 1/2 modifier) to "0000",
+      meaning real distinctions like Space's orbit type or Air's heavy/
+      medium/light tanker class were simply unreachable. Decided to
+      build this now rather than after Appendix D (Land), whose own
+      modifier tables are large and commonly needed, to avoid redoing
+      Space/Air a second time. `sidc.py` gained `MODIFIERS` (keyed by
+      symbol_set, then `"sector1"`/`"sector2"`, real codes from each
+      symbol set's own milsymbol-3.0.4 source) and `build_sidc()` grew
+      `sector1_modifier`/`sector2_modifier` params (`None`/falsy ->
+      SIDC `"00"`, matching the old always-zero behaviour exactly when
+      omitted; a real key not in that symbol_set's own `MODIFIERS` entry
+      raises `KeyError`, including for symbol_sets with no `MODIFIERS`
+      entry at all yet - e.g. `ground_unit`, still fully unmodified).
+      `mct_build_sidc()` (`expressions/military_symbology_functions.py`)
+      now optionally accepts 2 more values (7th/8th), backward-compatible
+      with existing 6-value callers like `unit_layer.py`'s own
+      expression, left untouched. `_point_symbol_layer.py` gained
+      `sector1_labels`/`sector2_labels` (optional, mirroring
+      `include_echelon`/`include_headquarters`'s opt-in pattern) - when
+      given, adds a `sector1_modifier`/`sector2_modifier` `ValueMap`
+      field with an explicit `"(None)"` -> `""` option (new
+      `_value_map_with_none()`) so "no modifier" is a first-class
+      selectable choice, not just an absent one. `space_layer.py`/
+      `air_layer.py` retrofitted with their own `_SECTOR1_LABELS`/
+      `_SECTOR2_LABELS` - each the UNION of the layer's main symbol_set's
+      own modifiers and its folded-in missile entity's symbol_set (e.g.
+      Space's 11 sector1/27 sector2 keys, Air's 49 sector1/25 sector2
+      keys) - `mct_build_sidc()` resolves the real numeric code against
+      whichever symbol_set the feature's own entity maps to, so a
+      modifier key only valid under one of the two merged symbol_sets
+      simply won't resolve if paired with an entity from the other.
+      That specific failure mode turned out NOT to be a clean, visible
+      render-time error (`mct_build_sidc()` catches the `KeyError` and
+      returns plain text, which milsymbol.js may still turn into SOME
+      fallback SVG for the resulting garbage SIDC rather than visibly
+      failing) - an early version of this pass's own tests wrongly
+      assumed otherwise and had to be corrected to check the real
+      contract directly against `build_sidc()` (which does reliably
+      raise `KeyError`), not via a rendered symbol path. 440 tests
+      (`tests/test_military_symbology_sidc.py`, `test_point_symbol_
+      layer.py`, `test_space_layer.py`, `test_air_layer.py` all
+      extended) passing on both QGIS 3.44.12 and 4.2.0.
+    - **Mini-Phase D (Appendix D, Land) done 2026-08-08 - the largest
+      mini-phase yet, four sub-domains in one pass.** Unlike Space/Air,
+      Land Unit/Civilian/Equipment/Installation are each a genuinely
+      substantial, independent vocabulary (Table A-III symbol sets
+      10/11/15/20) - not folded into one merged layer via
+      `entity_symbol_set_overrides` (that mechanism is for a small
+      single-entity companion, not four large domains). New
+      `military_symbology/land_layer.py` builds four separate layers
+      ("Tactical Graphics - Land Unit/Civilian/Equipment/Installation"),
+      all added together under one new toolbar action/icon
+      (`icons/tactical_graphics_land.svg`), mirroring
+      `control_measures.py`'s "one action, several layers" precedent.
+      Field applicability read directly from Chapter 5's own Table VII
+      (Appendix D's own Table D-II doesn't restate per-domain columns):
+      Field B (Echelon) applies only to Units, so only Land Unit gets
+      `include_echelon=True`; Field S (Headquarters) applies to Units/
+      Equipment/Installations (not SIGINT), so all four get
+      `include_headquarters=True`, including Land Civilian (judgment
+      call - closest fit to Table VII's "U" category, since the base
+      table has no explicit civilian-organization column).
+      - **Land Unit** ("ground_unit" in `sidc.py` - key kept unchanged
+        rather than renamed, since Table A-III's own code "10" doesn't
+        change either way and a rename would touch every existing test/
+        reference for no functional benefit) moved out of
+        `unit_layer.py`'s old shared multi-domain layer into its own
+        dedicated one. Its existing 50-entity curated vocabulary was
+        re-verified entity-by-entity directly against milsymbol-3.0.4's
+        own `landunit.js` (219 total entities available) - every single
+        code confirmed correct, no bugs found, unlike the Air/Subsurface
+        vocabularies earlier appendices turned up real bugs in.
+      - **Land Civilian** (`ENTITIES["land_civilian"]`) is `landcivilian.
+        js`'s FULL 11-entity vocabulary - small enough that no curation
+        was needed, unlike every other Land domain.
+      - **Land Equipment**/**Land Installation** (`ENTITIES["land_
+        equipment"]`/`["land_installation"]`) are new curated subsets
+        (of 229/131 total in `landequipment.js`/`landinstallation.js`)
+        spanning weapons/vehicles/engineer/transport/law-enforcement
+        equipment and government/financial/commercial/educational/
+        utility/transportation/water infrastructure respectively - every
+        code cross-checked programmatically against its own source file
+        before being trusted (a `sId["<code>"]` existence check across
+        all three new dicts, not just spot-checks).
+      - **Deliberately NOT built this pass**: sector 1/2 modifiers for
+        any of the four Land layers - Land Unit alone has 50+ codes per
+        sector (Tables D-VI/D-VII), and all four domains combined would
+        be a disproportionately large addition on top of an already
+        four-domain appendix. Documented, deliberate scope decision, not
+        an oversight - same precedent as `ground_unit`'s own entity
+        curation.
+      - `unit_layer.py` now covers only sea_surface/subsurface (both
+        Air and Ground Unit have moved out) - its own tests updated
+        (the "resolves to a valid path" integration tests now use
+        sea_surface/subsurface instead of the no-longer-offered
+        ground_unit; `DEFAULT_SYMBOL_SET`/default entity changed from
+        ground_unit/infantry to sea_surface/frigate).
+      - New `tests/test_land_layer.py` (table-driven via `subTest()`
+        across all four domains, rather than four near-duplicate test
+        classes). 447 tests passing on both QGIS 3.44.12 and 4.2.0.
+    - **Same-day follow-up: Land Equipment/Installation had a systematic
+      curation gap, caught by the user, not self-discovered.** The
+      user pointed out machine gun's own short/intermediate/long-range
+      codes (110201/202/203) were missing even though the generic form
+      (110200) was included - checking further, this was systematic:
+      nearly every weapon category in `landequipment.js` has a
+      short/intermediate/long-range variant at entity-subtype codes
+      X01/X02/X03, and nearly every vehicle category has a light/medium/
+      heavy variant the same way, and the first pass had silently
+      included only the generic (X00) form of each, dropping the entire
+      variant axis rather than a few isolated entries. Root cause: the
+      first pass was built by skimming grep output rather than a real
+      parse, so multi-line source entries (which is how every one of
+      these variants is written in `landequipment.js`) were invisible to
+      it. Fixed by writing a proper multi-line-aware parser
+      (`re.compile(r'sId\["(\d{6})"\]\s*=\s*(\[.*?\]);', re.S)`) and
+      rebuilding both dicts from its complete, verified output instead:
+      `ENTITIES["land_equipment"]` grew from 59 to 145 entries (every
+      weapon/vehicle category's range or size variants added, plus
+      three previously-missed categories entirely - Missile Support,
+      Mine Laying, Drilling - and a few bridge-type variants);
+      `ENTITIES["land_installation"]` grew from 52 to 97 (a milder,
+      related gap - Installation's own sub-codes are genuinely distinct
+      sibling facility types, not a modifier axis, but several
+      categories only had 2-3 of their real siblings included, e.g.
+      Bank but not ATM/Bullion Storage/Federal Reserve Bank/Financial
+      Services Other - filled in the remaining siblings per category).
+      Both new dicts verified programmatically against their own source
+      files' complete parsed output (every code confirmed to exist, no
+      duplicate codes, no duplicate keys) rather than spot-checked.
+      `land_layer.py`'s own `_EQUIPMENT_ENTITY_LABELS`/`_INSTALLATION_
+      ENTITY_LABELS` rebuilt to match exactly (cross-checked
+      programmatically: identical key sets to `sidc.py`'s own dicts).
+      No test changes needed - the existing vocabulary-coverage test
+      compares key sets, not hardcoded counts, so it caught nothing
+      wrong but also required no update; 447 tests still passing on both
+      QGIS 3.44.12 and 4.2.0. Land Unit was checked for the same failure
+      mode and found NOT to have it - its own sub-codes are genuinely
+      distinct combined-arms types (e.g. "reconnaissance armor",
+      "amphibious infantry"), not a mechanical range/size axis, so
+      widening it further is a real but separate expansion, not a bug
+      fix - left as an explicit, not-yet-done follow-up.
+    - **Re-verification pass, same day: milsymbol.js itself checked
+      against the standard's own printed tables (Space/Air/Land Unit/
+      Land Equipment/Land Installation), not just our own curation
+      checked against milsymbol.** Pulled each appendix's actual PDF
+      table pages, extracted every entity code they print, and diffed
+      against milsymbol.js's own source specifically looking for codes
+      the standard has that milsymbol.js DOESN'T (a gap no amount of
+      curation could fix). **Result: zero such gaps found** across every
+      domain checked - every code in the standard's printed tables
+      exists in milsymbol.js. This confirms milsymbol.js is a complete,
+      faithful base for these appendices; the only remaining gaps are
+      our own deliberate curation choices, catalogued below (2026-08-08,
+      full milsymbol-vs-`sidc.py` diff, "we will revisit later" per the
+      user - see task list) for whoever picks this back up:
+      - **Land Unit - 162 of 212 real `landunit.js` entities excluded**
+        (we have 50). Main groups: signal/comms sub-types (radio, radio
+        relay, radio teletype centre, broadcast transmitter antenna,
+        satellite comms, video imagery, MISO); civil-affairs family
+        (civil affairs, civil-military cooperation, information
+        operations); ~15 combined-arms compound variants (reconnaissance-
+        armor, amphibious-armor, amphibious-infantry, motorized-antitank,
+        and similar two/three-part combinations of categories already
+        individually present); CBRN compounds (+armor/+motorized/
+        +reconnaissance); SOF sub-types (SOF combatant, submarine SOF,
+        underwater demolition team, fixed-wing MISO); a large
+        administrative/combat-service-support bucket (band, finance,
+        judge advocate general, labour, laundry/bath, morale/welfare/
+        recreation, mortuary affairs, personnel services, pipeline,
+        postal, public affairs, religious support, seaport/railhead of
+        debarkation, plus all ten NATO supply class I-X icon variants);
+        the full law-enforcement family (border patrol through US
+        Marshals - also present, more completely, under Land Equipment/
+        Installation); multinational commands (ARRC, ISAF, "Multinational
+        (MN)"); space, multi-domain, cyber, air traffic services.
+      - **Land Equipment - 74 of 219 real `landequipment.js` entities
+        excluded** (we have 145, after this session's fix above). Main
+        groups: deep sub-sub-compounds already deliberately excluded per
+        the documented curation boundary (SAM launcher TLAR/TELAR
+        mountings, armor+cross-country+recon combos, engineer recon
+        vehicle, assault breacher vehicle, route-clearance vehicles,
+        tow-truck light/heavy, civilian-vehicle+trailer combos); missile
+        propellant/warhead transporters (190400/190500 - have
+        transloader/transporter/crane, stopped short of these two); tent
+        civilian/military variants, psychological operations equipment,
+        unit deployment shipments, medevac helicopter, antipersonnel mine
+        (less-than-lethal), sensor (emplaced). **One real inconsistency,
+        not a deliberate boundary**: the law-enforcement family here is
+        only half-included - `law_enforcement`/`border_patrol`/
+        `customs_service`/`drug_enforcement_agency` (170000-400) are
+        present but DOJ/FBI/Secret Service/TSA/law-enforcement-vessel/US
+        Marshals (170500-171100) aren't, even though the identical full
+        family WAS added for Land Installation in this same session -
+        should be fixed for consistency when this is revisited.
+      - **Land Installation - 29 of 126 real `landinstallation.js`
+        entities excluded** (we have 97, after this session's fix
+        above). Main groups: intelligence-marking installations
+        (black-list/gray-list/white-list location, mass grave location);
+        radioactive material; tent+evacuee/training-camp compounds;
+        industrial site+warehouse; Class III/V supply-facility compounds;
+        electric-power-generation-station duplicate icon; base+armory
+        compound; naval-yard/airport-of-debarkation transportation
+        compounds.
+      - Sector 1/2 modifiers remain entirely unbuilt for all four Land
+        layers (already noted above) - Tables D-VI/D-VII (Land Unit
+        alone) have 50+ codes per sector.
+  - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
+    `military_symbology/sea_surface_layer.py` builds one "Tactical
+    Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no
+    missile-family companion to merge in, unlike Space/Air, since the
+    standard has no separate "Sea Surface Missile" symbol set. No
+    echelon/headquarters (Table E-II confirms neither applies, same
+    finding as every icon-based appendix so far).
+    - **Full vocabulary this time, not curated** - applying the lesson
+      from the Land Equipment/Installation gap directly: `sea.js` has
+      only 93 entities (vs. Land Unit's 219/Land Equipment's 229), small
+      enough that full coverage was the more consistent choice.
+      `ENTITIES["sea_surface"]` replaced (was a 20-entry curated subset)
+      with all 93, verified via the same full multi-line-aware parse
+      used to catch the Land gap - zero entities excluded, zero invalid
+      codes, zero duplicates. Includes Table E-VI's "Own Ship" (150000 -
+      Combat Information Center-internal, friend-only, 1L diameter) and
+      Table E-VII's "Fused Track" (160000 - a track still being
+      classified, always pending status).
+    - **Sector 1/2 modifiers also fully built** (`MODIFIERS
+      ["sea_surface"]`, 25 sector 1 + 16 sector 2 codes - the complete
+      set, cross-checked against `sea.js`'s own `sIdm1`/`sIdm2` exactly)
+      - Sea Surface's own modifier tables are compact enough (unlike
+        Land's 50+ per sector) that there was no reason to defer them.
+    - `unit_layer.py`'s `sea_surface` entry removed entirely (`air` and
+      `ground_unit` already gone) - only `subsurface` remains there now,
+      pending Appendix F, which will retire the whole multi-domain/
+      cascading-dropdown module. `DEFAULT_SYMBOL_SET`/default entity
+      changed from `sea_surface`/`frigate` to `subsurface`/`submarine`;
+      `tests/test_unit_layer.py` updated to match (its own "second
+      entity" integration test now uses two different `subsurface`
+      entities instead of `sea_surface`/`subsurface`, since only one
+      domain remains to compare against).
+    - New `icons/tactical_graphics_sea_surface.svg` and
+      `tests/test_sea_surface_layer.py`. 457 tests passing on both QGIS
+      3.44.12 and 4.2.0.
+  - **Mini-Phase F (Appendix F, Subsurface + Mine Warfare) done
+    2026-08-08 - closes out the user's originally-reported bug.** New
+    `military_symbology/subsurface_layer.py` builds two layers -
+    "Tactical Graphics - Subsurface" (symbol set `35`) and "Tactical
+    Graphics - Mine Warfare" (symbol set `36`, Table A-III) - added
+    together under one toolbar action, same "several genuinely distinct
+    layers, one action" precedent as Land (Mine Warfare's own 64-entity
+    vocabulary is too large to fold into a companion the way Space/Air
+    Missile's single entity was). No echelon/headquarters (Table F-II
+    confirms neither applies).
+    - **Root cause of the original bug found and fixed structurally, not
+      by patching the code that was already correct.** The user's report
+      was "Subsurface - Military Generic is in Air, Sea Surface [but not
+      working for Subsurface]." Investigated directly: `ENTITIES
+      ["subsurface"]["military"]` (`"110000"`) was already correct and
+      matches `subsurface.js`'s own `"SU.IC.MILITARY"` exactly - not a
+      code bug at all. The actual cause was almost certainly the old
+      shared `unit_layer.py`'s ValueRelation-based cascading "Entity"
+      dropdown, which that module's own docstring already flagged
+      earlier this project as having a confirmed native-crash risk
+      during development. Resolved by removing that whole mechanism
+      from Subsurface's path entirely - its own dedicated layer uses a
+      plain `ValueMap` dropdown, no cascading, no shared-layer
+      entity-collision risk.
+    - **Full vocabulary for both** (continuing the policy established
+      for Sea Surface): `ENTITIES["subsurface"]` replaced (was an
+      8-entry curated subset) with the full 22 entities from
+      `subsurface.js`; new `ENTITIES["mine_warfare"]` is the full 64
+      entities from `minewarfare.js` (excludes only code `140000`,
+      which milsymbol's own source marks reserved with an empty icon
+      list, the same pattern as Air's `110106`). Mine Warfare's own
+      MILCO (Mine-Like Contact) entries have real confidence-level
+      (1-5) sub-variants for each position (general/bottom/moored/
+      floating) - the same kind of systematic sub-code axis that was
+      missed for Land Equipment before the user caught it - caught here
+      up front by the same full multi-line-aware parse, not missed
+      again. Both dicts verified programmatically: every code exists in
+      source, zero duplicates, zero missing real entries.
+    - **Subsurface's own sector 1/2 modifiers also fully built**
+      (`MODIFIERS["subsurface"]`, 22 sector 1 + 17 sector 2 codes, exact
+      match against `subsurface.js`'s own `sIdm1`/`sIdm2`). Mine Warfare
+      has none at all - not a curation choice, milsymbol's own
+      `minewarfare.js` source has zero `sIdm1`/`sIdm2` entries.
+    - **`unit_layer.py` fully retired** - Subsurface was its last
+      remaining domain (Space/Air/Land/Sea Surface all already moved
+      out). Deleted `military_symbology/unit_layer.py`,
+      `tests/test_unit_layer.py`, and the now-orphaned
+      `icons/tactical_graphics_units.svg` (deletion confirmed explicitly
+      with the user first - the auto-mode permission classifier blocked
+      the first attempt as a destructive action). `plugin.py`'s entire
+      "Tactical Graphics - Units" action wiring (import, `__init__`
+      slot, setup method, menu-removal list, unload nulling, callback)
+      removed; `tests/test_plugin.py`'s toolbar-action-list and
+      unload-clears-references tests updated to expect the five new
+      per-appendix actions instead.
+    - New `icons/tactical_graphics_subsurface.svg` and
+      `tests/test_subsurface_layer.py` - including a test naming the
+      original bug report directly (`military` entity resolves
+      correctly on the new dedicated layer) and one exercising a MILCO
+      confidence-level variant. One test-writing mistake caught by the
+      suite itself and fixed in the same pass: an early version of the
+      new tests' own `_resolve_svg_path()` helper left the
+      `sector1_modifier`/`sector2_modifier` feature attributes NULL
+      instead of an explicit empty string when a test didn't care about
+      them, which resolves to a different (and in this case failing)
+      SIDC than `""` does - fixed to always set them explicitly (only
+      when the field exists on that particular layer, since
+      `QgsFeature.setAttribute()` by name raises `KeyError` for a field
+      that doesn't exist, confirmed live rather than assumed). 451 tests
+      passing on both QGIS 3.44.12 and 4.2.0.
+  - **Same-day follow-up: Land Equipment's newly-added weapon variants
+    were mislabeled, caught by the user, not self-discovered - second
+    correction in a row for this same dict.** The user pointed out that
+    16 weapon categories' own X01/X02/X03 sub-variants (machine gun,
+    grenade launcher, air defense gun, antitank gun, direct fire gun,
+    recoilless gun, howitzer, missile launcher, air defense missile
+    launcher, antitank missile launcher, antitank rocket launcher,
+    surface-to-surface missile launcher, mortar, single/multiple rocket
+    launcher, and rifle) were labeled Short/Intermediate/Long Range in
+    the previous pass - checked directly against the standard's own
+    Table D-XI (printed pages 229-242, not just milsymbol.js): 15 of
+    the 16 are actually **Light/Medium/Heavy**, and rifle specifically
+    is **Single Shot/Semiautomatic/Automatic** (genuinely different from
+    every other category, confirmed page 229 - the user's own
+    expectation that rifle should also be "light/medium/heavy" turned
+    out not to match the standard's own text either, worth noting since
+    it's the one place this session's finding diverged from the user's
+    own guess too, not just from the earlier code). Root cause: labels
+    were built from milsymbol.js's own internal icon-part constant
+    strings (e.g. `"GR.EQ.SHORT RANGE"`) instead of the standard's
+    actual printed text - those turned out to be milsymbol's own
+    internal graphics-composition labels, unrelated to the doctrinal
+    category name. Renamed all 48 affected entity keys in `sidc.py`'s
+    `ENTITIES["land_equipment"]` (codes themselves unchanged - this was
+    a naming-only bug, not a wrong-code bug) and the matching labels in
+    `land_layer.py`'s `_EQUIPMENT_ENTITY_LABELS`, both via scoped Python
+    rewrites (not manual editing, given 48 keys across two files) with
+    an assertion-based verification pass confirming: no `_short_range`/
+    `_intermediate_range`/`_long_range` substrings remain, all 145
+    entity codes still verified against `landequipment.js`, and
+    `land_layer.py`'s label keys still match `sidc.py`'s entity keys
+    exactly (empty set difference). Legitimate `short_range`/
+    `long_range` keys elsewhere (missile-range sector modifiers for Air
+    Missile/Space Missile/Sea Surface, a genuinely different, correct
+    use of "range" terminology) were left untouched - confirmed by
+    scoping every rename to the `land_equipment` entity block
+    specifically, not a blind find-and-replace. 451 tests still passing
+    on both QGIS 3.44.12 and 4.2.0 (no test referenced the renamed keys
+    by name, so none needed updating - only the two source files
+    themselves and their own module-docstring/comment wording, which was
+    also updated to stop citing the wrong terminology as an example of
+    what the earlier gap covered).
+  - **Mini-Phase G (Appendix G, Activities) done 2026-08-08.** New
+    `military_symbology/activities_layer.py` builds a single "Tactical
+    Graphics - Activities" layer (symbol set `40`, Table A-III) - no
+    companion symbol set to merge in, unlike Space/Air Missile. No
+    echelon/headquarters fields (Table G-II lists neither - and its own
+    "S" field is actually "Offset Location Indicator", not Field S from
+    Table VII's master list, so this isn't even a same-letter collision
+    to worry about).
+    - **Full 153-entity vocabulary**, cross-checked against `activites.js`
+      via the same full multi-line-aware parse used for every appendix
+      so far - `set(ENTITIES["activities"].values()) ==` every `sId[...]`
+      code in the source, exactly, zero gaps and zero extras. Includes
+      the hierarchy-only parent codes (`110000`/`130000`/`150000`/
+      `180000`, etc.) that milsymbol's own source marks with an empty
+      icon list ("No icon is associated with this entity. It is for
+      hierarchal purposes only.", confirmed against Table G-III's own
+      remarks column) - these still render a valid frame-only symbol,
+      same pattern as similar top-level codes elsewhere (e.g. Space's/
+      Air's own generic "military").
+    - **A genuine label-accuracy check this time, not just a code check
+      - given the Land Equipment lesson two mini-phases ago.** Rendered
+      Table G-III's own DESCRIPTION column via `pdftotext -layout`
+      (printed pages 357-363) and spot-checked milsymbol's internal icon
+      constant strings against it directly (e.g. code `110110`: the
+      standard's own text is "Civil Rioting", milsymbol's constant is
+      `"ST.IC.RIOT"`). Concluded this is a different, lower-risk
+      situation than Land Equipment's bug: milsymbol's Activities
+      constants are already literal, specific entity names (just
+      sometimes abbreviated), not an internal composition-axis label
+      standing in for a genuinely different doctrinal category the way
+      `"SHORT RANGE"` was. Kept milsymbol's naming as the label source
+      (Title-Cased) rather than hand-transcribing all 153 from OCR'd
+      table text, which would have traded one error mode (abbreviation)
+      for a worse one (OCR misreads across ~150 entries) - documented
+      explicitly in `sidc.py`'s own comment on `ENTITIES["activities"]`
+      so this judgment call is visible, not silent.
+    - **Sector 1 modifiers built from the standard's own Table G-IV, not
+      milsymbol's source as-is - a real, caught discrepancy.** Appendix
+      G's own text states explicitly "there are no sector 2 modifiers in
+      activities symbols" (G.5.3.1 step 3), and Table G-IV (printed
+      pages 383-385) itself only defines sector 1 codes `01` through
+      `18` ("Theft") - the table physically ends there (next page
+      blank, then Appendix H begins). milsymbol's own `activites.js`
+      source, however, defines four EXTRA `sIdm1` codes (`19`-`22`:
+      hijacker, cyberspace, eviction, raid) and two `sIdm2` codes
+      (`01`-`02`: cyberspace, security force assistance) with no
+      corresponding row in Table G-IV at all. Trusted the standard's own
+      text/table over milsymbol.js per this project's standing
+      verification policy - `MODIFIERS["activities"]` has only the 18
+      sanctioned sector 1 codes and no sector 2 entry; `activities_layer.py`
+      correspondingly has no sector 2 field. Code `09`'s label uses the
+      standard's own current wording ("Written Military Information
+      Support Operations", Table G-IV's own category column) rather than
+      milsymbol's older "WRITTEN PSYCHOLOGICAL OPERATIONS" constant.
+    - New `icons/tactical_graphics_activities.svg` (alert-triangle
+      glyph) and `tests/test_activities_layer.py` (vocabulary-coverage,
+      field-list, entity/sector1-modifier render tests, including the
+      hierarchy-only generic entity). `plugin.py` wired the same way as
+      every other single-domain appendix (import, `__init__` slot, setup
+      method + action, menu-removal list, unload nulling, callback);
+      `tests/test_plugin.py`'s toolbar-action-list and
+      unload-clears-references tests updated for the new action. 461
+      tests passing on both QGIS 3.44.12 and 4.2.0.
 
 ---
 
