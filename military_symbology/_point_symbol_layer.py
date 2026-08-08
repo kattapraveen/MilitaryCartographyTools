@@ -22,6 +22,12 @@ into the renderer expression as a literal string rather than stored as
 a per-feature field - there's nothing to cascade when a layer only ever
 represents one domain, so the ValueRelation lookup-layer machinery
 unit_layer.py needs for its multi-domain case simply doesn't exist here.
+The one exception (added 2026-08-08 for Appendix J, SIGINT): a small,
+fixed "Dimension" field (dimension_labels/dimension_symbol_sets below,
+never more than 5 known values, no lookup layer) for the rare appendix
+whose SAME entity vocabulary is genuinely spread across several symbol
+sets - see _symbol_set_expression()'s own docstring for the distinction
+from entity_symbol_set_overrides.
 
 Deliberately NOT a generate_*()/replace_named_layer() feature, same
 reasoning as unit_layer.py: this layer's content is hand-placed
@@ -118,6 +124,8 @@ def _configure_attribute_form(
     include_headquarters,
     sector1_labels,
     sector2_labels,
+    dimension_labels=None,
+    default_dimension=None,
 ):
 
     fields = layer.fields()
@@ -133,6 +141,20 @@ def _configure_attribute_form(
             {"map": _value_map(_AFFILIATION_LABELS)}
         )
     )
+
+    if dimension_labels:
+
+        dimension_idx = fields.indexOf("dimension")
+
+        layer.setEditorWidgetSetup(
+            dimension_idx,
+            QgsEditorWidgetSetup(
+                "ValueMap",
+                {"map": _value_map(dimension_labels)}
+            )
+        )
+
+        layer.setDefaultValueDefinition(dimension_idx, QgsDefaultValue(f"'{default_dimension}'"))
 
     layer.setEditorWidgetSetup(
         entity_idx,
@@ -208,7 +230,7 @@ def _configure_attribute_form(
         layer.setDefaultValueDefinition(sector2_idx, QgsDefaultValue("''"))
 
 
-def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides):
+def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides, dimension_symbol_sets=None):
 
     """
     The SIDC expression's own "symbol_set" argument - normally just the
@@ -222,7 +244,30 @@ def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides):
     for one entity. Not meant for large-scale mixing of domains - if a
     layer's overrides dict starts covering more than a handful of
     entities, it should probably be its own layer instead.
+
+    `dimension_symbol_sets` (an optional {dimension_key: symbol_set}
+    dict) is the other, genuinely different case that needs: a single
+    entity vocabulary that is IDENTICAL across several symbol sets, with
+    a separate "dimension" field (not the entity itself) choosing which
+    one applies - e.g. sigint_layer.py's "Communications"/"Jammer"/
+    "Radar" entities, which mean the same thing whether the SIGINT
+    platform is in space, air, land, sea surface, or subsurface (Table
+    J-II's own SymbolSetCode column literally lists all five symbol sets
+    against the same four entity codes) - entity_symbol_set_overrides
+    would need one entry per (entity, dimension) combination to express
+    that, well past "a handful". Takes priority over
+    entity_symbol_set_overrides when both are given (no layer needs
+    both at once yet).
     """
+
+    if dimension_symbol_sets:
+
+        clauses = " ".join(
+            f'WHEN "dimension" = \'{dimension}\' THEN \'{symbol_set}\''
+            for dimension, symbol_set in dimension_symbol_sets.items()
+        )
+
+        return f"CASE {clauses} ELSE '{default_symbol_set}' END"
 
     if not entity_symbol_set_overrides:
         return f"'{default_symbol_set}'"
@@ -243,6 +288,7 @@ def _build_renderer(
     include_headquarters=True,
     sector1_labels=None,
     sector2_labels=None,
+    dimension_symbol_sets=None,
 ):
 
     """
@@ -263,7 +309,8 @@ def _build_renderer(
 
     symbol_set_expr = _symbol_set_expression(
         symbol_set,
-        entity_symbol_set_overrides
+        entity_symbol_set_overrides,
+        dimension_symbol_sets
     )
 
     echelon_expr = '"echelon"' if include_echelon else "'unspecified'"
@@ -306,6 +353,9 @@ def build_single_domain_point_layer(
     include_headquarters=True,
     sector1_labels=None,
     sector2_labels=None,
+    dimension_labels=None,
+    dimension_symbol_sets=None,
+    default_dimension=None,
 ):
 
     """
@@ -345,6 +395,19 @@ def build_single_domain_point_layer(
     check) to guard the real contract here. Never added to
     the project itself - callers use add_single_domain_point_layer() (or
     their own project.addMapLayer()) exactly once.
+
+    `dimension_labels`/`dimension_symbol_sets`/`default_dimension` are
+    the other multi-symbol-set case - see _symbol_set_expression()'s own
+    docstring for when to reach for this instead of
+    entity_symbol_set_overrides. `dimension_labels` (optional
+    {dimension_key: display_label}) adds a "Dimension" field (placed
+    right after Affiliation, before Entity, matching the standard's own
+    symbol-building order of choosing dimension/standard-identity before
+    the icon); `dimension_symbol_sets` (optional {dimension_key:
+    symbol_set}) is the CASE mapping actually used by the renderer;
+    `default_dimension` sets the field's default value. All three must
+    be given together or not at all - dimension_labels' keys and
+    dimension_symbol_sets' keys should match exactly.
     """
 
     crs = QgsProject.instance().crs()
@@ -357,8 +420,12 @@ def build_single_domain_point_layer(
 
     attributes = [
         QgsField("affiliation", QMetaType.Type.QString),
-        QgsField("entity", QMetaType.Type.QString),
     ]
+
+    if dimension_labels:
+        attributes.append(QgsField("dimension", QMetaType.Type.QString))
+
+    attributes.append(QgsField("entity", QMetaType.Type.QString))
 
     if include_echelon:
         attributes.append(QgsField("echelon", QMetaType.Type.QString))
@@ -388,6 +455,8 @@ def build_single_domain_point_layer(
         include_headquarters,
         sector1_labels,
         sector2_labels,
+        dimension_labels,
+        default_dimension,
     )
 
     layer.setRenderer(
@@ -399,6 +468,7 @@ def build_single_domain_point_layer(
             include_headquarters,
             sector1_labels,
             sector2_labels,
+            dimension_symbol_sets,
         )
     )
 
@@ -429,6 +499,9 @@ def add_single_domain_point_layer(
     include_headquarters=True,
     sector1_labels=None,
     sector2_labels=None,
+    dimension_labels=None,
+    dimension_symbol_sets=None,
+    default_dimension=None,
 ):
 
     """
@@ -464,6 +537,9 @@ def add_single_domain_point_layer(
         include_headquarters,
         sector1_labels,
         sector2_labels,
+        dimension_labels,
+        dimension_symbol_sets,
+        default_dimension,
     )
 
     return add_layer_at_default_position(

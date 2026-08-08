@@ -33,6 +33,8 @@ from .military_symbology.land_layer import add_land_layers
 from .military_symbology.sea_surface_layer import add_sea_surface_layer
 from .military_symbology.subsurface_layer import add_subsurface_layers
 from .military_symbology.activities_layer import add_activities_layer
+from .military_symbology.sigint_layer import add_sigint_layer
+from .military_symbology.cyberspace_layer import add_cyberspace_layer
 from .military_symbology.control_measure_points import (
     add_control_measure_points_layer,
 )
@@ -102,6 +104,8 @@ class MilitaryCartographyTools:
         self.tactical_graphics_sea_surface_action = None
         self.tactical_graphics_subsurface_action = None
         self.tactical_graphics_activities_action = None
+        self.tactical_graphics_sigint_action = None
+        self.tactical_graphics_cyberspace_action = None
         self.control_measures_action = None
 
         self.sub_grid_button = None
@@ -192,6 +196,8 @@ class MilitaryCartographyTools:
         self._setup_tactical_graphics_sea_surface_action()
         self._setup_tactical_graphics_subsurface_action()
         self._setup_tactical_graphics_activities_action()
+        self._setup_tactical_graphics_sigint_action()
+        self._setup_tactical_graphics_cyberspace_action()
         self._setup_control_measures_action()
 
         # Add the grid-frame toolbar to every print layout window -
@@ -767,6 +773,38 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_tactical_graphics_sigint_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/sigint_layer.py.
+        self.tactical_graphics_sigint_action = self._build_action(
+            "tactical_graphics_sigint.svg",
+            "Tactical Graphics - SIGINT",
+            tooltip=(
+                "Add a SIGINT layer (MIL-STD-2525D Appendix J) "
+                "that renders each point's own symbol automatically "
+                "from its attributes"
+            ),
+            callback=self.create_tactical_graphics_sigint
+        )
+
+
+    def _setup_tactical_graphics_cyberspace_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/cyberspace_layer.py.
+        self.tactical_graphics_cyberspace_action = self._build_action(
+            "tactical_graphics_cyberspace.svg",
+            "Tactical Graphics - Cyberspace",
+            tooltip=(
+                "Add a Cyberspace layer (MIL-STD-2525D Appendix L) "
+                "that renders each point's own symbol automatically "
+                "from its attributes"
+            ),
+            callback=self.create_tactical_graphics_cyberspace
+        )
+
+
     def _setup_control_measures_action(self):
 
         # One-shot action, not a map tool - see
@@ -900,6 +938,8 @@ class MilitaryCartographyTools:
             self.tactical_graphics_sea_surface_action,
             self.tactical_graphics_subsurface_action,
             self.tactical_graphics_activities_action,
+            self.tactical_graphics_sigint_action,
+            self.tactical_graphics_cyberspace_action,
             self.control_measures_action,
         ]:
 
@@ -974,6 +1014,8 @@ class MilitaryCartographyTools:
         self.tactical_graphics_sea_surface_action = None
         self.tactical_graphics_subsurface_action = None
         self.tactical_graphics_activities_action = None
+        self.tactical_graphics_sigint_action = None
+        self.tactical_graphics_cyberspace_action = None
         self.control_measures_action = None
 
         # sub_grid_button/menu/group ARE children of the toolbar
@@ -1329,6 +1371,30 @@ class MilitaryCartographyTools:
         """
 
         add_activities_layer(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_sigint(self):
+        """
+        Add a "Tactical Graphics - SIGINT" layer (MIL-STD-2525D
+        Appendix J), ready for placing symbols with QGIS's own native
+        point editing tools.
+        """
+
+        add_sigint_layer(
+            self.iface
+        )
+
+
+    def create_tactical_graphics_cyberspace(self):
+        """
+        Add a "Tactical Graphics - Cyberspace" layer (MIL-STD-2525D
+        Appendix L), ready for placing symbols with QGIS's own native
+        point editing tools.
+        """
+
+        add_cyberspace_layer(
             self.iface
         )
 

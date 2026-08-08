@@ -1925,6 +1925,129 @@ tested, not claimed as done here.
     gets a short "not covered" note in its own tactical-graphics section
     for anyone looking for it. Appendix J (SIGINT) is next per the
     plan's strict document order.
+  - **Mini-Phase J (Appendix J, SIGINT) done 2026-08-08 - the user chose
+    to hold Appendix H and jump straight to J.** New
+    `military_symbology/sigint_layer.py` builds a single "Tactical
+    Graphics - SIGINT" layer, but this appendix is structurally
+    different from every one built so far (B-G): Table J-II's own
+    SymbolSetCode column lists the exact same four entity codes (Signal
+    Intercept/Communications/Jammer/Radar) against FIVE different symbol
+    sets at once - Space (`50`), Air (`51`), Land (`52`), Sea Surface
+    (`53`), Subsurface (`54`) - chosen by which "dimension" the SIGINT
+    platform is actually in (J.5.3.3), not by a different entity code
+    per dimension the way every other appendix works.
+    - **Extended the shared `_point_symbol_layer.py` factory rather than
+      hand-rolling a bespoke layer module.** Added a small, fixed
+      "Dimension" field mechanism (`dimension_labels`/
+      `dimension_symbol_sets`/`default_dimension`, at most 5 known
+      values) that drives a CASE expression on symbol_set - genuinely
+      different from the existing `entity_symbol_set_overrides`
+      mechanism (which is entity-keyed and explicitly documented as
+      "not meant for large-scale mixing," which SIGINT's 4×5 = 20
+      combination would have been) and NOT a reintroduction of
+      `unit_layer.py`'s old ValueRelation cascading dropdown (a plain
+      ValueMap on a literal small field, no lookup layer, no
+      previously-documented crash risk). `sidc.py`'s own
+      `ENTITIES["sigint_space"/"sigint_air"/"sigint_land"/
+      "sigint_sea_surface"/"sigint_subsurface"]` and
+      `MODIFIERS["sigint_*"]["sector1"]` are all the SAME dict object
+      referenced under five keys (not five hand-copied duplicates) -
+      `build_sidc()` looks entities/modifiers up as
+      `ENTITIES[symbol_set][entity]`, so a single source of truth here
+      is both correct and impossible to let drift across the five keys.
+    - **Full vocabulary, cross-checked against milsymbol's own
+      `signalsintelligence.js` and the standard's own Table J-II/J-III**
+      (printed pages 771-782): all 4 entity codes match exactly; sector 1
+      has 64 of milsymbol's 65 modifier codes - code `65` ("Cyber") has
+      no corresponding row in Table J-III, which physically ends at code
+      `64` ("Experimental", next page blank, then Appendix K begins) -
+      excluded as unsanctioned by the standard, the same call already
+      made for Activities' own extra codes. milsymbol's single
+      `sIdm2["01"]` ("Cyber") is likewise excluded entirely - J.5.3.2's
+      own text states explicitly "There are no sector 2 modifiers in
+      SIGINT."
+    - **No echelon/headquarters fields, a deliberate, documented
+      simplification rather than a fabricated rule.** J.5.3.3's own text
+      says a SIGINT symbol "shall follow the amplifier requirements as
+      stated in [the matching dimension's] appendix" - which would
+      suggest Echelon should appear for a Land-dimension SIGINT entity,
+      say - but WHICH of Appendix D's own four Land layers' amplifier
+      rules would even apply to a SIGINT entity (not a Land Unit/
+      Civilian/Equipment/Installation entity itself) is genuinely
+      ambiguous from the appendix's own cross-reference. Documented this
+      explicitly in `sigint_layer.py`'s own docstring rather than
+      guessing a per-dimension conditional field set.
+    - New `icons/tactical_graphics_sigint.svg` (antenna-with-signal-arcs
+      glyph), `tests/test_sigint_layer.py` (vocabulary-coverage,
+      field-list, cross-dimension entity-resolution, sector1-modifier,
+      and hierarchy-only-entity render tests), and a new
+      `TestDimensionField` class in `tests/test_point_symbol_layer.py`
+      exercising the shared factory's own new mechanism directly (field
+      placement before Entity, dropdown/default value, cross-symbol-set
+      resolution) - decoupled from SIGINT's own vocabulary the same way
+      the rest of that test file already is. `plugin.py` wired the same
+      way as every other single-domain appendix; `tests/test_plugin.py`
+      updated for the new action. 476 tests passing on both QGIS 3.44.12
+      and 4.2.0.
+  - **Mini-Phase L (Appendix L, Cyberspace) done 2026-08-08 - the user
+    confirmed the SIGINT amplifier judgment call and asked to continue
+    straight to L, holding H for later.** New
+    `military_symbology/cyberspace_layer.py` builds a single "Tactical
+    Graphics - Cyberspace" layer, symbol set `60` - unlike Appendix J,
+    Table L-II's own SymbolSetCode column uses only `60` throughout
+    (never a comma list), so despite L.5.3.3 using the exact same
+    "amplifiers depend on the symbol's dimension" boilerplate text as
+    J.5.3.3, this appendix does NOT actually span multiple symbol sets -
+    read as general amplifier guidance rather than a real per-dimension
+    field requirement, so no Dimension field was built for it (a single,
+    plain `add_single_domain_point_layer()` call, the simplest layer
+    since Sea Surface).
+    - **First appendix where milsymbol's own source is edition-aware,
+      and it mattered.** `cyberspace.js` has `edition == "D" ? ... : ...`
+      ternaries on several codes (e.g. `110100` renders "Command and
+      Control (C2)" in edition D, "Combat Mission Team" in a later
+      MIL-STD-2525E/APP-6E branch). Confirmed this project's own
+      `build_sidc()` always sets SIDC version `"10"`, which milsymbol's
+      own `metadata.js` maps to `edition = "D"` unconditionally - so
+      every appendix built so far has always been rendering the "D"
+      branch already, just never one with an actual fork before. Picked
+      the "D" branch's own icon for every ternary here and cross-checked
+      the result directly against Table L-II's own printed text (not
+      just trusted because it's labeled "D").
+    - **22 of milsymbol's 72 `sId` entries excluded - two distinct
+      groups, both confirmed absent by Table L-II's own physical page
+      boundary** (ends at code `160900`, then a blank page, then the
+      standard's own INDEX begins - no further Appendix L content):
+      six codes (`110500`-`111000`) that are either explicitly commented
+      `// Disused` in milsymbol's own source or have no "D"-edition
+      value defined at all, and the entire `170000`-`180000` block
+      (Server/Workstation/Mobile/Tablet/Laptop/IoT device-type entries)
+      - reads like a 2525E/APP-6E-only addition, never actually part of
+      2525D's own Appendix L. Final count: 50 real entities, cross-
+      checked programmatically (every remaining code exists in source,
+      zero duplicates, `ENTITIES["cyberspace"]` label keys match
+      `cyberspace_layer.py`'s own exactly).
+    - **No modifier fields at all - the strictest case yet.** L.5.3.2's
+      own text states explicitly "There are no modifiers in cyberspace
+      symbols" (also in Table L-I's own step 2 note) - milsymbol's
+      source nonetheless defines 13 `sIdm1` and 8 `sIdm2` codes with no
+      table of any kind in the standard's own Appendix L to sanction
+      them (unlike Activities/SIGINT, which each had a real, smaller
+      modifier table this project trimmed down to). Excluded entirely -
+      no `MODIFIERS["cyberspace"]` entry exists, the same "no entry at
+      all" pattern Mine Warfare already established.
+    - New `icons/tactical_graphics_cyberspace.svg` (server-rack-with-
+      network-node glyph) and `tests/test_cyberspace_layer.py`
+      (vocabulary-coverage, no-modifiers-entry, field-list, hierarchy-
+      only-entity, and same-name-different-code render tests - "Network
+      Outage" legitimately appears twice under different categories,
+      codes `130200` and `160700`). `plugin.py` wired the same way as
+      every other single-domain appendix; `tests/test_plugin.py` updated
+      for the new action. 485 tests passing on both QGIS 3.44.12 and
+      4.2.0. This closes out the appendix-by-appendix plan's point-
+      symbol appendices (A-G, J, L) - only Appendix H (Control
+      Measures, held at the user's request) and the already-skipped
+      Appendix I (METOC) remain.
 
 ---
 

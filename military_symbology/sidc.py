@@ -95,6 +95,19 @@ SYMBOL_SETS = {
     "mine_warfare": "36",
     # Table A-III: Activities=40. Added 2026-08-08, Appendix G.
     "activities": "40",
+    # Table A-III / Table J-II's own SymbolSetCode column: Signals
+    # Intelligence Space=50, Air=51, Land=52, Sea Surface=53,
+    # Subsurface=54. Added 2026-08-08, Appendix J. Genuinely five
+    # symbol sets for ONE shared entity vocabulary (Table J-II lists the
+    # same four entity codes against all five) - see sigint_layer.py and
+    # ENTITIES["sigint"] below.
+    "sigint_space": "50",
+    "sigint_air": "51",
+    "sigint_land": "52",
+    "sigint_sea_surface": "53",
+    "sigint_subsurface": "54",
+    # Table A-III: Cyberspace=60. Added 2026-08-08, Appendix L.
+    "cyberspace": "60",
     # Appendix H's own point-type control measures (checkpoints, contact/
     # decision points, target points, sustainment/supply points, and
     # similar) - a different rendering mechanism from control_measures.py's
@@ -103,6 +116,23 @@ SYMBOL_SETS = {
     # milsymbol.js already renders same as any other symbol set). Added
     # 2026-08-07 - see military_symbology/control_measure_points.py.
     "control_measure": "25",
+}
+
+# Real codes from milsymbol-3.0.4's own
+# src/numbersidc/sidc/signalsintelligence.js - the FULL 4-entity
+# vocabulary, cross-checked against the standard's own Table J-II
+# (Appendix J, printed pages 773-774). One shared dict object (not five
+# separate copies) referenced under all five ENTITIES["sigint_*"] keys
+# below - Table J-II's own SymbolSetCode column lists the exact same
+# four entity codes against all five symbol sets (50-54) at once, so a
+# single source of truth here is both correct and impossible to let
+# drift out of sync across the five keys, unlike a hand-copied
+# duplicate would be.
+_SIGINT_ENTITIES = {
+    "signal_intercept": "110000",
+    "communications": "110100",
+    "jammer": "110200",
+    "radar": "110300",
 }
 
 # Entity base codes (the first 6 characters of the 10-character function-ID
@@ -1149,6 +1179,92 @@ ENTITIES = {
         "spokesperson": "180200",
         "isolated_personnel": "180300",
     },
+    # See _SIGINT_ENTITIES above (Appendix J) - the same dict object
+    # under all five dimension-specific symbol_set keys, since
+    # build_sidc() looks entities up as ENTITIES[symbol_set][entity] and
+    # sigint_layer.py resolves symbol_set from a separate "dimension"
+    # field rather than from the entity itself (see
+    # military_symbology/_point_symbol_layer.py's dimension_symbol_sets
+    # mechanism).
+    "sigint_space": _SIGINT_ENTITIES,
+    "sigint_air": _SIGINT_ENTITIES,
+    "sigint_land": _SIGINT_ENTITIES,
+    "sigint_sea_surface": _SIGINT_ENTITIES,
+    "sigint_subsurface": _SIGINT_ENTITIES,
+    # Real codes from milsymbol-3.0.4's own
+    # src/numbersidc/sidc/cyberspace.js (symbolSet == "60") - the FULL
+    # vocabulary Table L-II (Appendix L, printed pages 801-807) actually
+    # defines: 50 of milsymbol's own 72 sId entries. milsymbol's source
+    # is itself edition-aware (several codes resolve differently
+    # depending on `edition == "D"` vs its MIL-STD-2525E/APP-6E branch -
+    # e.g. code 110100 is "Command and Control (C2)" in D, "Combat
+    # Mission Team" in E) - this project's own build_sidc() always sets
+    # SIDC version "10", which milsymbol's own metadata.js maps to
+    # edition "D" unconditionally, so the "D" branch is always what
+    # actually renders; codes below use that branch's own icon choice,
+    # cross-checked directly against Table L-II's own printed text (not
+    # just picked because it's labeled "D"). The 22 excluded codes fall
+    # into two groups, both confirmed absent from Table L-II by the
+    # table's own physical page boundary (ends at code 160900, blank
+    # page, then the standard's INDEX begins - no Appendix L content
+    # after): six mid-range codes (110500-111000) that are either
+    # explicitly commented "// Disused" in milsymbol's own source or
+    # simply have no D-edition value at all, and the entire 170000-180000
+    # block (Server/Workstation/Mobile/Tablet/Laptop/IoT device-type
+    # entries), which reads like a 2525E/APP-6E-only addition never
+    # actually part of 2525D's own Appendix L.
+    "cyberspace": {
+        "botnet": "110000",
+        "command_and_control": "110100",
+        "herder": "110200",
+        "callback_domain": "110300",
+        "zombie": "110400",
+        "infection": "120000",
+        "advanced_persistent_threat": "120100",
+        "apt_with_c2": "120101",
+        "apt_with_self_propagation": "120102",
+        "apt_with_c2_and_self_propagation": "120103",
+        "apt_other": "120104",
+        "non_advanced_persistent_threat": "120200",
+        "napt_with_c2": "120201",
+        "napt_with_self_propagation": "120202",
+        "napt_with_c2_and_self_propagation": "120203",
+        "napt_other": "120204",
+        "health_and_status": "130000",
+        "normal": "130100",
+        "network_outage_health_status": "130200",
+        "unknown": "130300",
+        "impaired": "130400",
+        "device_type": "140000",
+        "core_router": "140100",
+        "router": "140200",
+        "cross_domain_solution": "140300",
+        "mail_server": "140400",
+        "web_server": "140500",
+        "domain_server": "140600",
+        "file_server": "140700",
+        "peer_to_peer_node": "140800",
+        "firewall": "140900",
+        "switch": "141000",
+        "host": "141100",
+        "virtual_private_network": "141200",
+        "device_domain": "150000",
+        "department_of_defense": "150100",
+        "government": "150200",
+        "contractor": "150300",
+        "supervisory_control_and_data_acquisition": "150400",
+        "non_government": "150500",
+        "effect": "160000",
+        "infection_effect": "160100",
+        "degradation": "160200",
+        "data_spoofing": "160300",
+        "data_manipulation": "160400",
+        "exfiltration": "160500",
+        "power_outage": "160600",
+        "network_outage_effect": "160700",
+        "service_outage": "160800",
+        "device_outage": "160900",
+    },
 }
 
 
@@ -1163,6 +1279,95 @@ ENTITIES = {
 # UI need an entry here - a symbol_set absent from this dict simply has
 # no modifier support yet (build_sidc() only raises if a caller actually
 # passes a non-None modifier for such a symbol_set).
+
+# Real codes from milsymbol-3.0.4's own
+# src/numbersidc/sidc/signalsintelligence.js sIdm1 (symbolSet == "50"
+# through "54"), cross-checked against the standard's own Table J-III
+# (Appendix J, printed pages 774-782) - ONLY codes "01" through "64"
+# ("Experimental") match an actual row in that table; milsymbol's own
+# source has one more, sIdm1["65"] ("Cyber"), with no corresponding row
+# - Table J-III physically ends at code 64 (next page is blank, then
+# Appendix K begins) - so "65" is excluded here, same "trust the
+# standard's own table over milsymbol.js's extra entries" call already
+# made for Activities' own sector 1 modifiers. milsymbol's source also
+# has a single sIdm2["01"] ("Cyber") with likewise no table at all -
+# J.5.3.2's own text states explicitly "There are no sector 2 modifiers
+# in SIGINT", so no MODIFIERS["sigint_*"]["sector2"] entry exists either.
+# One shared dict (not five copies) referenced under all five
+# MODIFIERS["sigint_*"] keys below, same reasoning as _SIGINT_ENTITIES
+# above - Table J-III's own modifiers apply identically across all five
+# SIGINT symbol sets (each row's own "Symbol Set Code" column just lists
+# which subset of the five dimensions that particular modifier is
+# meaningful for - a doctrinal usage note this plugin doesn't enforce,
+# same as it doesn't enforce which sector modifiers pair with which
+# entities anywhere else either).
+_SIGINT_SECTOR1_MODIFIERS = {
+    "anti_aircraft_fire_control": "01",
+    "airborne_search_and_bombing": "02",
+    "airborne_intercept": "03",
+    "altimeter": "04",
+    "airborne_reconnaissance_and_mapping": "05",
+    "air_traffic_control": "06",
+    "beacon_transponder_not_iff": "07",
+    "battlefield_surveillance": "08",
+    "controlled_approach": "09",
+    "controlled_intercept": "10",
+    "cellular_mobile": "11",
+    "coastal_surveillance": "12",
+    "decoy_mimic": "13",
+    "data_transmission": "14",
+    "earth_surveillance": "15",
+    "early_warning": "16",
+    "fire_control": "17",
+    "ground_mapping": "18",
+    "height_finding": "19",
+    "harbor_surveillance": "20",
+    "identification_friend_or_foe_interrogator": "21",
+    "instrument_landing_system": "22",
+    "ionospheric_sounding": "23",
+    "identification_friend_or_foe_transponder": "24",
+    "barrage_jammer": "25",
+    "click_jammer": "26",
+    "deceptive_jammer": "27",
+    "frequency_swept_jammer": "28",
+    "jammer_general": "29",
+    "noise_jammer": "30",
+    "pulsed_jammer": "31",
+    "repeater_jammer": "32",
+    "spot_noise_jammer": "33",
+    "transponder_jammer": "34",
+    "missile_acquisition": "35",
+    "missile_control": "36",
+    "missile_downlink": "37",
+    "meteorological": "38",
+    "multi_function": "39",
+    "missile_guidance": "40",
+    "missile_homing": "41",
+    "missile_tracking": "42",
+    "navigational_general": "43",
+    "navigational_distance_measuring_equipment": "44",
+    "navigation_terrain_following": "45",
+    "navigational_weather_avoidance": "46",
+    "omni_line_of_sight_los": "47",
+    "proximity_use": "48",
+    "point_to_point_line_of_sight_los": "49",
+    "instrumentation": "50",
+    "range_only": "51",
+    "sonobuoy": "52",
+    "satellite_downlink": "53",
+    "space": "54",
+    "surface_search": "55",
+    "shell_tracking": "56",
+    "satellite_uplink": "57",
+    "target_acquisition": "58",
+    "target_illumination": "59",
+    "tropospheric_scatter": "60",
+    "target_tracking": "61",
+    "unknown": "62",
+    "video_remoting": "63",
+    "experimental": "64",
+}
+
 MODIFIERS = {
     "space": {
         "sector1": {
@@ -1446,6 +1651,14 @@ MODIFIERS = {
             "theft_modifier": "18",
         },
     },
+    # See _SIGINT_SECTOR1_MODIFIERS above (Appendix J) - the same dict
+    # object under all five dimension-specific symbol_set keys. No
+    # "sector2" entry for any of them - SIGINT has none.
+    "sigint_space": {"sector1": _SIGINT_SECTOR1_MODIFIERS},
+    "sigint_air": {"sector1": _SIGINT_SECTOR1_MODIFIERS},
+    "sigint_land": {"sector1": _SIGINT_SECTOR1_MODIFIERS},
+    "sigint_sea_surface": {"sector1": _SIGINT_SECTOR1_MODIFIERS},
+    "sigint_subsurface": {"sector1": _SIGINT_SECTOR1_MODIFIERS},
 }
 
 

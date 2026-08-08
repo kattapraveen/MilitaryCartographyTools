@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- server rack with a network node, evoking Appendix L (Cyberspace) -->
+  <rect x="4" y="4" width="16" height="6" rx="1" fill="none" stroke="#1f3a5f" stroke-width="1.5"/>
+  <rect x="4" y="14" width="16" height="6" rx="1" fill="none" stroke="#1f3a5f" stroke-width="1.5"/>
+  <circle cx="7.2" cy="7" r="0.9" fill="#1f3a5f"/>
+  <circle cx="7.2" cy="17" r="0.9" fill="#1f3a5f"/>
+  <line x1="10.5" y1="7" x2="16" y2="7" stroke="#1f3a5f" stroke-width="1.1" stroke-linecap="round"/>
+  <line x1="10.5" y1="17" x2="16" y2="17" stroke="#1f3a5f" stroke-width="1.1" stroke-linecap="round"/>
+</svg>

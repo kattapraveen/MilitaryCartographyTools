@@ -62,6 +62,8 @@ class TestPluginLifecycle(QgisTestCase):
                 "Tactical Graphics - Sea Surface",
                 "Tactical Graphics - Subsurface",
                 "Tactical Graphics - Activities",
+                "Tactical Graphics - SIGINT",
+                "Tactical Graphics - Cyberspace",
                 "Tactical Graphics - Control Measures",
             ):
 
@@ -129,6 +131,8 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_sea_surface_action)
         self.assertIsNone(plugin.tactical_graphics_subsurface_action)
         self.assertIsNone(plugin.tactical_graphics_activities_action)
+        self.assertIsNone(plugin.tactical_graphics_sigint_action)
+        self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
         self.assertIsNone(plugin.control_measures_action)
 
 

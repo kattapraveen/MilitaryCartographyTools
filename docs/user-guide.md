@@ -72,6 +72,8 @@ Left to right:
 | A ship hull over waves | Tactical Graphics - Sea Surface |
 | A submarine hull below a wave line | Tactical Graphics - Subsurface |
 | An alert triangle | Tactical Graphics - Activities |
+| An antenna mast radiating signal arcs | Tactical Graphics - SIGINT |
+| A server rack with a network node | Tactical Graphics - Cyberspace |
 | A dashed line into a solid arrow | Tactical Graphics - Control Measures |
 
 Each Layout Designer window (opened from a print layout) additionally gets
@@ -526,7 +528,7 @@ larger scale denominator instead.
 
 ## Tactical Graphics - point symbol layers
 
-Six toolbar actions, each adding one or more point layers where every
+Eight toolbar actions, each adding one or more point layers where every
 feature automatically renders as the correct MIL-STD-2525D/APP-6
 military symbol, drawn from its own attributes. There's no dialog and no
 separate symbol picker: each layer is created empty and ready to use
@@ -550,23 +552,31 @@ Some layers add further fields, since MIL-STD-2525D's own amplifier
 tables don't apply the same fields to every domain (a battalion has an
 Echelon; a single ship or aircraft doesn't):
 
-| Layer(s) | Echelon | Headquarters | Sector 1 / 2 Modifier |
-|---|---|---|---|
-| Land Unit | ✅ | ✅ | — |
-| Land Civilian / Equipment / Installation | — | ✅ | — |
-| Space, Air, Sea Surface, Subsurface | — | — | ✅ / ✅ |
-| Activities | — | — | ✅ / — (no sector 2 in this appendix) |
-| Mine Warfare | — | — | — |
+| Layer(s) | Echelon | Headquarters | Sector 1 / 2 Modifier | Dimension |
+|---|---|---|---|---|
+| Land Unit | ✅ | ✅ | — | — |
+| Land Civilian / Equipment / Installation | — | ✅ | — | — |
+| Space, Air, Sea Surface, Subsurface | — | — | ✅ / ✅ | — |
+| Activities | — | — | ✅ / — (no sector 2 in this appendix) | — |
+| Mine Warfare | — | — | — | — |
+| SIGINT | — | — | ✅ / — (no sector 2 in this appendix) | ✅ |
+| Cyberspace | — | — | — (no modifiers at all in this appendix) | — |
 
 **Echelon** (where present): Unspecified, Team/Crew, Squad, Section,
 Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or
 Army. **Headquarters** (where present): a checkbox marking the symbol as
 a headquarters element. **Sector 1/2 Modifier** (where present): a
 second small icon shown beside the main one — e.g. a ship's warfare
-role, a submarine's propulsion type, or (Activities only) a crime/IED/
-incident qualifier — each with an explicit **"(None)"** option.
+role, a submarine's propulsion type, or (Activities/SIGINT) a crime/
+IED/incident qualifier or a radar/jammer category — each with an
+explicit **"(None)"** option. **Dimension** (SIGINT only): Space / Air /
+Land / Sea Surface / Subsurface — SIGINT's four entities (Signal
+Intercept, Communications, Jammer, Radar) mean the same thing in every
+dimension, so this field picks which of the five underlying symbol sets
+the point actually belongs to, instead of a separate layer per
+dimension.
 
-**The six actions / seven layers**:
+**The eight actions / nine layers**:
 
 | Toolbar action | Layer(s) added | MIL-STD-2525D | Coverage |
 |---|---|---|---|
@@ -576,6 +586,8 @@ incident qualifier — each with an explicit **"(None)"** option.
 | Tactical Graphics - Sea Surface | "Tactical Graphics - Sea Surface" | Appendix E (symbol set 30) | Full vocabulary — every surface vessel entity, including "Own Ship" and "Fused Track" |
 | Tactical Graphics - Subsurface | "Tactical Graphics - Subsurface", "...Mine Warfare" (two layers, one click) | Appendix F (symbol sets 35, 36) | Full vocabulary for both, including Mine Warfare's confidence-level (1-5) sub-variants for each mine position |
 | Tactical Graphics - Activities | "Tactical Graphics - Activities" | Appendix G (symbol set 40) | Full vocabulary — incidents, civil disturbance, operations, fire/hazmat events, transportation incidents, natural events, and personalities |
+| Tactical Graphics - SIGINT | "Tactical Graphics - SIGINT" | Appendix J (symbol sets 50-54, one per Dimension) | Full vocabulary — 4 entities (Signal Intercept, Communications, Jammer, Radar) × the full 64-entry sector 1 modifier list (radar/jammer/comms categories) |
+| Tactical Graphics - Cyberspace | "Tactical Graphics - Cyberspace" | Appendix L (symbol set 60) | Full vocabulary — 50 entities (botnets, infections, network health/status, device types and domains, cyber effects) |
 
 The symbol updates immediately as soon as the attributes are saved — no
 regenerate step. These are a genuinely different kind of layer from

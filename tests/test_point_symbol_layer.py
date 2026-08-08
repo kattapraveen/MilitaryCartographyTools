@@ -12,7 +12,14 @@ Military Cartography Tools
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
+    QgsExpressionContext,
+    QgsExpressionContextUtils,
+    QgsFeature,
+    QgsGeometry,
+    QgsPointXY,
     QgsProject,
+    QgsRenderContext,
+    QgsSymbolLayer,
 )
 
 from .qgis_test_case import QgisTestCase
@@ -196,6 +203,133 @@ class TestSector1AndSector2Modifiers(QgisTestCase):
         default_expr = layer.defaultValueDefinition(idx).expression()
 
         self.assertEqual(default_expr, "''")
+
+
+class TestDimensionField(QgisTestCase):
+
+    # Real symbol sets (not synthetic) - sigint_air/sigint_land share the
+    # exact same entity vocabulary, exercising the genuine Appendix J
+    # use case this mechanism was built for.
+    _DIMENSION_LABELS = {"air": "Air", "land": "Land"}
+    _DIMENSION_SYMBOL_SETS = {"air": "sigint_air", "land": "sigint_land"}
+    _SIGINT_ENTITY_LABELS = {"radar": "Radar"}
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _build(self):
+
+        return build_single_domain_point_layer(
+            "Test Layer",
+            "sigint_air",
+            self._SIGINT_ENTITY_LABELS,
+            "radar",
+            include_echelon=False,
+            include_headquarters=False,
+            dimension_labels=self._DIMENSION_LABELS,
+            dimension_symbol_sets=self._DIMENSION_SYMBOL_SETS,
+            default_dimension="air",
+        )
+
+
+    def test_excluded_by_default(self):
+
+        layer = build_single_domain_point_layer(
+            "Test Layer",
+            "ground_unit",
+            _ENTITY_LABELS,
+            "infantry",
+        )
+
+        field_names = [field.name() for field in layer.fields()]
+
+        self.assertNotIn("dimension", field_names)
+
+
+    def test_included_and_placed_before_entity_when_given(self):
+
+        layer = self._build()
+
+        field_names = [field.name() for field in layer.fields()]
+
+        self.assertIn("dimension", field_names)
+        self.assertLess(
+            field_names.index("dimension"),
+            field_names.index("entity")
+        )
+
+
+    def test_dropdown_and_default_value(self):
+
+        layer = self._build()
+
+        idx = layer.fields().indexOf("dimension")
+
+        self.assertEqual(
+            layer.editorWidgetSetup(idx).type(),
+            "ValueMap"
+        )
+
+        default_expr = layer.defaultValueDefinition(idx).expression()
+
+        self.assertEqual(default_expr, "'air'")
+
+
+    def _resolve_svg_path(self, layer, dimension):
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("dimension", dimension)
+        feature.setAttribute("entity", "radar")
+        feature.setAttribute("status", "present")
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(
+            QgsExpressionContextUtils.layerScope(layer)
+        )
+        expr_context.setFeature(feature)
+
+        render_context = QgsRenderContext()
+        render_context.setExpressionContext(expr_context)
+
+        symbol = layer.renderer().symbol().clone()
+        symbol.startRender(render_context, layer.fields())
+
+        svg_layer = symbol.symbolLayer(0)
+
+        return svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name,
+            expr_context,
+            ""
+        )
+
+
+    def test_each_dimension_resolves_via_its_own_symbol_set(self):
+
+        layer = self._build()
+
+        for dimension in ("air", "land"):
+
+            with self.subTest(dimension=dimension):
+
+                path, ok = self._resolve_svg_path(layer, dimension)
+
+                self.assertTrue(ok)
+                self.assertTrue(path.startswith("base64:"))
 
 
 class TestValueMapWithNone(QgisTestCase):
