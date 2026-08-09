@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds the "Tactical Graphics - Cyberspace" point layer - MIL-STD-2525D
+Builds the "Cyberspace" point layer - MIL-STD-2525D
 Appendix L (Cyberspace Symbols), symbol set "60" (Table A-III). A single
 symbol set (unlike Appendix J/SIGINT's five) - every entry in Table L-II
 lists exactly one SymbolSetCode ("60"), so this is a plain single-domain
@@ -44,7 +44,7 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-OUTPUT_LAYER_NAME = "Tactical Graphics - Cyberspace"
+OUTPUT_LAYER_NAME = "Cyberspace"
 
 DEFAULT_ENTITY = "web_server"
 
@@ -105,7 +105,7 @@ _ENTITY_LABELS = {
 def add_cyberspace_layer(iface):
 
     """
-    Add the "Tactical Graphics - Cyberspace" layer - warns and does
+    Add the "Cyberspace" layer - warns and does
     nothing if one already exists, same data-safety guard as every other
     hand-digitized layer in this plugin.
     """

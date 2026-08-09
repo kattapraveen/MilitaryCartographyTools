@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds the "Tactical Graphics - Air" point layer - MIL-STD-2525D
+Builds the "Air" point layer - MIL-STD-2525D
 Appendix C (Air Symbols), covering both of its sections in one layer:
 C.6 Air Equipment and Platform Symbols (symbol set "01") and C.7 Air
 Missile Symbols (symbol set "02" - Table A-III). Air Missile has only
@@ -40,7 +40,7 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-OUTPUT_LAYER_NAME = "Tactical Graphics - Air"
+OUTPUT_LAYER_NAME = "Air"
 
 DEFAULT_ENTITY = "fighter"
 
@@ -197,7 +197,7 @@ _SECTOR2_LABELS = {
 def add_air_layer(iface):
 
     """
-    Add the "Tactical Graphics - Air" layer (Air Equipment/Platform plus
+    Add the "Air" layer (Air Equipment/Platform plus
     the single Air Missile entity) - warns and does nothing if one
     already exists, same data-safety guard as every other
     hand-digitized layer in this plugin.

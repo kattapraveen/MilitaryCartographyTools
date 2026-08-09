@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/air_layer.py - "Tactical Graphics - Air"
+Tests for military_symbology/air_layer.py - "Air"
 (MIL-STD-2525D Appendix C), the second single-domain layer built on top
 of military_symbology/_point_symbol_layer.py's shared factory (after
 Space). Covers both of the appendix's sections (Air Equipment/Platform,

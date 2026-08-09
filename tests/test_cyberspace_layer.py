@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/cyberspace_layer.py - "Tactical Graphics -
-Cyberspace" (MIL-STD-2525D Appendix L). Single-domain layer, no modifier
+Tests for military_symbology/cyberspace_layer.py - "Cyberspace"
+(MIL-STD-2525D Appendix L). Single-domain layer, no modifier
 fields at all - L.5.3.2's own text: "There are no modifiers in
 cyberspace symbols."
 

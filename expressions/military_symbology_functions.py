@@ -33,7 +33,7 @@ def _distance_area():
     is a plain Python singleton, always available regardless of which
     UI built the expression context, so this sidesteps that class of
     failure entirely. Correct for every layer this plugin itself
-    creates (military_symbology/control_measures.py and unit_layer.py
+    creates (military_symbology/c2_measures.py and unit_layer.py
     both build their layers in the project's own CRS) - would be wrong
     only if a layer were later reprojected independently of the
     project, an edge case not worth the fragility of the @layer

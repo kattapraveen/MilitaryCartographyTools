@@ -1,16 +1,23 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/control_measures.py - the control-measure
-line/area layers, styled via a QgsRuleBasedRenderer keyed on
-"measure_type".
+Tests for military_symbology/c2_measures.py - the C2 Measures
+line/area layers (Boundary, Light Line, Area of Operations, Named/
+Target Area of Interest, Airfield Zone), styled via a
+QgsRuleBasedRenderer keyed on "measure_type".
 
-**2026-08-09**: trimmed down alongside control_measures.py itself to
-only what the appendix-by-appendix completion plan has actually
-re-verified so far - currently just Boundary (Mini-Phase H0). See that
-module's own docstring for why every measure type from the earlier,
-unverified stage-based pass (and its own tests here) was removed rather
-than left in place.
+**2026-08-09**: module renamed from control_measures.py to
+c2_measures.py (and this test file to match) when the project
+maintainer asked for Appendix H's control measures to be broken down
+into their own H.5.x logical-group layers/modules rather than one
+shared pair growing to cover the whole appendix - see c2_measures.py's
+own docstring for the full rationale and _control_measure_shared.py for
+the helpers now shared with future H-group modules (Maneuver,
+Defensive, Offensive, etc.) as they land. Trimmed down 2026-08-09
+alongside that rename to only what the appendix-by-appendix completion
+plan has actually re-verified so far - Boundary (Mini-Phase H0), then
+Light Line/Area of Operations/Named+Target Area of Interest/Airfield
+Zone (Mini-Phase H2).
 
 Military Cartography Tools
 """
@@ -21,11 +28,15 @@ from qgis.core import (
     QgsExpression,
     QgsExpressionContext,
     QgsFeature,
+    QgsFontMarkerSymbolLayer,
     QgsGeometry,
+    QgsGeometryGeneratorSymbolLayer,
+    QgsMarkerLineSymbolLayer,
     QgsPointXY,
     QgsProject,
     QgsSymbolLayer,
     QgsSymbolLayerUtils,
+    QgsTemplatedLineSymbolLayerBase,
     QgsVectorLayer,
     QgsVectorLayerUtils,
 )
@@ -35,18 +46,19 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 
-from MilitaryCartographyTools.military_symbology import control_measures
-from MilitaryCartographyTools.military_symbology.control_measures import (
+from MilitaryCartographyTools.military_symbology import c2_measures
+from MilitaryCartographyTools.military_symbology.c2_measures import (
     AFFILIATION_LABELS,
     AREAS_LAYER_NAME,
+    AREA_MEASURE_TYPE_LABELS,
     ECHELON_LABELS,
     LINES_LAYER_NAME,
     LINE_MEASURE_TYPE_LABELS,
     STATUS_LABELS,
-    add_control_measures_areas_layer,
-    add_control_measures_lines_layer,
-    create_control_measures_areas_layer,
-    create_control_measures_lines_layer,
+    add_c2_measures_areas_layer,
+    add_c2_measures_lines_layer,
+    create_c2_measures_areas_layer,
+    create_c2_measures_lines_layer,
 )
 from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
 
@@ -83,7 +95,7 @@ def _resolve_stroke_color(symbol_layer, layer, affiliation):
     return color, ok
 
 
-class TestCreateControlMeasuresLinesLayer(QgisTestCase):
+class TestCreateC2MeasuresLinesLayer(QgisTestCase):
 
     def setUp(self):
 
@@ -94,7 +106,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_has_the_expected_fields(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         field_names = [field.name() for field in layer.fields()]
 
@@ -109,7 +121,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_is_a_line_layer(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         self.assertEqual(
             layer.geometryType().name,
@@ -119,7 +131,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_measure_type_uses_a_value_map_widget_defaulting_to_boundary(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         idx = layer.fields().indexOf("measure_type")
 
@@ -136,7 +148,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_affiliation_uses_a_value_map_widget_defaulting_to_unspecified(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         idx = layer.fields().indexOf("affiliation")
 
@@ -153,7 +165,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_status_uses_a_value_map_widget_defaulting_to_present(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         idx = layer.fields().indexOf("status")
 
@@ -173,7 +185,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_echelon_uses_a_value_map_widget_defaulting_to_blank(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         idx = layer.fields().indexOf("echelon")
 
@@ -199,7 +211,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         # H.5.1.1.1 Standard identity (color rules)): "black, blue
         # (friendly), red (hostile), green (neutral or obstacles), or
         # yellow (unknown ...)" - five distinct colours.
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         expected = {
             "friend": "#0000ff",
@@ -227,7 +239,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_rule_tree_has_one_rule_per_measure_type(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         root = layer.renderer().rootRule()
 
@@ -245,7 +257,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_labelling_is_enabled_and_uses_the_boundary_aware_expression(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         self.assertTrue(layer.labelsEnabled())
 
@@ -254,7 +266,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         self.assertTrue(settings.isExpression)
         self.assertEqual(
             settings.fieldName,
-            control_measures._BOUNDARY_DESIGNATION_LABEL_EXPRESSION
+            c2_measures._BOUNDARY_DESIGNATION_LABEL_EXPRESSION
         )
 
 
@@ -267,7 +279,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         # gap), which only happens with OnLine - found by rendering a
         # real boundary feature both ways, not assumed from the flag's
         # own name (see _configure_designation_labeling()'s own comment).
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         settings = layer.labeling().settings()
 
@@ -282,7 +294,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         # H.5.4 Labeling: "All text labeling shall be in upper case
         # letters" - found unimplemented while re-auditing H.5.1-H.5.4
         # for Mini-Phase H0 (2026-08-09).
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("measure_type", "some_other_type")
@@ -302,10 +314,10 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         # Table H-III shows the near unit's T/AS above, the Field B
         # echelon amplifier in the line's own gap, and the far unit's
         # T/AS below - built as a single 3-line label (see
-        # _boundary_symbol()'s own comment in control_measures.py for why
+        # _boundary_symbol()'s own comment in c2_measures.py for why
         # the echelon glyph is embedded in the label, not a separate
         # symbol layer).
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("measure_type", "boundary")
@@ -324,7 +336,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_boundary_label_omits_echelon_and_far_lines_when_blank(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("measure_type", "boundary")
@@ -341,7 +353,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
     def test_boundary_label_includes_echelon_line_without_far_designation(self):
 
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("measure_type", "boundary")
@@ -360,7 +372,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
     def test_boundary_line_is_solid_when_present_and_dashed_when_planned(self):
 
         # H.5.1.1.3 Status/Table H-I: present=solid, planned=dashed.
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         symbol = _rule_symbol_for(layer, "boundary")
         line_layer = symbol.symbolLayer(0)
@@ -392,14 +404,14 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         # Referenced by the label's own mask settings (see
         # test_boundary_label_mask_targets_the_line_symbol_layer() below)
         # so masking knows exactly which symbol layer to cut a hole in.
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         symbol = _rule_symbol_for(layer, "boundary")
 
         self.assertEqual(symbol.symbolLayerCount(), 1)
         self.assertEqual(
             symbol.symbolLayer(0).id(),
-            control_measures._BOUNDARY_LINE_SYMBOL_LAYER_ID
+            c2_measures._BOUNDARY_LINE_SYMBOL_LAYER_ID
         )
 
 
@@ -417,7 +429,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         # actual fix - see _boundary_symbol()'s and
         # _configure_designation_labeling()'s own docstrings for the
         # full history.
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         # Chained one-liners here (settings().format().mask()...) have
         # triggered real PyQt/sip segfaults in this test suite before -
@@ -431,11 +443,10 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         self.assertTrue(mask.enabled())
 
         refs = mask.maskedSymbolLayers()
-        self.assertEqual(len(refs), 1)
-        self.assertEqual(refs[0].layerId(), layer.id())
-        self.assertEqual(
-            refs[0].symbolLayerIdV2(),
-            control_measures._BOUNDARY_LINE_SYMBOL_LAYER_ID
+        self.assertTrue(all(ref.layerId() == layer.id() for ref in refs))
+        self.assertIn(
+            c2_measures._BOUNDARY_LINE_SYMBOL_LAYER_ID,
+            {ref.symbolLayerIdV2() for ref in refs}
         )
 
 
@@ -448,7 +459,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         # masked gap around it) multiple times rather than just once -
         # see _BOUNDARY_LABEL_REPEAT_DISTANCE_MM's own comment for why
         # this is an approximation, not an exact match.
-        layer = create_control_measures_lines_layer()
+        layer = create_c2_measures_lines_layer()
 
         settings = layer.labeling().settings()
 
@@ -471,7 +482,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
             QgsProject.instance().setCrs(WGS84)
 
-            layer = create_control_measures_lines_layer()
+            layer = create_c2_measures_lines_layer()
 
             idx = layer.fields().indexOf("length_km")
 
@@ -502,7 +513,126 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
             military_symbology_functions.unregister()
 
 
-class TestCreateControlMeasuresAreasLayer(QgisTestCase):
+    def test_light_line_is_solid_when_present_and_dashed_when_planned(self):
+
+        # H.5.1.1.3/Table H-I: present=solid, planned=dashed - same
+        # general rule as Boundary's own.
+        layer = create_c2_measures_lines_layer()
+
+        symbol = _rule_symbol_for(layer, "light_line")
+        line_layer = symbol.symbolLayer(0)
+
+        for status, expected_style in (
+            ("present", QgsSymbolLayerUtils.decodePenStyle("solid")),
+            ("planned", QgsSymbolLayerUtils.decodePenStyle("dash")),
+        ):
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("status", status)
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            style, ok = line_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.StrokeStyle, context, ""
+            )
+            self.assertTrue(ok, status)
+            self.assertEqual(
+                QgsSymbolLayerUtils.decodePenStyle(style), expected_style, status
+            )
+
+
+    def test_light_line_symbol_layer_has_a_stable_id(self):
+
+        # Referenced by the shared Lines-layer label mask (see
+        # test_light_line_label_mask_targets_the_line_symbol_layer()
+        # below).
+        layer = create_c2_measures_lines_layer()
+
+        symbol = _rule_symbol_for(layer, "light_line")
+
+        self.assertEqual(
+            symbol.symbolLayer(0).id(),
+            c2_measures._LIGHT_LINE_SYMBOL_LAYER_ID
+        )
+
+
+    def test_light_line_label_mask_targets_the_line_symbol_layer(self):
+
+        # Regression test: Light Line's own optional name (H.5.7 - "as
+        # often as necessary for clarity") repeats along the line the
+        # same way Boundary's own label does (they share one Lines-layer
+        # label configuration), but only Boundary's line was originally
+        # in the mask's own target list - confirmed wrong by rendering a
+        # long Light Line and seeing the name painted flat on top of the
+        # line instead of cutting a real gap (the line still showed
+        # through the open parts of letters like "C"/"R"). Both lines'
+        # own symbol-layer ids must be in the mask's target list.
+        layer = create_c2_measures_lines_layer()
+
+        settings = layer.labeling().settings()
+        text_format = settings.format()
+        mask = text_format.mask()
+
+        target_ids = {ref.symbolLayerIdV2() for ref in mask.maskedSymbolLayers()}
+
+        self.assertEqual(
+            target_ids,
+            {
+                c2_measures._BOUNDARY_LINE_SYMBOL_LAYER_ID,
+                c2_measures._LIGHT_LINE_SYMBOL_LAYER_ID,
+            }
+        )
+
+
+    def test_light_line_has_an_ll_label_at_each_end_with_no_tick(self):
+
+        # Table H-IV, code 110200 (page 397): a fixed "LL" label above
+        # each end (PT1/PT2) - see _end_label_layer()'s own comment in
+        # c2_measures.py for why an earlier version also drew a
+        # perpendicular tick at each end, and why that was wrong (the
+        # template's own up-arrows connecting the labels to the line are
+        # diagram callouts, not drawn geometry, the project maintainer's
+        # own correction after live-testing).
+        layer = create_c2_measures_lines_layer()
+        symbol = _rule_symbol_for(layer, "light_line")
+
+        # symbolLayer(0) is the base line; exactly one label per end,
+        # no separate tick layer.
+        self.assertEqual(symbol.symbolLayerCount(), 3)
+
+        placements_seen = []
+        font_layers = []
+
+        for i in (1, 2):
+
+            marker_line_layer = symbol.symbolLayer(i)
+            self.assertIsInstance(marker_line_layer, QgsMarkerLineSymbolLayer)
+            placements_seen.append(marker_line_layer.placements())
+
+            font_layer = marker_line_layer.subSymbol().symbolLayer(0)
+            self.assertIsInstance(font_layer, QgsFontMarkerSymbolLayer)
+            font_layers.append(font_layer)
+
+        self.assertEqual(
+            set(placements_seen),
+            {
+                QgsTemplatedLineSymbolLayerBase.Placement.FirstVertex,
+                QgsTemplatedLineSymbolLayerBase.Placement.LastVertex,
+            }
+        )
+
+        for font_layer in font_layers:
+
+            self.assertEqual(font_layer.character(), "LL")
+
+            # Offset must move the label above the line, not below - a
+            # real bug the project maintainer caught live (positive Y
+            # rendered "LL" below the line instead of above it).
+            self.assertLess(font_layer.offset().y(), 0)
+
+
+class TestCreateC2MeasuresAreasLayer(QgisTestCase):
 
     def setUp(self):
 
@@ -513,19 +643,22 @@ class TestCreateControlMeasuresAreasLayer(QgisTestCase):
 
     def test_has_the_expected_fields(self):
 
-        layer = create_control_measures_areas_layer()
+        layer = create_c2_measures_areas_layer()
 
         field_names = [field.name() for field in layer.fields()]
 
         self.assertEqual(
             field_names,
-            ["measure_type", "affiliation", "unique_designation", "area_km2", "perimeter_km"]
+            [
+                "measure_type", "affiliation", "status",
+                "unique_designation", "area_km2", "perimeter_km",
+            ]
         )
 
 
     def test_is_a_polygon_layer(self):
 
-        layer = create_control_measures_areas_layer()
+        layer = create_c2_measures_areas_layer()
 
         self.assertEqual(
             layer.geometryType().name,
@@ -533,31 +666,30 @@ class TestCreateControlMeasuresAreasLayer(QgisTestCase):
         )
 
 
-    def test_measure_type_has_no_options_yet(self):
+    def test_measure_type_offers_table_h_v_areas_defaulting_to_ao(self):
 
-        # No area measure type has been through the appendix-by-appendix
-        # re-verification pass yet (see control_measures.py's own
-        # docstring) - the dropdown is legitimately empty and the field
-        # has no default value to point to, rather than defaulting to a
-        # removed measure type like the old "objective".
-        layer = create_control_measures_areas_layer()
+        # Table H-V (Mini-Phase H2) - Area of Operations, Named/Target
+        # Area of Interest, Airfield Zone - see c2_measures.py's
+        # own docstring for why every other area measure type is still
+        # absent (not yet re-verified against the standard).
+        layer = create_c2_measures_areas_layer()
 
         idx = layer.fields().indexOf("measure_type")
 
         self.assertEqual(
             layer.editorWidgetSetup(idx).config()["map"],
-            {}
+            {label: value for value, label in AREA_MEASURE_TYPE_LABELS.items()}
         )
 
         self.assertEqual(
             layer.defaultValueDefinition(idx).expression(),
-            "''"
+            "'area_of_operations'"
         )
 
 
     def test_affiliation_uses_a_value_map_widget_defaulting_to_unspecified(self):
 
-        layer = create_control_measures_areas_layer()
+        layer = create_c2_measures_areas_layer()
 
         idx = layer.fields().indexOf("affiliation")
 
@@ -572,23 +704,240 @@ class TestCreateControlMeasuresAreasLayer(QgisTestCase):
         )
 
 
-    def test_rule_tree_has_no_rules_yet(self):
+    def test_status_uses_a_value_map_widget_defaulting_to_present(self):
 
-        # AREA_MEASURE_TYPE_LABELS is currently empty (see
-        # control_measures.py's own docstring) - the renderer must still
-        # build successfully with zero rules rather than erroring, since
-        # every future H-subphase that adds an area measure type back in
-        # relies on this same rule-tree builder.
-        layer = create_control_measures_areas_layer()
+        # H.5.1.1.3/Table H-I's own text explicitly covers "area control
+        # measures", not just linear ones - see
+        # create_c2_measures_areas_layer()'s own comment.
+        layer = create_c2_measures_areas_layer()
+
+        idx = layer.fields().indexOf("status")
+
+        self.assertEqual(
+            layer.editorWidgetSetup(idx).type(),
+            "ValueMap"
+        )
+
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(),
+            "'present'"
+        )
+
+
+    def test_rule_tree_has_one_rule_per_measure_type(self):
+
+        layer = create_c2_measures_areas_layer()
 
         root = layer.renderer().rootRule()
 
-        self.assertEqual(list(root.children()), [])
+        filters = {
+            rule.filterExpression() for rule in root.children()
+        }
+
+        expected = {
+            f'"measure_type" = \'{measure_type}\''
+            for measure_type in AREA_MEASURE_TYPE_LABELS
+        }
+
+        self.assertEqual(filters, expected)
+
+
+    def test_area_outline_colours_follow_affiliation_per_ms_std_2525d_h_5_1_1_1(self):
+
+        # See the Lines layer's own
+        # test_line_colours_follow_affiliation_per_ms_std_2525d_h_5_1_1_1
+        # for the standard citation.
+        layer = create_c2_measures_areas_layer()
+
+        expected = {
+            "friend": "#0000ff",
+            "hostile": "#ff0000",
+            "neutral": "#00ff00",
+            "unknown": "#ffff00",
+            "unspecified": "#000000",
+        }
+
+        for measure_type in AREA_MEASURE_TYPE_LABELS:
+
+            symbol = _rule_symbol_for(layer, measure_type)
+
+            for affiliation, hex_color in expected.items():
+
+                color, ok = _resolve_stroke_color(
+                    symbol.symbolLayer(0), layer, affiliation
+                )
+                self.assertTrue(ok, (measure_type, affiliation))
+                self.assertEqual(
+                    color.name(), hex_color, (measure_type, affiliation)
+                )
+
+
+    def test_area_outline_is_solid_when_present_and_dashed_when_planned(self):
+
+        layer = create_c2_measures_areas_layer()
+
+        for measure_type in AREA_MEASURE_TYPE_LABELS:
+
+            symbol = _rule_symbol_for(layer, measure_type)
+            outline_layer = symbol.symbolLayer(0)
+
+            for status, expected_style in (
+                ("present", QgsSymbolLayerUtils.decodePenStyle("solid")),
+                ("planned", QgsSymbolLayerUtils.decodePenStyle("dash")),
+            ):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("status", status)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                style, ok = outline_layer.dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.StrokeStyle, context, ""
+                )
+                self.assertTrue(ok, (measure_type, status))
+                self.assertEqual(
+                    QgsSymbolLayerUtils.decodePenStyle(style),
+                    expected_style,
+                    (measure_type, status)
+                )
+
+
+    def _evaluate_area_label(self, layer, measure_type, unique_designation=""):
+
+        # The Areas layer uses QgsRuleBasedLabeling (not
+        # QgsVectorLayerSimpleLabeling, which has a single top-level
+        # .settings()) - see _configure_area_designation_labeling()'s
+        # own docstring for why. Both of its rules share the identical
+        # label EXPRESSION (only PLACEMENT differs, per measure_type),
+        # so any one rule's settings() gives the same field expression
+        # this helper is actually testing.
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("measure_type", measure_type)
+        feature.setAttribute("unique_designation", unique_designation)
+
+        first_rule = next(iter(layer.labeling().rootRule().children()))
+        field_name = first_rule.settings().fieldName
+
+        expression = QgsExpression(field_name)
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        result = expression.evaluate(context)
+        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
+        return result
+
+
+    def test_ao_nai_tai_labels_prefix_the_type_abbreviation(self):
+
+        # Table H-V's own examples: "AO BUFFALO", "NAI 1", "TAI YUKON".
+        layer = create_c2_measures_areas_layer()
+
+        self.assertEqual(
+            self._evaluate_area_label(layer, "area_of_operations", "buffalo"),
+            "AO BUFFALO"
+        )
+        self.assertEqual(
+            self._evaluate_area_label(layer, "named_area_of_interest", "1"),
+            "NAI 1"
+        )
+        self.assertEqual(
+            self._evaluate_area_label(layer, "target_area_of_interest", "yukon"),
+            "TAI YUKON"
+        )
+
+
+    def test_ao_nai_tai_labels_omit_the_name_when_blank(self):
+
+        layer = create_c2_measures_areas_layer()
+
+        self.assertEqual(
+            self._evaluate_area_label(layer, "area_of_operations"),
+            "AO"
+        )
+
+
+    def test_airfield_zone_label_has_no_type_prefix(self):
+
+        # Airfield Zone's own template has no Field A abbreviation (an
+        # icon instead - see _airfield_zone_symbol()'s own comment) -
+        # falls through to the plain designation, unlike AO/NAI/TAI.
+        layer = create_c2_measures_areas_layer()
+
+        self.assertEqual(
+            self._evaluate_area_label(layer, "airfield_zone", "gander"),
+            "GANDER"
+        )
+
+
+    def test_airfield_zone_has_a_centred_crossed_runway_icon(self):
+
+        # Corrected 2026-08-09: page 400's own template/example draws
+        # two runway lines crossing at an unequal angle, not a symmetric
+        # X - see _airfield_zone_symbol()'s own docstring for the
+        # live-testing correction from the original "cross2" shape.
+        layer = create_c2_measures_areas_layer()
+        symbol = _rule_symbol_for(layer, "airfield_zone")
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        icon_layer = symbol.symbolLayer(1)
+        self.assertIsInstance(icon_layer, QgsGeometryGeneratorSymbolLayer)
+        self.assertEqual(
+            icon_layer.geometryExpression(),
+            "centroid($geometry)"
+        )
+        self.assertEqual(
+            icon_layer.symbolType(),
+            Qgis.SymbolType.Marker
+        )
+
+        icon_marker = icon_layer.subSymbol()
+
+        self.assertEqual(icon_marker.symbolLayerCount(), 2)
+
+        angles = {
+            icon_marker.symbolLayer(i).angle()
+            for i in range(icon_marker.symbolLayerCount())
+        }
+
+        self.assertEqual(angles, {90, 50})
+
+
+    def test_airfield_zone_label_is_placed_outside_the_polygon(self):
+
+        # Page 400's own example ("750M") sits just outside the bounded
+        # area, unlike AO/NAI/TAI's own labels, which sit inside their
+        # own boundary (centred) - a real live-testing-caught mistake,
+        # see _configure_area_designation_labeling()'s own docstring.
+        layer = create_c2_measures_areas_layer()
+
+        rules_by_filter = {
+            rule.filterExpression(): rule
+            for rule in layer.labeling().rootRule().children()
+        }
+
+        airfield_rule = rules_by_filter['"measure_type" = \'airfield_zone\'']
+
+        self.assertEqual(
+            airfield_rule.settings().placement,
+            Qgis.LabelPlacement.OutsidePolygons
+        )
+
+        other_rule = next(
+            rule for filter_expression, rule in rules_by_filter.items()
+            if filter_expression != '"measure_type" = \'airfield_zone\''
+        )
+
+        self.assertEqual(
+            other_rule.settings().placement,
+            Qgis.LabelPlacement.OverPoint
+        )
 
 
     def test_labelling_is_enabled_on_the_designation_field(self):
 
-        layer = create_control_measures_areas_layer()
+        layer = create_c2_measures_areas_layer()
 
         self.assertTrue(layer.labelsEnabled())
 
@@ -604,7 +953,7 @@ class TestCreateControlMeasuresAreasLayer(QgisTestCase):
 
             QgsProject.instance().setCrs(WGS84)
 
-            layer = create_control_measures_areas_layer()
+            layer = create_c2_measures_areas_layer()
 
             area_idx = layer.fields().indexOf("area_km2")
             perimeter_idx = layer.fields().indexOf("perimeter_km")
@@ -651,7 +1000,7 @@ class TestCreateControlMeasuresAreasLayer(QgisTestCase):
             military_symbology_functions.unregister()
 
 
-class TestAddControlMeasuresLayers(QgisTestCase):
+class TestAddC2MeasuresLayers(QgisTestCase):
 
     def setUp(self):
 
@@ -664,7 +1013,7 @@ class TestAddControlMeasuresLayers(QgisTestCase):
 
     def test_lines_layer_is_created_and_added(self):
 
-        layer = add_control_measures_lines_layer(self.iface)
+        layer = add_c2_measures_lines_layer(self.iface)
 
         self.assertIsNotNone(layer)
 
@@ -675,7 +1024,7 @@ class TestAddControlMeasuresLayers(QgisTestCase):
 
     def test_areas_layer_is_created_and_added(self):
 
-        layer = add_control_measures_areas_layer(self.iface)
+        layer = add_c2_measures_areas_layer(self.iface)
 
         self.assertIsNotNone(layer)
 
@@ -689,9 +1038,9 @@ class TestAddControlMeasuresLayers(QgisTestCase):
         # Same safety property as unit_layer.py's own add_unit_layer() -
         # this layer's content is hand-drawn operational data, not
         # something safe to silently recreate.
-        first = add_control_measures_lines_layer(self.iface)
+        first = add_c2_measures_lines_layer(self.iface)
 
-        result = add_control_measures_lines_layer(self.iface)
+        result = add_c2_measures_lines_layer(self.iface)
 
         self.assertIsNone(result)
 
@@ -708,9 +1057,9 @@ class TestAddControlMeasuresLayers(QgisTestCase):
 
     def test_areas_layer_is_never_replaced_if_it_already_exists(self):
 
-        first = add_control_measures_areas_layer(self.iface)
+        first = add_c2_measures_areas_layer(self.iface)
 
-        result = add_control_measures_areas_layer(self.iface)
+        result = add_c2_measures_areas_layer(self.iface)
 
         self.assertIsNone(result)
 
@@ -725,7 +1074,7 @@ class TestAddControlMeasuresLayers(QgisTestCase):
         dummy = QgsVectorLayer("Point?crs=EPSG:4326", "dummy_below", "memory")
         QgsProject.instance().addMapLayer(dummy)
 
-        add_control_measures_lines_layer(self.iface)
+        add_c2_measures_lines_layer(self.iface)
 
         root = QgsProject.instance().layerTreeRoot()
 
@@ -740,7 +1089,7 @@ class TestAffiliationLabelsMatchSidc(QgisTestCase):
     # (SUPERSET, not equality) since 2026-08-09: AFFILIATION_LABELS
     # legitimately has one value, "unspecified", that sidc.py's own
     # point-symbol AFFILIATIONS does not - see DEFAULT_AFFILIATION's own
-    # comment in control_measures.py for the H.5.1.1.1 citation behind
+    # comment in c2_measures.py for the H.5.1.1.1 citation behind
     # that 5th, control-measure-only colour. This still guards the 4
     # shared values (friend/hostile/neutral/unknown) from drifting.
     def test_affiliation_labels_cover_at_least_sidcs_affiliations(self):

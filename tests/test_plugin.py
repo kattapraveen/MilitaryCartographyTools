@@ -52,7 +52,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "New Military Layout",
                 "Tanaka Contours",
                 "Import Waypoints",
-                "Tactical Graphics - Space",
+                "Space",
             ):
 
                 self.assertNotIn(grouped_text, texts)
@@ -109,15 +109,15 @@ class TestPluginLifecycle(QgisTestCase):
                     "Map Sheet Series",
                 ],
                 "nato_symbols": [
-                    "Tactical Graphics - Space",
-                    "Tactical Graphics - Air",
-                    "Tactical Graphics - Land",
-                    "Tactical Graphics - Sea Surface",
-                    "Tactical Graphics - Subsurface",
-                    "Tactical Graphics - Activities",
-                    "Tactical Graphics - SIGINT",
-                    "Tactical Graphics - Cyberspace",
-                    "Tactical Graphics - Control Measures",
+                    "Space",
+                    "Air",
+                    "Land",
+                    "Sea Surface",
+                    "Subsurface",
+                    "Activities",
+                    "SIGINT",
+                    "Cyberspace",
+                    "Control Measures",
                 ],
             }
 
@@ -141,6 +141,21 @@ class TestPluginLifecycle(QgisTestCase):
             self.assertEqual(
                 sub_grid_option_texts,
                 ["Off", "10 km", "5 km", "1 km"]
+            )
+
+            # "Control Measures" likewise nests as its own flyout inside
+            # NATO Symbols (2026-08-09, at the maintainer's request) -
+            # one entry per Appendix H logical group, growing as each
+            # H3-H22 mini-phase lands; only "C2 Measures" exists so far,
+            # alongside the pre-existing "Control Measure Points" layer.
+            control_measures_option_texts = [
+                action.text()
+                for action in plugin.control_measures_menu.actions()
+            ]
+
+            self.assertEqual(
+                control_measures_option_texts,
+                ["C2 Measures", "Control Measure Points"]
             )
 
         finally:
@@ -198,7 +213,9 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_activities_action)
         self.assertIsNone(plugin.tactical_graphics_sigint_action)
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
-        self.assertIsNone(plugin.control_measures_action)
+        self.assertIsNone(plugin.c2_measures_action)
+        self.assertIsNone(plugin.control_measure_points_action)
+        self.assertIsNone(plugin.control_measures_menu)
         self.assertIsNone(plugin.sub_grid_menu)
         self.assertIsNone(plugin.sub_grid_group)
         self.assertEqual(plugin.group_menus, {})

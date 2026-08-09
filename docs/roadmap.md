@@ -2280,6 +2280,276 @@ tested, not claimed as done here.
     475 tests passing on both QGIS versions (down from 495 before this
     day's work, up from 474 immediately after the trim, matching the
     net effect of removed-then-regained coverage).
+  - **Mini-Phase H1 (2026-08-09) - H.5.6 Points, H.5.7 Lines, H.5.8
+    Areas.** General construction-rule prose, no symbols of its own (0
+    of the appendix's ~592 codes live in this section) - audited by
+    reading the text and rendering Figures H-4/H-5/H-6 as images
+    (pages 397-399), no code change. Recorded for later sub-phases:
+    - **Figure H-5 (line template) confirms H0's own Boundary design
+      generalises.** A line control measure's T (name)/N (ENY) labels
+      sit at BOTH ends of the line, with T1 (purpose, e.g. "RFL" for
+      Restrictive Fire Line)/T2 (controlling HQ, fire-support-specific)/
+      W-W1 (DTG) repeating at each interior anchor-point segment - the
+      same "near/far ends + per-segment repeat" shape Boundary's own
+      Table H-III construction already has (H0, done independently
+      before this section was read). Phase Line specifically: "PL" +
+      name in Field T, marked at both ends; using phase-line-style
+      labeling for OTHER lines is explicitly "not mandatory" (H.5.7's
+      own text) - relevant when Phase Line itself is rebuilt (likely
+      Mini-Phase H2, see that sub-phase's own plan entry).
+    - **Figure H-4 (point template) applies to a NAMED SUBSET of point
+      control measures only** - "sustainment, CBRN decontamination and
+      special C2" tables, plus supply points (same format, with the
+      supply icon placed toward the bottom instead of Field A's text
+      abbreviation) - H.5.6's own text is explicit that OTHER point
+      types (contact, coordination, decision, targets, etc.) "are
+      formatted differently" elsewhere in the appendix. Relevant for
+      the future H18 (CBRN)/H19 (Sustainment)/H20 (Supply points)/H22
+      sub-phases' own work on `military_symbology/control_measure_
+      points.py` - a separate module from `control_measures.py`, not
+      touched this mini-phase.
+    - **Figure H-6 (area template)**: type abbreviation (Field A) + name
+      (Field T) centred, DTG (H/W-W1) below that, ENY markers (Field N)
+      at the sides, and an echelon amplifier (Field B) at the bottom -
+      relevant for H2's own Area of Operations (whose own Table H-V
+      entry, read immediately after H.5.8, uses exactly this Field
+      A+T convention: "AO" + a name, e.g. "AO BUFFALO") and any other
+      future area type that needs an echelon.
+    No test changes (no code changed); `military_symbology/control_
+    measures.py`'s own docstring not touched, since this mini-phase
+    didn't touch that file.
+  - **Mini-Phase H2 (2026-08-09) - Table H-IV (Light Line, the only
+    buildable entry beyond Boundary itself - Lateral/Forward/Rear
+    Boundary are usage examples, not separate control measures, per
+    that table's own "see Table H-III" cross-reference) and Table H-V
+    (Area of Operations, Named/Target Area of Interest, Airfield
+    Zone).** `LINE_MEASURE_TYPE_LABELS` gained `"light_line"`;
+    `AREA_MEASURE_TYPE_LABELS` gained all four of Table H-V's own areas
+    (previously empty since H0). Area of Operations/Named+Target Area
+    of Interest/Airfield Zone all share one status-driven solid/dashed
+    outline recipe (`_status_driven_area_outline_symbol()` -
+    H.5.1.1.3/Table H-I's own text explicitly covers "area control
+    measures", not just linear ones, so the Areas layer gained a
+    `status` field the same way the Lines layer did in H0); Area of
+    Operations/NAI/TAI are each labelled with a fixed type abbreviation
+    ("AO"/"NAI"/"TAI") plus an optional name
+    (`_AREA_DESIGNATION_LABEL_EXPRESSION`, e.g. "AO BUFFALO" - the
+    standard's own examples) - confirmed the template/example pictures'
+    own hexagon for NAI/TAI is illustrative, not a mandated shape (the
+    DRAW RULES text itself ties the shape to the user's own anchor
+    points, identical wording to Area of Operations/Airfield Zone), so
+    this renders whatever polygon the user actually digitizes rather
+    than forcing a regular hexagon. Airfield Zone alone has no Field A
+    abbreviation in its own template - a crossed-runway icon at
+    `centroid($geometry)` instead (QGIS's own "cross2" shape, a
+    recognisable stand-in for the standard's own specific glyph).
+    - **Two real, live-testing-caught mistakes in the first version of
+      Light Line, both from the same root cause**: reading Table H-IV's
+      own TEMPLATE column (page 397) at face value, where "LL"/"PT 1"/
+      "PT 2" are each connected to the line by an up-arrow. The first
+      version treated those arrows as drawn geometry - a real
+      perpendicular "tick" mark at each end. The project maintainer
+      corrected this after live-testing: those arrows are the same
+      pointer/callout convention used throughout this appendix's own
+      diagrams to show where a label attaches or which point is PT1 vs
+      PT2 (Table H-III's own Boundary template uses identical arrows
+      purely to point at anchor points) - not something to render. The
+      general lesson, stated explicitly by the maintainer and now
+      documented on `_end_label_layer()` for future mini-phases: this
+      appendix's own EXAMPLE columns mark explanatory-only additions in
+      GREY (Light Line's own example shows this directly - the real
+      drawn symbol is solid black, an illustrative "PL CRAB" name next
+      to it is grey) - grey is the signal for "not part of the control
+      measure", not the presence or absence of an arrow/callout shape,
+      which appears in plain black throughout this appendix purely as
+      diagram annotation and must not be read as construction geometry.
+      Fixed by removing the tick entirely - Light Line is just the line
+      plus "LL" above each end, nothing else. Second, smaller mistake
+      found in the same pass: the "LL" label's own offset was the wrong
+      sign, rendering it below the line instead of above - fixed by
+      flipping it, confirmed by rendering both signs side by side rather
+      than assuming. `test_light_line_has_an_ll_label_at_each_end_with_
+      no_tick` is the regression guard for both.
+    - **Light Line's own optional name (H.5.7: "at both ends... or as
+      often as necessary for clarity") repeats along the line the same
+      way Boundary's echelon/designation label does**, since both share
+      the Lines layer's one label configuration - not deliberately
+      designed for Light Line specifically, but confirmed to match
+      H.5.7's own general wording once noticed. This surfaced a real,
+      separate bug: the shared label mask's target list only named
+      Boundary's own line symbol layer, so Light Line's repeating name
+      painted flat on top of the line instead of cutting a real gap (the
+      line still showed through the open parts of letters like "C"/"R").
+      Fixed by giving Light Line's own line a stable id too
+      (`_LIGHT_LINE_SYMBOL_LAYER_ID`) and adding it to the mask's target
+      list alongside Boundary's - `masked_symbol_layer_ids` is designed
+      as a list for exactly this (every line measure type whose own
+      label should cut a gap adds its own id).
+    486 tests passing on both QGIS versions; render-and-compare verified
+    via `QgsMapRendererCustomPainterJob` throughout, including the two
+    Light Line corrections above.
+
+- **2026-08-09 — two cosmetic UI fixes, requested by the project
+  maintainer independently of the Appendix H work above:**
+  - **Toolbar buttons are now icon-only** (`Qt.ToolButtonStyle.
+    ToolButtonIconOnly` in `_build_toolbar_group()`, `plugin.py`) -
+    previously text sat beside each icon (`ToolButtonTextBesideIcon`),
+    which the maintainer felt was unnecessary since hovering already
+    shows the function via each action's existing tooltip. The text
+    itself is kept (`.setText()` still set on every action) purely for
+    accessibility and for the mirrored Plugins-menu entries, which still
+    show text as normal - only the toolbar button's own visible label is
+    dropped.
+  - **Dropped the "Tactical Graphics - " prefix from every layer name
+    and toolbar/menu action label** (`unique_designation` fields
+    untouched - this is purely the layer-name/action-label prefix).
+    Affected the NATO Symbols dropdown's 9 actions (Space, Air, Land,
+    Sea Surface, Subsurface, Activities, SIGINT, Cyberspace, Control
+    Measures) and every layer name they create, across all 11
+    `military_symbology/*.py` layer modules plus `plugin.py`'s own
+    action labels and docstrings. Maintainer's own reasoning: with
+    several of these layers active at once, QGIS's own Layers-panel
+    sidebar is narrow enough that the shared, redundant prefix pushed
+    the actually-distinguishing part of each name off the visible edge
+    (e.g. "Tactical Graphics - Subsurface" vs. "Tactical Graphics - Sea
+    Surface" - both truncate to something visually identical). The
+    prefix was redundant in any case, since the toolbar group itself is
+    already labelled "NATO Symbols". `docs/user-guide.md`'s own
+    reference table and Control Measures section updated to match;
+    `docs/user-guide.md`'s section headers/TOC anchors
+    (`## Tactical Graphics - point symbol layers` etc.) were left as-is
+    since those are documentation structure, not literal in-app UI
+    strings.
+  - Also folded in a small standing instruction from the same session:
+    the Print Production toolbar group must always sort last among the
+    six groups (Grid, Navigation, Terrain Analysis, Waypoints, NATO
+    Symbols, Print Production) - `_setup_toolbar_groups()`'s own
+    `groups` list reordered accordingly.
+  - 486 tests passing on both QGIS versions (test_plugin.py's
+    group-membership checks and the affected layer-name string literals
+    across the layer modules' own test files, all updated to match) - no
+    functional/rendering change, UI/naming only.
+
+- **2026-08-09 — two real Mini-Phase H2 construction mistakes in
+  Airfield Zone, both found and fixed after live testing** (Table H-V,
+  page 400 - re-rendered and re-compared against the actual PDF page
+  directly, not assumed from memory):
+  - **The icon was a symmetric "X" (QGIS's own "cross2" shape); the
+    standard's own template/example draws two runway lines crossing at
+    an *unequal* angle** (one nearly flat, the other roughly 35 degrees
+    off it) - recognisably two intersecting runways, not a generic X.
+    Rebuilt `_airfield_zone_symbol()` with two independent "line"
+    simple-marker layers at different angles (90 and 50 degrees -
+    confirmed by rendering, QGIS's own marker "angle" is measured
+    clockwise from north, so 90 is horizontal) instead of one "cross2"
+    layer - still a "recognisable, not exact" stand-in (no attempt at a
+    real runway heading), just an asymmetric one now.
+  - **The runway-length label ("750M" in the standard's own example) was
+    centred inside the boundary, overlapping the icon** - same
+    `Qgis.LabelPlacement.OverPoint` placement shared with Area of
+    Operations/Named Area of Interest/Target Area of Interest. The
+    standard's own picture places it just *outside* the bounded area
+    instead. Since AO/NAI/TAI's own labels correctly stay centred
+    (matching their own "AO BUFFALO"/"NAI 1"/"TAI YUKON" examples), this
+    needed a genuinely different placement for one measure type only,
+    which one shared `QgsPalLayerSettings` can't express - switched the
+    Areas layer from `QgsVectorLayerSimpleLabeling` to
+    `QgsRuleBasedLabeling` (the labeling analogue of the renderer's own
+    `QgsRuleBasedRenderer`), one rule for Airfield Zone
+    (`Qgis.LabelPlacement.OutsidePolygons` - QGIS's own dedicated mode
+    for labelling a polygon just outside its own boundary) and one for
+    everything else (`OverPoint`, unchanged). **Caught a real
+    rule-tree bug while building this**: the first version used
+    `setIsElse(True)` on the "everything else" rule the same way
+    `_build_rule_based_renderer()`'s own symbology rules do, and it drew
+    a SECOND, wrongly-placed label on top of Airfield Zone's own correct
+    one - unlike `QgsRuleBasedRenderer`, each `QgsRuleBasedLabeling` rule
+    gets its own independent sub-provider, and an else-flagged rule's
+    provider still placed its own label for features that had already
+    matched an earlier rule. Fixed with two explicit, mutually-exclusive
+    filter expressions instead of relying on `isElse` - confirmed by
+    rendering all four area types side by side (AO/NAI/TAI's own labels
+    unaffected, Airfield Zone's own label alone moved outside, and only
+    one label per feature).
+  - `_build_pal_layer_settings()` factored out of
+    `_configure_designation_labeling()` so `_configure_area_designation_
+    labeling()` (new) can build more than one `QgsPalLayerSettings` for
+    the same layer - the Lines layer's own labeling is untouched (still
+    one shared setting, `QgsVectorLayerSimpleLabeling`, since Boundary
+    and Light Line don't need different placements).
+  - 487 tests passing on both QGIS versions; render-and-compare verified
+    via `QgsMapRendererCustomPainterJob` throughout, including a
+    four-up AO/NAI/TAI/Airfield-Zone regression render.
+
+- **2026-08-09 — Control Measures architecture split by Appendix H
+  logical group, at the project maintainer's own design suggestion**:
+  noticed that clicking "Control Measures" added every control-measure
+  layer at once, and flagged that this would only get worse as H3-H22
+  keep adding measure types to the same shared "Control Measures
+  (Lines)"/"(Areas)" pair - both a Layers-panel/attribute-table
+  bloat problem (every field from every H.5.x section eventually
+  crammed into two giant rule trees) and a menu-UX problem (one click
+  always adding more than a user actually needs). Recommended breaking
+  Appendix H down by its own H.5.x logical section (C2 Measures,
+  Maneuver, Defensive, Offensive, Airspace, Maritime, Deception, Fire
+  Support, Targets, Target Acquisition, Obstacles, Field Fortification,
+  CBRN, Sustainment, Supply, Mission Tasks, Intelligence - the same
+  grouping already driving the H3-H22 mini-phase table above), mirroring
+  the "own layer, own icon" principle Appendices B-L already follow for
+  their point symbols instead of one shared "Tactical Graphics" layer.
+  Two structural decisions confirmed before implementing: (1) rename
+  H0/H2's own already-shipped layers into the new scheme immediately,
+  rather than leaving one inconsistent pair behind, and (2) give
+  "Control Measures" its own nested flyout submenu inside the NATO
+  Symbols toolbar dropdown (one entry per H.5.x group), rather than
+  flattening ~17 new entries directly into NATO Symbols' existing 8.
+  - **`military_symbology/control_measures.py` (1367 lines) split into
+    two files**: `_control_measure_shared.py` (new, private - mirrors
+    the existing `_point_symbol_layer.py` precedent for Appendices B-L's
+    own point layers) holds everything genuinely general across every
+    future H control-measure group - affiliation/status/echelon field
+    config and colouring, `_build_rule_based_renderer()`,
+    `_build_pal_layer_settings()`/`_configure_designation_labeling()`,
+    `add_layer_if_absent()`/`default_insert_position()` - and
+    `c2_measures.py` (renamed from control_measures.py) keeps only what's
+    specific to H.5.5/H.5.9/H.5.10 (Boundary, Light Line, Area of
+    Operations, Named/Target Area of Interest, Airfield Zone). Every
+    future H-group (Maneuver for H3, Defensive for H4, ...) gets its own
+    new module reusing `_control_measure_shared.py`, rather than each
+    reinventing this machinery or piling into c2_measures.py itself.
+  - **Layer names**: `"Control Measures (Lines)"`/`"(Areas)"` →
+    `"C2 Measures (Lines)"`/`"(Areas)"`. `create_control_measures_lines_
+    layer()`/`create_control_measures_areas_layer()`/`add_control_
+    measures_lines_layer()`/`add_control_measures_areas_layer()` all
+    renamed to their `c2_measures_*` equivalents.
+  - **`military_symbology/control_measure_points.py` deliberately left
+    untouched** - its own flat, ~80-entity layer already spans several
+    different H.5.x sections (command/control points, observation
+    posts, targets, obstacles, sustainment, supply, mission tasks in
+    point form) via milsymbol.js rather than this module's hand-built
+    QGIS symbology, and splitting it correctly needs its own per-section
+    coverage audit (already tracked separately - task #33, Table H-VI)
+    rather than a mechanical rename alongside this restructuring. Kept
+    as its own entry, "Control Measure Points", in the new submenu
+    alongside "C2 Measures", so nothing already shipped disappeared from
+    the UI.
+  - **`plugin.py`**: the old single `control_measures_action` (a
+    `QAction`) replaced with `control_measures_menu` (a `QMenu`,
+    following the exact same "flyout submenu nested inside a toolbar
+    group" mechanism the pre-existing "Sub Grid" menu inside the Grid
+    group already used) holding two entries - `c2_measures_action` ("C2
+    Measures", calling the new `create_c2_measures()`) and
+    `control_measure_points_action` ("Control Measure Points", calling
+    the renamed `create_control_measure_points()`, previously folded
+    into the old all-in-one `create_control_measures()`).
+  - 487 tests passing on both QGIS versions (`test_control_measures.py`
+    renamed to `test_c2_measures.py` to match, every renamed symbol/
+    layer-name reference updated mechanically; `test_plugin.py` gained a
+    check for the new "Control Measures" submenu's own two entries,
+    mirroring the existing "Sub Grid" submenu check) - functional
+    behaviour is otherwise unchanged (same fields, same rendering, same
+    default-insert-position/duplicate-guard semantics), this was a pure
+    reorganisation.
 
 ---
 

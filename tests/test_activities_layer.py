@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/activities_layer.py - "Tactical Graphics -
-Activities" (MIL-STD-2525D Appendix G). Single-domain layer, sector 1
+Tests for military_symbology/activities_layer.py - "Activities"
+(MIL-STD-2525D Appendix G). Single-domain layer, sector 1
 modifiers only - no sector 2 field, per Appendix G's own explicit text
 ("Note: There are no sector 2 modifiers in activities symbols.").
 

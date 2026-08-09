@@ -123,11 +123,13 @@ SYMBOL_SETS = {
     "cyberspace": "60",
     # Appendix H's own point-type control measures (checkpoints, contact/
     # decision points, target points, sustainment/supply points, and
-    # similar) - a different rendering mechanism from control_measures.py's
-    # hand-built line/area symbology (that module covers H's LINE/AREA
-    # control measures; this symbol set covers H's POINT ones, which
-    # milsymbol.js already renders same as any other symbol set). Added
-    # 2026-08-07 - see military_symbology/control_measure_points.py.
+    # similar) - a different rendering mechanism from the hand-built
+    # line/area symbology each H.5.x logical group's own module builds
+    # (c2_measures.py and future ones, see _control_measure_shared.py -
+    # those cover H's LINE/AREA control measures; this symbol set covers
+    # H's POINT ones, which milsymbol.js already renders same as any
+    # other symbol set). Added 2026-08-07 - see
+    # military_symbology/control_measure_points.py.
     "control_measure": "25",
 }
 
@@ -957,9 +959,10 @@ ENTITIES = {
         "unit_maintenance_collection_point": "321600",
         "general_supply_point": "321700",
         "medical_supply_point": "321800",
-        # Mission tasks (point form - control_measures.py separately
-        # covers the arrow/line-graphic form some of these same task
-        # names also take under H.5.26, a different rendering mechanism)
+        # Mission tasks (point form - a future H.5.26 mission-task
+        # module separately covers the arrow/line-graphic form some of
+        # these same task names also take, a different rendering
+        # mechanism)
         "destroy_point": "340900",
         "interdict_point": "341400",
         "neutralize_point": "341600",

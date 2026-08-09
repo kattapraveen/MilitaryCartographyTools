@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds a ready-to-use "Tactical Graphics - Control Measure Points" point
+Builds a ready-to-use "Control Measure Points" point
 layer - MIL-STD-2525D Appendix H's own point-type control measures
 (command/control points, observation posts, target points, sustainment/
 supply points, and similar - sidc.py's ENTITIES["control_measure"], symbol
@@ -69,7 +69,7 @@ from qgis.PyQt.QtCore import QMetaType
 from ..core._layer_utils import add_layer_at_default_position
 
 
-OUTPUT_LAYER_NAME = "Tactical Graphics - Control Measure Points"
+OUTPUT_LAYER_NAME = "Control Measure Points"
 
 SYMBOL_SET = "control_measure"
 
@@ -270,7 +270,7 @@ def _build_renderer():
 def create_control_measure_points_layer(name=OUTPUT_LAYER_NAME):
 
     """
-    A fresh, empty "Tactical Graphics - Control Measure Points" point
+    A fresh, empty "Control Measure Points" point
     layer, in the current project's own CRS - fields (affiliation/
     entity/status/unique_designation), a friendly attribute form, and a
     renderer that draws the correct MIL-STD-2525/APP-6 symbol from

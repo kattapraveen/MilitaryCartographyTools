@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds four "Tactical Graphics - Land <Domain>" point layers -
+Builds four "Land <Domain>" point layers -
 MIL-STD-2525D Appendix D (Land Symbols), one per D.6-D.9 section, each a
 genuinely distinct SIDC symbol_set (Table A-III: Land Unit=10, Land
 Civilian Unit/Organization=11, Land Equipment=15, Land Installation=20).
@@ -11,7 +11,7 @@ these are NOT merged into one layer via entity_symbol_set_overrides -
 that mechanism is meant for folding in a small single-entity companion
 (Space/Air Missile), not four substantial, independently-sized
 vocabularies. Four separate layers, added together under one toolbar
-action, mirrors control_measures.py's own "one action, several layers"
+action, mirrors c2_measures.py's own "one action, several layers"
 precedent instead.
 
 Land Unit ("ground_unit" in sidc.py - kept as the existing key rather
@@ -71,13 +71,13 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-UNIT_LAYER_NAME = "Tactical Graphics - Land Unit"
+UNIT_LAYER_NAME = "Land Unit"
 
-CIVILIAN_LAYER_NAME = "Tactical Graphics - Land Civilian"
+CIVILIAN_LAYER_NAME = "Land Civilian"
 
-EQUIPMENT_LAYER_NAME = "Tactical Graphics - Land Equipment"
+EQUIPMENT_LAYER_NAME = "Land Equipment"
 
-INSTALLATION_LAYER_NAME = "Tactical Graphics - Land Installation"
+INSTALLATION_LAYER_NAME = "Land Installation"
 
 DEFAULT_UNIT_ENTITY = "infantry"
 
@@ -419,7 +419,7 @@ _INSTALLATION_ENTITY_LABELS = {
 
 def add_land_unit_layer(iface):
 
-    """Add "Tactical Graphics - Land Unit" (D.6) - echelon and headquarters both apply (Table VII's "U" column)."""
+    """Add "Land Unit" (D.6) - echelon and headquarters both apply (Table VII's "U" column)."""
 
     return add_single_domain_point_layer(
         iface,
@@ -434,7 +434,7 @@ def add_land_unit_layer(iface):
 
 def add_land_civilian_layer(iface):
 
-    """Add "Tactical Graphics - Land Civilian" (D.7) - no echelon, headquarters applies."""
+    """Add "Land Civilian" (D.7) - no echelon, headquarters applies."""
 
     return add_single_domain_point_layer(
         iface,
@@ -449,7 +449,7 @@ def add_land_civilian_layer(iface):
 
 def add_land_equipment_layer(iface):
 
-    """Add "Tactical Graphics - Land Equipment" (D.8) - no echelon, headquarters applies."""
+    """Add "Land Equipment" (D.8) - no echelon, headquarters applies."""
 
     return add_single_domain_point_layer(
         iface,
@@ -464,7 +464,7 @@ def add_land_equipment_layer(iface):
 
 def add_land_installation_layer(iface):
 
-    """Add "Tactical Graphics - Land Installation" (D.9) - no echelon, headquarters applies."""
+    """Add "Land Installation" (D.9) - no echelon, headquarters applies."""
 
     return add_single_domain_point_layer(
         iface,

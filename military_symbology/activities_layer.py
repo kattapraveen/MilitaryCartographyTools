@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds the "Tactical Graphics - Activities" point layer - MIL-STD-2525D
+Builds the "Activities" point layer - MIL-STD-2525D
 Appendix G (Activities Symbols), symbol set "40" (Table A-III). A single
 layer - Table A-III has no companion symbol set for Activities the way
 Space/Air have a Missile counterpart.
@@ -34,7 +34,7 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-OUTPUT_LAYER_NAME = "Tactical Graphics - Activities"
+OUTPUT_LAYER_NAME = "Activities"
 
 DEFAULT_ENTITY = "criminal_activity_incident_type"
 
@@ -219,7 +219,7 @@ _SECTOR1_LABELS = {
 def add_activities_layer(iface):
 
     """
-    Add the "Tactical Graphics - Activities" layer - warns and does
+    Add the "Activities" layer - warns and does
     nothing if one already exists, same data-safety guard as every other
     hand-digitized layer in this plugin.
     """

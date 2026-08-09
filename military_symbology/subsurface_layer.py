@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds two "Tactical Graphics - Subsurface" / "Tactical Graphics - Mine
+Builds two "Subsurface" / "Mine
 Warfare" point layers - MIL-STD-2525D Appendix F (Subsurface Symbols),
 split per its own two sections (F.6 Subsurface Unit/Equipment/
 Installation, symbol set "35"; F.7 Mine Warfare, symbol set "36" - Table
@@ -55,9 +55,9 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-SUBSURFACE_LAYER_NAME = "Tactical Graphics - Subsurface"
+SUBSURFACE_LAYER_NAME = "Subsurface"
 
-MINE_WARFARE_LAYER_NAME = "Tactical Graphics - Mine Warfare"
+MINE_WARFARE_LAYER_NAME = "Mine Warfare"
 
 DEFAULT_SUBSURFACE_ENTITY = "submarine"
 
@@ -204,7 +204,7 @@ _MINE_WARFARE_ENTITY_LABELS = {
 def add_subsurface_layer(iface):
 
     """
-    Add the "Tactical Graphics - Subsurface" layer - warns and does
+    Add the "Subsurface" layer - warns and does
     nothing if one already exists, same data-safety guard as every other
     hand-digitized layer in this plugin.
     """
@@ -224,7 +224,7 @@ def add_subsurface_layer(iface):
 
 def add_mine_warfare_layer(iface):
 
-    """Add the "Tactical Graphics - Mine Warfare" layer - same guard."""
+    """Add the "Mine Warfare" layer - same guard."""
 
     return add_single_domain_point_layer(
         iface,

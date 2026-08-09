@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds the "Tactical Graphics - Sea Surface" point layer - MIL-STD-2525D
+Builds the "Sea Surface" point layer - MIL-STD-2525D
 Appendix E (Sea Surface Symbols), symbol set "30" (Table A-III). No
 missile-family companion to fold in here, unlike Space/Air - Table A-III
 has no separate "Sea Surface Missile" symbol set, so this is a single
@@ -39,7 +39,7 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-OUTPUT_LAYER_NAME = "Tactical Graphics - Sea Surface"
+OUTPUT_LAYER_NAME = "Sea Surface"
 
 DEFAULT_ENTITY = "frigate"
 
@@ -190,7 +190,7 @@ _SECTOR2_LABELS = {
 def add_sea_surface_layer(iface):
 
     """
-    Add the "Tactical Graphics - Sea Surface" layer - warns and does
+    Add the "Sea Surface" layer - warns and does
     nothing if one already exists, same data-safety guard as every other
     hand-digitized layer in this plugin.
     """

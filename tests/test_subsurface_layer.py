@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/subsurface_layer.py - "Tactical Graphics -
-Subsurface" / "Tactical Graphics - Mine Warfare" (MIL-STD-2525D
-Appendix F). Two separate layers (Mine Warfare's 64-entity vocabulary is
+Tests for military_symbology/subsurface_layer.py - "Subsurface" /
+"Mine Warfare" (MIL-STD-2525D Appendix F). Two separate layers (Mine Warfare's 64-entity vocabulary is
 too large to fold into a companion the way Space/Air Missile's single
 entity was), mirroring Land's "several layers under one action" pattern.
 

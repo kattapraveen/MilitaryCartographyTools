@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds the "Tactical Graphics - SIGINT" point layer - MIL-STD-2525D
+Builds the "SIGINT" point layer - MIL-STD-2525D
 Appendix J (Signals Intelligence Symbols), symbol sets "50" through "54"
 (Table A-III / Table J-II's own SymbolSetCode column).
 
@@ -44,7 +44,7 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-OUTPUT_LAYER_NAME = "Tactical Graphics - SIGINT"
+OUTPUT_LAYER_NAME = "SIGINT"
 
 DEFAULT_ENTITY = "radar"
 
@@ -144,7 +144,7 @@ _SECTOR1_LABELS = {
 def add_sigint_layer(iface):
 
     """
-    Add the "Tactical Graphics - SIGINT" layer - warns and does nothing
+    Add the "SIGINT" layer - warns and does nothing
     if one already exists, same data-safety guard as every other
     hand-digitized layer in this plugin.
     """

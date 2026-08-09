@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/sea_surface_layer.py - "Tactical Graphics -
-Sea Surface" (MIL-STD-2525D Appendix E). Single-domain layer, no
+Tests for military_symbology/sea_surface_layer.py - "Sea Surface"
+(MIL-STD-2525D Appendix E). Single-domain layer, no
 missile-family companion to merge in (unlike Space/Air) - Table A-III
 has no separate "Sea Surface Missile" symbol set.
 

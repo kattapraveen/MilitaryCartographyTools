@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/space_layer.py - "Tactical Graphics -
-Space" (MIL-STD-2525D Appendix B), the first single-domain layer built
+Tests for military_symbology/space_layer.py - "Space" (MIL-STD-2525D
+Appendix B), the first single-domain layer built
 on top of military_symbology/_point_symbol_layer.py's shared factory.
 Covers both of the appendix's sections (Space Equipment/Platform,
 symbol set "05", and the single Space Missile entity, symbol set "06")

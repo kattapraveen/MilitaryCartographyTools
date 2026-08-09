@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds the "Tactical Graphics - Space" point layer - MIL-STD-2525D
+Builds the "Space" point layer - MIL-STD-2525D
 Appendix B (Space Symbols), covering both of its sections in one layer:
 B.6 Space Equipment and Platform Symbols (symbol set "05") and B.7 Space
 Missile Symbols (symbol set "06" - Table A-III). Space Missile has only
@@ -37,7 +37,7 @@ Military Cartography Tools
 from ._point_symbol_layer import add_single_domain_point_layer
 
 
-OUTPUT_LAYER_NAME = "Tactical Graphics - Space"
+OUTPUT_LAYER_NAME = "Space"
 
 DEFAULT_ENTITY = "satellite"
 
@@ -144,7 +144,7 @@ _SECTOR2_LABELS = {
 def add_space_layer(iface):
 
     """
-    Add the "Tactical Graphics - Space" layer (Space Equipment/Platform
+    Add the "Space" layer (Space Equipment/Platform
     plus the single Space Missile entity) - warns and does nothing if
     one already exists, same data-safety guard as every other
     hand-digitized layer in this plugin.

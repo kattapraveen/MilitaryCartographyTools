@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Tests for military_symbology/sigint_layer.py - "Tactical Graphics -
-SIGINT" (MIL-STD-2525D Appendix J). A single layer spanning FIVE symbol
+Tests for military_symbology/sigint_layer.py - "SIGINT" (MIL-STD-2525D
+Appendix J). A single layer spanning FIVE symbol
 sets (sigint_space/air/land/sea_surface/subsurface) via the "Dimension"
 field mechanism in _point_symbol_layer.py - see that module's own tests
 (test_point_symbol_layer.py's TestDimensionField) for the mechanism

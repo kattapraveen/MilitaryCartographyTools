@@ -38,9 +38,9 @@ from .military_symbology.cyberspace_layer import add_cyberspace_layer
 from .military_symbology.control_measure_points import (
     add_control_measure_points_layer,
 )
-from .military_symbology.control_measures import (
-    add_control_measures_lines_layer,
-    add_control_measures_areas_layer,
+from .military_symbology.c2_measures import (
+    add_c2_measures_lines_layer,
+    add_c2_measures_areas_layer,
 )
 from .terrain import (
     show_tanaka_contour_dialog,
@@ -106,7 +106,20 @@ class MilitaryCartographyTools:
         self.tactical_graphics_activities_action = None
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
-        self.control_measures_action = None
+
+        # "Control Measures" nests as its own flyout submenu (like Sub
+        # Grid below) rather than a single QAction, since Appendix H's
+        # ~17 H.5.x logical groups (C2 Measures, Maneuver, Defensive,
+        # ...) each get their own entry as their own mini-phase lands -
+        # see _setup_control_measures_menu(). c2_measures_action is the
+        # first (only, so far) entry; control_measure_points_action is
+        # the pre-existing flat "Control Measure Points" layer, kept as
+        # its own entry rather than folded into C2 Measures since it
+        # spans many H.5.x sections at once and hasn't been split yet
+        # (see c2_measures.py's own docstring).
+        self.control_measures_menu = None
+        self.c2_measures_action = None
+        self.control_measure_points_action = None
 
         self.sub_grid_menu = None
         self.sub_grid_group = None
@@ -203,7 +216,7 @@ class MilitaryCartographyTools:
         self._setup_tactical_graphics_activities_action()
         self._setup_tactical_graphics_sigint_action()
         self._setup_tactical_graphics_cyberspace_action()
-        self._setup_control_measures_action()
+        self._setup_control_measures_menu()
 
         # Assembles every action built above (all built with
         # standalone=False, plus the sub-grid menu) into the grouped
@@ -688,7 +701,7 @@ class MilitaryCartographyTools:
         # Missile entity) in one layer.
         self.tactical_graphics_space_action = self._build_action(
             "tactical_graphics_space.svg",
-            "Tactical Graphics - Space",
+            "Space",
             tooltip=(
                 "Add a Space layer (MIL-STD-2525D Appendix B) that "
                 "renders each point's own symbol automatically from its "
@@ -707,7 +720,7 @@ class MilitaryCartographyTools:
         # entity) in one layer.
         self.tactical_graphics_air_action = self._build_action(
             "tactical_graphics_air.svg",
-            "Tactical Graphics - Air",
+            "Air",
             tooltip=(
                 "Add an Air layer (MIL-STD-2525D Appendix C) that "
                 "renders each point's own symbol automatically from its "
@@ -727,7 +740,7 @@ class MilitaryCartographyTools:
         # (unlike Space/Air Missile, not folded into a shared layer).
         self.tactical_graphics_land_action = self._build_action(
             "tactical_graphics_land.svg",
-            "Tactical Graphics - Land",
+            "Land",
             tooltip=(
                 "Add Land Unit/Civilian/Equipment/Installation layers "
                 "(MIL-STD-2525D Appendix D) that render each point's "
@@ -744,7 +757,7 @@ class MilitaryCartographyTools:
         # military_symbology/sea_surface_layer.py.
         self.tactical_graphics_sea_surface_action = self._build_action(
             "tactical_graphics_sea_surface.svg",
-            "Tactical Graphics - Sea Surface",
+            "Sea Surface",
             tooltip=(
                 "Add a Sea Surface layer (MIL-STD-2525D Appendix E) "
                 "that renders each point's own symbol automatically "
@@ -762,7 +775,7 @@ class MilitaryCartographyTools:
         # F's layers (Subsurface, Mine Warfare) in one click.
         self.tactical_graphics_subsurface_action = self._build_action(
             "tactical_graphics_subsurface.svg",
-            "Tactical Graphics - Subsurface",
+            "Subsurface",
             tooltip=(
                 "Add Subsurface and Mine Warfare layers (MIL-STD-2525D "
                 "Appendix F) that render each point's own symbol "
@@ -779,7 +792,7 @@ class MilitaryCartographyTools:
         # military_symbology/activities_layer.py.
         self.tactical_graphics_activities_action = self._build_action(
             "tactical_graphics_activities.svg",
-            "Tactical Graphics - Activities",
+            "Activities",
             tooltip=(
                 "Add an Activities layer (MIL-STD-2525D Appendix G) "
                 "that renders each point's own symbol automatically "
@@ -796,7 +809,7 @@ class MilitaryCartographyTools:
         # military_symbology/sigint_layer.py.
         self.tactical_graphics_sigint_action = self._build_action(
             "tactical_graphics_sigint.svg",
-            "Tactical Graphics - SIGINT",
+            "SIGINT",
             tooltip=(
                 "Add a SIGINT layer (MIL-STD-2525D Appendix J) "
                 "that renders each point's own symbol automatically "
@@ -813,7 +826,7 @@ class MilitaryCartographyTools:
         # military_symbology/cyberspace_layer.py.
         self.tactical_graphics_cyberspace_action = self._build_action(
             "tactical_graphics_cyberspace.svg",
-            "Tactical Graphics - Cyberspace",
+            "Cyberspace",
             tooltip=(
                 "Add a Cyberspace layer (MIL-STD-2525D Appendix L) "
                 "that renders each point's own symbol automatically "
@@ -824,26 +837,83 @@ class MilitaryCartographyTools:
         )
 
 
-    def _setup_control_measures_action(self):
+    def _setup_control_measures_menu(self):
 
-        # One-shot action, not a map tool - see
-        # military_symbology/control_measures.py and
-        # military_symbology/control_measure_points.py. Adds the lines,
-        # areas, AND control-measure-points layers in one click -
-        # conceptually one feature (per docs/roadmap.md's own Phase 10
-        # bullet), even though QGIS needs separate layers since a vector
-        # layer is always a single geometry type.
-        self.control_measures_action = self._build_action(
-            "control_measures.svg",
-            "Tactical Graphics - Control Measures",
-            tooltip=(
-                "Add layers for control measures (phase lines, "
-                "boundaries, axis of advance, objectives, NAIs, and "
-                "point control measures like checkpoints/decision "
-                "points/supply points)"
-            ),
-            callback=self.create_control_measures,
-            standalone=False
+        # "Control Measures" nests as its own flyout submenu (same
+        # QMenu-inside-a-group mechanism as Sub Grid inside Grid - see
+        # _setup_sub_grid_menu()) rather than a single QAction, at the
+        # project maintainer's own request (2026-08-09): Appendix H
+        # covers ~17 logical sections (C2 Measures, Maneuver, Defensive,
+        # Offensive, Airspace, Maritime, Deception, Fire Support,
+        # Targets, Target Acquisition, Obstacles, Field Fortification,
+        # CBRN, Sustainment, Supply, Mission Tasks, Intelligence - see
+        # docs/roadmap.md's own H3-H22 mini-phase table), and one click
+        # adding every one of them at once (the old single "Control
+        # Measures" action) would only get more unwieldy as each
+        # mini-phase lands - see military_symbology/c2_measures.py's own
+        # docstring for the full rationale. Each entry here is its own
+        # H.5.x group, added only once that group's own mini-phase is
+        # actually built - "C2 Measures" (H0/H2) is the only one so far.
+        # "Control Measure Points" is the pre-existing flat layer
+        # covering many H.5.x sections' point-type control measures at
+        # once (military_symbology/control_measure_points.py) - kept as
+        # its own entry rather than folded into C2 Measures, since it
+        # hasn't been split by section yet (tracked separately).
+        self.control_measures_menu = QMenu(
+            "Control Measures",
+            self.toolbar
+        )
+
+        self.control_measures_menu.setIcon(
+            QIcon(
+                str(
+                    self.plugin_dir / "icons" / "control_measures.svg"
+                )
+            )
+        )
+
+        self.control_measures_menu.setToolTipsVisible(True)
+
+        self.control_measures_menu.menuAction().setToolTip(
+            "Appendix H control measures, grouped by logical section"
+        )
+
+        self.c2_measures_action = QAction(
+            "C2 Measures",
+            self.control_measures_menu
+        )
+
+        self.c2_measures_action.setToolTip(
+            "Add C2 Measures layers (MIL-STD-2525D Appendix H.5.5/"
+            "H.5.9/H.5.10: Boundary, Light Line, Area of Operations, "
+            "Named/Target Area of Interest, Airfield Zone)"
+        )
+
+        self.c2_measures_action.triggered.connect(
+            self.create_c2_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.c2_measures_action
+        )
+
+        self.control_measure_points_action = QAction(
+            "Control Measure Points",
+            self.control_measures_menu
+        )
+
+        self.control_measure_points_action.setToolTip(
+            "Add a Control Measure Points layer (checkpoints, decision "
+            "points, observation posts, target points, supply points, "
+            "and similar point-type control measures)"
+        )
+
+        self.control_measure_points_action.triggered.connect(
+            self.create_control_measure_points
+        )
+
+        self.control_measures_menu.addAction(
+            self.control_measure_points_action
         )
 
 
@@ -911,16 +981,6 @@ class MilitaryCartographyTools:
                 ],
             ),
             (
-                "print_production",
-                "group_print_production.svg",
-                "Print Production",
-                "New Military Layout and Map Sheet Series",
-                [
-                    self.new_layout_action,
-                    self.map_sheet_series_action,
-                ],
-            ),
-            (
                 "nato_symbols",
                 "group_nato_symbols.svg",
                 "NATO Symbols",
@@ -938,7 +998,22 @@ class MilitaryCartographyTools:
                     self.tactical_graphics_activities_action,
                     self.tactical_graphics_sigint_action,
                     self.tactical_graphics_cyberspace_action,
-                    self.control_measures_action,
+                    self.control_measures_menu,
+                ],
+            ),
+            # Print Production stays last, always (2026-08-09, at the
+            # maintainer's request) - "creating print layouts" is the
+            # natural final step of a mapping workflow, so its own group
+            # button anchors the end of the toolbar regardless of what
+            # else is added before it.
+            (
+                "print_production",
+                "group_print_production.svg",
+                "Print Production",
+                "New Military Layout and Map Sheet Series",
+                [
+                    self.new_layout_action,
+                    self.map_sheet_series_action,
                 ],
             ),
         ]
@@ -1015,8 +1090,14 @@ class MilitaryCartographyTools:
             tooltip
         )
 
+        # Icon-only (2026-08-09, at the maintainer's request): the
+        # group's own tooltip (below) already communicates the function
+        # on hover, and dropping the text keeps the toolbar's six group
+        # buttons compact - .setText() above is kept regardless, for
+        # accessibility (screen readers) and the Plugins-menu submenu's
+        # own title, neither of which this style affects.
         button.setToolButtonStyle(
-            Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+            Qt.ToolButtonStyle.ToolButtonIconOnly
         )
 
         button.setPopupMode(
@@ -1206,14 +1287,17 @@ class MilitaryCartographyTools:
         self.tactical_graphics_activities_action = None
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
-        self.control_measures_action = None
+        self.c2_measures_action = None
+        self.control_measure_points_action = None
 
-        # sub_grid_menu/group and every group_menus entry ARE
-        # parented to the toolbar (see _setup_sub_grid_menu()/
+        # sub_grid_menu/group, control_measures_menu, and every
+        # group_menus entry ARE parented to the toolbar (see
+        # _setup_sub_grid_menu()/_setup_control_measures_menu()/
         # _build_toolbar_group()), so sip.delete(self.toolbar) above
         # already destroyed them.
         self.sub_grid_menu = None
         self.sub_grid_group = None
+        self.control_measures_menu = None
         self.group_menus = {}
 
         self.log(
@@ -1496,9 +1580,8 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_space(self):
         """
-        Add a "Tactical Graphics - Space" layer (MIL-STD-2525D Appendix
-        B), ready for placing symbols with QGIS's own native point
-        editing tools.
+        Add a "Space" layer (MIL-STD-2525D Appendix B), ready for
+        placing symbols with QGIS's own native point editing tools.
         """
 
         add_space_layer(
@@ -1508,9 +1591,8 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_air(self):
         """
-        Add a "Tactical Graphics - Air" layer (MIL-STD-2525D Appendix
-        C), ready for placing symbols with QGIS's own native point
-        editing tools.
+        Add an "Air" layer (MIL-STD-2525D Appendix C), ready for
+        placing symbols with QGIS's own native point editing tools.
         """
 
         add_air_layer(
@@ -1520,7 +1602,7 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_land(self):
         """
-        Add "Tactical Graphics - Land Unit/Civilian/Equipment/
+        Add "Land Unit"/"Land Civilian"/"Land Equipment"/"Land
         Installation" layers (MIL-STD-2525D Appendix D), ready for
         placing symbols with QGIS's own native point editing tools.
         """
@@ -1532,9 +1614,8 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_sea_surface(self):
         """
-        Add a "Tactical Graphics - Sea Surface" layer (MIL-STD-2525D
-        Appendix E), ready for placing symbols with QGIS's own native
-        point editing tools.
+        Add a "Sea Surface" layer (MIL-STD-2525D Appendix E), ready for
+        placing symbols with QGIS's own native point editing tools.
         """
 
         add_sea_surface_layer(
@@ -1544,9 +1625,9 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_subsurface(self):
         """
-        Add "Tactical Graphics - Subsurface" and "Tactical Graphics -
-        Mine Warfare" layers (MIL-STD-2525D Appendix F), ready for
-        placing symbols with QGIS's own native point editing tools.
+        Add "Subsurface" and "Mine Warfare" layers (MIL-STD-2525D
+        Appendix F), ready for placing symbols with QGIS's own native
+        point editing tools.
         """
 
         add_subsurface_layers(
@@ -1556,9 +1637,8 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_activities(self):
         """
-        Add a "Tactical Graphics - Activities" layer (MIL-STD-2525D
-        Appendix G), ready for placing symbols with QGIS's own native
-        point editing tools.
+        Add an "Activities" layer (MIL-STD-2525D Appendix G), ready for
+        placing symbols with QGIS's own native point editing tools.
         """
 
         add_activities_layer(
@@ -1568,9 +1648,8 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_sigint(self):
         """
-        Add a "Tactical Graphics - SIGINT" layer (MIL-STD-2525D
-        Appendix J), ready for placing symbols with QGIS's own native
-        point editing tools.
+        Add a "SIGINT" layer (MIL-STD-2525D Appendix J), ready for
+        placing symbols with QGIS's own native point editing tools.
         """
 
         add_sigint_layer(
@@ -1580,9 +1659,8 @@ class MilitaryCartographyTools:
 
     def create_tactical_graphics_cyberspace(self):
         """
-        Add a "Tactical Graphics - Cyberspace" layer (MIL-STD-2525D
-        Appendix L), ready for placing symbols with QGIS's own native
-        point editing tools.
+        Add a "Cyberspace" layer (MIL-STD-2525D Appendix L), ready for
+        placing symbols with QGIS's own native point editing tools.
         """
 
         add_cyberspace_layer(
@@ -1590,22 +1668,31 @@ class MilitaryCartographyTools:
         )
 
 
-    def create_control_measures(self):
+    def create_c2_measures(self):
         """
-        Add the control-measures layers (lines: phase lines,
-        boundaries, axis of advance; areas: objectives, NAIs; points:
-        checkpoints, decision points, supply points, and similar),
-        ready for digitizing/placing with QGIS's own native editing
-        tools.
+        Add the C2 Measures layers (lines: Boundary, Light Line; areas:
+        Area of Operations, Named/Target Area of Interest, Airfield
+        Zone - MIL-STD-2525D Appendix H.5.5/H.5.9/H.5.10), ready for
+        digitizing with QGIS's own native editing tools.
         """
 
-        add_control_measures_lines_layer(
+        add_c2_measures_lines_layer(
             self.iface
         )
 
-        add_control_measures_areas_layer(
+        add_c2_measures_areas_layer(
             self.iface
         )
+
+
+    def create_control_measure_points(self):
+        """
+        Add a "Control Measure Points" layer (checkpoints, decision
+        points, observation posts, target points, supply points, and
+        similar point-type control measures spanning several Appendix H
+        sections), ready for placing with QGIS's own native point
+        editing tools.
+        """
 
         add_control_measure_points_layer(
             self.iface

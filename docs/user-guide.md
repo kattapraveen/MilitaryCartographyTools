@@ -575,16 +575,22 @@ dimension.
 
 **The eight actions / nine layers**:
 
+**Layer names dropped their "Tactical Graphics - " prefix 2026-08-09**
+(at the maintainer's request) — the QGIS Layers panel sidebar is narrow,
+and with nine of these layers active at once the prefix pushed the part
+that actually distinguishes them off the visible edge. The toolbar
+dropdown/menu action labels dropped the same prefix, for consistency.
+
 | Toolbar action | Layer(s) added | MIL-STD-2525D | Coverage |
 |---|---|---|---|
-| Tactical Graphics - Space | "Tactical Graphics - Space" | Appendix B (symbol sets 05, 06 merged) | Full vocabulary — every space platform/equipment entity, plus Space Missile folded in |
-| Tactical Graphics - Air | "Tactical Graphics - Air" | Appendix C (symbol sets 01, 02 merged) | Full vocabulary — every air platform entity, plus Air Missile folded in |
-| Tactical Graphics - Land | "Tactical Graphics - Land Unit", "...Land Civilian", "...Land Equipment", "...Land Installation" (four layers, one click) | Appendix D (symbol sets 10, 11, 15, 20) | Curated common-vocabulary subset for each — Land Unit organised by functional area (maneuver, fires, air defense, combat support, intelligence, combat service support); Equipment/Installation cover the common platform and facility types. Not the full spec — the rendering engine supports the complete standard, so growing any of these is a vocabulary-only change |
-| Tactical Graphics - Sea Surface | "Tactical Graphics - Sea Surface" | Appendix E (symbol set 30) | Full vocabulary — every surface vessel entity, including "Own Ship" and "Fused Track" |
-| Tactical Graphics - Subsurface | "Tactical Graphics - Subsurface", "...Mine Warfare" (two layers, one click) | Appendix F (symbol sets 35, 36) | Full vocabulary for both, including Mine Warfare's confidence-level (1-5) sub-variants for each mine position |
-| Tactical Graphics - Activities | "Tactical Graphics - Activities" | Appendix G (symbol set 40) | Full vocabulary — incidents, civil disturbance, operations, fire/hazmat events, transportation incidents, natural events, and personalities |
-| Tactical Graphics - SIGINT | "Tactical Graphics - SIGINT" | Appendix J (symbol sets 50-54, one per Dimension) | Full vocabulary — 4 entities (Signal Intercept, Communications, Jammer, Radar) × the full 64-entry sector 1 modifier list (radar/jammer/comms categories) |
-| Tactical Graphics - Cyberspace | "Tactical Graphics - Cyberspace" | Appendix L (symbol set 60) | Full vocabulary — 50 entities (botnets, infections, network health/status, device types and domains, cyber effects) |
+| Space | "Space" | Appendix B (symbol sets 05, 06 merged) | Full vocabulary — every space platform/equipment entity, plus Space Missile folded in |
+| Air | "Air" | Appendix C (symbol sets 01, 02 merged) | Full vocabulary — every air platform entity, plus Air Missile folded in |
+| Land | "Land Unit", "Land Civilian", "Land Equipment", "Land Installation" (four layers, one click) | Appendix D (symbol sets 10, 11, 15, 20) | Curated common-vocabulary subset for each — Land Unit organised by functional area (maneuver, fires, air defense, combat support, intelligence, combat service support); Equipment/Installation cover the common platform and facility types. Not the full spec — the rendering engine supports the complete standard, so growing any of these is a vocabulary-only change |
+| Sea Surface | "Sea Surface" | Appendix E (symbol set 30) | Full vocabulary — every surface vessel entity, including "Own Ship" and "Fused Track" |
+| Subsurface | "Subsurface", "Mine Warfare" (two layers, one click) | Appendix F (symbol sets 35, 36) | Full vocabulary for both, including Mine Warfare's confidence-level (1-5) sub-variants for each mine position |
+| Activities | "Activities" | Appendix G (symbol set 40) | Full vocabulary — incidents, civil disturbance, operations, fire/hazmat events, transportation incidents, natural events, and personalities |
+| SIGINT | "SIGINT" | Appendix J (symbol sets 50-54, one per Dimension) | Full vocabulary — 4 entities (Signal Intercept, Communications, Jammer, Radar) × the full 64-entry sector 1 modifier list (radar/jammer/comms categories) |
+| Cyberspace | "Cyberspace" | Appendix L (symbol set 60) | Full vocabulary — 50 entities (botnets, infections, network health/status, device types and domains, cyber effects) |
 
 The symbol updates immediately as soon as the attributes are saved — no
 regenerate step. These are a genuinely different kind of layer from
@@ -614,25 +620,38 @@ scope it together.
 
 ## Tactical Graphics - Control Measures
 
-Click the icon to add three layers for control measures — a "Lines" layer,
-an "Areas" layer, and a "Control Measure Points" layer (checkpoints,
-decision points, supply points, and similar). All three are created empty
-and ready to use immediately; there's no dialog, and clicking the icon
-again never replaces a layer that already exists (each is checked
-independently, so it only adds back whichever ones are still missing).
+Click the icon for a dropdown with one entry per Appendix H logical
+group (2026-08-09 - previously a single click that added every control
+measure layer at once, split up at the project maintainer's own request
+so this doesn't keep growing into one unwieldy pile as more of Appendix
+H gets built):
 
-**Work in progress, being rebuilt one Appendix H section at a time.** The
-Lines and Areas layers' own measure-type list only offers **Boundary**
-right now (H.5.5, verified against the real MIL-STD-2525D template
-pictures 2026-08-09) - every other line/area measure type from an earlier,
-less rigorous build pass was removed rather than left half-verified
-alongside it, so what's in the dropdown is always exactly what's actually
-been checked. Further measure types (Phase Line, Objective, Axis of
-Advance, and the rest of Appendix H) are added back in, freshly verified,
-as each of that appendix's own sections gets its turn - see
-docs/roadmap.md's Phase 10 entry for progress. The Control Measure Points
-layer (below) is unaffected by this - its ~80 point-type control measures
-are unchanged.
+- **C2 Measures** — adds a "Lines" layer and an "Areas" layer (H.5.5/
+  H.5.9/H.5.10, described below).
+- **Control Measure Points** — adds the "Control Measure Points" layer
+  (checkpoints, decision points, supply points, and similar - described
+  further down this section).
+
+Each layer is created empty and ready to use immediately; there's no
+dialog, and clicking an entry again never replaces a layer that already
+exists (each is checked independently, so it only adds back whichever
+ones are still missing).
+
+**Work in progress, being rebuilt one Appendix H section at a time.** C2
+Measures' Lines layer currently offers **Boundary** and **Light Line**;
+its Areas layer offers **Area of Operations**, **Named Area of
+Interest**, **Target Area of Interest**, and **Airfield Zone** (H.5.5/
+Table H-IV and H.5.9/Table H-V, verified against the real MIL-STD-2525D
+template pictures 2026-08-09) - every other line/area measure type from
+an earlier, less rigorous build pass was removed rather than left
+half-verified alongside these, so what's in the dropdown is always
+exactly what's actually been checked. Further Appendix H logical groups
+(Maneuver, Defensive, Offensive, Airspace, Maritime, and the rest) get
+their own new dropdown entry and their own layer(s), freshly verified,
+as each group's own mini-phase gets its turn - see docs/roadmap.md's
+Phase 10 entry for progress. The Control Measure Points layer (below) is
+unaffected by this reorganisation - its ~80 point-type control measures
+are unchanged, and it hasn't been split by logical group yet.
 
 **Drawing a Boundary**: use QGIS's own native line editing tools (toggle
 editing, **Add Line Feature**) to digitize the line between two units,
@@ -659,9 +678,37 @@ repeats periodically along a long or multi-vertex boundary (roughly every
 80mm on screen), approximating Table H-III's own "each segment repeats
 the same information" rule.
 
-Status and Echelon exist on the Lines layer's schema for every future
-measure type too, not just Boundary - they'll be reused as later Appendix
-H sections add their own measure types back in.
+Status and Echelon exist on the Lines layer's schema for every line
+measure type, not just Boundary; a Status field exists on the Areas layer
+too (H.5.1.1.3's own present/planned rule explicitly covers area control
+measures as well as linear ones) - they're reused as later Appendix H
+sections add their own measure types back in.
+
+**Drawing a Light Line**: a plain status-driven solid/dashed line marked
+"LL" above each end (Table H-IV) - optionally give it its own name (e.g.
+"CRAB") in **Unique designation**, which repeats along the line the same
+masked, gap-cutting way Boundary's own label does.
+
+**Drawing an Area of Operations / Named Area of Interest / Target Area
+of Interest**: use **Add Polygon Feature** to digitize the area (at
+least 3 points), then set **Unique designation** for an optional name.
+The label always shows the type's own fixed abbreviation - "AO", "NAI",
+or "TAI" - followed by the name if you gave one (e.g. "AO BUFFALO",
+matching MIL-STD-2525D's own examples). The standard's own template
+pictures draw NAI/TAI as a hexagon, but the draw rules underneath say the
+shape is "determined by the anchor points" the same as every other area
+here - so these render whatever shape you actually digitize, not a forced
+hexagon.
+
+**Drawing an Airfield Zone**: same polygon digitizing, but with a
+crossed-runway-style icon (two lines crossing at an uneven angle, a
+stand-in for the standard's own specific glyph - not a plain symmetric
+"X") at the area's centre instead of a type-abbreviation label -
+Airfield Zone's own template has no Field A abbreviation. **Unique
+designation** here represents the runway length (Field H, e.g. "750M",
+matching the standard's own example) and renders just outside the
+boundary rather than inside it, since that's where the standard's own
+picture places it.
 
 **Auto-populated measurements**: the Lines layer has a **Length (km)**
 field, and the Areas layer has **Area (km²)** and **Perimeter (km)**

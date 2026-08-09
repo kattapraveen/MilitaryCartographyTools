@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Shared builder for a single-symbol-set "Tactical Graphics - <Domain>"
+Shared builder for a single-symbol-set "<Domain>"
 point layer: one entity vocabulary, one fixed SIDC symbol_set, a plain
 affiliation/entity/echelon/status/headquarters/unique_designation
 attribute form, and a renderer that computes each feature's own
@@ -10,7 +10,7 @@ MIL-STD-2525/APP-6 symbol live via mct_build_sidc()/mct_sidc_svg().
 Factored out of military_symbology/unit_layer.py (2026-08-08) once the
 appendix-by-appendix completion plan called for each MIL-STD-2525D
 appendix to get its OWN dedicated layer + icon, rather than everything
-funneling into the single shared "Tactical Graphics - Units" layer
+funneling into the single shared "Units" layer
 (ground_unit/air/sea_surface/subsurface together via a cascading
 symbol_set/entity dropdown). unit_layer.py itself is untouched for now -
 it will be retired domain-by-domain as Appendices C/D/E/F's own
