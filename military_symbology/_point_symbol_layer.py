@@ -86,6 +86,13 @@ _ECHELON_LABELS = {
     "division": "Division",
     "corps": "Corps",
     "army": "Army",
+    # Table D-III's own three highest echelons - added 2026-08-09
+    # alongside sidc.py's own ECHELONS extension (see that dict's own
+    # comment); every layer built with this module gains these three
+    # values automatically since they all share this one label dict.
+    "army_group": "Army Group",
+    "theater": "Theater",
+    "command": "Command",
 }
 
 _STATUS_LABELS = {

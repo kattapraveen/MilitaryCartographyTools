@@ -2,26 +2,30 @@
 
 """
 Tests for military_symbology/control_measures.py - the control-measure
-line/area layers (phase lines, boundaries, axis of advance, objectives,
-NAIs) styled via a QgsRuleBasedRenderer keyed on "measure_type".
+line/area layers, styled via a QgsRuleBasedRenderer keyed on
+"measure_type".
+
+**2026-08-09**: trimmed down alongside control_measures.py itself to
+only what the appendix-by-appendix completion plan has actually
+re-verified so far - currently just Boundary (Mini-Phase H0). See that
+module's own docstring for why every measure type from the earlier,
+unverified stage-based pass (and its own tests here) was removed rather
+than left in place.
 
 Military Cartography Tools
 """
 
 from qgis.core import (
+    Qgis,
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsExpressionContext,
     QgsFeature,
     QgsGeometry,
-    QgsGeometryGeneratorSymbolLayer,
-    QgsMarkerLineSymbolLayer,
     QgsPointXY,
     QgsProject,
-    QgsSimpleLineSymbolLayer,
     QgsSymbolLayer,
     QgsSymbolLayerUtils,
-    QgsTemplatedLineSymbolLayerBase,
     QgsVectorLayer,
     QgsVectorLayerUtils,
 )
@@ -31,12 +35,14 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 
+from MilitaryCartographyTools.military_symbology import control_measures
 from MilitaryCartographyTools.military_symbology.control_measures import (
     AFFILIATION_LABELS,
     AREAS_LAYER_NAME,
-    AREA_MEASURE_TYPE_LABELS,
+    ECHELON_LABELS,
     LINES_LAYER_NAME,
     LINE_MEASURE_TYPE_LABELS,
+    STATUS_LABELS,
     add_control_measures_areas_layer,
     add_control_measures_lines_layer,
     create_control_measures_areas_layer,
@@ -58,32 +64,6 @@ def _rule_symbol_for(layer, measure_type):
     )
 
     return rule.symbol()
-
-
-def _stroke_symbol_layer(symbol):
-
-    """
-    The symbol layer whose StrokeColor property actually carries the
-    affiliation colour expression - symbolLayer(0) directly for an
-    ordinary line/fill symbol, or one level into a wrapper layer's own
-    subSymbol for anything built from the shared helpers that wrap a real
-    line layer inside something else with no colour properties of its
-    own: QgsGeometryGeneratorSymbolLayer (circle-from-line measure types -
-    isolate/secure/seize/retain - and the anchor-point-reconstructed ones -
-    block/penetrate/breach/canalize - see control_measures.py's own
-    docstrings) or QgsMarkerLineSymbolLayer (the wavy-line measure types -
-    forward_line_of_troops/line_of_contact - whose colour lives on the
-    repeating marker's own symbol layer, not the line layer that places
-    it).
-    """
-
-    layer = symbol.symbolLayer(0)
-
-    if isinstance(layer, (QgsGeometryGeneratorSymbolLayer, QgsMarkerLineSymbolLayer)):
-
-        return layer.subSymbol().symbolLayer(0)
-
-    return layer
 
 
 def _resolve_stroke_color(symbol_layer, layer, affiliation):
@@ -120,7 +100,10 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["measure_type", "affiliation", "unique_designation", "length_km"]
+            [
+                "measure_type", "affiliation", "status", "echelon",
+                "unique_designation", "far_designation", "length_km",
+            ]
         )
 
 
@@ -134,7 +117,7 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         )
 
 
-    def test_measure_type_uses_a_value_map_widget(self):
+    def test_measure_type_uses_a_value_map_widget_defaulting_to_boundary(self):
 
         layer = create_control_measures_lines_layer()
 
@@ -145,8 +128,13 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
             "ValueMap"
         )
 
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(),
+            "'boundary'"
+        )
 
-    def test_affiliation_uses_a_value_map_widget_defaulting_to_unknown(self):
+
+    def test_affiliation_uses_a_value_map_widget_defaulting_to_unspecified(self):
 
         layer = create_control_measures_lines_layer()
 
@@ -159,42 +147,82 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
 
         self.assertEqual(
             layer.defaultValueDefinition(idx).expression(),
-            "'unknown'"
+            "'unspecified'"
         )
 
 
-    def test_line_colours_follow_affiliation_per_ms_std_2525d_h_5_3(self):
+    def test_status_uses_a_value_map_widget_defaulting_to_present(self):
+
+        layer = create_control_measures_lines_layer()
+
+        idx = layer.fields().indexOf("status")
+
+        widget_setup = layer.editorWidgetSetup(idx)
+
+        self.assertEqual(widget_setup.type(), "ValueMap")
+        self.assertEqual(
+            widget_setup.config()["map"],
+            {label: value for value, label in STATUS_LABELS.items()}
+        )
+
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(),
+            "'present'"
+        )
+
+
+    def test_echelon_uses_a_value_map_widget_defaulting_to_blank(self):
+
+        layer = create_control_measures_lines_layer()
+
+        idx = layer.fields().indexOf("echelon")
+
+        widget_setup = layer.editorWidgetSetup(idx)
+
+        self.assertEqual(widget_setup.type(), "ValueMap")
+
+        expected_map = {"(Not shown)": ""}
+        expected_map.update(
+            {label: value for value, label in ECHELON_LABELS.items()}
+        )
+        self.assertEqual(widget_setup.config()["map"], expected_map)
+
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(),
+            "''"
+        )
+
+
+    def test_line_colours_follow_affiliation_per_ms_std_2525d_h_5_1_1_1(self):
 
         # Per the actual MIL-STD-2525D standard (Appendix H, section
-        # H.5.3 Coloring): friendly control measures in black or blue,
-        # hostile in red - scoped down to exactly friend=blue,
-        # hostile=red, everything else=black ("black as standard").
+        # H.5.1.1.1 Standard identity (color rules)): "black, blue
+        # (friendly), red (hostile), green (neutral or obstacles), or
+        # yellow (unknown ...)" - five distinct colours.
         layer = create_control_measures_lines_layer()
+
+        expected = {
+            "friend": "#0000ff",
+            "hostile": "#ff0000",
+            "neutral": "#00ff00",
+            "unknown": "#ffff00",
+            "unspecified": "#000000",
+        }
 
         for measure_type in LINE_MEASURE_TYPE_LABELS:
 
             symbol = _rule_symbol_for(layer, measure_type)
-            stroke_layer = _stroke_symbol_layer(symbol)
+            stroke_layer = symbol.symbolLayer(0)
 
-            color, ok = _resolve_stroke_color(
-                stroke_layer, layer, "friend"
-            )
-            self.assertTrue(ok, measure_type)
-            self.assertEqual(color.name(), "#0000ff", measure_type)
-
-            color, ok = _resolve_stroke_color(
-                stroke_layer, layer, "hostile"
-            )
-            self.assertTrue(ok, measure_type)
-            self.assertEqual(color.name(), "#ff0000", measure_type)
-
-            for affiliation in ("neutral", "unknown"):
+            for affiliation, hex_color in expected.items():
 
                 color, ok = _resolve_stroke_color(
                     stroke_layer, layer, affiliation
                 )
                 self.assertTrue(ok, (measure_type, affiliation))
-                self.assertEqual(color.name(), "#000000", (measure_type, affiliation))
+                self.assertEqual(
+                    color.name(), hex_color, (measure_type, affiliation)
+                )
 
 
     def test_rule_tree_has_one_rule_per_measure_type(self):
@@ -215,533 +243,216 @@ class TestCreateControlMeasuresLinesLayer(QgisTestCase):
         self.assertEqual(filters, expected)
 
 
-    def test_labelling_is_enabled_on_the_designation_field(self):
+    def test_labelling_is_enabled_and_uses_the_boundary_aware_expression(self):
 
         layer = create_control_measures_lines_layer()
 
         self.assertTrue(layer.labelsEnabled())
 
+        settings = layer.labeling().settings()
+
+        self.assertTrue(settings.isExpression)
         self.assertEqual(
-            layer.labeling().settings().fieldName,
-            "unique_designation"
+            settings.fieldName,
+            control_measures._BOUNDARY_DESIGNATION_LABEL_EXPRESSION
         )
 
 
-    def test_axis_of_advance_arrowhead_has_a_visible_outline_width(self):
+    def test_line_labels_use_online_placement_not_the_default_above_line(self):
 
-        # "arrowhead" is a stroke-only simple-marker shape (no fillable
-        # interior) - createSimple()'s own default outline_width is 0,
-        # which Qt draws as a barely-visible 1-device-pixel cosmetic
-        # hairline. Guards against that regressing back to "too light"
-        # (reported during manual smoke testing).
+        # QGIS's own default line-label placement flags are AboveLine |
+        # MapOrientation - the whole label always sits above the line,
+        # never straddling it. Boundary's own two-line near/far label
+        # needs to straddle the line (near above, far below the echelon
+        # gap), which only happens with OnLine - found by rendering a
+        # real boundary feature both ways, not assumed from the flag's
+        # own name (see _configure_designation_labeling()'s own comment).
         layer = create_control_measures_lines_layer()
 
-        root = layer.renderer().rootRule()
+        settings = layer.labeling().settings()
 
-        axis_rule = next(
-            rule for rule in root.children()
-            if rule.filterExpression() == '"measure_type" = \'axis_of_advance\''
+        self.assertEqual(
+            settings.lineSettings().placementFlags(),
+            Qgis.LabelLinePlacementFlag.OnLine
         )
 
-        marker_line_layer = axis_rule.symbol().symbolLayer(1)
 
-        outline_width = marker_line_layer.subSymbol().symbolLayer(0).strokeWidth()
+    def test_designation_label_is_forced_to_upper_case_per_h_5_4(self):
 
-        self.assertGreater(outline_width, 0)
-
-
-    # --- H.5.11-H.5.14 / H.5.26 additions (2026-08-07) ------------------
-
-    def test_forward_line_of_troops_is_a_wavy_line(self):
-
-        # Code 140100/140101 - the template page's own picture (410) shows
-        # a real serpentine/wave line, not a plain straight one (an
-        # earlier version of this function rendered a plain line, since
-        # the extracted text alone gives no hint of the wave - see
-        # control_measures.py's own comment on _forward_line_of_troops_symbol()).
-        # Two QgsMarkerLineSymbolLayers alternate half_arc markers to draw
-        # one continuous wave - see _wavy_line_layers()'s own comment.
+        # H.5.4 Labeling: "All text labeling shall be in upper case
+        # letters" - found unimplemented while re-auditing H.5.1-H.5.4
+        # for Mini-Phase H0 (2026-08-09).
         layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "forward_line_of_troops")
 
-        self.assertEqual(symbol.symbolLayerCount(), 2)
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("measure_type", "some_other_type")
+        feature.setAttribute("unique_designation", "phl bravo")
 
-        for i in range(2):
+        expression = QgsExpression(layer.labeling().settings().fieldName)
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
 
-            self.assertIsInstance(symbol.symbolLayer(i), QgsMarkerLineSymbolLayer)
+        result = expression.evaluate(context)
+        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
+        self.assertEqual(result, "PHL BRAVO")
+
+
+    def test_boundary_label_combines_near_echelon_and_far(self):
+
+        # Table H-III shows the near unit's T/AS above, the Field B
+        # echelon amplifier in the line's own gap, and the far unit's
+        # T/AS below - built as a single 3-line label (see
+        # _boundary_symbol()'s own comment in control_measures.py for why
+        # the echelon glyph is embedded in the label, not a separate
+        # symbol layer).
+        layer = create_control_measures_lines_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("measure_type", "boundary")
+        feature.setAttribute("unique_designation", "2id (usa)")
+        feature.setAttribute("echelon", "division")
+        feature.setAttribute("far_designation", "52id (gbr)")
+
+        expression = QgsExpression(layer.labeling().settings().fieldName)
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        result = expression.evaluate(context)
+        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
+        self.assertEqual(result, "2ID (USA)\nXX\n52ID (GBR)")
+
+
+    def test_boundary_label_omits_echelon_and_far_lines_when_blank(self):
+
+        layer = create_control_measures_lines_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("measure_type", "boundary")
+        feature.setAttribute("unique_designation", "2id (usa)")
+
+        expression = QgsExpression(layer.labeling().settings().fieldName)
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        result = expression.evaluate(context)
+        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
+        self.assertEqual(result, "2ID (USA)")
+
+
+    def test_boundary_label_includes_echelon_line_without_far_designation(self):
+
+        layer = create_control_measures_lines_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("measure_type", "boundary")
+        feature.setAttribute("unique_designation", "2id (usa)")
+        feature.setAttribute("echelon", "command")
+
+        expression = QgsExpression(layer.labeling().settings().fieldName)
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        result = expression.evaluate(context)
+        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
+        self.assertEqual(result, "2ID (USA)\n++")
+
+
+    def test_boundary_line_is_solid_when_present_and_dashed_when_planned(self):
+
+        # H.5.1.1.3 Status/Table H-I: present=solid, planned=dashed.
+        layer = create_control_measures_lines_layer()
+
+        symbol = _rule_symbol_for(layer, "boundary")
+        line_layer = symbol.symbolLayer(0)
+
+        for status, expected_style in (
+            ("present", QgsSymbolLayerUtils.decodePenStyle("solid")),
+            ("planned", QgsSymbolLayerUtils.decodePenStyle("dash")),
+        ):
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("status", status)
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            style, ok = line_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.StrokeStyle,
+                context,
+                ""
+            )
+            self.assertTrue(ok, status)
             self.assertEqual(
-                symbol.symbolLayer(i).placements(),
-                QgsTemplatedLineSymbolLayerBase.Placement.Interval
+                QgsSymbolLayerUtils.decodePenStyle(style), expected_style, status
             )
 
-        offsets_along_line = sorted(
-            symbol.symbolLayer(i).offsetAlongLine() for i in range(2)
-        )
-        self.assertAlmostEqual(offsets_along_line[0], 0)
-        self.assertGreater(offsets_along_line[1], 0)
 
+    def test_boundary_line_symbol_layer_has_a_stable_id(self):
 
-    def test_line_of_contact_is_two_offset_wavy_lines(self):
-
-        # Code 140200 - "created when both the friendly and enemy FLOT
-        # symbols are displayed" - the template page's own picture (412)
-        # shows this literally: two parallel WAVY lines (an earlier
-        # version of this function used two plain offset straight lines,
-        # the same "text alone doesn't show the wave" gap FLOT itself had -
-        # see control_measures.py's own comment on _line_of_contact_symbol()).
+        # Referenced by the label's own mask settings (see
+        # test_boundary_label_mask_targets_the_line_symbol_layer() below)
+        # so masking knows exactly which symbol layer to cut a hole in.
         layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "line_of_contact")
 
-        self.assertEqual(symbol.symbolLayerCount(), 4)
-
-        for i in range(4):
-
-            self.assertIsInstance(symbol.symbolLayer(i), QgsMarkerLineSymbolLayer)
-
-        offsets = sorted(
-            {symbol.symbolLayer(i).offset() for i in range(4)}
-        )
-        self.assertEqual(len(offsets), 2)
-        self.assertAlmostEqual(offsets[0], -3)
-        self.assertAlmostEqual(offsets[1], 3)
-
-
-    def test_feba_renders_a_real_multi_vertex_path_unmodified(self):
-
-        # Code 140400 - the template page's own picture (413) shows a
-        # small triangular peak in the middle of the line (PT1-PT3
-        # baseline, PT2 the peak) - reads like it needs special
-        # construction, but doesn't: it's simply the raw 3-vertex path
-        # P1->P2->P3, the same "additional points extend the line"
-        # convention Phase Line/FLOT already support. Confirmed here by
-        # rendering a real 3-vertex feature through the actual symbol and
-        # checking the geometry comes through unchanged - not just that
-        # some structure exists - since this module's own recurring
-        # lesson is that a shape can look like it needs special code when
-        # it doesn't (see control_measures.py's own comment on this
-        # function for the reasoning).
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "forward_edge_of_battle_area")
+        symbol = _rule_symbol_for(layer, "boundary")
 
         self.assertEqual(symbol.symbolLayerCount(), 1)
-        self.assertIsInstance(symbol.symbolLayer(0), QgsSimpleLineSymbolLayer)
-
-        phase_line_width = _rule_symbol_for(
-            layer, "phase_line"
-        ).symbolLayer(0).width()
-
-        self.assertGreater(symbol.symbolLayer(0).width(), phase_line_width)
-
-
-    def test_principal_direction_of_fire_has_arrows_at_both_ends(self):
-
-        # Code 140500 - two arrowheads diverging from a shared vertex,
-        # approximated as arrows at both FirstVertex and LastVertex (see
-        # control_measures.py's own comment on the point-ordering
-        # deviation and the FirstVertex rotation reasoning).
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "principal_direction_of_fire")
-
-        self.assertEqual(symbol.symbolLayerCount(), 3)
-
-        placements = {
-            symbol.symbolLayer(i).placements()
-            for i in (1, 2)
-        }
         self.assertEqual(
-            placements,
-            {
-                QgsTemplatedLineSymbolLayerBase.Placement.LastVertex,
-                QgsTemplatedLineSymbolLayerBase.Placement.FirstVertex,
-            }
+            symbol.symbolLayer(0).id(),
+            control_measures._BOUNDARY_LINE_SYMBOL_LAYER_ID
         )
 
-        first_vertex_layer = next(
-            symbol.symbolLayer(i) for i in (1, 2)
-            if symbol.symbolLayer(i).placements()
-            == QgsTemplatedLineSymbolLayerBase.Placement.FirstVertex
-        )
+
+    def test_boundary_label_mask_targets_the_line_symbol_layer(self):
+
+        # Regression test for three real, wrong attempts at the echelon
+        # glyph, all found by the project maintainer rendering a real
+        # boundary over a non-white (terrain) background rather than
+        # QGIS's own white canvas default: a bordered white square, then
+        # a borderless-but-still-solid-fill white square (both plainly
+        # "a box" against colour), then a font-glyph halo (QGIS's own
+        # real-world font rendering produced a messy white burst rather
+        # than a clean hourglass gap - not reproduced in this project's
+        # own offscreen renders). QGIS's own Selective Masking is the
+        # actual fix - see _boundary_symbol()'s and
+        # _configure_designation_labeling()'s own docstrings for the
+        # full history.
+        layer = create_control_measures_lines_layer()
+
+        # Chained one-liners here (settings().format().mask()...) have
+        # triggered real PyQt/sip segfaults in this test suite before -
+        # each intermediate C++ object returned by value must be kept
+        # alive in its own Python variable for as long as anything
+        # further down the chain is still being read from it.
+        settings = layer.labeling().settings()
+        text_format = settings.format()
+        mask = text_format.mask()
+
+        self.assertTrue(mask.enabled())
+
+        refs = mask.maskedSymbolLayers()
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0].layerId(), layer.id())
         self.assertEqual(
-            first_vertex_layer.subSymbol().symbolLayer(0).angle(),
-            180
+            refs[0].symbolLayerIdV2(),
+            control_measures._BOUNDARY_LINE_SYMBOL_LAYER_ID
         )
 
 
-    def test_direction_of_attack_has_a_single_end_arrow(self):
+    def test_boundary_label_repeats_along_the_line(self):
 
-        # Code 140600 - a plain arrow line, thinner than
-        # axis_of_advance's own wide-band approximation.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "direction_of_attack")
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-        self.assertIsInstance(symbol.symbolLayer(1), QgsMarkerLineSymbolLayer)
-        self.assertEqual(
-            symbol.symbolLayer(1).placements(),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-
-        axis_width = _rule_symbol_for(
-            layer, "axis_of_advance"
-        ).symbolLayer(0).width()
-        self.assertLess(symbol.symbolLayer(0).width(), axis_width)
-
-
-    def test_block_reconstructs_the_real_3_anchor_point_shape(self):
-
-        # Code 340100 - "Points 1 and 2 define the endpoints of the
-        # graphic's vertical line. Point 3 defines the endpoint of the
-        # graphic's horizontal line, which will project perpendicularly
-        # from the MIDPOINT of the vertical line". A regression test for
-        # a real bug: an earlier version of this symbol approximated the
-        # horizontal line as a small FIXED-size tick at the digitized
-        # line's own central point, ignoring point 3 entirely - caught by
-        # comparing a real render against the standard's own template
-        # diagram, where point 3 sits far from the vertical line. This
-        # test evaluates both geometry-generator expressions against a
-        # real 3-vertex feature and checks the actual reconstructed
-        # geometry, not just that some structure exists.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "block")
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-        self.assertIsInstance(symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer)
-        self.assertIsInstance(symbol.symbolLayer(1), QgsGeometryGeneratorSymbolLayer)
-
-        p1, p2, p3 = QgsPointXY(14, 16), QgsPointXY(14, 4), QgsPointXY(2, 10)
-        geometry = QgsGeometry.fromPolylineXY([p1, p2, p3])
-
-        def evaluate(expression_string):
-
-            expression = QgsExpression(expression_string)
-            context = QgsExpressionContext()
-            context.setFeature(QgsFeature())
-            context.setGeometry(geometry)
-            result = expression.evaluate(context)
-            self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
-            return result
-
-        vertical = evaluate(symbol.symbolLayer(0).geometryExpression())
-        self.assertEqual(vertical.asPolyline(), [p1, p2])
-
-        horizontal = evaluate(symbol.symbolLayer(1).geometryExpression())
-        midpoint = QgsPointXY(14, 10)
-        self.assertEqual(horizontal.asPolyline(), [p3, midpoint])
-
-
-    def _assert_is_the_real_bracket_shape(self, measure_type):
-
-        # Shared by Breach and Canalize - confirmed identical shapes by
-        # comparing their two template pictures side by side (637/638):
-        # "Points 1 and 2 define the endpoints of the symbol's opening and
-        # point 3 defines the rear of the symbol... the vertical line at
-        # the rear will be the same height as the opening and parallel to
-        # it" - a real open bracket/"C", not the plain-dashed-line-plus-
-        # decorative-tick an earlier version of both functions used. See
-        # _bracket_symbol()'s own comment for the construction.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, measure_type)
-
-        self.assertEqual(symbol.symbolLayerCount(), 1)
-        self.assertIsInstance(symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer)
-
-        p1, p2, p3 = QgsPointXY(16, 12), QgsPointXY(16, 4), QgsPointXY(2, 8)
-        geometry = QgsGeometry.fromPolylineXY([p1, p2, p3])
-
-        expression = QgsExpression(symbol.symbolLayer(0).geometryExpression())
-        context = QgsExpressionContext()
-        context.setFeature(QgsFeature())
-        context.setGeometry(geometry)
-        result = expression.evaluate(context)
-
-        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
-        self.assertEqual(
-            result.asPolyline(),
-            [p1, QgsPointXY(2, 12), p3, QgsPointXY(2, 4), p2]
-        )
-
-
-    def test_breach_is_the_real_bracket_shape(self):
-
-        self._assert_is_the_real_bracket_shape("breach")
-
-
-    def test_canalize_is_the_real_bracket_shape(self):
-
-        self._assert_is_the_real_bracket_shape("canalize")
-
-
-    def test_disrupt_has_ticks_at_regular_intervals(self):
-
-        # Code 341000 - "arrows" perpendicular to the baseline,
-        # approximated as ticks repeated along the line.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "disrupt")
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-        interval_layer = symbol.symbolLayer(1)
-        self.assertEqual(
-            interval_layer.placements(),
-            QgsTemplatedLineSymbolLayerBase.Placement.Interval
-        )
-        self.assertGreater(interval_layer.interval(), 0)
-
-
-    def test_fix_is_a_dashed_arrow_distinct_from_direction_of_attack(self):
-
-        # Code 341100 - the standard gives Fix no distinguishing detail
-        # beyond "an arrow"; dashed here purely so it stays visually
-        # distinguishable from direction_of_attack's own solid arrow.
-        layer = create_control_measures_lines_layer()
-        fix_symbol = _rule_symbol_for(layer, "fix")
-
-        self.assertEqual(fix_symbol.symbolLayerCount(), 2)
-        self.assertIsInstance(
-            fix_symbol.symbolLayer(1), QgsMarkerLineSymbolLayer
-        )
-
-
-    def test_penetrate_reconstructs_the_real_3_anchor_point_shape(self):
-
-        # Code 341800 - the same genuine 3-anchor-point shape as Block
-        # above (see that test's own comment for the bug this replaced),
-        # except "Point 3 defines the rear of the symbol" - point 3 is
-        # the arrow's tail, so the arrowhead sits at the midpoint end,
-        # piercing into the vertical line.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "penetrate")
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-        self.assertIsInstance(symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer)
-        self.assertIsInstance(symbol.symbolLayer(1), QgsGeometryGeneratorSymbolLayer)
-
-        p1, p2, p3 = QgsPointXY(14, 16), QgsPointXY(14, 4), QgsPointXY(2, 10)
-        geometry = QgsGeometry.fromPolylineXY([p1, p2, p3])
-
-        def evaluate(expression_string):
-
-            expression = QgsExpression(expression_string)
-            context = QgsExpressionContext()
-            context.setFeature(QgsFeature())
-            context.setGeometry(geometry)
-            result = expression.evaluate(context)
-            self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
-            return result
-
-        vertical = evaluate(symbol.symbolLayer(0).geometryExpression())
-        self.assertEqual(vertical.asPolyline(), [p1, p2])
-
-        shaft = evaluate(symbol.symbolLayer(1).geometryExpression())
-        midpoint = QgsPointXY(14, 10)
-        self.assertEqual(shaft.asPolyline(), [p3, midpoint])
-
-        arrow_sub_symbol = symbol.symbolLayer(1).subSymbol()
-        self.assertEqual(arrow_sub_symbol.symbolLayerCount(), 2)
-        arrow_layer = arrow_sub_symbol.symbolLayer(1)
-        self.assertIsInstance(arrow_layer, QgsMarkerLineSymbolLayer)
-        self.assertEqual(
-            arrow_layer.placements(),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-
-
-    def test_delay_and_withdraw_share_the_same_arrow_recipe(self):
-
-        # Codes 340800/342400 - the standard's own draw rules for these
-        # two are close to verbatim identical (arrow + perpendicular
-        # 180-degree arc); control_measures.py documents deliberately
-        # giving them the same rendering recipe, differentiated only by
-        # measure_type/label, the same way FLOT is kept separate from
-        # Phase Line despite an identical recipe.
+        # Approximates Table H-III's own "the line segment between each
+        # pair of anchor points will repeat all information" rule -
+        # interval-based (QGIS's own repeat mechanism), not exactly
+        # per-segment, but repeats a long boundary's label (and the
+        # masked gap around it) multiple times rather than just once -
+        # see _BOUNDARY_LABEL_REPEAT_DISTANCE_MM's own comment for why
+        # this is an approximation, not an exact match.
         layer = create_control_measures_lines_layer()
 
-        delay_symbol = _rule_symbol_for(layer, "delay")
-        withdraw_symbol = _rule_symbol_for(layer, "withdraw")
+        settings = layer.labeling().settings()
 
-        self.assertEqual(delay_symbol.symbolLayerCount(), 2)
-        self.assertEqual(withdraw_symbol.symbolLayerCount(), 2)
-        self.assertAlmostEqual(
-            delay_symbol.symbolLayer(0).width(),
-            withdraw_symbol.symbolLayer(0).width()
-        )
-
-
-    def test_isolate_secure_seize_are_circles_generated_from_the_line(self):
-
-        # Codes 341500/342100/342300, plus retain (151205, checked
-        # separately below) - all defined by the standard as a
-        # centre+radius circle, approximated via a
-        # QgsGeometryGeneratorSymbolLayer computing the radius from just
-        # the first two vertices (not length($geometry), which would sum
-        # every segment and inflate the radius once a 3rd vertex is added
-        # for Seize's own arrow - see
-        # test_seize_radius_is_not_inflated_by_the_arrow_point() below,
-        # and control_measures.py's own docstring/
-        # _circle_from_line_symbol() comment).
-        layer = create_control_measures_lines_layer()
-
-        for measure_type in ("isolate", "secure", "seize"):
-
-            symbol = _rule_symbol_for(layer, measure_type)
-            circle_layer = symbol.symbolLayer(0)
-
-            self.assertIsInstance(
-                circle_layer, QgsGeometryGeneratorSymbolLayer, measure_type
-            )
-            self.assertEqual(
-                circle_layer.geometryExpression(),
-                "buffer(start_point($geometry),"
-                " distance(start_point($geometry), point_n($geometry, 2)))",
-                measure_type
-            )
-
-
-    def test_seize_radius_is_not_inflated_by_the_arrow_point(self):
-
-        # Regression test for a real bug found by rendering Seize with
-        # its full 3-point form (centre, radius point, arrow point) and
-        # comparing it side by side with the 2-point form: using
-        # length($geometry) as the radius summed BOTH segments, doubling
-        # the circle's size the moment a 3rd point was added for the
-        # arrow. The radius must come from the centre-to-2nd-vertex
-        # distance only, regardless of how many further vertices follow.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "seize")
-        circle_layer = symbol.symbolLayer(0)
-
-        two_point = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(0, 0), QgsPointXY(10, 0)]
-        )
-        three_point = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(0, 0), QgsPointXY(10, 0), QgsPointXY(10, 10)]
-        )
-
-        expression = QgsExpression(circle_layer.geometryExpression())
-
-        def rendered_area(geometry):
-
-            context = QgsExpressionContext()
-            context.setFeature(QgsFeature())
-            context.setGeometry(geometry)
-            result = expression.evaluate(context)
-            self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
-            return result.area()
-
-        self.assertAlmostEqual(
-            rendered_area(two_point),
-            rendered_area(three_point),
-            delta=0.01
-        )
-
-
-    def test_isolate_and_secure_have_distinct_outline_styles(self):
-
-        layer = create_control_measures_lines_layer()
-
-        isolate_outline = _rule_symbol_for(
-            layer, "isolate"
-        ).symbolLayer(0).subSymbol().symbolLayer(0).strokeStyle()
-
-        secure_outline = _rule_symbol_for(
-            layer, "secure"
-        ).symbolLayer(0).subSymbol().symbolLayer(0).strokeStyle()
-
-        self.assertNotEqual(isolate_outline, secure_outline)
-
-
-    def test_seize_arrow_runs_from_point_2_to_point_4_only(self):
-
-        # Code 342300 - the standard defines TWO different point recipes,
-        # not one "3-or-4-point variant": with 4 points, point 2 is the
-        # circle's own radius AND the arrow's start, point 4 is the
-        # arrow's end. With exactly 3 points, point 2 means something
-        # completely different (the arrowhead tip directly, no radius
-        # role) - an earlier version of this function conflated the two,
-        # appending an arrow at whatever the raw digitized line's own last
-        # vertex happened to be, which is wrong for a 3-point input. See
-        # _seize_symbol()'s own comment. This only implements the 4-point
-        # recipe: with fewer than 4 points, point_n($geometry, 4) is NULL
-        # and no arrow renders - confirmed here by evaluating the real
-        # geometry-generator expression, not just checking layer types.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "seize")
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-        self.assertIsInstance(symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer)
-
-        arrow_layer = symbol.symbolLayer(1)
-        self.assertIsInstance(arrow_layer, QgsGeometryGeneratorSymbolLayer)
-
-        p2, p4 = QgsPointXY(10, 0), QgsPointXY(20, 20)
-        four_point = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(0, 0), p2, QgsPointXY(15, 10), p4]
-        )
-
-        expression = QgsExpression(arrow_layer.geometryExpression())
-        context = QgsExpressionContext()
-        context.setFeature(QgsFeature())
-        context.setGeometry(four_point)
-        result = expression.evaluate(context)
-
-        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
-        self.assertEqual(result.asPolyline(), [p2, p4])
-
-        three_point = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(0, 0), p2, QgsPointXY(15, 10)]
-        )
-        context.setGeometry(three_point)
-        result = expression.evaluate(context)
-        self.assertIsNone(result)
-
-        arrow_sub_symbol = arrow_layer.subSymbol()
-        self.assertEqual(arrow_sub_symbol.symbolLayerCount(), 2)
-        self.assertIsInstance(
-            arrow_sub_symbol.symbolLayer(1), QgsMarkerLineSymbolLayer
-        )
-        self.assertEqual(
-            arrow_sub_symbol.symbolLayer(1).placements(),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-
-
-    def test_retain_is_a_circle_generated_from_the_line(self):
-
-        # Code 151205 - a Defensive maneuver control measure (H.5.12.1),
-        # NOT a Mission Task despite being commonly grouped with them -
-        # see control_measures.py's own _retain_symbol() comment. Shares
-        # the same centre+radius circle technique as isolate/secure/seize.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "retain")
-
-        self.assertIsInstance(symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer)
-        self.assertEqual(
-            symbol.symbolLayer(0).geometryExpression(),
-            "buffer(start_point($geometry),"
-            " distance(start_point($geometry), point_n($geometry, 2)))"
-        )
-
-
-    def test_retain_has_tick_marks_around_the_whole_circle(self):
-
-        # Code 151205 - the template page's own picture (423) shows the
-        # circle bristling with perpendicular tick marks all around its
-        # circumference, matching the text's own "the default tic length
-        # should be the same as the text height of the echelon field" -
-        # an earlier version of this function used an invented "dash dot"
-        # outline instead, which doesn't match the picture at all.
-        layer = create_control_measures_lines_layer()
-        symbol = _rule_symbol_for(layer, "retain")
-
-        circle_sub_symbol = symbol.symbolLayer(0).subSymbol()
-
-        self.assertEqual(circle_sub_symbol.symbolLayerCount(), 2)
-
-        tick_layer = circle_sub_symbol.symbolLayer(1)
-        self.assertIsInstance(tick_layer, QgsMarkerLineSymbolLayer)
-        self.assertEqual(
-            tick_layer.placements(),
-            QgsTemplatedLineSymbolLayerBase.Placement.Interval
-        )
+        self.assertGreater(settings.repeatDistance, 0)
 
 
     def test_length_km_default_value_recalculates_on_update(self):
@@ -822,7 +533,29 @@ class TestCreateControlMeasuresAreasLayer(QgisTestCase):
         )
 
 
-    def test_affiliation_uses_a_value_map_widget_defaulting_to_unknown(self):
+    def test_measure_type_has_no_options_yet(self):
+
+        # No area measure type has been through the appendix-by-appendix
+        # re-verification pass yet (see control_measures.py's own
+        # docstring) - the dropdown is legitimately empty and the field
+        # has no default value to point to, rather than defaulting to a
+        # removed measure type like the old "objective".
+        layer = create_control_measures_areas_layer()
+
+        idx = layer.fields().indexOf("measure_type")
+
+        self.assertEqual(
+            layer.editorWidgetSetup(idx).config()["map"],
+            {}
+        )
+
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(),
+            "''"
+        )
+
+
+    def test_affiliation_uses_a_value_map_widget_defaulting_to_unspecified(self):
 
         layer = create_control_measures_areas_layer()
 
@@ -835,146 +568,22 @@ class TestCreateControlMeasuresAreasLayer(QgisTestCase):
 
         self.assertEqual(
             layer.defaultValueDefinition(idx).expression(),
-            "'unknown'"
+            "'unspecified'"
         )
 
 
-    def test_area_outline_colours_follow_affiliation_per_ms_std_2525d_h_5_3(self):
+    def test_rule_tree_has_no_rules_yet(self):
 
-        # See the Lines layer's own
-        # test_line_colours_follow_affiliation_per_ms_std_2525d_h_5_3()
-        # for the standard citation - areas only have an outline colour
-        # (style: "no" fill), so only StrokeColor applies here.
-        layer = create_control_measures_areas_layer()
-
-        for measure_type in AREA_MEASURE_TYPE_LABELS:
-
-            symbol = _rule_symbol_for(layer, measure_type)
-
-            color, ok = _resolve_stroke_color(
-                symbol.symbolLayer(0), layer, "friend"
-            )
-            self.assertTrue(ok, measure_type)
-            self.assertEqual(color.name(), "#0000ff", measure_type)
-
-            color, ok = _resolve_stroke_color(
-                symbol.symbolLayer(0), layer, "hostile"
-            )
-            self.assertTrue(ok, measure_type)
-            self.assertEqual(color.name(), "#ff0000", measure_type)
-
-            color, ok = _resolve_stroke_color(
-                symbol.symbolLayer(0), layer, "unknown"
-            )
-            self.assertTrue(ok, measure_type)
-            self.assertEqual(color.name(), "#000000", measure_type)
-
-
-    def test_rule_tree_has_one_rule_per_measure_type(self):
-
+        # AREA_MEASURE_TYPE_LABELS is currently empty (see
+        # control_measures.py's own docstring) - the renderer must still
+        # build successfully with zero rules rather than erroring, since
+        # every future H-subphase that adds an area measure type back in
+        # relies on this same rule-tree builder.
         layer = create_control_measures_areas_layer()
 
         root = layer.renderer().rootRule()
 
-        filters = {
-            rule.filterExpression() for rule in root.children()
-        }
-
-        expected = {
-            f'"measure_type" = \'{measure_type}\''
-            for measure_type in AREA_MEASURE_TYPE_LABELS
-        }
-
-        self.assertEqual(filters, expected)
-
-
-    # --- H.5.11-H.5.14 additions (2026-08-07) ---------------------------
-
-    def test_battle_position_is_a_plain_unfilled_outline(self):
-
-        # Code 151200 - same unfilled-outline recipe as objective, since
-        # the standard's own draw rule here has no further distinguishing
-        # stroke detail.
-        layer = create_control_measures_areas_layer()
-        symbol = _rule_symbol_for(layer, "battle_position")
-
-        self.assertEqual(symbol.symbolLayerCount(), 1)
-        self.assertEqual(
-            symbol.symbolLayer(0).strokeStyle(),
-            QgsSymbolLayerUtils.decodePenStyle("solid")
-        )
-
-
-    def test_strong_point_has_perpendicular_tick_marks(self):
-
-        # Code 151203 - a fortified outline with regular perpendicular
-        # tick marks (fixed size/interval here, not the standard's own
-        # echelon-text-height-driven rule - see control_measures.py's
-        # own comment).
-        layer = create_control_measures_areas_layer()
-        symbol = _rule_symbol_for(layer, "strong_point")
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-        tick_layer = symbol.symbolLayer(1)
-        self.assertIsInstance(tick_layer, QgsMarkerLineSymbolLayer)
-        self.assertEqual(
-            tick_layer.placements(),
-            QgsTemplatedLineSymbolLayerBase.Placement.Interval
-        )
-        self.assertGreater(tick_layer.interval(), 0)
-        self.assertGreater(
-            tick_layer.subSymbol().symbolLayer(0).strokeWidth(), 0
-        )
-
-
-    def test_battle_position_shares_objectives_solid_outline(self):
-
-        # Codes 151200/150101 - both plain unfilled outlines, since
-        # neither the standard's own Battle Position nor Objective draw
-        # rule specifies anything more distinguishing than that (see
-        # control_measures.py's own comment on _battle_position_symbol()).
-        layer = create_control_measures_areas_layer()
-
-        objective_style = _rule_symbol_for(
-            layer, "objective"
-        ).symbolLayer(0).strokeStyle()
-
-        battle_position_style = _rule_symbol_for(
-            layer, "battle_position"
-        ).symbolLayer(0).strokeStyle()
-
-        self.assertEqual(objective_style, battle_position_style)
-
-
-    def test_area_types_use_their_own_templates_outline_style(self):
-
-        # An earlier version of this test asserted that NAI/Engagement
-        # Area/Assembly Area/Encirclement must all have mutually distinct
-        # pen styles - an invented requirement, not something the standard
-        # itself asks for. Checking the actual template pictures (424,
-        # 415) showed Engagement Area and Assembly Area are both plain
-        # SOLID outlines ("Friendly Present" status, matching Battle
-        # Position's own convention) - the earlier dash-dot/dash-dot-dot
-        # styles were invented purely to keep them visually distinct from
-        # each other on screen, which doesn't hold up against what's
-        # actually drawn. NAI and Encirclement are unchanged pending their
-        # own template-picture check (Encirclement in particular needs a
-        # real "spiky boundary" shape per H.5.14's own picture, not just a
-        # different dash style - tracked separately, not yet built).
-        layer = create_control_measures_areas_layer()
-
-        outline_style_of = lambda measure_type: (
-            _rule_symbol_for(layer, measure_type).symbolLayer(0).strokeStyle()
-        )
-
-        solid = QgsSymbolLayerUtils.decodePenStyle("solid")
-
-        self.assertEqual(outline_style_of("engagement_area"), solid)
-        self.assertEqual(outline_style_of("assembly_area"), solid)
-        self.assertEqual(
-            outline_style_of("nai"),
-            QgsSymbolLayerUtils.decodePenStyle("dash")
-        )
+        self.assertEqual(list(root.children()), [])
 
 
     def test_labelling_is_enabled_on_the_designation_field(self):
@@ -1127,14 +736,40 @@ class TestAddControlMeasuresLayers(QgisTestCase):
 
 class TestAffiliationLabelsMatchSidc(QgisTestCase):
 
-    # Same drift-guard as unit_layer.py's own
-    # TestVocabularyLabelsMatchSidc - AFFILIATION_LABELS is this
-    # module's presentation layer, sidc.py's AFFILIATIONS is the data
-    # model; this only guards the two staying in sync, not that either
-    # one's own values are correct.
-    def test_affiliation_labels_cover_exactly_sidcs_affiliations(self):
+    # A weaker guard than unit_layer.py's own TestVocabularyLabelsMatchSidc
+    # (SUPERSET, not equality) since 2026-08-09: AFFILIATION_LABELS
+    # legitimately has one value, "unspecified", that sidc.py's own
+    # point-symbol AFFILIATIONS does not - see DEFAULT_AFFILIATION's own
+    # comment in control_measures.py for the H.5.1.1.1 citation behind
+    # that 5th, control-measure-only colour. This still guards the 4
+    # shared values (friend/hostile/neutral/unknown) from drifting.
+    def test_affiliation_labels_cover_at_least_sidcs_affiliations(self):
+
+        self.assertTrue(
+            set(AFFILIATIONS).issubset(set(AFFILIATION_LABELS))
+        )
 
         self.assertEqual(
-            set(AFFILIATION_LABELS),
-            set(AFFILIATIONS)
+            set(AFFILIATION_LABELS) - set(AFFILIATIONS),
+            {"unspecified"}
+        )
+
+
+class TestEchelonLabelsMatchSidc(QgisTestCase):
+
+    # Same reasoning as TestAffiliationLabelsMatchSidc above, but the
+    # other direction: ECHELON_LABELS is a SUBSET of sidc.py's own
+    # ECHELONS (it deliberately excludes "unspecified", which has no
+    # Table D-III glyph of its own - see ECHELON_LABELS' own comment).
+    def test_echelon_labels_are_a_subset_of_sidcs_echelons(self):
+
+        from MilitaryCartographyTools.military_symbology.sidc import ECHELONS
+
+        self.assertTrue(
+            set(ECHELON_LABELS).issubset(set(ECHELONS))
+        )
+
+        self.assertEqual(
+            set(ECHELONS) - set(ECHELON_LABELS),
+            {"unspecified"}
         )

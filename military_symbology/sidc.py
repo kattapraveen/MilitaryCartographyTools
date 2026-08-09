@@ -64,6 +64,19 @@ ECHELONS = {
     "division": "21",
     "corps": "22",
     "army": "23",
+    # Table D-III (Land appendix) lists three further echelons beyond
+    # Army that this dict was missing entirely until 2026-08-09, found
+    # while re-auditing MIL-STD-2525D Appendix H's own H.5.1.1.6 (which
+    # cross-references table D-III for the same echelon indicator used
+    # on boundary lines) - confirmed against milsymbol.js's own
+    # echelonMobility table (24="Army Group/front", 25="Region/Theater",
+    # 26="Command"), which already supports all three; this project's
+    # own ECHELONS dict had simply never been extended to match. A real
+    # vocabulary gap affecting every point-symbol layer built with
+    # military_symbology/_point_symbol_layer.py, not just Appendix H.
+    "army_group": "24",
+    "theater": "25",
+    "command": "26",
 }
 
 SYMBOL_SETS = {

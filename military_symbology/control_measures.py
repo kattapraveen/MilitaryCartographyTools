@@ -1,116 +1,87 @@
 # -*- coding: utf-8 -*-
 
 """
-Builds ready-to-use control-measure layers - one for line-type measures
-(phase lines, boundaries, axis of advance), one for area-type measures
-(objectives, named areas of interest) - each styled via a
-QgsRuleBasedRenderer keyed on a "measure_type" field, mirroring
-grid/mgrs_sub_grid.py's own rule-based renderer pattern.
+Builds ready-to-use control-measure layers - one for line-type measures,
+one for area-type measures - each styled via a QgsRuleBasedRenderer keyed
+on a "measure_type" field, mirroring grid/mgrs_sub_grid.py's own
+rule-based renderer pattern.
 
-Unlike military_symbology/sidc.py's point symbols (verified exactly
-against milsymbol.js's own parsing source - see that module's docstring),
-there is no equivalent programmatic renderer for MIL-STD-2525/APP-6
-tactical graphics lines and areas to verify against: milsymbol.js's own
-source has no multipoint/polygon/linestring code at all, and the one
-library that attempted this (milgraphics) is archived/incomplete (see
-docs/roadmap.md's Phase 10 entry). The line/area SHAPES below (dashed
-boundary pattern, arrowhead placement, NAI's dashed-outline-on-any-polygon)
-remain a hand-authored, practically-recognisable approximation rather
-than a verified-correct rendition of MIL-STD-2525D Appendix H's own
-templates (which specify, e.g., an actual hexagon for NAI and
-echelon-symbol line ends for boundaries) - a further pass to match those
-templates precisely is tracked as a future sub-phase in docs/roadmap.md,
-deliberately deferred since it needs custom QGIS symbol construction with
-no rendering library to lean on, unlike the point-symbol side.
+**2026-08-09: trimmed down to only what the appendix-by-appendix
+completion plan has actually re-verified against the real standard so
+far.** Both layers previously carried ~26 measure types built during an
+earlier, less rigorous stage-based pass (2026-07-xx original five, then
+2026-08-07's H.5.11-H.5.14/H.5.26 batch) - none of that work had been
+checked against the standard's own template PICTURES the way the
+appendix-by-appendix pass now requires (render the actual PDF page,
+compare against the plugin's own offscreen render), and Mini-Phase H0's
+own re-audit of just ONE of those 26 (Boundary) found it was built
+entirely wrong (an invented dash-dash-dot pattern with no echelon/
+designation content at all - see _boundary_symbol()'s own docstring).
+Rather than leave 25 more unverified measure types sitting in the same
+dropdown as the one that's actually been checked - which made it hard to
+tell, while testing, whether a given shape was "real" or still a
+placeholder - every measure type this module doesn't yet have a verified
+answer for was removed outright (not commented out; git history has the
+old code if a future sub-phase wants to compare against it). Each
+Appendix H sub-phase (H1-H22, see docs/roadmap.md) adds its own measure
+types back in, freshly built against the real template pictures, as it's
+completed - the same discipline every other appendix (B-G, J, L) already
+went through, just applied to control measures for the first time here.
+Right now that means exactly one line measure type (Boundary, H.5.5) and
+zero area measure types - Objective/NAI, Battle Position, Strong Point,
+etc. all belong to sub-phases that haven't run yet.
 
-The COLOURING, however, is verified directly against the standard's own
-H.5.3 Coloring rule (read from the actual MIL-STD-2525D PDF, not a
-paraphrase): friendly control measures in black or blue, hostile in red.
-This module uses the same "affiliation" vocabulary as sidc.py's own
-AFFILIATIONS (friend/hostile/neutral/unknown) and colours friend=blue,
-hostile=red, neutral/unknown=black (black is also the default affiliation,
-matching "black as standard" for a control measure with no stated
+The COLOURING is verified directly against the standard's own H.5.1.1.1/
+H.5.3 Coloring rules (read from the actual MIL-STD-2525D PDF, not a
+paraphrase). This module uses its own AFFILIATION_LABELS vocabulary -
+friend/hostile/neutral/unknown, PLUS "unspecified" (a 5th value sidc.py's
+own point-symbol AFFILIATIONS deliberately doesn't have - see that
+constant's own comment) - and colours friend=blue, hostile=red,
+neutral=green, unknown=yellow, unspecified=black (also the default
 affiliation) - a data-defined colour expression applied on top of each
-measure type's own shape, not a rule-tree branch per affiliation. Every
-symbol layer below - including the smaller decorative ones (tick marks,
-arrowheads, the circle-from-line layers) - is wired through
-_apply_affiliation_color() the same way; none hardcode black.
+measure type's own shape, not a rule-tree branch per affiliation.
+_apply_affiliation_color() wires this the same way for every symbol
+layer; none hardcode black.
 
 Two separate layers, not one, because a QgsVectorLayer is always a single
 geometry type - there's no "LineString or Polygon" layer in QGIS.
 
-**2026-08-07: added Maneuver/Defensive/Offensive control measures (Appendix
-H, H.5.11-H.5.14) and Mission Task symbols (H.5.26)**, reading the actual
-standard text (not milsymbol.js, which has no coverage here at all - see
-above) for each one's real anchor-point/draw rules before approximating.
-As with the original five measure types, these are hand-authored QGIS-
-native renditions, not verified-exact reproductions - see each _xxx_symbol()
-function's own comment for what specific detail is approximated and why.
-Two recurring approximation techniques introduced by this pass, reused
-across several measure types rather than one-off per type:
-  - A "tick mark" - a stroke-only "line"-shape QgsMarkerSymbol placed via
-    QgsMarkerLineSymbolLayer with an extra 90-degree angle on top of the
-    marker line's own tangent-following rotation, so it reads as a mark
-    perpendicular to the line/boundary it sits on (Block's cross-bar,
-    Strong Point's fortification ticks, Disrupt's ladder of arrows,
-    Penetrate's perpendicular arrow). None of these attempt the standard's
-    own echelon-text-height-driven tick spacing (see Strong Point/Contain's
-    own draw rules in the PDF) - this layer has no echelon field at all
-    (see the deferred-shapes note under sub-phase 10.3 in docs/roadmap.md),
-    so tick size/interval are fixed constants instead.
-  - A "circle from a line" - several Mission Task symbols (Isolate, Secure,
-    Seize) and one Defensive maneuver control measure (Retain, H.5.12.1 -
-    despite being commonly grouped with Mission Tasks, it is NOT one; see
-    _retain_symbol()'s own comment) are defined by the standard as a
-    circle: point 1 is the centre, point 2 is a point on the circle
-    defining the radius. That is a 2-point LINE's own natural shape, not a
-    digitized polygon boundary, so each is a QgsLineSymbol whose one
-    symbol layer is a QgsGeometryGeneratorSymbolLayer computing
-    buffer(start_point($geometry), length($geometry)) rather than being
-    moved to the Areas layer (which would lose the centre+radius semantics
-    the standard itself specifies). The standard's own circle has a
-    30-degree open arc (the friendly side); a full closed circle is
-    rendered instead, since QGIS has no simple "arc with a gap" primitive
-    to build on - documented per-function, not silently dropped.
-
-**Deliberately NOT implemented in this pass, with the actual reason
-found in the standard's own text, not assumed:**
-  - **Observation Post (H.5.12.2)** and the Mission Task symbols
-    **Destroy, Interdict, and Neutralize (H.5.26)** are all defined by the
-    standard as requiring exactly ONE anchor point ("the center point
-    defines the center of the symbol") - genuinely point symbols, not
-    lines or areas. This module only has Lines/Areas layers; a Points-type
-    control-measures layer is a bigger, separate design decision (its own
-    native-QGIS-marker layer, still not the point-symbol/milsymbol.js
-    pipeline in sidc.py/symbol_engine.py) left for a future sub-phase.
-  - **"Disengage"**, one of the tasks the plugin's own maintainer asked
-    for, does not appear anywhere in MIL-STD-2525D at all (confirmed by
-    text-searching the entire 885-page PDF, not just Appendix H) - nothing
-    was invented under that name rather than guess at a mapping the
-    standard doesn't make.
-  - **"Contain"**, also asked for, IS in the standard, but not as a
-    Mission Task: it is a Defensive maneuver control measure (H.5.12.1,
-    code 151204) with a real, distinctive semicircle-plus-arrow geometry
-    (a 3-anchor-point shape: two points set a semicircle's diameter, the
-    third sets an arrow projecting from its centre) - meaningfully more
-    custom QGIS symbol construction than this pass's other approximations
-    for what would be one more measure type, so it is deferred alongside
-    the already-deferred exact-shape work from sub-phase 10.3 (NAI's real
-    hexagon, boundary's echelon-symbol line ends) rather than rushed.
-  - The rest of Table H-VII/H-VIII/H-IX/H-X/H-XI/H-XII (H.5.11-H.5.14) and
-    Table H-XXIV (H.5.26) - e.g. Assault Position, Attack Position,
-    Bypass, Clear, Counterattack, Drop/Extraction/Landing/Pickup Zone,
-    Encirclement's own Enemy variant, Follow and Assume/Support, Infiltration
-    Lane, Limit of Advance, Line of Departure, Occupy, Probable Line of
-    Deployment, Relief in Place, Retire/Retirement, Withdraw Under
-    Pressure, and the friendly/enemy/planned-or-on-order sub-variants of
-    nearly every entry above - were intentionally not added. This pass
-    covers the sections and named tasks actually requested (H.5.11-H.5.14,
-    H.5.26's named BLOCK/BREACH/CANALIZE/DELAY/DISRUPT/FIX/ISOLATE/
-    PENETRATE/SECURE/SEIZE/WITHDRAW), not the whole of Appendix H - the
-    remaining sections (H.5.15-H.5.25, H.5.27 and beyond) remain for a
-    future sub-phase, same as sub-phase 10.3's own explicitly-deferred
-    shape work.
+**2026-08-09: Mini-Phase H0 (H.5.1-H.5.4 general rules + H.5.5
+Boundaries)**, the first mini-phase of the appendix-by-appendix
+completion plan's own Appendix H pass (see docs/roadmap.md). Re-auditing
+H.5.1-H.5.4 against the actual standard text (not assumed from the
+previous pass) found two real, general defects, both fixed here:
+  - **H.5.1.1.1/H.5.3 Coloring was wrong for neutral/unknown affiliation**
+    - see AFFILIATION_LABELS/DEFAULT_AFFILIATION's own comments for the
+    full citation and fix (neutral=green, unknown=yellow, not both
+    folded into "black as standard").
+  - **H.5.4 Labeling's "all text labeling shall be in upper case
+    letters" was never implemented** - now applied via upper() in every
+    designation label expression (_PLAIN_DESIGNATION_LABEL_EXPRESSION/
+    _BOUNDARY_DESIGNATION_LABEL_EXPRESSION), regardless of what case the
+    user actually types.
+Two further H fields - STATUS_LABELS (H.5.1.1.3/Table H-I: present=
+solid, planned=dashed) and ECHELON_LABELS (H.5.1.1.6, Table D-III of the
+Land appendix) - were added to the Lines layer's schema, since Boundary
+needs both; every future measure type can reuse the same two fields
+rather than each reinventing them. Boundary itself was rebuilt from an
+invented dash-dash-dot placeholder into the real Table H-III
+construction: a status-driven solid/dashed line (see
+_STATUS_LINE_STYLE_EXPRESSION) with the near designation, Field B
+echelon glyph (Table D-III), and far designation stacked as one repeating
+label along the line, QGIS's own Selective Masking cutting a genuine
+gap in the line under whatever that label renders - see
+_boundary_symbol()'s and _configure_designation_labeling()'s own
+docstrings for the construction (including two earlier, wrong echelon-
+glyph attempts before masking) and what's still approximated (an
+interval-based repeat standing in for the standard's own per-segment
+repeat rule, no attempt at Figure H-3's compass-relative label rotation,
+no monochrome "ENY" fallback). sidc.py's own ECHELONS (and every
+point-symbol layer's Echelon dropdown, via _point_symbol_layer.py's
+_ECHELON_LABELS) gained the three highest Table D-III levels - Army
+Group, Theater, Command - that had been missing entirely since
+sub-phase 10.1, found while reading H.5.1.1.6's own cross-reference to
+that table.
 
 Military Cartography Tools
 """
@@ -120,19 +91,15 @@ from qgis.core import (
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsField,
-    QgsFillSymbol,
-    QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
-    QgsMarkerLineSymbolLayer,
-    QgsMarkerSymbol,
     QgsPalLayerSettings,
     QgsProject,
     QgsProperty,
     QgsRuleBasedRenderer,
     QgsSimpleLineSymbolLayer,
     QgsSymbolLayer,
-    QgsSymbolLayerUtils,
-    QgsTemplatedLineSymbolLayerBase,
+    QgsSymbolLayerReference,
+    QgsTextMaskSettings,
     QgsVectorLayer,
     QgsVectorLayerSimpleLabeling,
 )
@@ -142,7 +109,6 @@ from qgis.PyQt.QtGui import QColor
 
 from ..core._layer_utils import add_layer_at_default_position
 from ..core.text_format import build_text_format
-from .sidc import AFFILIATIONS
 
 
 LINES_LAYER_NAME = "Tactical Graphics - Control Measures (Lines)"
@@ -150,72 +116,154 @@ AREAS_LAYER_NAME = "Tactical Graphics - Control Measures (Areas)"
 
 LABEL_FONT_SIZE = 9
 
+# H.5.5 Boundaries is the only line measure type re-verified against the
+# real standard so far (Mini-Phase H0) - see this module's own docstring
+# for why every other measure type from the earlier, unverified pass was
+# removed rather than left alongside it.
 LINE_MEASURE_TYPE_LABELS = {
-    "phase_line": "Phase Line",
     "boundary": "Boundary",
-    "axis_of_advance": "Axis of Advance",
-    # H.5.11 Maneuver Control Measure Symbols (Table H-VII).
-    "forward_line_of_troops": "Forward Line of Troops (FLOT)",
-    "line_of_contact": "Line of Contact (LC)",
-    "forward_edge_of_battle_area": "Forward Edge of the Battle Area (FEBA)",
-    "principal_direction_of_fire": "Principal Direction of Fire (PDF)",
-    # H.5.13.2 Direction of attack (Table H-XI).
-    "direction_of_attack": "Direction of Attack",
-    # H.5.12.1 Defensive maneuver, but a circle-from-line shape (see
-    # this module's own docstring) rather than a digitized area.
-    "retain": "Retain",
-    # H.5.26 Mission Task Symbols (Table H-XXIV).
-    "block": "Block (Mission Task)",
-    "breach": "Breach (Mission Task)",
-    "canalize": "Canalize (Mission Task)",
-    "disrupt": "Disrupt (Mission Task)",
-    "fix": "Fix (Mission Task)",
-    "penetrate": "Penetrate (Mission Task)",
-    "delay": "Delay (Mission Task)",
-    "withdraw": "Withdraw (Mission Task)",
-    "isolate": "Isolate (Mission Task)",
-    "secure": "Secure (Mission Task)",
-    "seize": "Seize (Mission Task)",
 }
 
-AREA_MEASURE_TYPE_LABELS = {
-    "objective": "Objective",
-    "nai": "Named Area of Interest (NAI)",
-    # H.5.12.1 Defensive maneuver - Areas (Table H-VIII).
-    "battle_position": "Battle Position",
-    "strong_point": "Strong Point",
-    "engagement_area": "Engagement Area (EA)",
-    # H.5.11 Maneuver Areas (Table H-VII).
-    "assembly_area": "Assembly Area (AA)",
-    # H.5.14 Maneuver control measure symbols (Table H-XII).
-    "encirclement": "Encirclement",
-}
+# No area measure type has been through the appendix-by-appendix
+# re-verification pass yet - Objective/NAI (H.5.9/H.5.10, Mini-Phase H2),
+# Battle Position/Strong Point/Engagement Area (H.5.12.1, Mini-Phase H4),
+# Assembly Area (H.5.11, Mini-Phase H3), and Encirclement (H.5.14,
+# Mini-Phase H6) all belong to sub-phases that haven't run yet - see this
+# module's own docstring.
+AREA_MEASURE_TYPE_LABELS = {}
 
 # Keys match sidc.py's own AFFILIATIONS (the same "standard identity"
-# concept MIL-STD-2525D uses for units) - labels are this module's own
-# presentation layer, same separation-of-concerns convention as
-# unit_layer.py's _AFFILIATION_LABELS.
+# concept MIL-STD-2525D uses for units) PLUS one extra value,
+# "unspecified", that sidc.py's own AFFILIATIONS deliberately does not
+# have - see DEFAULT_AFFILIATION's own comment for why control measures
+# genuinely need a 5th value point symbols don't.
 AFFILIATION_LABELS = {
     "friend": "Friend",
     "hostile": "Hostile",
     "neutral": "Neutral",
     "unknown": "Unknown",
+    "unspecified": "Unspecified (black)",
 }
 
-DEFAULT_AFFILIATION = "unknown"
+# **2026-08-09 correction, found while re-auditing H.5.1-H.5.4 for
+# Appendix H's Mini-Phase H0**: the actual standard text (H.5.1.1.1
+# Standard identity (color rules)) reads "For color systems, control
+# measures shall be black, blue (friendly), red (hostile), green
+# (neutral or obstacles), or yellow (unknown or ... CBRN ...)" - five
+# colours, four of them paired one-to-one with an affiliation and the
+# fifth (black) standing alone with no affiliation named at all. The
+# previous version of this module (and DEFAULT_AFFILIATION="unknown")
+# read that black as a blanket "everything except friend/hostile"
+# fallback, which is wrong on two counts: it silently miscoloured every
+# neutral control measure (should be green) and every unknown one
+# (should be yellow) as black, and it had no way to express the
+# standard's actual 5th colour (a control measure with no standard
+# identity asserted at all) without hijacking "unknown" for double duty.
+# Point symbols don't have this problem (milsymbol.js already correctly
+# renders friend=blue/hostile=red/neutral=green/unknown=yellow per the
+# base standard's own Table XV/XVI, with no "black" option at all - see
+# sidc.py) - only control measures get a genuine 5th colour, per this
+# appendix's own H.5.1.1.1 text, which is why AFFILIATION_LABELS is
+# intentionally NOT identical to sidc.py's AFFILIATIONS any more (see
+# TestAffiliationLabelsCoverSidcsAffiliations in tests/test_control_
+# measures.py for the guard this implies instead of a strict equality
+# check).
+DEFAULT_AFFILIATION = "unspecified"
 
-# Per MIL-STD-2525D H.5.3 Coloring, as scoped by the user: friendly control
-# measures in blue, hostile in red, everything else (neutral/unknown/the
-# default) in black - "black as standard". A single shared expression
-# applied to every measure type's own stroke/fill colour, rather than
-# threading affiliation through each symbol builder's own parameters.
 _AFFILIATION_COLOR_EXPRESSION = (
     "CASE "
     "WHEN \"affiliation\" = 'friend' THEN color_rgb(0, 0, 255) "
     "WHEN \"affiliation\" = 'hostile' THEN color_rgb(255, 0, 0) "
+    "WHEN \"affiliation\" = 'neutral' THEN color_rgb(0, 255, 0) "
+    "WHEN \"affiliation\" = 'unknown' THEN color_rgb(255, 255, 0) "
     "ELSE color_rgb(0, 0, 0) "
     "END"
 )
+
+# Per H.5.1.1.3 Status/Table H-I: linear and area control measures are
+# solid when "present" and dashed when "planned"/"anticipated"/
+# "suspected"/"on order" (the standard's own text notes exceptions,
+# e.g. counterattack, drawn dashed even when present - not modelled
+# here, since no counterattack measure type exists yet). Added to the
+# Lines layer's schema in Mini-Phase H0 (2026-08-09) because Boundary's
+# own rebuild needs it (Table H-III has explicit Present/Planned rows
+# per affiliation); every future line measure type can reuse this same
+# field rather than reinventing it.
+STATUS_LABELS = {
+    "present": "Present",
+    "planned": "Planned / Anticipated / On Order",
+}
+
+DEFAULT_STATUS = "present"
+
+_STATUS_LINE_STYLE_EXPRESSION = (
+    "CASE WHEN \"status\" = 'planned' THEN 'dash' ELSE 'solid' END"
+)
+
+# Per H.5.1.1.6 Echelon indicator: "used to show the element echelon on
+# boundary lines, lines and areas... listed in table D-III of the land
+# appendix" - the same 14-level vocabulary sidc.py's own ECHELONS uses
+# for point symbols (extended 2026-08-09 to cover all of Table D-III,
+# see that dict's own comment), reused here by KEY (not value - Table
+# D-III's glyphs, not the SIDC numeric echelon/mobility codes, are what
+# actually gets drawn on a boundary line). Added to the Lines layer's
+# schema in Mini-Phase H0 for Boundary; every future line/area measure
+# type can reuse this same field rather than reinventing it.
+ECHELON_LABELS = {
+    "team_crew": "Team/Crew",
+    "squad": "Squad",
+    "section": "Section",
+    "platoon": "Platoon/Detachment",
+    "company": "Company/Battery/Troop",
+    "battalion": "Battalion/Squadron",
+    "regiment": "Regiment/Group",
+    "brigade": "Brigade",
+    "division": "Division",
+    "corps": "Corps",
+    "army": "Army",
+    "army_group": "Army Group",
+    "theater": "Theater",
+    "command": "Command",
+}
+
+# Table D-III's own literal amplifier glyphs (not the SIDC numeric
+# echelon codes - see ECHELON_LABELS' own comment). "Ø" (team/crew) and
+# "•"/"••"/"•••" (squad/section/platoon) are exactly what the standard's
+# own table prints, confirmed by rendering the actual PDF page (172) as
+# an image rather than trusting extracted text (which OCRs "Ø" as "0"
+# and "•" as "."). "++" (Command) is likewise the standard's own glyph,
+# not this project's invention.
+_ECHELON_GLYPHS = {
+    "team_crew": "Ø",
+    "squad": "•",
+    "section": "••",
+    "platoon": "•••",
+    "company": "I",
+    "battalion": "II",
+    "regiment": "III",
+    "brigade": "X",
+    "division": "XX",
+    "corps": "XXX",
+    "army": "XXXX",
+    "army_group": "XXXXX",
+    "theater": "XXXXXX",
+    "command": "++",
+}
+
+# Resolves "echelon" to its Table D-III glyph as plain text - embedded
+# as the middle line of _BOUNDARY_DESIGNATION_LABEL_EXPRESSION below (not
+# a font-marker Character property; see _boundary_symbol()'s own comment
+# for why the echelon glyph is rendered as part of the label, not a
+# separate symbol layer).
+_ECHELON_CHARACTER_EXPRESSION = "CASE " + " ".join(
+    f"WHEN \"echelon\" = '{key}' THEN '{glyph}'"
+    for key, glyph in _ECHELON_GLYPHS.items()
+) + " ELSE '' END"
+
+# _boundary_symbol()'s own line symbol layer's stable id - referenced by
+# _configure_designation_labeling()'s own QgsSymbolLayerReference so the
+# boundary label's mask knows which symbol layer to cut a hole in.
+_BOUNDARY_LINE_SYMBOL_LAYER_ID = "boundary_line"
 
 
 def _apply_affiliation_color(symbol_layer, properties):
@@ -246,28 +294,70 @@ def _value_map(labels):
     return {label: value for value, label in labels.items()}
 
 
-def _phase_line_symbol():
+def _value_map_with_none(labels, none_label="(Not shown)"):
 
-    symbol = QgsLineSymbol.createSimple(
-        {
-            "line_color": "0,0,0",
-            "line_width": "0.4",
-        }
-    )
+    """
+    Same as _value_map(), plus a leading `none_label` -> "" entry - same
+    "no value selected must be an explicit, selectable option" reasoning
+    as _point_symbol_layer.py's own helper of the same name (this
+    module's echelon field, used only by Boundary so far, has no
+    equivalent reason to force a value onto every other measure type).
+    """
 
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
+    result = {none_label: ""}
 
-    return symbol
+    result.update(_value_map(labels))
+
+    return result
 
 
 def _boundary_symbol():
 
-    # A distinctive dash-dash-dot pattern to read as "boundary" at a
-    # glance rather than an ordinary line - not claimed to match the
-    # spec's own exact dash ratios (see this module's own docstring).
+    """
+    Table H-III. Rebuilt 2026-08-09 (Mini-Phase H0) after comparing the
+    previous version - an invented dash-dash-dot pattern with no
+    echelon/designation content at all - against the actual template
+    picture (page 395): a Present boundary is a plain SOLID line and a
+    Planned/On Order one is DASHED (H.5.1.1.3/Table H-I, see
+    _STATUS_LINE_STYLE_EXPRESSION).
+
+    The Field B echelon amplifier and the two units' own designations
+    (Field T/AS) are NOT built here as symbol layers at all - see
+    _configure_designation_labeling()'s own comment for why they're all
+    folded into a single, masked, repeating LABEL instead. This function
+    only builds the line itself, but gives its one symbol layer a stable
+    `.setId()` (_BOUNDARY_LINE_SYMBOL_LAYER_ID) so that label masking can
+    target it specifically by reference.
+
+    This function went through three real, wrong attempts at the
+    echelon glyph before landing on labelling+masking, each one caught by
+    the project maintainer rendering a real boundary over a non-white
+    (terrain) background rather than QGIS's own white canvas default -
+    text alone never surfaced any of these, only rendering did:
+      1. A bordered white square behind the glyph (obviously a box
+         against colour - Table H-III's own EXAMPLE column shows a clean
+         line GAP, no box of any kind).
+      2. Dropping just the border, keeping a solid white fill (still
+         plainly a flat white rectangle against anything but a white
+         background - the fill itself was the problem, not the outline).
+      3. A white HALO around the glyph's own character outline (a stroke
+         on QgsFontMarkerSymbolLayer, no background shape at all) - closer
+         in spirit, but QGIS's own font-glyph stroke rendering produced a
+         messy, spiky white burst around "X" rather than a clean hourglass
+         gap, confirmed by the maintainer's own live-QGIS screenshot (not
+         reproduced in this project's own offscreen renders, which looked
+         fine - real-world font rendering differed enough to matter).
+    The actual fix: QGIS's own Selective Masking feature
+    (QgsTextMaskSettings + QgsSymbolLayerReference) - the label engine
+    genuinely cuts a hole in the referenced symbol layer's own rendered
+    geometry, in the exact shape of the rendered text, at every position
+    the text renders in the entire label pass. This lets whatever is
+    actually underneath (terrain, imagery, other layers) show through
+    correctly, is crisp for any glyph width (no adjacent-character
+    blur), and requires no bespoke shape-fitting per echelon level - the
+    correct tool for this job, not an approximation of one.
+    """
+
     line_layer = QgsSimpleLineSymbolLayer()
 
     line_layer.setColor(
@@ -278,17 +368,18 @@ def _boundary_symbol():
         0.4
     )
 
-    line_layer.setUseCustomDashPattern(
-        True
-    )
-
-    line_layer.setCustomDashVector(
-        [8, 2, 1, 2, 1, 2]
-    )
-
     _apply_affiliation_color(
         line_layer,
         [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    line_layer.setId(
+        _BOUNDARY_LINE_SYMBOL_LAYER_ID
     )
 
     symbol = QgsLineSymbol()
@@ -296,1292 +387,16 @@ def _boundary_symbol():
     symbol.changeSymbolLayer(
         0,
         line_layer
-    )
-
-    return symbol
-
-
-def _axis_of_advance_symbol():
-
-    # A solid line with a filled arrowhead at its last vertex, pointing
-    # in the drawn direction of advance.
-    symbol = QgsLineSymbol.createSimple(
-        {
-            "line_color": "0,0,0",
-            "line_width": "0.5",
-        }
-    )
-
-    # "arrowhead" is a stroke-only shape (no fillable interior), so its
-    # boldness comes entirely from outline_width - the createSimple()
-    # default is outline_width=0, which Qt draws as a 1-device-pixel
-    # cosmetic hairline regardless of zoom, reading as too faint next to
-    # the 0.5mm line it caps. Set explicitly, heavier than the line
-    # itself so the arrowhead reads clearly.
-    arrow_marker = QgsMarkerSymbol.createSimple(
-        {
-            "name": "arrowhead",
-            "color": "0,0,0",
-            "outline_color": "0,0,0",
-            "outline_width": "0.8",
-            "size": "4",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    _apply_affiliation_color(
-        arrow_marker.symbolLayer(0),
-        [QgsSymbolLayer.Property.FillColor, QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    marker_line = QgsMarkerLineSymbolLayer()
-
-    marker_line.setSubSymbol(
-        arrow_marker
-    )
-
-    marker_line.setPlacements(
-        QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-    )
-
-    symbol.appendSymbolLayer(
-        marker_line
-    )
-
-    return symbol
-
-
-def _objective_symbol():
-
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-            "outline_style": "solid",
-            "outline_color": "0,0,0",
-            "outline_width": "0.5",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
-
-
-def _nai_symbol():
-
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-            "outline_style": "dash",
-            "outline_color": "0,0,0",
-            "outline_width": "0.4",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
-
-
-
-# --- Shared helpers for the H.5.11-H.5.14 / H.5.26 additions below -------
-#
-# The original five measure types above each build their own one-off
-# QgsSymbol from scratch. The Mission Task (H.5.26) and Maneuver/
-# Defensive/Offensive (H.5.11-H.5.14) additions below share a much
-# smaller set of recurring shapes (an arrow-tipped line, a perpendicular
-# tick, a circle generated from a 2-point line) across many measure
-# types, so those recurring shapes are factored into helpers here instead
-# of being re-typed per measure type - see this module's own docstring
-# for why each technique looks the way it does.
-
-def _arrow_marker_symbol(size=4, outline_width=0.8, angle=0):
-
-    """
-    A filled chevron arrowhead marker, sized/weighted the same way
-    _axis_of_advance_symbol()'s own arrow_marker already established
-    (outline_width set explicitly, since "arrowhead" has no fillable
-    interior and createSimple()'s own outline_width default of 0 is a
-    barely-visible cosmetic hairline - see that function's own comment).
-    `angle` rotates the marker on top of whatever tangent-following
-    rotation QgsMarkerLineSymbolLayer itself applies at the placement
-    point - 0 leaves the arrow pointing in the drawn direction of travel
-    (matching axis_of_advance's own LastVertex arrow), 180 flips it to
-    point the opposite way (used by principal_direction_of_fire's
-    FirstVertex arrow, so it points away from the shared vertex rather
-    than back into it).
-    """
-
-    marker = QgsMarkerSymbol.createSimple(
-        {
-            "name": "arrowhead",
-            "color": "0,0,0",
-            "outline_color": "0,0,0",
-            "outline_width": str(outline_width),
-            "size": str(size),
-            "angle": str(angle),
-        }
-    )
-
-    _apply_affiliation_color(
-        marker.symbolLayer(0),
-        [QgsSymbolLayer.Property.FillColor, QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return marker
-
-
-def _tick_marker_symbol(size=5, outline_width=0.9):
-
-    """
-    A short perpendicular tick - a stroke-only "line"-shape marker (same
-    "no fillable interior, set outline_width explicitly" lesson as
-    "arrowhead" above). Left at angle 0: confirmed by rendering it against
-    a real, non-axis-aligned line that a "line"-shape marker's own neutral
-    pose (angle 0) is ALREADY perpendicular to the line/boundary once
-    QgsMarkerLineSymbolLayer's default tangent-following rotation is
-    applied - an earlier version of this function added an extra 90
-    degrees on top, on the mistaken assumption that the neutral pose was
-    parallel to the line; that actually rendered the tick lying flat
-    along the line instead, at every placement type (CentralPoint,
-    Interval, FirstVertex, LastVertex all confirmed affected), making it
-    functionally invisible since it fully overlapped the base line's own
-    stroke. Size bumped from 3mm/0.5mm to 5mm/0.9mm at the same time -
-    even oriented correctly, 3mm/0.5mm proved too faint to read reliably
-    against the base line at ordinary map zoom. Used for Block's
-    cross-bar, Strong Point's fortification ticks, Disrupt's ladder of
-    arrows, and (in _penetrate_symbol(), combined with an arrow instead)
-    Penetrate's perpendicular arrow. Fixed size/spacing rather than the
-    standard's own echelon-text-height-driven tick rule - see this
-    module's own docstring for why.
-    """
-
-    marker = QgsMarkerSymbol.createSimple(
-        {
-            "name": "line",
-            "color": "0,0,0",
-            "outline_color": "0,0,0",
-            "outline_width": str(outline_width),
-            "size": str(size),
-            "angle": "0",
-        }
-    )
-
-    _apply_affiliation_color(
-        marker.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return marker
-
-
-def _marker_line_layer(marker_symbol, placement, interval=None):
-
-    """Wires a marker sub-symbol onto a line at the given placement."""
-
-    layer = QgsMarkerLineSymbolLayer()
-
-    layer.setSubSymbol(
-        marker_symbol
-    )
-
-    layer.setPlacements(
-        placement
-    )
-
-    if interval is not None:
-
-        layer.setInterval(
-            interval
-        )
-
-    return layer
-
-
-def _wavy_line_layers(interval=4, outline_width=0.6, offset=0):
-
-    """
-    Two marker-line layers that together draw a continuous serpentine/wave
-    line, matching the standard's own actual drawn appearance for FLOT
-    (H.5.11, Table H-VII, code 140101) - found only by rendering the
-    template page's own picture, since the "Anchor Points"/"Size/Shape"
-    text just says "requires at least two points... to define the line"
-    with no mention of the line being wavy at all (this module's own
-    recurring lesson: text alone is not enough). QGIS has no built-in wavy
-    pen style (Qt's own PenStyle enum only offers
-    solid/dash/dot/dash-dot/dash-dot-dot), so this approximates one from two
-    "half_arc" marker-line layers repeating at the same interval but offset
-    by half of it from each other, with opposite rotations (angle 0 vs
-    180) - each layer's arcs alternate with the other's, producing one
-    continuous-looking wave rather than a row of disconnected bumps.
-    Returns a list of layers (not a full symbol) so line_of_contact can
-    combine two offset copies - one per side - into a single symbol.
-    """
-
-    layers = []
-
-    for angle, offset_along_line in ((0, 0), (180, interval / 2.0)):
-
-        marker = QgsMarkerSymbol.createSimple(
-            {
-                "name": "half_arc",
-                "color": "0,0,0",
-                "outline_color": "0,0,0",
-                "outline_width": str(outline_width),
-                "size": str(interval),
-                "angle": str(angle),
-            }
-        )
-
-        _apply_affiliation_color(
-            marker.symbolLayer(0),
-            [QgsSymbolLayer.Property.StrokeColor]
-        )
-
-        layer = QgsMarkerLineSymbolLayer()
-        layer.setSubSymbol(marker)
-        layer.setPlacements(QgsTemplatedLineSymbolLayerBase.Placement.Interval)
-        layer.setInterval(interval)
-        layer.setOffsetAlongLine(offset_along_line)
-        layer.setOffset(offset)
-
-        layers.append(layer)
-
-    return layers
-
-
-def _wavy_line_symbol(interval=4, outline_width=0.6):
-
-    """A single wavy line - see _wavy_line_layers() for the technique."""
-
-    layers = _wavy_line_layers(interval=interval, outline_width=outline_width)
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        layers[0]
-    )
-
-    symbol.appendSymbolLayer(
-        layers[1]
-    )
-
-    return symbol
-
-
-def _arrow_line_symbol(
-    line_width=0.4,
-    line_style="solid",
-    arrow_size=4,
-    arrow_outline_width=0.8,
-    tip_at_first_vertex=False
-):
-
-    """
-    A plain line - solid or dashed - ending in a single filled arrowhead.
-    Several Mission Task (H.5.26) graphics and direction_of_attack
-    (H.5.13.2) reduce to exactly this shape once approximated down to what
-    QGIS's native symbol layers can build (the standard's own tables give
-    each of these its own precise arrowhead length/width ratio and, for
-    delay/withdraw, an additional 180-degree arc at the base - none of that
-    further detail is attempted here, the same "recognisable, not exact"
-    approximation this module's docstring already applies to
-    axis_of_advance's own wide-arrow-band simplification).
-
-    `tip_at_first_vertex` matters and is NOT cosmetic: most of these
-    graphics' own text doesn't say which end is the tip (direction_of_attack
-    and axis_of_advance both leave it to "orientation is determined by the
-    anchor points", so the default/False case - arrowhead at the LAST
-    vertex, matching axis_of_advance's own already-confirmed-correct
-    behaviour - is used). But Delay and Fix explicitly say "point 1 defines
-    the tip of the arrowhead, point 2 defines the rear" - the opposite of
-    the default - found only by reading that text carefully, not assumed
-    from the shared shape. When True, the arrow is placed at FirstVertex
-    with a 180-degree marker rotation on top of QgsMarkerLineSymbolLayer's
-    own tangent-following rotation, so it points away from the rest of the
-    line rather than back into it - the exact same rotation
-    principal_direction_of_fire's own FirstVertex arrow already uses for
-    the same reason.
-    """
-
-    line_layer = QgsSimpleLineSymbolLayer()
-
-    line_layer.setColor(
-        QColor(0, 0, 0)
-    )
-
-    line_layer.setWidth(
-        line_width
-    )
-
-    line_layer.setPenStyle(
-        QgsSymbolLayerUtils.decodePenStyle(line_style)
-    )
-
-    _apply_affiliation_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        line_layer
-    )
-
-    if tip_at_first_vertex:
-
-        arrow_layer = _marker_line_layer(
-            _arrow_marker_symbol(
-                size=arrow_size, outline_width=arrow_outline_width, angle=180
-            ),
-            QgsTemplatedLineSymbolLayerBase.Placement.FirstVertex
-        )
-
-    else:
-
-        arrow_layer = _marker_line_layer(
-            _arrow_marker_symbol(size=arrow_size, outline_width=arrow_outline_width),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-
-    symbol.appendSymbolLayer(
-        arrow_layer
-    )
-
-    return symbol
-
-
-def _circle_from_line_symbol(outline_style="solid", outline_width=0.4, with_ticks=False):
-
-    """
-    Several Mission Task (H.5.26) graphics - Isolate, Secure, Seize - and
-    one Defensive maneuver control measure - Retain, H.5.12.1, NOT a
-    Mission Task despite being commonly grouped with them, see
-    _retain_symbol()'s own comment - are all defined by the standard as a
-    circle: point 1 is the centre, point 2 is a point on the circle
-    defining the radius. That is a 2-point LINE's own natural shape (draw
-    from centre to edge), not a digitized polygon boundary, so this stays
-    on the Lines layer: a QgsLineSymbol whose one symbol layer is a
-    QgsGeometryGeneratorSymbolLayer computing
-    buffer(start_point($geometry), distance(start_point($geometry),
-    point_n($geometry, 2))) - a circle centred on the line's first vertex,
-    with its radius taken from the distance to the SECOND vertex only
-    (deliberately not length($geometry), which sums every segment - Seize
-    digitizes a 3rd point for its own arrow via the same geometry, and
-    using the whole line's length as the radius there inflated the circle
-    by the extra segment's length; confirmed by rendering both the 2-point
-    and 3-point cases side by side) - rendered with an ordinary unfilled
-    QgsFillSymbol, the same "style": "no" outline-only recipe
-    _objective_symbol()/_nai_symbol() already use. The standard's own
-    circle has a 30-degree open arc (the friendly side); a full closed
-    circle instead is a deliberate simplification, since QGIS has no
-    simple "arc with a gap" primitive to build on here.
-
-    `with_ticks` adds perpendicular tick marks around the whole
-    circumference (Retain's own template shows exactly this - "the
-    default tic length should be the same as the text height of the
-    echelon field", the same tick convention Strong Point already uses on
-    its own polygon boundary) - reusing that same "a nominally Fill
-    symbol's layer(0) can be a plain line layer, with a QgsMarkerLineSymbolLayer
-    appended for the ticks" trick, just applied to this generated circle
-    instead of a digitized polygon.
-    """
-
-    fill_symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-            "outline_style": outline_style,
-            "outline_color": "0,0,0",
-            "outline_width": str(outline_width),
-        }
-    )
-
-    _apply_affiliation_color(
-        fill_symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    if with_ticks:
-
-        fill_symbol.appendSymbolLayer(
-            _marker_line_layer(
-                _tick_marker_symbol(),
-                QgsTemplatedLineSymbolLayerBase.Placement.Interval,
-                interval=4
-            )
-        )
-
-    circle_layer = QgsGeometryGeneratorSymbolLayer.create({})
-
-    circle_layer.setGeometryExpression(
-        "buffer(start_point($geometry),"
-        " distance(start_point($geometry), point_n($geometry, 2)))"
-    )
-
-    circle_layer.setSymbolType(
-        Qgis.SymbolType.Fill
-    )
-
-    circle_layer.setSubSymbol(
-        fill_symbol
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        circle_layer
-    )
-
-    return symbol
-
-
-def _p1_p2_vertical_line_layer():
-
-    """
-    Block and Penetrate (H.5.26) are both a genuine 3-anchor-point shape:
-    "Points 1 and 2 define the endpoints of the graphic's vertical line.
-    Point 3 defines the endpoint of the [...] line, which will project
-    perpendicularly from the MIDPOINT of the vertical line." An earlier
-    version of both functions approximated this as an ordinary 2-point
-    digitized line plus a small FIXED-size tick/arrow at its own
-    CentralPoint - which ignored point 3 entirely, rendering a decorative
-    mark instead of a real anchor-point-driven shape (caught by comparing
-    a real render against the standard's own template diagram, which
-    shows point 3 placed far from the vertical line, not adjacent to it).
-    This helper renders just the P1-P2 segment (the "vertical line" - any
-    length/orientation the user digitizes, not necessarily true vertical,
-    same "the diagram's labels are illustrative, not compass directions"
-    convention every other multi-anchor-point shape in this module
-    already follows, e.g. principal_direction_of_fire). See
-    _p3_to_midpoint_layer() for the P3 side.
-    """
-
-    layer = QgsGeometryGeneratorSymbolLayer.create({})
-
-    layer.setGeometryExpression(
-        "make_line(point_n($geometry, 1), point_n($geometry, 2))"
-    )
-
-    layer.setSymbolType(
-        Qgis.SymbolType.Line
-    )
-
-    line = QgsSimpleLineSymbolLayer()
-    line.setColor(QColor(0, 0, 0))
-    line.setWidth(0.4)
-
-    _apply_affiliation_color(
-        line,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    sub_symbol = QgsLineSymbol()
-
-    sub_symbol.changeSymbolLayer(
-        0,
-        line
-    )
-
-    layer.setSubSymbol(
-        sub_symbol
-    )
-
-    return layer
-
-
-def _p3_to_midpoint_layer(sub_symbol):
-
-    """
-    The P3 side of Block/Penetrate's 3-anchor-point shape (see
-    _p1_p2_vertical_line_layer() above) - a line from point 3 to the
-    MIDPOINT of the P1-P2 segment, whose length is however far the user
-    actually places point 3, not a fixed size. `sub_symbol` carries
-    whatever is drawn along that segment: a plain line for Block, or a
-    line ending in an arrowhead at the midpoint end for Penetrate (its
-    own arrow points INTO the vertical line, matching "point 3 defines
-    the REAR of the symbol" - point 3 is the arrow's tail).
-    """
-
-    layer = QgsGeometryGeneratorSymbolLayer.create({})
-
-    layer.setGeometryExpression(
-        "make_line(point_n($geometry, 3),"
-        " centroid(make_line(point_n($geometry, 1), point_n($geometry, 2))))"
-    )
-
-    layer.setSymbolType(
-        Qgis.SymbolType.Line
-    )
-
-    layer.setSubSymbol(
-        sub_symbol
-    )
-
-    return layer
-
-
-def _bracket_symbol():
-
-    """
-    Breach (340200) and Canalize (340400) share one exact 3-anchor-point
-    shape - confirmed identical by comparing their two template pictures
-    side by side, not assumed from their similar-sounding text alone (the
-    same "text alone doesn't prove two things are identical" caution this
-    module already applies elsewhere, e.g. FLOT vs. phase_line). "Points 1
-    and 2 define the endpoints of the symbol's opening and point 3 defines
-    the rear of the symbol... the vertical line at the rear of the symbol
-    will be the same height as the opening and parallel to it" - an open
-    bracket/"C" shape: an earlier version of both functions approximated
-    this as a plain 2-point dashed line with a decorative tick, dropping
-    the opening/rear-line structure entirely (the same class of mistake as
-    Block's own earlier version - a fixed decorative mark standing in for
-    a real anchor-point-driven shape).
-
-    Reconstructed as ONE continuous 5-point path -
-    P1 -> rear-top -> P3 -> rear-bottom -> P2 - where the rear corners are
-    computed from P3 (the rear's own position) offset by half of P1-P2's
-    own length, along P1-P2's own direction (so the rear segment really is
-    "the same height as the opening and parallel to it", for whatever
-    height/orientation the user's own P1/P2 happen to give it). QGIS has
-    no vector/perpendicular-offset expression function directly, but
-    `project(point, distance, azimuth)` plus `azimuth(point1, point2)`
-    together do the same job, chained through `with_variable()` so the
-    height/azimuth are each computed once rather than repeated in every
-    branch of the expression.
-    """
-
-    layer = QgsGeometryGeneratorSymbolLayer.create({})
-
-    layer.setGeometryExpression(
-        "with_variable('h',"
-        " distance(point_n($geometry, 1), point_n($geometry, 2)),"
-        " with_variable('az',"
-        " azimuth(point_n($geometry, 1), point_n($geometry, 2)),"
-        " make_line("
-        "  point_n($geometry, 1),"
-        "  project(point_n($geometry, 3), @h / 2, @az + pi()),"
-        "  point_n($geometry, 3),"
-        "  project(point_n($geometry, 3), @h / 2, @az),"
-        "  point_n($geometry, 2)"
-        " )))"
-    )
-
-    layer.setSymbolType(
-        Qgis.SymbolType.Line
-    )
-
-    line = QgsSimpleLineSymbolLayer()
-    line.setColor(QColor(0, 0, 0))
-    line.setWidth(0.4)
-
-    _apply_affiliation_color(
-        line,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    sub_symbol = QgsLineSymbol()
-
-    sub_symbol.changeSymbolLayer(
-        0,
-        line
-    )
-
-    layer.setSubSymbol(
-        sub_symbol
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        layer
-    )
-
-    return symbol
-
-
-# --- H.5.11 Maneuver Control Measure Symbols (Table H-VII) ---------------
-
-def _forward_line_of_troops_symbol():
-
-    # Code 140100/140101. The extracted DRAW RULES text gives FLOT no
-    # distinguishing line style beyond "requires at least two points... to
-    # define the line" - which reads like a plain line, and an earlier
-    # version of this function rendered exactly that. The template
-    # PICTURE (page 410, "Friendly Present") shows otherwise: a real
-    # serpentine/wave line, not a straight one - only caught by rendering
-    # the actual page image, this module's own recurring lesson that text
-    # alone is not enough. See _wavy_line_layers()'s own comment for the
-    # technique.
-    return _wavy_line_symbol()
-
-
-def _line_of_contact_symbol():
-
-    # Code 140200. "The line of contact symbol is created when both the
-    # friendly and enemy forward line of troops symbols are displayed" -
-    # the template page (412) shows this literally: two parallel wavy FLOT
-    # lines (see _wavy_line_layers()'s own comment - an earlier version of
-    # this function used two plain offset straight lines instead, the same
-    # "text alone doesn't show the wave" gap FLOT itself had). Approximated
-    # as two wavy lines offset to either side, rather than actually
-    # rendering a second, independently coloured enemy FLOT underneath
-    # (this layer's "affiliation" field is one value per feature, not two)
-    # - the template's own small connecting "hook" marks between the two
-    # lines and its circled coordination-point markers are not attempted.
-    symbol = QgsLineSymbol()
-
-    near_layers = _wavy_line_layers(offset=3)
-    far_layers = _wavy_line_layers(offset=-3)
-
-    symbol.changeSymbolLayer(
-        0,
-        near_layers[0]
-    )
-
-    for layer in (near_layers[1], far_layers[0], far_layers[1]):
-
-        symbol.appendSymbolLayer(
-            layer
-        )
-
-    return symbol
-
-
-def _forward_edge_of_battle_area_symbol():
-
-    # Code 140400. The template page (413) shows a distinctive shape - a
-    # small triangular peak in the middle of the line, labelled PT1 (left
-    # baseline end), PT2 (the peak), PT3 (right baseline end) - which reads
-    # like it needs special construction, but doesn't: it's simply the raw
-    # 3-vertex path P1->P2->P3, exactly the same "additional points can be
-    # defined to extend the line" convention Phase Line/FLOT already
-    # support, with point 2 placed above the P1-P3 baseline. Confirmed by
-    # rendering a real 3-vertex feature through this exact plain-line
-    # symbol - no geometry-generator or other special-case code was
-    # needed, only checking whether one was before assuming so. The line
-    # itself is rendered slightly heavier (0.6mm vs FLOT/phase_line's
-    # 0.4mm) purely so the visually-similar line types can be told apart
-    # on screen at a glance, not because the standard specifies a
-    # different weight.
-    symbol = QgsLineSymbol.createSimple(
-        {
-            "line_color": "0,0,0",
-            "line_width": "0.6",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
-
-
-def _principal_direction_of_fire_symbol():
-
-    # Code 140500. "This symbol requires three anchor points. Point 1
-    # defines the vertex of the symbol. Points 2 and 3 define the tips of
-    # the arrowheads" - two rays diverging from a shared vertex.
-    # Approximated as a single 3-vertex line digitized tip-vertex-tip
-    # (point order: arrow tip, shared vertex, other arrow tip - NOT the
-    # standard's own point-1-is-the-vertex numbering, a necessary
-    # deviation since a single LineString path can't branch the way two
-    # true diverging rays from one point would need to), with an
-    # arrowhead at each end: LastVertex uses the default (unrotated)
-    # arrow, pointing away from the vertex in the drawn direction, and
-    # FirstVertex uses a 180-degree-rotated arrow so it also points away
-    # from the vertex rather than back into it. This rotation reasoning
-    # follows directly from how axis_of_advance's own LastVertex arrow is
-    # already confirmed (via that measure type's own manual smoke test)
-    # to point in the drawn direction of travel - it has NOT itself been
-    # confirmed with a live render, so is worth double-checking in the
-    # project maintainer's own smoke test of this sub-phase.
-    symbol = QgsLineSymbol.createSimple(
-        {
-            "line_color": "0,0,0",
-            "line_width": "0.4",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _arrow_marker_symbol(),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-    )
-
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _arrow_marker_symbol(angle=180),
-            QgsTemplatedLineSymbolLayerBase.Placement.FirstVertex
-        )
-    )
-
-    return symbol
-
-
-# --- H.5.13.2 Direction of attack (Table H-XI) ----------------------------
-
-def _direction_of_attack_symbol():
-
-    # Code 140600 (the base "Direction of Attack" entry is itself N/A in
-    # the standard's own table - a category header; the real shape comes
-    # from its Friendly Aviation/Main Attack/Supporting Attack
-    # sub-variants at 140601-140607, all of which reduce to "a plain line
-    # with a single arrowhead", differentiated from each other only by an
-    # amplifier bracket - e.g. [A], [R] - prefixed to the label, which
-    # this module doesn't attempt). Rendered thinner (0.35mm) than
-    # axis_of_advance's approximation (0.5mm line + separately-sized
-    # arrow) so the two read as different weights of arrow, since
-    # axis_of_advance is meant to approximate a wide arrow *band* while
-    # this is meant to approximate a plain arrow *line*.
-    return _arrow_line_symbol(line_width=0.35, arrow_size=4, arrow_outline_width=0.8)
-
-
-# --- H.5.12.1 Defensive maneuver - Areas (Table H-VIII) -------------------
-
-def _battle_position_symbol():
-
-    # Code 151200. "A defensive location oriented on a likely enemy
-    # avenue of approach" - an unfilled outline, same recipe as
-    # _objective_symbol(), since the standard's own draw rule here is
-    # generic anchor-point/size-shape boilerplate with no further
-    # distinguishing stroke detail beyond "the side opposite Field B
-    # (Echelon) faces toward the hostile force" (an orientation rule for
-    # where the echelon amplifier goes, not a shape difference - this
-    # layer has no echelon field, see this module's own docstring).
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-            "outline_style": "solid",
-            "outline_color": "0,0,0",
-            "outline_width": "0.5",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
-
-
-def _strong_point_symbol():
-
-    # Code 151203. "The default tic length should be the same as the
-    # text height of the echelon field... spacing between the tics
-    # should also be the height of B" - a fortified outline with regular
-    # perpendicular tick marks. This layer has no echelon field to size
-    # ticks from (see this module's own docstring), so a thin continuous
-    # outline plus fixed-size/fixed-interval perpendicular ticks
-    # (_tick_marker_symbol() at a 4mm Interval) stands in for the
-    # standard's own dynamically-sized fortification texture.
-    outline_layer = QgsSimpleLineSymbolLayer()
-    outline_layer.setColor(QColor(0, 0, 0))
-    outline_layer.setWidth(0.35)
-
-    _apply_affiliation_color(
-        outline_layer,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-        }
-    )
-
-    symbol.changeSymbolLayer(
-        0,
-        outline_layer
-    )
-
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _tick_marker_symbol(),
-            QgsTemplatedLineSymbolLayerBase.Placement.Interval,
-            interval=4
-        )
-    )
-
-    return symbol
-
-
-def _engagement_area_symbol():
-
-    # Code 151300. "An area where the commander intends to contain and
-    # destroy an enemy force" - the template page (424) shows a plain
-    # SOLID outline, no dash pattern at all. An earlier version of this
-    # function gave it an invented "dash dot" style to keep it visually
-    # distinct from NAI on screen - but the standard doesn't use dash
-    # style to distinguish area TYPES from each other at all (it reserves
-    # dash for a "planned/on-order" STATUS variant of the same area type,
-    # e.g. Battle Position/Assembly Area's own Present-vs-Planned pair,
-    # which this layer has no status field to represent) - confirmed by
-    # checking the actual template picture, not assumed from wanting two
-    # area types to look different.
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-            "outline_style": "solid",
-            "outline_color": "0,0,0",
-            "outline_width": "0.4",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
-
-
-# --- H.5.11 Maneuver Areas (Table H-VII) ----------------------------------
-
-def _assembly_area_symbol():
-
-    # Code 150200. "An area in which a command is assembled preparatory
-    # to further action" - the template page (415) shows a plain SOLID
-    # outline ("Friendly Present" - the dashed variant shown right below
-    # it is a separate, unimplemented "Planned/On Order" status this
-    # layer has no field for). An earlier version of this function used an
-    # invented "dash dot dot" style to keep it visually distinct from NAI/
-    # Engagement Area on screen - see _engagement_area_symbol()'s own
-    # comment for why that reasoning doesn't hold up against the actual
-    # template picture.
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-            "outline_style": "solid",
-            "outline_color": "0,0,0",
-            "outline_width": "0.4",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
-
-
-# --- H.5.14 Maneuver control measure symbols (Table H-XII) ---------------
-
-def _encirclement_symbol():
-
-    # Code 151800 (base entry, N/A in the standard's own table; the real
-    # polygon shape comes from the Friendly/Enemy sub-variants at
-    # 151801/151802 - both a plain closed area with no further
-    # distinguishing stroke detail given). "The loss of freedom of
-    # maneuver resulting from enemy control of all ground routes of
-    # evacuation and reinforcement" - rendered with a dotted outline
-    # (distinct from every other dashed-outline area type here) as an
-    # arbitrary but clearly-documented visual choice, evoking a
-    # tightening ring, since the standard's own text gives nothing more
-    # specific to render than "a closed area".
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-            "outline_style": "dot",
-            "outline_color": "0,0,0",
-            "outline_width": "0.5",
-        }
-    )
-
-    _apply_affiliation_color(
-        symbol.symbolLayer(0),
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    return symbol
-
-
-# --- H.5.12.1 Defensive maneuver (Table H-VIII), NOT a Mission Task ------
-
-def _retain_symbol():
-
-    # Code 151205. Despite being named alongside the H.5.26 Mission Task
-    # symbols in this sub-phase's own request, "Retain" is actually
-    # defined under H.5.12.1 Defensive maneuver, not Table H-XXIV Mission
-    # Task Symbols - confirmed by reading the standard's own text, not
-    # assumed from the name (see this module's own docstring for the
-    # "Disengage"/"Contain" findings from the same check). "Point 1
-    # defines the center point of the graphic and point 2 defines the
-    # graphic's start point and radius... The opening will be a 30-degree
-    # arc of the circle" - the same centre+radius circle shape as the
-    # H.5.26 Isolate/Secure/Seize graphics below, so it reuses
-    # _circle_from_line_symbol(). The template page's own picture (423)
-    # shows the circle bristling with perpendicular tick marks all around
-    # it (matching the text: "the default tic length should be the same
-    # as the text height of the echelon field") - an earlier version of
-    # this function used an invented "dash dot" outline instead, which
-    # doesn't match the picture at all.
-    return _circle_from_line_symbol(outline_width=0.4, with_ticks=True)
-
-
-# --- H.5.26 Mission Task Symbols (Table H-XXIV) ---------------------------
-
-def _block_symbol():
-
-    # Code 340100. "Points 1 and 2 define the endpoints of the graphic's
-    # vertical line. Point 3 defines the endpoint of the graphic's
-    # horizontal line, which will project perpendicularly from the
-    # MIDPOINT of the vertical line" - a genuine 3-anchor-point shape (see
-    # _p1_p2_vertical_line_layer()'s own comment for why an earlier
-    # 2-point-plus-fixed-tick version of this function was wrong, not
-    # just approximate). Requires a 3-vertex digitized line (P1, P2, P3,
-    # in that order) - with only 2 vertices, point_n($geometry, 3)
-    # resolves to NULL and the horizontal line simply doesn't render,
-    # degrading to a plain P1-P2 line rather than erroring.
-    plain_line = QgsSimpleLineSymbolLayer()
-    plain_line.setColor(QColor(0, 0, 0))
-    plain_line.setWidth(0.4)
-
-    _apply_affiliation_color(
-        plain_line,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    horizontal_sub_symbol = QgsLineSymbol()
-
-    horizontal_sub_symbol.changeSymbolLayer(
-        0,
-        plain_line
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        _p1_p2_vertical_line_layer()
-    )
-
-    symbol.appendSymbolLayer(
-        _p3_to_midpoint_layer(horizontal_sub_symbol)
-    )
-
-    return symbol
-
-
-def _breach_symbol():
-
-    # Code 340200. "Points 1 and 2 define the endpoints of the symbol's
-    # opening and point 3 defines the rear of the symbol... The vertical
-    # line at the rear of the symbol will be the same height as the
-    # opening and parallel to it" - a real open bracket/"C" shape,
-    # confirmed identical to Canalize's own template picture. An earlier
-    # version of this function dropped that shape entirely (a plain dashed
-    # 2-point line with a decorative tick standing in for it) - see
-    # _bracket_symbol()'s own comment for the real construction and why it
-    # was wrong.
-    return _bracket_symbol()
-
-
-def _canalize_symbol():
-
-    # Code 340400. Same exact bracket shape as Breach above - see
-    # _bracket_symbol()'s own comment. Confirmed identical (not merely
-    # similar-sounding text) by comparing both control measures' template
-    # pictures side by side; kept as its own measure_type/rule despite
-    # sharing Breach's exact rendering recipe, the same reason
-    # delay/withdraw are kept separate despite an identical shape.
-    return _bracket_symbol()
-
-
-def _disrupt_symbol():
-
-    # Code 341000. "Points 1 and 2 define the endpoints of the graphic's
-    # vertical line. Point 3 defines the tip of the longest arrow... The
-    # arrows are perpendicular to the baseline (vertical line) and
-    # parallel to each other" - a baseline with a row of perpendicular
-    # arrows. Approximated as the baseline plus repeated perpendicular
-    # ticks along its length (QgsTemplatedLineSymbolLayerBase.Placement.
-    # Interval), standing in for the row of arrows without attempting
-    # each one's own increasing length.
-    line_layer = QgsSimpleLineSymbolLayer()
-    line_layer.setColor(QColor(0, 0, 0))
-    line_layer.setWidth(0.4)
-
-    _apply_affiliation_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        line_layer
-    )
-
-    symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _tick_marker_symbol(size=3, outline_width=0.5),
-            QgsTemplatedLineSymbolLayerBase.Placement.Interval,
-            interval=3
-        )
-    )
-
-    return symbol
-
-
-def _fix_symbol():
-
-    # Code 341100. "This graphic requires 2 anchor points. Point 1 defines
-    # the tip of the arrowhead, and point 2 defines the rear of the
-    # graphic" - explicit, and the OPPOSITE of this module's own default
-    # arrow-line convention (last vertex = tip, matching axis_of_advance's
-    # already-confirmed-correct behaviour) - found only by reading this
-    # text carefully, a real bug in the first version of this function
-    # which put the tip at point 2 instead. Rendered dashed purely so it
-    # stays visually distinguishable on screen from direction_of_attack's
-    # own solid arrow (both being, per their own text, otherwise the same
-    # shape) - not because the standard specifies a dashed style.
-    return _arrow_line_symbol(
-        line_width=0.3, line_style="dash", arrow_size=3, arrow_outline_width=0.7,
-        tip_at_first_vertex=True
-    )
-
-
-def _penetrate_symbol():
-
-    # Code 341800. "Points 1 and 2 define the endpoints of the symbol's
-    # vertical line. Point 3 defines the rear of the symbol... The arrow
-    # will project perpendicularly from the midpoint of the vertical
-    # line" - the same genuine 3-anchor-point shape as Block above (see
-    # _p1_p2_vertical_line_layer()'s own comment), except the P3-side
-    # segment ends in an arrowhead at the midpoint end rather than a
-    # plain line: point 3 is "the rear of the symbol" (the arrow's tail),
-    # so the arrow points FROM point 3 INTO the vertical line, matching
-    # Penetrate's own meaning of piercing through a position. The default
-    # (unrotated) arrow marker already points in the drawn direction of
-    # travel - from P3 toward the midpoint here - so no extra angle is
-    # needed, unlike this module's other perpendicular-tick uses.
-    shaft_line = QgsSimpleLineSymbolLayer()
-    shaft_line.setColor(QColor(0, 0, 0))
-    shaft_line.setWidth(0.4)
-
-    _apply_affiliation_color(
-        shaft_line,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    arrow_sub_symbol = QgsLineSymbol()
-
-    arrow_sub_symbol.changeSymbolLayer(
-        0,
-        shaft_line
-    )
-
-    arrow_sub_symbol.appendSymbolLayer(
-        _marker_line_layer(
-            _arrow_marker_symbol(size=4, outline_width=0.7),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-    )
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        _p1_p2_vertical_line_layer()
-    )
-
-    symbol.appendSymbolLayer(
-        _p3_to_midpoint_layer(arrow_sub_symbol)
-    )
-
-    return symbol
-
-
-def _delay_symbol():
-
-    # Code 340800. "Point 1 defines the tip of the arrowhead. Point 2
-    # defines the end of the straight line portion of the symbol. Point 3
-    # defines the diameter and orientation of the 180 degree circular
-    # arc" - an arrow with a perpendicular semicircular arc at its base.
-    # Point 1 = tip is explicit and, like Fix, the opposite of this
-    # module's own default arrow-line convention - the first version of
-    # this function put the tip at point 2 instead, a real bug. The arc
-    # detail is dropped entirely (approximated as a plain arrow line), the
-    # same "recognisable core shape only" simplification this module
-    # already applies to axis_of_advance's own wide-band shape - see
-    # _withdraw_symbol()'s own comment for why it shares this exact same
-    # approximation and is kept as a separate measure_type anyway.
-    return _arrow_line_symbol(
-        line_width=0.4, arrow_size=4, arrow_outline_width=0.8,
-        tip_at_first_vertex=True
-    )
-
-
-def _withdraw_symbol():
-
-    # Code 342400. Its own draw rule text is close to verbatim identical
-    # to Delay's above (arrowhead + straight line + perpendicular 180-
-    # degree arc) - the standard differentiates Withdraw from Delay (and
-    # from the not-implemented Retire/Retirement and Withdraw Under
-    # Pressure, which share the same family again) mainly by name/context
-    # rather than a different drawn shape, the same situation already
-    # documented for forward_line_of_troops vs. phase_line. Kept as its
-    # own measure_type/rule despite sharing _delay_symbol()'s exact
-    # rendering recipe, for the same reason FLOT is kept separate from
-    # Phase Line - including the same point-1-is-the-tip fix.
-    return _arrow_line_symbol(
-        line_width=0.4, arrow_size=4, arrow_outline_width=0.8,
-        tip_at_first_vertex=True
-    )
-
-
-def _isolate_symbol():
-
-    # Code 341500. "Point 1 defines the center point of the symbol and
-    # point 2 defines the symbol's start point and radius... The opening
-    # will be a 30 degree arc of the circle" - see
-    # _circle_from_line_symbol()'s own comment for the centre+radius/
-    # full-circle approximation this and the other circle-shaped Mission
-    # Tasks below share. Dashed outline, distinguishing it from Secure's
-    # solid one.
-    return _circle_from_line_symbol(outline_style="dash", outline_width=0.4)
-
-
-def _secure_symbol():
-
-    # Code 342100. Same centre+radius/30-degree-opening shape as Isolate
-    # above, rendered with a solid outline instead of Isolate's dashed
-    # one as the one visual difference between the two.
-    return _circle_from_line_symbol(outline_style="solid", outline_width=0.4)
-
-
-def _seize_symbol():
-
-    # Code 342300. The standard actually defines TWO different point
-    # recipes, not one "3-or-4-point variant" as an earlier version of
-    # this comment assumed - reading the full text (not just the "point 4
-    # defines the end of the arrow" fragment) matters here:
-    #   - Where FOUR points are available: point 1 = circle centre, point 2
-    #     = circle radius, point 3 = curvature of the connecting arc, point
-    #     4 = end of the arrow.
-    #   - Where THREE points are available: point 1 = circle centre, point
-    #     2 = the tip of the arrowhead DIRECTLY (no radius role at all),
-    #     point 3 = which side a 90-degree arc sits on. The circle's size
-    #     isn't derived from any point in this recipe - it's auto-sized
-    #     "large enough to accommodate a tactical symbol".
-    # These two recipes assign completely different meanings to point 2 -
-    # radius in one, arrowhead tip in the other - so a 3-point input can't
-    # be safely reinterpreted as a trimmed-down 4-point one (an earlier
-    # version of this function effectively did exactly that, appending an
-    # arrow at whatever the digitized line's own last vertex happened to
-    # be). Rather than guess which recipe a given point count means, this
-    # only implements the 4-point recipe explicitly - centre/radius from
-    # points 1-2 (via _circle_from_line_symbol(), already shared with
-    # Isolate/Secure/Retain) plus an arrow from point 2's own position on
-    # the circle's edge to point 4 - and drops the arc-curvature detail of
-    # point 3 (the same "recognisable core shape only" simplification this
-    # module already applies elsewhere). With only 2 or 3 points, only the
-    # plain circle renders - no arrow - rather than rendering one in a
-    # position the standard doesn't actually specify for that point count.
-    symbol = _circle_from_line_symbol(outline_style="solid", outline_width=0.4)
-
-    shaft_line = QgsSimpleLineSymbolLayer()
-    shaft_line.setColor(QColor(0, 0, 0))
-    shaft_line.setWidth(0.4)
-
-    _apply_affiliation_color(
-        shaft_line,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    arrow_shaft = QgsLineSymbol()
-
-    arrow_shaft.changeSymbolLayer(
-        0,
-        shaft_line
-    )
-
-    arrow_shaft.appendSymbolLayer(
-        _marker_line_layer(
-            _arrow_marker_symbol(size=3.5, outline_width=0.7),
-            QgsTemplatedLineSymbolLayerBase.Placement.LastVertex
-        )
-    )
-
-    arrow_layer = QgsGeometryGeneratorSymbolLayer.create({})
-
-    arrow_layer.setGeometryExpression(
-        "make_line(point_n($geometry, 2), point_n($geometry, 4))"
-    )
-
-    arrow_layer.setSymbolType(
-        Qgis.SymbolType.Line
-    )
-
-    arrow_layer.setSubSymbol(
-        arrow_shaft
-    )
-
-    symbol.appendSymbolLayer(
-        arrow_layer
     )
 
     return symbol
 
 
 _LINE_SYMBOL_BUILDERS = {
-    "phase_line": _phase_line_symbol,
     "boundary": _boundary_symbol,
-    "axis_of_advance": _axis_of_advance_symbol,
-    "forward_line_of_troops": _forward_line_of_troops_symbol,
-    "line_of_contact": _line_of_contact_symbol,
-    "forward_edge_of_battle_area": _forward_edge_of_battle_area_symbol,
-    "principal_direction_of_fire": _principal_direction_of_fire_symbol,
-    "direction_of_attack": _direction_of_attack_symbol,
-    "retain": _retain_symbol,
-    "block": _block_symbol,
-    "breach": _breach_symbol,
-    "canalize": _canalize_symbol,
-    "disrupt": _disrupt_symbol,
-    "fix": _fix_symbol,
-    "penetrate": _penetrate_symbol,
-    "delay": _delay_symbol,
-    "withdraw": _withdraw_symbol,
-    "isolate": _isolate_symbol,
-    "secure": _secure_symbol,
-    "seize": _seize_symbol,
 }
 
-_AREA_SYMBOL_BUILDERS = {
-    "objective": _objective_symbol,
-    "nai": _nai_symbol,
-    "battle_position": _battle_position_symbol,
-    "strong_point": _strong_point_symbol,
-    "engagement_area": _engagement_area_symbol,
-    "assembly_area": _assembly_area_symbol,
-    "encirclement": _encirclement_symbol,
-}
+_AREA_SYMBOL_BUILDERS = {}
 
 
 def _build_rule_based_renderer(root_symbol, symbol_builders):
@@ -1612,10 +427,12 @@ def _build_rule_based_renderer(root_symbol, symbol_builders):
 def _configure_affiliation_field(layer):
 
     """
-    Shared by both layers - a "Friend"/"Hostile"/"Neutral"/"Unknown"
-    ValueMap dropdown driving _AFFILIATION_COLOR_EXPRESSION, defaulting
-    to DEFAULT_AFFILIATION ("unknown", which renders black - "black as
-    standard" per the user's own scoping of this feature).
+    Shared by both layers - a "Friend"/"Hostile"/"Neutral"/"Unknown"/
+    "Unspecified (black)" ValueMap dropdown driving
+    _AFFILIATION_COLOR_EXPRESSION, defaulting to DEFAULT_AFFILIATION
+    ("unspecified", which renders black - see that constant's own
+    comment for why this is a genuine 5th value, not "unknown" doing
+    double duty).
     """
 
     affiliation_idx = layer.fields().indexOf("affiliation")
@@ -1634,16 +451,188 @@ def _configure_affiliation_field(layer):
     )
 
 
-def _configure_designation_labeling(layer, placement):
+def _configure_status_field(layer):
+
+    """
+    "Present"/"Planned / Anticipated / On Order" ValueMap dropdown - see
+    STATUS_LABELS' own comment for scope (Lines layer only so far, wired
+    into rendering for "boundary" only so far).
+    """
+
+    status_idx = layer.fields().indexOf("status")
+
+    layer.setEditorWidgetSetup(
+        status_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(STATUS_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        status_idx,
+        QgsDefaultValue(f"'{DEFAULT_STATUS}'")
+    )
+
+
+def _configure_echelon_field(layer):
+
+    """
+    Table D-III echelon amplifier ValueMap dropdown, defaulting to blank
+    (no echelon glyph shown) - see ECHELON_LABELS' own comment for scope.
+    """
+
+    echelon_idx = layer.fields().indexOf("echelon")
+
+    layer.setEditorWidgetSetup(
+        echelon_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map_with_none(ECHELON_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        echelon_idx,
+        QgsDefaultValue("''")
+    )
+
+
+# Per H.5.4 Labeling: "All text labeling shall be in upper case
+# letters" - found unimplemented while re-auditing H.5.1-H.5.4 for
+# Mini-Phase H0 (2026-08-09); wrapping the label expression in upper()
+# applies it uniformly regardless of what case the user actually types
+# into unique_designation/far_designation, for every measure type on
+# both layers (a pure display-expression change, no risk to any measure
+# type's own shape/colour choices, unlike STATUS_LABELS/ECHELON_LABELS
+# above which are deliberately scoped to "boundary" only for now).
+_PLAIN_DESIGNATION_LABEL_EXPRESSION = 'upper("unique_designation")'
+
+# Table H-III shows THREE things stacked at each anchor-point segment:
+# the near unit's Field T/AS above, the Field B echelon amplifier in a
+# gap in the line, and the far unit's Field T/AS below - built here as a
+# single 3-line label rather than a separate marker for the echelon glyph
+# (see _boundary_symbol()'s own comment for the two earlier, wrong
+# attempts at a separate marker), with QGIS's own Selective Masking
+# cutting the actual line-gap around whatever this label renders (see
+# _configure_designation_labeling()'s own comment). The echelon line and
+# the far-designation line are each independently optional - CASE
+# expressions add them only when populated, so a boundary with no
+# echelon selected still gets a clean 2-line (or 1-line, with no far
+# designation either) label instead of a blank middle row. upper() wraps
+# only the two text fields (H.5.4's own "all caps" rule is about TEXT
+# labeling, not the echelon's own graphic amplifier - see
+# _PLAIN_DESIGNATION_LABEL_EXPRESSION's own comment), not the glyph
+# itself (harmless either way for "X"/"Ø"/"++", but scoped correctly on
+# principle). Falls through to the plain expression for every other
+# measure type (which has no reason to ever populate echelon/
+# far_designation), so nothing here changes their own rendering.
+_BOUNDARY_DESIGNATION_LABEL_EXPRESSION = (
+    "CASE WHEN \"measure_type\" = 'boundary' THEN "
+    "upper(\"unique_designation\")"
+    " || CASE WHEN \"echelon\" IS NOT NULL AND \"echelon\" != ''"
+    " THEN '\\n' || (" + _ECHELON_CHARACTER_EXPRESSION + ") ELSE '' END"
+    " || CASE WHEN \"far_designation\" IS NOT NULL AND \"far_designation\" != ''"
+    " THEN '\\n' || upper(\"far_designation\") ELSE '' END"
+    " ELSE upper(\"unique_designation\") END"
+)
+
+# How often the boundary label (and the line-gap masked around it)
+# repeats along a digitized boundary - approximates Table H-III's own
+# "the line segment between each pair of anchor points will repeat all
+# information" rule, which is genuinely per-SEGMENT (one repeat per
+# digitized vertex pair, regardless of segment length) - QGIS's own
+# label repeat is interval-based (evenly spaced by real screen distance,
+# not tied to vertex positions), so this is a practical approximation of
+# the standard's own per-segment rule rather than an exact match, the
+# same "recognisable, not exact" standard this module applies elsewhere.
+# Picked at a size that reads clearly repeated on a real multi-segment
+# boundary without crowding a short one - confirmed by rendering one.
+_BOUNDARY_LABEL_REPEAT_DISTANCE_MM = 80
+
+
+def _configure_designation_labeling(
+    layer,
+    placement,
+    label_expression,
+    repeat_distance_mm=None,
+    masked_symbol_layer_ids=None
+):
+
+    """
+    `masked_symbol_layer_ids`, when given, enables QGIS's own Selective
+    Masking on this label: the label engine cuts an exact hole (in the
+    shape of whatever text actually renders) in each named symbol
+    layer - referenced by the stable `.setId()` given when that symbol
+    layer was built (see _boundary_symbol()'s own `.setId()` call) - of
+    THIS SAME layer (a QgsSymbolLayerReference is layer-scoped by
+    `layer.id()`, but there is nothing layer-specific about masking a
+    different layer's symbol; this module only ever needs to mask its
+    own line, so that's the only case built here). This is what actually
+    fixed Boundary's own "gap in the line" requirement, after two
+    symbol-layer-only attempts both failed for different reasons - see
+    _boundary_symbol()'s own comment for the full history.
+    """
 
     settings = QgsPalLayerSettings()
 
-    settings.fieldName = "unique_designation"
+    settings.fieldName = label_expression
+
+    settings.isExpression = True
 
     settings.placement = placement
 
+    if repeat_distance_mm is not None:
+
+        settings.repeatDistance = repeat_distance_mm
+        settings.repeatDistanceUnit = Qgis.RenderUnit.Millimeters
+
+    if placement == Qgis.LabelPlacement.Line:
+
+        # QGIS's own default line-placement flags are AboveLine |
+        # MapOrientation - the whole (possibly multi-line) label always
+        # sits entirely above the line, never straddling it. That broke
+        # _BOUNDARY_DESIGNATION_LABEL_EXPRESSION's own near/far split
+        # (both lines rendered above the echelon gap, with "far" nearly
+        # touching it) - flagged during manual testing. OnLine instead
+        # centres the whole label block vertically ON the line/anchor
+        # point, so a multi-line label naturally straddles it (earlier
+        # rows above, later rows below) - confirmed by rendering a real
+        # boundary feature both ways side by side, not assumed from the
+        # flag's own name.
+        settings.lineSettings().setPlacementFlags(
+            Qgis.LabelLinePlacementFlag.OnLine
+        )
+
+    text_format = build_text_format(LABEL_FONT_SIZE)
+
+    if masked_symbol_layer_ids:
+
+        mask_settings = QgsTextMaskSettings()
+
+        mask_settings.setEnabled(True)
+
+        mask_settings.setSize(
+            1.2
+        )
+
+        mask_settings.setSizeUnit(
+            Qgis.RenderUnit.Millimeters
+        )
+
+        mask_settings.setMaskedSymbolLayers(
+            [
+                QgsSymbolLayerReference(layer.id(), symbol_layer_id)
+                for symbol_layer_id in masked_symbol_layer_ids
+            ]
+        )
+
+        text_format.setMask(
+            mask_settings
+        )
+
     settings.setFormat(
-        build_text_format(LABEL_FONT_SIZE)
+        text_format
     )
 
     layer.setLabeling(
@@ -1658,12 +647,18 @@ def _configure_designation_labeling(layer, placement):
 def create_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     """
-    A fresh, empty line layer for phase lines/boundaries/axis of
-    advance - a "measure_type" ValueMap dropdown plus a
-    "unique_designation" text field, labelled along each line. Digitized
-    with QGIS's own native "Add Line Feature" tool - see this module's
-    own docstring and unit_layer.py's for why no custom drawing tool
-    exists.
+    A fresh, empty line layer for control measures - a "measure_type"
+    ValueMap dropdown (currently just Boundary - see this module's own
+    docstring) plus a "unique_designation" text field, labelled directly
+    on each line. Digitized with QGIS's own native "Add Line Feature"
+    tool - see this module's own docstring and unit_layer.py's for why
+    no custom drawing tool exists.
+
+    "status"/"echelon"/"far_designation" were added 2026-08-09 (Mini-
+    Phase H0) for Boundary's own rebuild - see STATUS_LABELS/
+    ECHELON_LABELS' own comments for why they're general-purpose H
+    fields present on the schema for every measure type, but so far only
+    wired into rendering for "boundary" specifically.
     """
 
     crs = QgsProject.instance().crs()
@@ -1678,7 +673,10 @@ def create_control_measures_lines_layer(name=LINES_LAYER_NAME):
         [
             QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("echelon", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("far_designation", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),
         ]
     )
@@ -1697,10 +695,12 @@ def create_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     layer.setDefaultValueDefinition(
         measure_type_idx,
-        QgsDefaultValue("'phase_line'")
+        QgsDefaultValue("'boundary'")
     )
 
     _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+    _configure_echelon_field(layer)
 
     # applyOnUpdate=True ("Recalculate value on update") keeps this in
     # sync as the line is reshaped, not just at initial digitizing -
@@ -1718,7 +718,10 @@ def create_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     _configure_designation_labeling(
         layer,
-        Qgis.LabelPlacement.Line
+        Qgis.LabelPlacement.Line,
+        _BOUNDARY_DESIGNATION_LABEL_EXPRESSION,
+        repeat_distance_mm=_BOUNDARY_LABEL_REPEAT_DISTANCE_MM,
+        masked_symbol_layer_ids=[_BOUNDARY_LINE_SYMBOL_LAYER_ID]
     )
 
     return layer
@@ -1727,9 +730,11 @@ def create_control_measures_lines_layer(name=LINES_LAYER_NAME):
 def create_control_measures_areas_layer(name=AREAS_LAYER_NAME):
 
     """
-    A fresh, empty polygon layer for objectives/NAIs - same shape as
-    create_control_measures_lines_layer(), for area-type measures.
-    Digitized with QGIS's own native "Add Polygon Feature" tool.
+    A fresh, empty polygon layer for area-type control measures - same
+    shape as create_control_measures_lines_layer(). Currently has zero
+    measure types (see this module's own docstring) - AREA_MEASURE_TYPE_
+    LABELS fills in as future H-subphases are completed. Digitized with
+    QGIS's own native "Add Polygon Feature" tool.
     """
 
     crs = QgsProject.instance().crs()
@@ -1764,7 +769,7 @@ def create_control_measures_areas_layer(name=AREAS_LAYER_NAME):
 
     layer.setDefaultValueDefinition(
         measure_type_idx,
-        QgsDefaultValue("'objective'")
+        QgsDefaultValue("''")
     )
 
     _configure_affiliation_field(layer)
@@ -1790,7 +795,8 @@ def create_control_measures_areas_layer(name=AREAS_LAYER_NAME):
 
     _configure_designation_labeling(
         layer,
-        Qgis.LabelPlacement.OverPoint
+        Qgis.LabelPlacement.OverPoint,
+        _PLAIN_DESIGNATION_LABEL_EXPRESSION
     )
 
     return layer

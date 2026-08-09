@@ -2105,10 +2105,181 @@ tested, not claimed as done here.
       the new grouped structure; its "Tactical Graphics" section
       re-pointed to describe the NATO Symbols dropdown instead of
       implying standalone toolbar buttons. 486 tests passing on both
-      QGIS 3.44.12 and 4.2.0. Not yet smoke-tested live in QGIS itself
-      (headless tests can verify the Qt object structure - menu
-      contents, nesting, action identity - but not the actual rendered
-      dropdown appearance).
+      QGIS 3.44.12 and 4.2.0. Live-tested in real QGIS by the project
+      maintainer 2026-08-08 - both the toolbar dropdowns and the nested
+      Plugins-menu submenus check out correctly.
+  - **Mini-Phase H0 (2026-08-09) - the appendix-by-appendix plan's own
+    Appendix H pass begins.** First of 20 sequential H-subphases (see
+    this phase's own "Appendix H - Control Measure Symbols" plan table);
+    covers H.5.1-H.5.4's general rules plus H.5.5 Boundaries. Re-auditing
+    H.5.1-H.5.4 against the standard's actual text (not assumed from the
+    original stage-based pass) found two real, general defects, both
+    fixed:
+    - **H.5.1.1.1/H.5.3 Coloring was wrong for neutral/unknown
+      affiliation.** The actual text - "black, blue (friendly), red
+      (hostile), green (neutral or obstacles), or yellow (unknown ...)" -
+      lists five distinct colours; the previous implementation folded
+      neutral AND unknown into "black as standard" alongside a true
+      unaffiliated default, losing the standard's own green/yellow
+      entirely. Fixed by giving `control_measures.py` a genuine 5th
+      affiliation value, `"unspecified"` (default, renders black),
+      alongside friend=blue/hostile=red/neutral=green/unknown=yellow -
+      deliberately NOT identical to `sidc.py`'s own 4-value AFFILIATIONS
+      any more, since only control measures get this extra colour per
+      H.5.1.1.1's own text (point symbols' Table XV/XVI scheme has no
+      "black" option at all). The old `TestAffiliationLabelsMatchSidc`
+      equality guard became a subset guard instead
+      (`TestAffiliationLabelsMatchSidc`/`TestEchelonLabelsMatchSidc` in
+      `tests/test_control_measures.py`).
+    - **H.5.4 Labeling's "all text labeling shall be in upper case
+      letters" had never been implemented.** Fixed by wrapping every
+      designation label expression in `upper()` - applies to every
+      measure type on both the Lines and Areas layers, a pure display
+      change with no risk to any measure type's own shape/colour choices.
+    Two further general H fields - `status` (H.5.1.1.3/Table H-I:
+    present=solid, planned=dashed - Boundary's own template shows
+    explicit Friendly Present/Friendly Planned/Enemy Known/Enemy
+    Suspected rows) and `echelon` (H.5.1.1.6, cross-referencing Table
+    D-III of the Land appendix) - were added to the Lines layer's schema,
+    since Boundary needs both, but wired into rendering for `"boundary"`
+    only so far; every other existing measure type is untouched pending
+    its own future H-subphase (documented as a deliberate "add the field
+    now, wire it up measure-type by measure-type" approach, not an
+    oversight).
+    - **Boundary itself rebuilt from an invented dash-dash-dot
+      placeholder into Table H-III's real construction**, found by
+      rendering the actual template page (395) as an image rather than
+      trusting extracted text: a status-driven solid/dashed line with
+      the Field B echelon glyph (Table D-III's own Ø/•/••/•••/I/II/III/
+      X/XX/XXX/XXXX/XXXXX/XXXXXX/++, confirmed by rendering Table D-III's
+      own page (172) as an image too, since OCR renders "Ø" as "0" and
+      "•" as ".") centred on each anchor-point segment via
+      `Placement.SegmentCenter` - "the line segment between each pair of
+      anchor points will repeat all information", which SegmentCenter
+      gives for free (one marker per segment, not one for the whole
+      line). The glyph sits on a small white-filled square, sized by its
+      own character count (`_ECHELON_BOX_SIZE_EXPRESSION`) so it reads
+      over the line - a fixed box size looked fine for "XX" (Division)
+      but badly clipped "XXXXXX" (Theater), caught only by rendering
+      every echelon level through the real symbol side by side via
+      `QgsMapRendererCustomPainterJob`, not by eyeballing one case.
+      Table H-III's own two independent T/AS unit-designation labels
+      (one per adjacent unit) are approximated as a single two-line
+      label (`unique_designation` + a new boundary-only
+      `far_designation` field) rather than two independently positioned
+      ones, since QGIS's PAL labelling places one label per feature.
+      Figure H-3's own compass-relative label rotation (horizontal vs.
+      vertical boundary orientation) is not attempted - along-line
+      placement is used instead, a documented simplification, same as
+      the standard's own literal line-gap-around-the-boxed-glyph
+      (QGIS has no such primitive to build on).
+    - **sidc.py's own ECHELONS dict (and every point-symbol layer's
+      Echelon dropdown, via `_point_symbol_layer.py`'s shared
+      `_ECHELON_LABELS`) had been capped at "Army" since sub-phase 10.1**
+      - Table D-III's three highest levels (Army Group, Theater, Command)
+      were simply never added, confirmed missing from EVERY appendix
+      built so far (B through L), not just something Boundary happened
+      to need. Extended `ECHELONS`/`_ECHELON_LABELS` to the full 14
+      levels, cross-checked against milsymbol.js's own `echelonMobility`
+      table (24="Army Group/front", 25="Region/Theater", 26="Command"),
+      found while reading H.5.1.1.6's own cross-reference to Table D-III.
+    495 tests passing on both QGIS 3.44.12 and 4.2.0 (up from 486);
+    render-and-compare verified via `QgsMapRendererCustomPainterJob` for
+    both a multi-affiliation/status boundary set and all 14 echelon
+    levels (the box-sizing bug above was caught this way, not by
+    inspection of the code). Appendix H's remaining 19 sub-phases
+    (H1-H22, see this phase's own plan table) are still pending.
+  - **H0 follow-up (2026-08-09), from the project maintainer's own live
+    QGIS testing**: two real defects. The label/echelon-gap collision was
+    fixed in one pass; the echelon glyph's own "gap in the line" took
+    three real attempts before landing on the actual right tool.
+    - **The echelon glyph's background wasn't a clean gap - Table H-III's
+      own EXAMPLE column (re-checked by rendering the actual page image)
+      shows the line breaking exactly around the glyph, no box/border/
+      halo shape standing in for the gap at all.** Three attempts, each
+      one caught by the maintainer rendering (or live-testing) a real
+      boundary over a non-white (terrain) background rather than QGIS's
+      own white canvas default - text alone, and even this project's own
+      offscreen renders, didn't surface every problem:
+      1. A bordered white square - obviously a box against colour.
+      2. Dropping just the border, keeping a solid white fill - still
+         plainly a flat white rectangle against anything but white; the
+         fill itself was the problem, not the outline.
+      3. A white HALO around the glyph's own character stroke
+         (`QgsFontMarkerSymbolLayer`'s stroke, no background shape) -
+         closer in spirit (breaks the line only in the glyph's own
+         shape), and this project's own offscreen renders looked clean,
+         but the maintainer's real, live QGIS screenshot showed a messy
+         spiky white burst around "X" instead of a crisp hourglass - real
+         font/stroke rendering differed enough from this project's own
+         render harness to matter.
+      **Actual fix: QGIS's own Selective Masking**
+      (`QgsTextMaskSettings` + `QgsSymbolLayerReference`, configured via
+      `_configure_designation_labeling()`'s new `masked_symbol_layer_ids`
+      parameter) - the label engine genuinely cuts a hole, in the exact
+      shape of whatever text renders, in a specifically-referenced symbol
+      layer (`_boundary_symbol()`'s own line layer, given a stable
+      `.setId()` for exactly this purpose: `_BOUNDARY_LINE_SYMBOL_LAYER_ID`).
+      This is the correct tool for the job, not an approximation of one -
+      crisp for any glyph width (no more Theater-blob trade-off), and it
+      let the whole 3-line label (near designation / echelon / far
+      designation) fold into ONE masked, repeating label instead of a
+      separate marker-line symbol layer for the echelon glyph alone (see
+      the next bullet).
+    - **The near/far designation label collided with the echelon glyph**
+      (visible in the maintainer's own live QGIS screenshot: "612 BDE"
+      rendered on top of the echelon box instead of clearly below it).
+      Root cause: QGIS's own default line-label placement flags are
+      `AboveLine | MapOrientation` - a multi-line label always sits
+      entirely above the line, it never straddles it. Fixed with
+      `Qgis.LabelLinePlacementFlag.OnLine` (centres the label block ON
+      the line/anchor point, so a multi-line label naturally straddles
+      it) - confirmed by rendering a real boundary feature both ways side
+      by side, not assumed from the flag's own name.
+      `test_line_labels_use_online_placement_not_the_default_above_line`
+      is the regression guard.
+    - **Follow-up request, once masking was working**: since the old
+      marker-based echelon glyph used to repeat once per digitized
+      segment (`Placement.SegmentCenter`), the maintainer asked for the
+      label to repeat similarly rather than rendering once for the whole
+      feature. QGIS's own label engine has no per-segment repeat
+      (`Placement.SegmentCenter` is a marker-line-only concept), but does
+      have interval-based repeat (`QgsPalLayerSettings.repeatDistance`) -
+      wired in as `_BOUNDARY_LABEL_REPEAT_DISTANCE_MM` (80mm), a
+      practical approximation of the standard's own per-segment rule
+      (evenly spaced by screen distance, not tied to actual vertex
+      positions) rather than an exact match, confirmed by rendering a
+      real multi-segment (zig-zag) boundary and checking the label - and
+      its masked gap - repeats correctly at each occurrence, correctly
+      rotating to each segment's own local direction.
+  - **Control-measures testing simplification (2026-08-09), at the
+    project maintainer's own request**: `military_symbology/control_
+    measures.py` previously carried ~26 measure types - the "original
+    five" from sub-phase 10.1 plus a 2026-08-07 batch (H.5.11-H.5.14/
+    H.5.26) - none of which had been through the appendix-by-appendix
+    pass's own render-and-compare discipline. Mini-Phase H0's own
+    Boundary re-audit found that specific measure type had been built
+    entirely wrong, which made the maintainer's own testing harder: with
+    25 other unverified measure types sitting in the same dropdown, it
+    wasn't obvious which shapes were real and which were still
+    placeholders. Fixed by removing every measure type this module didn't
+    yet have a verified answer for, rather than leaving them in place -
+    `LINE_MEASURE_TYPE_LABELS` now has exactly one entry (`"boundary"`)
+    and `AREA_MEASURE_TYPE_LABELS` is empty. The removed code isn't
+    commented out or hidden - it's gone from the file entirely (git
+    history has it if a future sub-phase wants to compare against it) -
+    each Appendix H sub-phase re-adds its own measure types, freshly
+    built against the real template pictures, as it's completed: Phase
+    Line/Objective/NAI likely belong to H2 (H.5.9/H.5.10, Table H-IV/H-V
+    "Command and control lines/areas" - not yet confirmed which table
+    each specific one sits in), Axis of Advance to H5 (H.5.13, Table
+    H-X), and the rest of the 2026-08-07 batch to H3/H4/H6/H21 per their
+    own H.5.x sections. `tests/test_control_measures.py` shrank from 53
+    tests to 32 for the same reason - only what's still real has a test
+    (33 after the masking follow-up above added its own coverage).
+    475 tests passing on both QGIS versions (down from 495 before this
+    day's work, up from 474 immediately after the trim, matching the
+    net effect of removed-then-regained coverage).
 
 ---
 
@@ -2125,4 +2296,4 @@ tested, not claimed as done here.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail).
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix.

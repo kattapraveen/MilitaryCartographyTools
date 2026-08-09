@@ -557,8 +557,11 @@ Echelon; a single ship or aircraft doesn't):
 | Cyberspace | — | — | — (no modifiers at all in this appendix) | — |
 
 **Echelon** (where present): Unspecified, Team/Crew, Squad, Section,
-Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, or
-Army. **Headquarters** (where present): a checkbox marking the symbol as
+Platoon, Company, Battalion, Regiment, Brigade, Division, Corps, Army,
+Army Group, Theater, or Command (Table D-III of the Land appendix — the
+three highest levels were added 2026-08-09; every layer above with an
+Echelon column already has them, nothing further to enable).
+**Headquarters** (where present): a checkbox marking the symbol as
 a headquarters element. **Sector 1/2 Modifier** (where present): a
 second small icon shown beside the main one — e.g. a ship's warfare
 role, a submarine's propulsion type, or (Activities/SIGINT) a crime/
@@ -611,28 +614,54 @@ scope it together.
 
 ## Tactical Graphics - Control Measures
 
-Click the icon to add three layers for control measures — a "Lines" layer
-(phase lines, boundaries, axis of advance), an "Areas" layer (objectives,
-named areas of interest), and a "Control Measure Points" layer (checkpoints,
+Click the icon to add three layers for control measures — a "Lines" layer,
+an "Areas" layer, and a "Control Measure Points" layer (checkpoints,
 decision points, supply points, and similar). All three are created empty
 and ready to use immediately; there's no dialog, and clicking the icon
 again never replaces a layer that already exists (each is checked
 independently, so it only adds back whichever ones are still missing).
 
-**Drawing a control measure**: use QGIS's own native line/polygon editing
-tools (toggle editing, **Add Line Feature** or **Add Polygon Feature**) to
-digitize the measure, then set its type in the attribute form:
+**Work in progress, being rebuilt one Appendix H section at a time.** The
+Lines and Areas layers' own measure-type list only offers **Boundary**
+right now (H.5.5, verified against the real MIL-STD-2525D template
+pictures 2026-08-09) - every other line/area measure type from an earlier,
+less rigorous build pass was removed rather than left half-verified
+alongside it, so what's in the dropdown is always exactly what's actually
+been checked. Further measure types (Phase Line, Objective, Axis of
+Advance, and the rest of Appendix H) are added back in, freshly verified,
+as each of that appendix's own sections gets its turn - see
+docs/roadmap.md's Phase 10 entry for progress. The Control Measure Points
+layer (below) is unaffected by this - its ~80 point-type control measures
+are unchanged.
 
-| Layer | Measure type | Style |
-|---|---|---|
-| Lines | Phase Line | Plain solid line |
-| Lines | Boundary | Dash-dash-dot pattern |
-| Lines | Axis of Advance | Solid line with an arrowhead at its last point — draw it in the direction of advance |
-| Areas | Objective | Solid, unfilled outline |
-| Areas | Named Area of Interest (NAI) | Dashed, unfilled outline |
+**Drawing a Boundary**: use QGIS's own native line editing tools (toggle
+editing, **Add Line Feature**) to digitize the line between two units,
+then fill in its attribute form. A Boundary is the two-unit shape
+MIL-STD-2525D Table H-III describes:
 
-Both layers also have a **Unique designation** text field, labelled
-directly on the map (e.g. "PL RED", "OBJ EAGLE", "NAI 7").
+- **Unique designation** / **Far designation** — the near and far unit's
+  own designation (e.g. "2ID (USA)" / "52ID (GBR)"), shown stacked above
+  and below the echelon amplifier. Always rendered in upper case
+  regardless of what you type, per MIL-STD-2525D's own Labeling rule
+  (Appendix H, H.5.4: "All text labeling shall be in upper case
+  letters").
+- **Status** — Present (solid line) or Planned / Anticipated / On Order
+  (dashed line), per Table H-I.
+- **Echelon** — Team/Crew through Theater, plus Command (Table D-III of
+  the Land appendix) - draws the matching amplifier (Ø, •, ••, •••, I,
+  II, III, X, XX, XXX, XXXX, XXXXX, XXXXXX, or ++) between the near/far
+  designation lines, with the line itself genuinely cut away behind all
+  three (QGIS's own label masking, not a painted box) so the background
+  underneath always shows through cleanly.
+
+This whole label - near designation, echelon amplifier, far designation -
+repeats periodically along a long or multi-vertex boundary (roughly every
+80mm on screen), approximating Table H-III's own "each segment repeats
+the same information" rule.
+
+Status and Echelon exist on the Lines layer's schema for every future
+measure type too, not just Boundary - they'll be reused as later Appendix
+H sections add their own measure types back in.
 
 **Auto-populated measurements**: the Lines layer has a **Length (km)**
 field, and the Areas layer has **Area (km²)** and **Perimeter (km)**
@@ -641,19 +670,25 @@ fields — all computed automatically the moment you finish digitizing
 up to date if you later reshape the feature. Nothing to fill in by hand.
 
 **Affiliation and colour**: both layers also have an **Affiliation**
-field (Friend/Hostile/Neutral/Unknown, defaulting to Unknown) that drives
-the control measure's colour — friendly in blue, hostile in red, and
-neutral/unknown in black — per MIL-STD-2525D's own Coloring rule
-(Appendix H, section H.5.3: friendly control measures in black or blue,
-hostile in red). The shapes themselves (dash pattern, arrowhead
-placement, outline style) are unaffected by affiliation; only colour
-changes.
+field (Friend / Hostile / Neutral / Unknown / Unspecified (black),
+defaulting to Unspecified) that drives the control measure's colour —
+friendly in blue, hostile in red, neutral in green, unknown in yellow,
+unspecified in black — per MIL-STD-2525D's own Standard identity (color
+rules) (Appendix H, section H.5.1.1.1: "black, blue (friendly), red
+(hostile), green (neutral or obstacles), or yellow (unknown ...)").
+"Unspecified" is control measures' own 5th colour choice, alongside the
+four affiliations point symbols elsewhere in this plugin already use —
+there's no equivalent "unspecified, draws black" option for a unit/
+equipment/installation symbol, only for a control measure. The shape
+itself is unaffected by affiliation; only colour changes.
 
 **A note on accuracy**: unlike the unit symbols above (verified exactly
 against the MIL-STD-2525/APP-6 SIDC specification via the milsymbol
 library), there's no equivalent verified rendering engine for tactical
-graphics lines and areas — these styles are a practical, recognisable
-approximation of the standard conventions, not a spec-exact rendition.
+graphics lines and areas — Boundary's own construction is checked
+directly against the standard's real template pictures (not just its
+text), but it's still a hand-built QGIS rendition, not a spec-exact one -
+see this section's own notes above for what's approximated and why.
 
 ### Control Measure Points
 
