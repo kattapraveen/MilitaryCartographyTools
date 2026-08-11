@@ -245,6 +245,118 @@ class TestCreateAirspaceControlMeasuresLinesLayer(QgisTestCase):
         )
 
 
+    def test_base_defense_zone_is_a_two_point_circle(self):
+
+        # 2026-08-12: "make it a two point circle, one for the center
+        # and other for radius" - the maintainer's own words. This
+        # DEPARTS from the standard, which says the symbol "requires
+        # one anchor point" and is "Static" (a fixed-size circle) -
+        # which is exactly why it had been skipped when this module was
+        # first built. A second point for the radius makes it sizable.
+        layer = create_airspace_control_measures_lines_layer()
+
+        symbol = _rule_symbol_for(layer, "base_defense_zone")
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        expression = symbol.symbolLayer(0).geometryExpression()
+
+        self.assertIn("make_circle", expression)
+        self.assertIn("point_n($geometry, 1)", expression)
+        self.assertIn("point_n($geometry, 2)", expression)
+
+        # "BDZ" rides the centre vertex as a marker, not this layer's
+        # own shared labelling - that is set up for the corridors'
+        # along-the-line repeating labels.
+        centre = symbol.symbolLayer(1)
+
+        self.assertEqual(
+            centre.placements(),
+            Qgis.MarkerLinePlacement.FirstVertex
+        )
+        self.assertFalse(centre.rotateSymbols())
+
+
+    def test_base_defense_zone_circle_is_centred_and_sized_by_its_points(self):
+
+        military_symbology_functions.register()
+
+        try:
+
+            layer = create_airspace_control_measures_lines_layer()
+            symbol = _rule_symbol_for(layer, "base_defense_zone")
+
+            feature = QgsFeature(layer.fields())
+            feature.setGeometry(
+                QgsGeometry.fromPolylineXY([
+                    QgsPointXY(10, 20),   # centre
+                    QgsPointXY(13, 24),   # radius point - distance 5
+                ])
+            )
+
+            context = QgsExpressionContext()
+            context.setFeature(feature)
+
+            circle = QgsExpression(
+                symbol.symbolLayer(0).geometryExpression()
+            ).evaluate(context)
+
+            box = circle.boundingBox()
+
+            self.assertAlmostEqual(box.center().x(), 10.0, places=3)
+            self.assertAlmostEqual(box.center().y(), 20.0, places=3)
+            self.assertAlmostEqual(box.width(), 10.0, places=2)
+            self.assertAlmostEqual(box.height(), 10.0, places=2)
+
+
+        finally:
+
+            military_symbology_functions.unregister()
+
+
+    def test_weapons_free_zone_hatch_is_tightened_coloured_and_maskable(self):
+
+        # 2026-08-12: "the hashing can be a bit closer say by 30%, and
+        # the text inside needs to have a mask so that it is readable".
+        # The colour fix came out of the same round: a data-defined
+        # StrokeColor set on the FILL layer is silently ignored - a
+        # QgsLinePatternFillSymbolLayer paints through a sub-symbol -
+        # so every WFZ had been hatched black beside its own correctly
+        # coloured outline.
+        layer = create_airspace_control_measures_areas_layer()
+
+        symbol = _rule_symbol_for(layer, "weapons_free_zone")
+
+        hatch = symbol.symbolLayer(symbol.symbolLayerCount() - 1)
+
+        self.assertAlmostEqual(hatch.distance(), 2.5 * 0.7, places=6)
+
+        self.assertTrue(
+            hatch.subSymbol().symbolLayer(0).dataDefinedProperties().hasProperty(
+                QgsSymbolLayer.Property.StrokeColor
+            )
+        )
+
+        # Stable id so the label can cut a real gap in the hatch.
+        self.assertEqual(hatch.id(), "weapons_free_zone_hatch")
+
+        # Each of settings()/format() returns BY VALUE, so every
+        # intermediate is held in its own variable. Chaining them lets
+        # the temporary's C++ object be collected out from under the
+        # next call and SEGFAULTS the interpreter - the same trap
+        # already documented in test_offensive_control_measures.py, and
+        # walked straight into again here.
+        settings = layer.labeling().settings()
+        text_format = settings.format()
+        mask = text_format.mask()
+
+        self.assertTrue(mask.enabled())
+        self.assertIn(
+            "weapons_free_zone_hatch",
+            [ref.symbolLayerIdV2() for ref in mask.maskedSymbolLayers()]
+        )
+
+
     def test_iff_line_labels_stay_upright(self):
 
         # 2026-08-12: "the text is inverted depending on how the line is

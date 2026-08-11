@@ -31,13 +31,16 @@ its actual drawn geometry (circle + "PUP" text + bowtie path), which
 matches the standard's own template exactly; a milsymbol naming quirk,
 not a missing/wrong symbol.
 
-**One point is skipped outright: Base Defense Zone (170800, BDZ).**
-Its own template is a fixed-size ("Static") plain circle labelled "BDZ"
-around ONE anchor point - not in milsymbol's vocabulary, and it doesn't
-fit the Areas layer's freeform-polygon model either (a fixed circle
-around a single point is a genuine point construct, the same
-"doesn't fit this project's own techniques" reasoning already applied to
-H4's Contain/Retain and H6's Attack By Fire Position/Ambush).
+**Base Defense Zone (170800, BDZ)** was skipped when this module was
+first built - its own template is a fixed-size ("Static") circle
+labelled "BDZ" around ONE anchor point, fitting neither milsymbol's
+vocabulary nor the Areas layer's freeform-polygon model. Added
+2026-08-12 on the maintainer's own instruction, as a TWO-point circle
+instead: "make it a two point circle, one for the center and other for
+radius". That deliberately departs from the standard's own one-anchor,
+Static rule in exchange for a sizable zone - see
+_base_defense_zone_symbol(). It lives on the LINES layer because its
+own geometry is a 2-point line.
 
 **Corridors/Routes (7 types, all under the standard's own "17" Area SIDC
 prefix) are built on the LINES layer instead**, because their actual
@@ -101,8 +104,12 @@ from qgis.core import (
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsField,
+    QgsFontMarkerSymbolLayer,
+    QgsGeometryGeneratorSymbolLayer,
     QgsLinePatternFillSymbolLayer,
     QgsLineSymbol,
+    QgsMarkerLineSymbolLayer,
+    QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
     QgsSimpleLineSymbolLayer,
@@ -157,6 +164,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "saafr": "Standard Use Army Aircraft Flight Route (SAAFR)",
     "transit_corridor": "Transit Corridor (TC)",
     "unmanned_aircraft_route": "Unmanned Aircraft (UA) Route",
+    "base_defense_zone": "Base Defense Zone (BDZ)",
     "iff_off_line": "Identification, Friend-or-Foe (IFF) Off Line",
     "iff_on_line": "Identification, Friend-or-Foe (IFF) On Line",
 }
@@ -286,6 +294,146 @@ def _corridor_symbol():
     return symbol
 
 
+# Base Defense Zone's own circle, from the TWO points the user clicks:
+# vertex 1 is the centre, vertex 2 sets the radius. QGIS's own
+# make_circle() takes exactly that, so no custom Python function is
+# needed; boundary() then reduces the polygon it returns to the ring,
+# since this lives on the LINES layer.
+_BASE_DEFENSE_ZONE_LABEL_EXPRESSION = (
+    "'BDZ' || CASE WHEN \"unique_designation\" IS NOT NULL"
+    " AND \"unique_designation\" != ''"
+    " THEN ' ' || " + _PLAIN_DESIGNATION_LABEL_EXPRESSION + " ELSE '' END"
+)
+
+_BASE_DEFENSE_ZONE_CIRCLE_EXPRESSION = (
+    "boundary(make_circle("
+    "point_n($geometry, 1),"
+    " distance(point_n($geometry, 1), point_n($geometry, 2)),"
+    " 64"
+    "))"
+)
+
+
+def _base_defense_zone_symbol():
+
+    """
+    Table H-XIII, code 170800, page 452 - added 2026-08-12, having been
+    skipped when this module was first built (see module docstring's own
+    former "one point is skipped outright" note).
+
+    **This deliberately departs from the standard**, on the project
+    maintainer's own instruction: "make it a two point circle, one for
+    the center and other for radius". The standard's own draw rules say
+    the symbol "requires one anchor point" and is "Static" - a
+    FIXED-size circle centred on it - which is exactly why it was
+    skipped: a fixed circle around a single point fits neither the
+    freeform-polygon Areas layer nor any line construction here. Taking
+    a second point for the radius makes it sizable, which is far more
+    useful on a real map, at the cost of no longer matching the
+    standard's own "Static" size rule.
+
+    It lives on the LINES layer because its own geometry IS a 2-point
+    line - the same "organise by actual QGIS geometry type, not the
+    standard's own SIDC grouping" principle already applied to the
+    corridor family above.
+    """
+
+    symbol = QgsLineSymbol()
+
+    circle_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    circle_generator.setGeometryExpression(
+        _BASE_DEFENSE_ZONE_CIRCLE_EXPRESSION
+    )
+
+    circle_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    circle_symbol = QgsLineSymbol()
+
+    circle_line_layer = circle_symbol.symbolLayer(0)
+
+    circle_line_layer.setWidth(
+        0.4
+    )
+
+    _apply_affiliation_color(
+        circle_line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    circle_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    circle_generator.setSubSymbol(
+        circle_symbol
+    )
+
+    symbol.changeSymbolLayer(
+        0,
+        circle_generator
+    )
+
+    # "BDZ" at the circle's own centre - which is vertex 1, a point the
+    # user actually clicked, so a marker on the ORIGINAL geometry does
+    # it without touching this layer's own shared labelling (that is
+    # set up for the corridor family's along-the-line, repeating
+    # labels, which would be wrong here). Data-defined so the unique
+    # designation rides along, the way every other zone in this table
+    # labels; the standard's own template shows only the bare "BDZ",
+    # but a nameable zone is more use on a real map and the prefix is
+    # unchanged either way.
+    label_layer = QgsFontMarkerSymbolLayer()
+
+    label_layer.setFontFamily(
+        "Arial"
+    )
+
+    label_layer.setSize(
+        3.5
+    )
+
+    label_layer.setColor(
+        QColor(0, 0, 0)
+    )
+
+    label_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Character,
+        QgsProperty.fromExpression(_BASE_DEFENSE_ZONE_LABEL_EXPRESSION)
+    )
+
+    _apply_affiliation_color(
+        label_layer,
+        [QgsSymbolLayer.Property.FillColor]
+    )
+
+    label_marker = QgsMarkerSymbol()
+
+    label_marker.changeSymbolLayer(
+        0,
+        label_layer
+    )
+
+    centre_label_layer = QgsMarkerLineSymbolLayer(False)
+
+    centre_label_layer.setSubSymbol(
+        label_marker
+    )
+
+    centre_label_layer.setPlacements(
+        Qgis.MarkerLinePlacement.FirstVertex
+    )
+
+    symbol.appendSymbolLayer(
+        centre_label_layer
+    )
+
+    return symbol
+
+
 def _iff_line_symbol(character):
 
     """
@@ -349,6 +497,7 @@ _LINE_SYMBOL_BUILDERS = {
     "saafr": _corridor_symbol,
     "transit_corridor": _corridor_symbol,
     "unmanned_aircraft_route": _corridor_symbol,
+    "base_defense_zone": _base_defense_zone_symbol,
     "iff_off_line": lambda: _iff_line_symbol("IFF OFF"),
     "iff_on_line": lambda: _iff_line_symbol("IFF ON"),
 }
@@ -386,6 +535,20 @@ _AREA_DESIGNATION_LABEL_EXPRESSION = (
 )
 
 
+# Weapons Free Zone's own hatch spacing. Was 2.5mm; reduced 30% on
+# 2026-08-12 at the project maintainer's own request ("the hashing can
+# be a bit closer say by 30%").
+_WEAPONS_FREE_ZONE_HATCH_SPACING_MM = 2.5 * 0.7
+
+# A stable id so this layer's own "WFZ ..." label can mask the hatch it
+# sits on. Masking is configured once per QGIS layer, on the one shared
+# text format (see _build_pal_layer_settings()), and this Areas layer
+# uses a single simple labelling - so one id in one list is all that is
+# needed here, unlike offensive_control_measures.py's own rule-based
+# tree which had to pass every variant's id to every rule.
+_WEAPONS_FREE_ZONE_HATCH_SYMBOL_LAYER_ID = "weapons_free_zone_hatch"
+
+
 def _weapons_free_zone_symbol():
 
     """
@@ -394,18 +557,29 @@ def _weapons_free_zone_symbol():
     lines are part of the fill." A QgsLinePatternFillSymbolLayer at 45
     degrees on top of the same status-driven outline every other area
     here uses.
+
+    2026-08-12, per the project maintainer: "the hashing can be a bit
+    closer say by 30%, and the text inside needs to have a mask so that
+    it is readable" - the spacing below is that 30% reduction, and the
+    hatch layer carries a stable id so this layer's own label can cut a
+    real gap in it via QGIS Selective Masking (see
+    _WEAPONS_FREE_ZONE_HATCH_SYMBOL_LAYER_ID).
     """
 
     symbol = _status_driven_area_outline_symbol()
 
     hatch_layer = QgsLinePatternFillSymbolLayer()
 
+    hatch_layer.setId(
+        _WEAPONS_FREE_ZONE_HATCH_SYMBOL_LAYER_ID
+    )
+
     hatch_layer.setLineAngle(
         45
     )
 
     hatch_layer.setDistance(
-        2.5
+        _WEAPONS_FREE_ZONE_HATCH_SPACING_MM
     )
 
     hatch_layer.setLineWidth(
@@ -416,8 +590,15 @@ def _weapons_free_zone_symbol():
         QColor(0, 0, 0)
     )
 
+    # A QgsLinePatternFillSymbolLayer draws its own hatch through a SUB-
+    # SYMBOL (a QgsLineSymbol), so a data-defined StrokeColor set on the
+    # fill layer itself is silently ignored - which is what this code
+    # did until 2026-08-12, leaving every WFZ hatched black while its
+    # own outline was correctly affiliation-coloured. Found by render
+    # while masking the label; the intent was always here, it just
+    # never reached the layer that actually paints.
     _apply_affiliation_color(
-        hatch_layer,
+        hatch_layer.subSymbol().symbolLayer(0),
         [QgsSymbolLayer.Property.StrokeColor]
     )
 
@@ -590,7 +771,12 @@ def create_airspace_control_measures_areas_layer(name=AREAS_LAYER_NAME):
         Qgis.LabelPlacement.OverPoint,
         _AREA_DESIGNATION_LABEL_EXPRESSION,
         label_geometry_expression="mct_area_label_anchor($geometry)",
-        quadrant=Qgis.LabelQuadrantPosition.BelowRight
+        quadrant=Qgis.LabelQuadrantPosition.BelowRight,
+        # Only Weapons Free Zone has a fill for a label to disappear
+        # into, so its hatch is the only id here - masking a layer a
+        # given feature doesn't have is harmless, the cut only happens
+        # where the label's own text actually renders.
+        masked_symbol_layer_ids=[_WEAPONS_FREE_ZONE_HATCH_SYMBOL_LAYER_ID]
     )
 
     return layer
