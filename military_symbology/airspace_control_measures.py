@@ -51,10 +51,15 @@ applied to H6's Support by Fire Position/Search Area. Every one of them
 Unmanned Aircraft Route 170700) is, per its own template picture, really
 a variable-width RIBBON/BAND with rounded ACP/CCP circle endpoints and up
 to 5 extra descriptive fields (WIDTH/MIN ALT/MAX ALT/DTG START/DTG END) -
-approximated here as a single moderately-thick status-driven line with a
-centred "PREFIX NAME" label, the same whole-table-approximation
-tolerance already used for offensive_control_measures.py's own Axis of
-Advance family: the taper, the ACP/CCP endpoint circles (themselves just
+drawn as TWO PARALLEL LINES either side of the digitized centreline
+with the "PREFIX NAME" label centred BETWEEN them (rebuilt 2026-08-12 -
+until then this was a single thick line, which the maintainer
+corrected: "it is two parallel lines with the unique designation within
+the parallel lines"), the label repeating along the route so multi-
+segment corridors carry it wherever it fits. Still approximated in the
+same whole-table-approximation tolerance already used for
+offensive_control_measures.py's own Axis of Advance family: the taper,
+the ACP/CCP endpoint circles (themselves just
 separate, already-covered point symbols the standard's own draw rules
 say anchor each end - not part of the corridor's own drawn geometry) and
 the WIDTH/altitude/DTG fields are all dropped, keeping only what's
@@ -198,41 +203,85 @@ _LINE_DESIGNATION_LABEL_EXPRESSION = (
 )
 
 
+# Half the corridor's own drawn width - each of the two parallel lines
+# sits this far off the digitized centreline, so the gap between them is
+# twice this. 2.0mm leaves room for the label to sit BETWEEN the lines
+# at this appendix's own 9pt label size without touching either, the
+# same offset offensive_control_measures.py's own Infiltration Lane
+# already uses for its own parallel pair.
+_CORRIDOR_HALF_WIDTH_MM = 2.0
+
+# How often the corridor's own "AC GOLD"-style label repeats along the
+# route. The maintainer's own requirement (2026-08-12) is that "in case
+# of multiple line segments the AC+unique_designator should be in all
+# segments if it fits" - QGIS has no "once per digitized segment" mode,
+# so this is a repeat DISTANCE, which PAL then honours only where the
+# text actually fits. Short segments simply go unlabelled rather than
+# overprinting, which is the "if it fits" behaviour asked for.
+_CORRIDOR_LABEL_REPEAT_MM = 45.0
+
+
 def _corridor_symbol():
 
     """
-    A moderately-thick, status-driven line approximating the standard's
-    own variable-width ribbon (see module docstring for what's dropped).
+    Table H-XIII (printed page 448) - the corridor/route family is drawn
+    as TWO PARALLEL LINES with the label centred between them, NOT the
+    single thick line this rendered as until 2026-08-12 ("it is two
+    parallel lines with the unique designation within the parallel
+    lines" - the project maintainer's own words).
+
+    The user digitizes the corridor's own CENTRELINE, exactly as the
+    standard's own template shows (PT1/PT2 "define the endpoint of a
+    segment's centerline"); the two drawn lines are plain symbol-layer
+    offsets either side of it, so no geometry generator is needed and
+    the feature's own geometry stays the centreline for labelling.
+
     Shared by all 7 corridor/route measure types - only the label prefix
-    differs between them.
+    differs between them (see _CORRIDOR_LABEL_PREFIXES).
     """
-
-    line_layer = QgsSimpleLineSymbolLayer()
-
-    line_layer.setColor(
-        QColor(0, 0, 0)
-    )
-
-    line_layer.setWidth(
-        1.0
-    )
-
-    _apply_affiliation_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    line_layer.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-    )
 
     symbol = QgsLineSymbol()
 
-    symbol.changeSymbolLayer(
-        0,
-        line_layer
-    )
+    for index, offset in enumerate(
+        (_CORRIDOR_HALF_WIDTH_MM, -_CORRIDOR_HALF_WIDTH_MM)
+    ):
+
+        line_layer = QgsSimpleLineSymbolLayer()
+
+        line_layer.setColor(
+            QColor(0, 0, 0)
+        )
+
+        line_layer.setWidth(
+            0.5
+        )
+
+        line_layer.setOffset(
+            offset
+        )
+
+        _apply_affiliation_color(
+            line_layer,
+            [QgsSymbolLayer.Property.StrokeColor]
+        )
+
+        line_layer.setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeStyle,
+            QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+        )
+
+        if index == 0:
+
+            symbol.changeSymbolLayer(
+                0,
+                line_layer
+            )
+
+        else:
+
+            symbol.appendSymbolLayer(
+                line_layer
+            )
 
     return symbol
 
@@ -244,6 +293,13 @@ def _iff_line_symbol(character):
     line with a fixed "IFF OFF"/"IFF ON" label at each end - the same
     _end_label_layer() technique as FCL/LOA/LD elsewhere in this
     appendix.
+
+    The end labels do NOT rotate with the line. 2026-08-12: "the text
+    is inverted depending on how the line is made, it should be right
+    way up" - the maintainer's own words, the same defect already fixed
+    for Bridgehead/Holding/Release Line. With rotation on, a line
+    digitized right-to-left renders BOTH its labels upside-down and
+    below the line, and an angled end segment tilts them.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -279,7 +335,7 @@ def _iff_line_symbol(character):
     ):
 
         symbol.appendSymbolLayer(
-            _end_label_layer(placement, character)
+            _end_label_layer(placement, character, rotate_with_line=False)
         )
 
     return symbol
@@ -443,10 +499,17 @@ def create_airspace_control_measures_lines_layer(name=LINES_LAYER_NAME):
         _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
     )
 
+    # OnLine placement (the shared helper's own default) centres the
+    # label vertically ON the digitized centreline - which, now that the
+    # two drawn lines are offset either side of it, puts the text
+    # exactly BETWEEN them, as the standard's own "AC GOLD" example
+    # shows. The repeat distance is what gives the maintainer's own "in
+    # all segments if it fits" - see _CORRIDOR_LABEL_REPEAT_MM.
     _configure_designation_labeling(
         layer,
         Qgis.LabelPlacement.Line,
-        _LINE_DESIGNATION_LABEL_EXPRESSION
+        _LINE_DESIGNATION_LABEL_EXPRESSION,
+        repeat_distance_mm=_CORRIDOR_LABEL_REPEAT_MM
     )
 
     return layer
@@ -512,10 +575,22 @@ def create_airspace_control_measures_areas_layer(name=AREAS_LAYER_NAME):
         _build_rule_based_renderer(layer, _AREA_SYMBOL_BUILDERS)
     )
 
+    # 2026-08-12: "the zones names and unique identifier ... just need
+    # to be on to top left corner of polygon, within it" - the project
+    # maintainer's own words. The label CONTENT was already right; only
+    # its position was, defaulting to the polygon's own centre. PAL
+    # labels the point mct_area_label_anchor() returns instead - see
+    # that function for why a bounding-box corner cannot be used
+    # directly - and AboveRight hangs the text down-and-right off that
+    # anchor so it hangs DOWN-and-right into the shape rather than
+    # straddling its own top edge (AboveRight was tried first and put
+    # the text half outside - confirmed by render).
     _configure_designation_labeling(
         layer,
         Qgis.LabelPlacement.OverPoint,
-        _AREA_DESIGNATION_LABEL_EXPRESSION
+        _AREA_DESIGNATION_LABEL_EXPRESSION,
+        label_geometry_expression="mct_area_label_anchor($geometry)",
+        quadrant=Qgis.LabelQuadrantPosition.BelowRight
     )
 
     return layer

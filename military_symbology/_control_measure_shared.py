@@ -488,10 +488,20 @@ def _build_pal_layer_settings(
     mask_size_mm=1.2,
     line_anchor_percent=None,
     anchor_text_point=None,
-    line_placement_flags=None
+    line_placement_flags=None,
+    label_geometry_expression=None,
+    quadrant=None
 ):
 
     """
+    `label_geometry_expression` (None by default - every existing caller
+    labels the feature's own geometry) replaces the geometry PAL places
+    the label against, via QGIS's own label geometry generator. Added
+    2026-08-12 for Table H-XIII's own zones, whose labels the standard
+    puts in the polygon's own top-left corner rather than at its centre
+    - see mct_area_label_anchor(). `quadrant` goes with it: which corner
+    of the text sits on that anchor point (OverPoint placement only).
+
     Every label built here is AFFILIATION-COLOURED: its own Colour
     property is data-defined from _AFFILIATION_COLOR_EXPRESSION, so the
     text follows H.5.3's own friend/hostile/neutral/unknown hue rules
@@ -647,6 +657,16 @@ def _build_pal_layer_settings(
         QgsProperty.fromExpression(_AFFILIATION_COLOR_EXPRESSION)
     )
 
+    if label_geometry_expression is not None:
+
+        settings.geometryGenerator = label_geometry_expression
+        settings.geometryGeneratorEnabled = True
+        settings.geometryGeneratorType = Qgis.GeometryType.Point
+
+    if quadrant is not None:
+
+        settings.pointSettings().setQuadrant(quadrant)
+
     return settings
 
 
@@ -658,7 +678,9 @@ def _configure_designation_labeling(
     masked_symbol_layer_ids=None,
     line_anchor_percent=None,
     anchor_text_point=None,
-    line_placement_flags=None
+    line_placement_flags=None,
+    label_geometry_expression=None,
+    quadrant=None
 ):
 
     settings = _build_pal_layer_settings(
@@ -669,7 +691,9 @@ def _configure_designation_labeling(
         masked_symbol_layer_ids,
         line_anchor_percent=line_anchor_percent,
         anchor_text_point=anchor_text_point,
-        line_placement_flags=line_placement_flags
+        line_placement_flags=line_placement_flags,
+        label_geometry_expression=label_geometry_expression,
+        quadrant=quadrant
     )
 
     layer.setLabeling(

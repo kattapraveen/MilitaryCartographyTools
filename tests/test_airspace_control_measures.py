@@ -16,8 +16,11 @@ from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
     QgsExpression,
+    QgsExpressionContext,
     QgsFeature,
+    QgsGeometry,
     QgsMarkerLineSymbolLayer,
+    QgsPointXY,
     QgsProject,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -175,8 +178,14 @@ class TestCreateAirspaceControlMeasuresLinesLayer(QgisTestCase):
                 )
 
 
-    def test_corridor_family_is_a_moderately_thick_status_driven_line(self):
+    def test_corridor_family_is_two_parallel_lines(self):
 
+        # 2026-08-12: "it is two parallel lines with the unique
+        # designation within the parallel lines" - the maintainer's own
+        # words. This family had been a single thick line approximating
+        # the standard's own ribbon; Table H-XIII (printed page 448)
+        # draws two parallel lines with the label centred between them,
+        # PT1/PT2 defining the CENTRELINE the user digitizes.
         layer = create_airspace_control_measures_lines_layer()
 
         for measure_type in (
@@ -188,17 +197,153 @@ class TestCreateAirspaceControlMeasuresLinesLayer(QgisTestCase):
 
                 symbol = _rule_symbol_for(layer, measure_type)
 
-                self.assertEqual(symbol.symbolLayerCount(), 1)
+                self.assertEqual(symbol.symbolLayerCount(), 2)
 
-                base_line = symbol.symbolLayer(0)
+                offsets = []
 
-                self.assertGreaterEqual(base_line.width(), 1.0)
+                for index in range(2):
 
-                self.assertTrue(
-                    base_line.dataDefinedProperties().hasProperty(
-                        QgsSymbolLayer.Property.StrokeStyle
+                    line_layer = symbol.symbolLayer(index)
+
+                    offsets.append(line_layer.offset())
+
+                    self.assertTrue(
+                        line_layer.dataDefinedProperties().hasProperty(
+                            QgsSymbolLayer.Property.StrokeStyle
+                        )
                     )
-                )
+
+                # Equal and opposite about the digitized centreline, so
+                # the label sitting ON that centreline lands between
+                # them.
+                self.assertAlmostEqual(offsets[0], -offsets[1], places=6)
+                self.assertNotAlmostEqual(offsets[0], 0.0, places=6)
+
+
+    def test_corridor_labels_sit_between_the_lines_and_repeat(self):
+
+        # The label rides the digitized centreline (OnLine placement),
+        # which is exactly between the two offset lines. It repeats so
+        # that "in case of multiple line segments the AC+unique_
+        # designator should be in all segments if it fits" - PAL places
+        # a repeat only where the text actually fits, so short segments
+        # go unlabelled rather than overprinting.
+        layer = create_airspace_control_measures_lines_layer()
+
+        settings = layer.labeling().settings()
+
+        self.assertEqual(settings.placement, Qgis.LabelPlacement.Line)
+        self.assertGreater(settings.repeatDistance, 0)
+        self.assertEqual(
+            settings.repeatDistanceUnit,
+            Qgis.RenderUnit.Millimeters
+        )
+
+        self.assertTrue(
+            settings.lineSettings().placementFlags()
+            & Qgis.LabelLinePlacementFlag.OnLine
+        )
+
+
+    def test_iff_line_labels_stay_upright(self):
+
+        # 2026-08-12: "the text is inverted depending on how the line is
+        # made, it should be right way up" - the maintainer's own words.
+        # The same defect already fixed for Bridgehead/Holding/Release
+        # Line: with the marker line's own rotateSymbols flag on, a line
+        # digitized right-to-left renders BOTH end labels upside-down.
+        layer = create_airspace_control_measures_lines_layer()
+
+        for measure_type in ("iff_on_line", "iff_off_line"):
+
+            with self.subTest(measure_type=measure_type):
+
+                symbol = _rule_symbol_for(layer, measure_type)
+
+                for index in (1, 2):
+
+                    self.assertFalse(symbol.symbolLayer(index).rotateSymbols())
+
+
+    def test_zone_labels_anchor_inside_the_polygons_top_left(self):
+
+        # 2026-08-12: "the zones names and unique identifier ... just
+        # need to be on to top left corner of polygon, within it" - the
+        # maintainer's own words. The label content was already right;
+        # only its position was, defaulting to the polygon's centre.
+        layer = create_airspace_control_measures_areas_layer()
+
+        settings = layer.labeling().settings()
+
+        self.assertTrue(settings.geometryGeneratorEnabled)
+        self.assertIn("mct_area_label_anchor", settings.geometryGenerator)
+        self.assertEqual(settings.geometryGeneratorType, Qgis.GeometryType.Point)
+
+        # Hangs down-and-right off the anchor, so it stays inside
+        # rather than straddling the polygon's own top edge.
+        self.assertEqual(
+            settings.pointSettings().quadrant(),
+            Qgis.LabelQuadrantPosition.BelowRight
+        )
+
+
+    def test_area_label_anchor_stays_inside_awkward_polygons(self):
+
+        # A bounding-box corner is NOT usable directly - for anything
+        # non-rectangular it falls outside the shape, which would put
+        # the label off the polygon entirely. Every anchor must be
+        # WITHIN its own polygon, however awkward the outline.
+        military_symbology_functions.register()
+
+        try:
+
+            expression = QgsExpression("mct_area_label_anchor($geometry)")
+
+            shapes = {
+                "square": [(0, 0), (10, 0), (10, 10), (0, 10)],
+                # L-shape whose own bbox top-left is a notch, not solid
+                "L": [(0, 0), (10, 0), (10, 4), (4, 4), (4, 10), (0, 10)],
+                # triangle with an empty top-left
+                "triangle": [(0, 0), (10, 0), (10, 10)],
+                # concave arrowhead
+                "concave": [(0, 0), (10, 5), (0, 10), (3, 5)],
+            }
+
+            for name, ring in shapes.items():
+
+                with self.subTest(shape=name):
+
+                    polygon = QgsGeometry.fromPolygonXY(
+                        [[QgsPointXY(*point) for point in ring]]
+                    )
+
+                    feature = QgsFeature()
+                    feature.setGeometry(polygon)
+
+                    context = QgsExpressionContext()
+                    context.setFeature(feature)
+
+                    anchor = expression.evaluate(context)
+
+                    self.assertFalse(
+                        expression.hasEvalError(), expression.evalErrorString()
+                    )
+
+                    # Inside the polygon...
+                    self.assertTrue(
+                        polygon.contains(anchor),
+                        f"{name}: anchor fell outside the polygon"
+                    )
+
+                    # ...and in its upper-left half, not at the centre.
+                    box = polygon.boundingBox()
+                    point = anchor.asPoint()
+
+                    self.assertGreater(point.y(), box.center().y())
+
+        finally:
+
+            military_symbology_functions.unregister()
 
 
     def test_iff_lines_use_the_expected_fixed_end_labels(self):

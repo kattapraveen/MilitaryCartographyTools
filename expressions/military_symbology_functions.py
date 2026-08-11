@@ -13,6 +13,7 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsProject,
+    QgsRectangle,
     qgsfunction,
 )
 
@@ -1515,6 +1516,75 @@ def mct_ambush_back(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_area_label_anchor',
+    group='Military Cartography Tools'
+)
+def mct_area_label_anchor(values, feature=None, parent=None):
+
+    """
+    A point INSIDE a polygon, biased towards its own top-left corner -
+    for area labels the standard places in the corner rather than at the
+    centre. 2026-08-12, Table H-XIII's own zones (HIDACZ/ROZ/WEZ/...):
+    "the zones names and unique identifier ... just need to be on to top
+    left corner of polygon, within it" - the project maintainer's own
+    words.
+
+    A polygon's own bounding-box corner is NOT usable directly: for
+    anything non-rectangular it falls outside the polygon, which would
+    put the label off the shape entirely. So this clips the polygon to
+    its own top band, then clips THAT to its own left portion, and
+    returns `pointOnSurface()` of the result - a point guaranteed to lie
+    within the polygon, as far towards the top-left as the shape
+    actually allows. Each clip falls back to the previous geometry if it
+    comes back empty (a very thin or very angular polygon), so the
+    worst case is a centred label rather than no label at all.
+
+    `top_fraction` (second argument, default 0.30) and `left_fraction`
+    (third, default 0.45) are how much of the shape's own height and
+    width to keep - deliberately generous, since the label only needs to
+    read as "in the corner", and tighter bands make the fallbacks fire
+    more often on real, irregular operational polygons.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    top_fraction = float(values[1]) if len(values) > 1 else 0.30
+    left_fraction = float(values[2]) if len(values) > 2 else 0.45
+
+    def clipped(source, keep_top, keep_left):
+
+        box = source.boundingBox()
+
+        rectangle = QgsRectangle(
+            box.xMinimum(),
+            box.yMaximum() - box.height() * keep_top,
+            box.xMinimum() + box.width() * keep_left,
+            box.yMaximum(),
+        )
+
+        result = source.intersection(QgsGeometry.fromRect(rectangle))
+
+        return source if result is None or result.isEmpty() else result
+
+    # Top band first, then the left of THAT band - doing both in one
+    # rectangle would cut the corner off diagonally on a shape whose own
+    # top-left is empty.
+    band = clipped(geometry, top_fraction, 1.0)
+
+    corner = clipped(band, 1.0, left_fraction)
+
+    anchor = corner.pointOnSurface()
+
+    return geometry if anchor is None or anchor.isEmpty() else anchor
+
+
+@qgsfunction(
     'mct_search_area_arms',
     group='Military Cartography Tools'
 )
@@ -1940,6 +2010,7 @@ _FUNCTIONS = [
     mct_ambush_back,
     mct_ambush_shaft,
     mct_search_area_arms,
+    mct_area_label_anchor,
 ]
 
 
