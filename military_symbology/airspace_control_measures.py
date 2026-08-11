@@ -46,6 +46,14 @@ assumed:
   (56 -64 88 168) is identical to Point of Departure's own, the symbol
   offensive_control_measures.py already anchors "bottom" for exactly
   this reason. See _POINT_VERTICAL_ANCHOR_EXPRESSION.
+- **Pop-Up Point (180400) needs a size multiplier** - its own "PUP"
+  text sits outside the circle, widening its viewBox to 198x108 against
+  the bars family's 88x148, and QGIS reads a marker's size as its WIDTH,
+  so a fixed 8mm draws it at roughly half its siblings' scale. Doubled
+  per the maintainer's own instruction - see _POINT_SIZE_MULTIPLIERS,
+  which also records the part of that same finding still outstanding
+  (the anchor sits right of the circle, and QGIS has no anchor option
+  that lands where it should).
 
 180000, the table's own generic "Airspace Control Points" parent entry,
 was missing from sidc.py entirely until this move - see that dict's own
@@ -876,6 +884,33 @@ _POINT_STATUS_LABELS = dict(STATUS_LABELS)
 
 _POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
 
+# Pop-Up Point draws at roughly half its siblings' scale at the same
+# nominal marker size, because its own "PUP" text sits OUTSIDE the
+# circle: milsymbol's rendered viewBox for 180400 is 198x108 where the
+# bars family's is 88x148, and QGIS scales an SVG marker to the given
+# size as its WIDTH, so a wider box at a fixed 8mm draws a smaller
+# symbol. Same lever, and same reason, as c2_measures.py's own
+# _POINT_SIZE_MULTIPLIERS - milsymbol.js has no separate stroke-width
+# or font-size option, so overall marker size is all there is.
+#
+# Matching PUP's own circle to Air Control Point's exactly would want
+# 1.83x; 2.0 is the project maintainer's own call ("pop up point can be
+# doubled in size", 2026-08-12), so that is what this uses.
+#
+# This does NOT address the other half of the same finding: the drawn
+# circle is centred at x=100 within a 46..244 viewBox, so QGIS centring
+# the SVG puts the anchor point right of the circle rather than in it.
+# QGIS's own horizontal-anchor options are left/center/right only, none
+# of which lands there. Reported and left as-is.
+_POINT_SIZE_MULTIPLIERS = {
+    "pop_up_point": 2.0,
+}
+
+_POINT_SIZE_EXPRESSION = "CASE " + " ".join(
+    f"WHEN \"entity\" = '{entity}' THEN {_POINTS_DEFAULT_MARKER_SIZE_MM * multiplier}"
+    for entity, multiplier in _POINT_SIZE_MULTIPLIERS.items()
+) + f" ELSE {_POINTS_DEFAULT_MARKER_SIZE_MM} END"
+
 # Downed Aircrew Pick-Up Point's own draw rules: "The point defines the
 # tip of the inverted cone" - i.e. the feature's own coordinate is the
 # BOTTOM of the drawn icon, not its centre, so QGIS has to anchor it
@@ -959,6 +994,11 @@ def _build_points_renderer():
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
         QgsProperty.fromExpression(_POINTS_SIDC_EXPRESSION)
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Size,
+        QgsProperty.fromExpression(_POINT_SIZE_EXPRESSION)
     )
 
     svg_layer.setDataDefinedProperty(

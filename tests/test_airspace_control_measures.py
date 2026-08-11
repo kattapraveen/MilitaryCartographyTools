@@ -940,6 +940,45 @@ class TestCreateAirspaceControlMeasuresPointsLayer(QgisTestCase):
         self.assertEqual(set(anchors.values()), {"center"})
 
 
+    def test_only_pop_up_point_is_drawn_at_a_multiplied_size(self):
+
+        # 180400's own "PUP" text sits outside the circle, widening its
+        # viewBox to 198x108 against the bars family's 88x148 - and
+        # QGIS reads a marker's size as its WIDTH, so at a fixed 8mm it
+        # draws at roughly half its siblings' scale. Doubled on the
+        # maintainer's own instruction ("pop up point can be doubled in
+        # size"); every other entry stays at the base size.
+        layer = create_airspace_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        sizes = {}
+
+        for entity in POINT_ENTITY_LABELS:
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("entity", entity)
+            feature.setAttribute("status", "present")
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            value, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+                QgsSymbolLayer.Property.Size,
+                context,
+                0.0
+            )
+
+            self.assertTrue(ok)
+
+            sizes[entity] = value
+
+        self.assertEqual(sizes.pop("pop_up_point"), 16.0)
+
+        self.assertEqual(set(sizes.values()), {8.0})
+
+
     def test_every_entity_resolves_to_a_real_rendered_symbol(self):
 
         layer = create_airspace_control_measures_points_layer()

@@ -5137,25 +5137,30 @@ tested, not claimed as done here.
       Departure's, already anchored `bottom` for the same reason.
       Every other entry is a "Center Point".
 
-  **Two defects found and reported, NOT fixed** - both are the same
-  underlying QGIS/milsymbol interaction, and fixing either means
-  choosing a size multiplier, which on this project is the
-  maintainer's call:
+  **Two further defects found, reported, and adjudicated** - both are
+  the same underlying QGIS/milsymbol interaction (QGIS reads an SVG
+  marker's size as its WIDTH, so a wider viewBox at a fixed mm size
+  draws a smaller symbol), and fixing either means choosing a size
+  multiplier, which on this project is the maintainer's call. Both were
+  reported with measurements rather than fixed unilaterally:
 
-  - **Pop-Up Point (180400) renders at roughly half its siblings'
+  - **Pop-Up Point (180400) rendered at roughly half its siblings'
     scale.** Its "PUP" text sits OUTSIDE the circle, so milsymbol's
-    viewBox is 198x108 where the bars family's is 88x148. QGIS scales
-    an SVG marker to the given size as its WIDTH, so a wider viewBox at
-    a fixed 8 mm means a smaller drawn symbol. Static, so a fixed
-    multiplier does fix it: matching PUP's circle to ACP's needs
-    ~1.83x. The anchor is also off-centre horizontally (the drawn
-    circle is centred at x=100 in a 46..244 viewBox), which a size
-    multiplier does NOT fix.
+    viewBox is 198x108 where the bars family's is 88x148. Static, so a
+    fixed multiplier fixes it. Matching PUP's own circle to Air Control
+    Point's exactly would have wanted 1.83x; the maintainer's own call
+    was "pop up point can be doubled in size", so it uses 2.0. **The
+    other half of this finding is still outstanding**: the drawn circle
+    is centred at x=100 within a 46..244 viewBox, so QGIS centring the
+    SVG leaves the anchor point right of the circle rather than in it,
+    and QGIS's own horizontal-anchor options (left/center/right) have
+    nothing that lands there. Recorded in _POINT_SIZE_MULTIPLIERS.
   - **TACAN (180600) shrinks whenever a designation is typed** - bare
     it is 88x148, with "629" it is 164.5x148, i.e. 53% scale. Because
     the width depends on how many characters the user types, no static
-    multiplier can fix this one; it needs either a length-driven size
-    expression or accepting the shrink.
+    multiplier can fix this one; it would need a length-driven size
+    expression. Maintainer's own call: "tacan is fine". Left as-is
+    deliberately, not overlooked.
 
   A related latent bug was found and fixed in passing: **the Weapons
   Free Zone hatch was rendering black** while its outline was correctly
@@ -5174,9 +5179,8 @@ tested, not claimed as done here.
   which this walked straight back into. Each intermediate is now held
   in its own variable, with a comment saying so.
 
-  766 tests passing on both QGIS versions. **Table H-XIII is now
-  complete** - lines, areas and points all built and reviewed, with the
-  two size defects above outstanding for a decision.
+  767 tests passing on both QGIS versions. **Table H-XIII is now
+  complete** - lines, areas and points all built and reviewed.
 
     739 tests passing on both QGIS versions.
 
