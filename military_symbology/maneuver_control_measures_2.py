@@ -692,7 +692,11 @@ def create_maneuver_control_measures_2_lines_layer(name=LINES_LAYER_NAME):
         line_placement_flags=(
             Qgis.LabelLinePlacementFlag.AboveLine
             | Qgis.LabelLinePlacementFlag.MapOrientation
-        )
+        ),
+        # 2026-08-12, same round: "change the colour as per affiliation
+        # for the airhead line also" - the label had been rendering
+        # black beside an affiliation-coloured (blue, for friend) line.
+        affiliation_coloured=True
     )
 
     return layer

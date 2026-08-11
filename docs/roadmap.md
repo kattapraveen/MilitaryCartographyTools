@@ -4861,7 +4861,14 @@ tested, not claimed as done here.
     `OnLine` for every existing caller) and passed `AboveLine |
     MapOrientation` for this one layer - MapOrientation included so the
     text still flips to stay readable on a right-to-left line rather
-    than running upside-down.
+    than running upside-down. Same round, once the black-text-beside-a-
+    blue-line mismatch was flagged: "change the colour as per
+    affiliation for the airhead line also" - `_build_pal_layer_
+    settings()` gained an `affiliation_coloured` flag (False by
+    default, so every other simple-labelling caller in this appendix
+    keeps its own plain black text until reviewed) that data-defines
+    the label's own Colour from `_AFFILIATION_COLOR_EXPRESSION`,
+    verified across all five affiliations.
 
     739 tests passing on both QGIS versions.
 

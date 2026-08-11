@@ -488,10 +488,24 @@ def _build_pal_layer_settings(
     mask_size_mm=1.2,
     line_anchor_percent=None,
     anchor_text_point=None,
-    line_placement_flags=None
+    line_placement_flags=None,
+    affiliation_coloured=False
 ):
 
     """
+    `affiliation_coloured` (False by default - every existing caller's
+    own plain black label is unchanged) data-defines the label's own
+    Colour property from _AFFILIATION_COLOR_EXPRESSION, so the text
+    follows H.5.3's own friend/hostile/neutral/unknown hue rules the
+    same way the drawn line/outline beside it already does. 2026-08-12,
+    maneuver_control_measures_2.py's own Airhead Line: "change the
+    colour as per affiliation for the airhead line also" (the
+    maintainer's own words) - its label had been rendering black beside
+    a blue line. The same effect Direction of Attack's own Field T
+    family already gets, but set here rather than per-rule, since this
+    helper builds a single shared QgsPalLayerSettings rather than
+    offensive_control_measures.py's own QgsRuleBasedLabeling tree.
+
     `masked_symbol_layer_ids`, when given, enables QGIS's own Selective
     Masking on this label: the label engine cuts an exact hole (in the
     shape of whatever text actually renders) in each named symbol
@@ -620,6 +634,13 @@ def _build_pal_layer_settings(
         text_format
     )
 
+    if affiliation_coloured:
+
+        settings.dataDefinedProperties().setProperty(
+            QgsPalLayerSettings.Property.Color,
+            QgsProperty.fromExpression(_AFFILIATION_COLOR_EXPRESSION)
+        )
+
     return settings
 
 
@@ -631,7 +652,8 @@ def _configure_designation_labeling(
     masked_symbol_layer_ids=None,
     line_anchor_percent=None,
     anchor_text_point=None,
-    line_placement_flags=None
+    line_placement_flags=None,
+    affiliation_coloured=False
 ):
 
     settings = _build_pal_layer_settings(
@@ -642,7 +664,8 @@ def _configure_designation_labeling(
         masked_symbol_layer_ids,
         line_anchor_percent=line_anchor_percent,
         anchor_text_point=anchor_text_point,
-        line_placement_flags=line_placement_flags
+        line_placement_flags=line_placement_flags,
+        affiliation_coloured=affiliation_coloured
     )
 
     layer.setLabeling(

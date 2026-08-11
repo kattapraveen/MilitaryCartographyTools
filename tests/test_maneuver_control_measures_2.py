@@ -18,6 +18,7 @@ from qgis.core import (
     QgsFeature,
     QgsGeometryGeneratorSymbolLayer,
     QgsMarkerLineSymbolLayer,
+    QgsPalLayerSettings,
     QgsProject,
     QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
@@ -236,6 +237,38 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
 
         self.assertTrue(flags & Qgis.LabelLinePlacementFlag.AboveLine)
         self.assertFalse(flags & Qgis.LabelLinePlacementFlag.OnLine)
+
+        # 2026-08-12, same round: "change the colour as per affiliation
+        # for the airhead line also" - the label had been rendering
+        # black beside an affiliation-coloured line. Same H.5.3 hue
+        # rules the drawn line itself already follows.
+        expected = {
+            "friend": "#0000ff",
+            "hostile": "#ff0000",
+            "neutral": "#00ff00",
+            "unknown": "#ffff00",
+            "unspecified": "#000000",
+        }
+
+        for affiliation, hex_color in expected.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                coloured = QgsFeature(layer.fields())
+                coloured.setAttribute("measure_type", "airhead_line")
+                coloured.setAttribute("affiliation", affiliation)
+
+                colour_context = layer.createExpressionContext()
+                colour_context.setFeature(coloured)
+
+                colour, ok = settings.dataDefinedProperties().valueAsColor(
+                    QgsPalLayerSettings.Property.Color,
+                    colour_context,
+                    QColor(1, 2, 3)
+                )
+
+                self.assertTrue(ok)
+                self.assertEqual(colour.name(), hex_color)
 
 
     def test_line_colours_follow_affiliation_per_ms_std_2525d_h_5_1_1_1(self):
