@@ -1701,6 +1701,98 @@ class TestCreateOffensiveControlMeasuresLinesLayer(QgisTestCase):
                 self.assertEqual(color.name(), "#ff0000")
 
 
+    def test_friendly_named_variants_render_blue_regardless_of_affiliation(self):
+
+        # 2026-08-12: "all friendly symbols must be blue and all enemy
+        # red, rest should depend on affiliation selection" - the
+        # maintainer's own words, the mirror image of the enemy-red rule
+        # above. Scoped (per the maintainer's own answer when asked) to
+        # exactly the measure types whose own NAME already commits them
+        # to a side, so a contradicting affiliation value can't override
+        # it - NOT to Encirclement/Area, which deliberately fold the
+        # standard's own Friendly/Enemy code pairs into one measure type
+        # and use affiliation itself as the discriminator, and NOT to
+        # Critical Friendly Zone / EPW Collection Point / SEAD, which
+        # merely contain the words.
+        layer = create_offensive_control_measures_lines_layer()
+
+        friendly = {
+            "axis_of_advance_airborne": True,
+            "axis_of_advance_aviation": True,
+            "direction_of_attack_aviation": False,
+            "direction_of_attack_ground_axis": False,
+        }
+
+        for measure_type, is_ribbon in friendly.items():
+
+            with self.subTest(measure_type=measure_type):
+
+                symbol = _rule_symbol_for(layer, measure_type)
+
+                base_line = (
+                    symbol.symbolLayer(0).subSymbol().symbolLayer(0)
+                    if is_ribbon
+                    else symbol.symbolLayer(0)
+                )
+
+                for contradicting in ("hostile", "neutral", "unknown"):
+
+                    feature = QgsFeature(layer.fields())
+                    feature.setAttribute("measure_type", measure_type)
+                    feature.setAttribute("affiliation", contradicting)
+
+                    context = layer.createExpressionContext()
+                    context.setFeature(feature)
+
+                    color, ok = base_line.dataDefinedProperties().valueAsColor(
+                        QgsSymbolLayer.Property.StrokeColor,
+                        context,
+                        QColor(1, 2, 3)
+                    )
+
+                    self.assertTrue(ok)
+                    self.assertEqual(color.name(), "#0000ff")
+
+
+    def test_unflagged_variants_still_follow_the_affiliation_field(self):
+
+        # The other half of the same 2026-08-12 instruction - "rest
+        # should depend on affiliation selection". Main Attack carries
+        # no side in its own name, so it must NOT be force-coloured.
+        layer = create_offensive_control_measures_lines_layer()
+
+        symbol = _rule_symbol_for(layer, "direction_of_attack_main")
+        base_line = symbol.symbolLayer(0)
+
+        expected = {
+            "friend": "#0000ff",
+            "hostile": "#ff0000",
+            "neutral": "#00ff00",
+            "unknown": "#ffff00",
+            "unspecified": "#000000",
+        }
+
+        for affiliation, hex_color in expected.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("measure_type", "direction_of_attack_main")
+                feature.setAttribute("affiliation", affiliation)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                color, ok = base_line.dataDefinedProperties().valueAsColor(
+                    QgsSymbolLayer.Property.StrokeColor,
+                    context,
+                    QColor(1, 2, 3)
+                )
+
+                self.assertTrue(ok)
+                self.assertEqual(color.name(), hex_color)
+
+
     def test_infiltration_lane_is_two_parallel_lines_with_a_centred_designation(self):
 
         layer = create_offensive_control_measures_lines_layer()

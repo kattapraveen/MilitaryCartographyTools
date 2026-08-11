@@ -4876,6 +4876,29 @@ tested, not claimed as done here.
     overwrites the same property key, so Enemy's forced red keeps
     winning - confirmed by probe with `affiliation="friend"`.
 
+    Same round, extending the long-standing enemy-red rule to its
+    mirror image: "all friendly symbols must be blue and all enemy red,
+    rest should depend on affiliation selection". A new
+    `_FRIENDLY_MEASURE_TYPES` tuple forces blue for exactly the four
+    measure types whose own NAME already commits them to a side (Axis
+    of Advance - Friendly Airborne/Aviation, Direction of Attack -
+    Friendly Aviation/Ground Axis), so a contradicting affiliation value
+    can no longer override the name. Scope was deliberately checked
+    with the maintainer rather than inferred, because three groups
+    behave differently and a wrong guess silently miscolours real
+    symbology: **Encirclement** (H-XII) and **Area** (H-VII) each FOLD
+    the standard's own separate Friendly/Enemy codes into one measure
+    type and use the affiliation field itself as the discriminator -
+    forcing either colour would break that fold outright; and
+    **Critical Friendly Zone**, **Enemy Prisoner of War Collection
+    Point** and **Suppression of Enemy Air Defence** merely contain the
+    words (a CFZ is a zone to protect, an EPW point is a friendly-run
+    facility, SEAD is a friendly mission against enemy air defence) -
+    none is an enemy symbol. All of those keep the dropdown. Verified
+    by probe across all 6 forced types x 5 affiliations, plus a
+    regression test that Main Attack (no side in its name) still
+    follows the field.
+
     739 tests passing on both QGIS versions.
 
 ---

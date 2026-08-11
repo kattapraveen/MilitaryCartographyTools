@@ -482,6 +482,33 @@ _DIRECTION_OF_ATTACK_FEINT_DESIGNATION_LABEL_EXPRESSION = (
 # friend/hostile/neutral/unknown behaviour unchanged).
 _ENEMY_MEASURE_TYPES = ("axis_of_advance_enemy", "direction_of_attack_enemy")
 
+# **2026-08-12**: "all friendly symbols must be blue and all enemy red,
+# rest should depend on affiliation selection" - the maintainer's own
+# words, extending the enemy-red rule above to its mirror image. These
+# are exactly the measure types whose own NAME already commits them to
+# a side ("... - Friendly Airborne/Aviation/Ground Axis"), so leaving
+# their colour on a dropdown the user could set to "hostile" would let
+# the two contradict each other.
+#
+# Deliberately NOT swept in, per the maintainer's own explicit scoping
+# decision when asked:
+#   - Encirclement (maneuver_control_measures_2.py) and Area
+#     (maneuver_control_measures.py) each FOLD the standard's own
+#     separate Friendly/Enemy codes into ONE measure type and use the
+#     affiliation field itself as the friendly/enemy discriminator -
+#     forcing either colour would break that fold outright.
+#   - Critical Friendly Zone, Enemy Prisoner of War Collection Point and
+#     Suppression of Enemy Air Defence merely CONTAIN the words: a CFZ
+#     is a zone to protect, an EPW collection point is a friendly-run
+#     facility, and SEAD is a friendly mission against enemy air
+#     defence. None is an enemy symbol; all keep the dropdown.
+_FRIENDLY_MEASURE_TYPES = (
+    "axis_of_advance_airborne",
+    "axis_of_advance_aviation",
+    "direction_of_attack_aviation",
+    "direction_of_attack_ground_axis",
+)
+
 # The "master arrow" (the project maintainer's own naming, 2026-08-10/
 # 2026-08-11) - the finalised, non-crossed ribbon construction built
 # and iterated for Main Attack (see _axis_of_advance_ribbon_symbol()'s
@@ -596,10 +623,16 @@ def _axis_of_advance_outer_chevron_layer():
     return generator_layer
 
 
+# Enemy tested before friendly purely for readability - the two tuples
+# are disjoint by construction, so the order can't actually matter.
+# Anything in neither falls through to the ordinary affiliation hue.
 _OFFENSIVE_LINE_COLOR_EXPRESSION = (
     "CASE WHEN \"measure_type\" IN ("
     + ", ".join(f"'{measure_type}'" for measure_type in _ENEMY_MEASURE_TYPES)
-    + ") THEN color_rgb(255, 0, 0) ELSE " + _AFFILIATION_COLOR_EXPRESSION + " END"
+    + ") THEN color_rgb(255, 0, 0)"
+    " WHEN \"measure_type\" IN ("
+    + ", ".join(f"'{measure_type}'" for measure_type in _FRIENDLY_MEASURE_TYPES)
+    + ") THEN color_rgb(0, 0, 255) ELSE " + _AFFILIATION_COLOR_EXPRESSION + " END"
 )
 
 
