@@ -283,18 +283,22 @@ def _search_area_reconnaissance_area_symbol():
     return symbol
 
 
-def _simple_end_label_line_symbol(character, upright_labels=False):
+def _simple_end_label_line_symbol(character):
 
     """
-    `upright_labels` (False by default, preserving Holding Line's and
-    Release Line's own existing behaviour unchanged) keeps the
-    end-of-line abbreviation from rotating with the line - see
-    _end_label_layer()'s own docstring for the 2026-08-12 Bridgehead
-    Line report ("the label on both ends should be straight, in our
-    case one of the labels is inverted") that added it. Only Bridgehead
-    Line passes True so far; the other two share the same underlying
-    issue and are left for their own review round, per this project's
-    standing "one symbol at a time" convention.
+    Bridgehead Line/Holding Line/Release Line - a plain status-driven
+    line with a fixed abbreviation at each end.
+
+    The end labels do NOT rotate with the line (`rotate_with_line=
+    False` on the shared _end_label_layer()) - see that helper's own
+    docstring for the 2026-08-12 Bridgehead Line report ("the label on
+    both ends should be straight, in our case one of the labels is
+    inverted") and the render that confirmed a right-to-left line
+    otherwise flips BOTH its labels upside-down. Applied to Bridgehead
+    Line first, then to Holding Line and Release Line the same day once
+    the maintainer confirmed the same treatment for both ("fix holding
+    line and release line as well") - all three share this one builder,
+    so there is no per-caller flag to carry any more.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -333,7 +337,7 @@ def _simple_end_label_line_symbol(character, upright_labels=False):
             _end_label_layer(
                 placement,
                 character,
-                rotate_with_line=not upright_labels
+                rotate_with_line=False
             )
         )
 
@@ -379,7 +383,7 @@ _LINE_SYMBOL_BUILDERS = {
     "support_by_fire_position": _support_by_fire_position_symbol,
     "search_area_reconnaissance_area": _search_area_reconnaissance_area_symbol,
     "airhead_line": _airhead_line_symbol,
-    "bridgehead_line": lambda: _simple_end_label_line_symbol("BL", upright_labels=True),
+    "bridgehead_line": lambda: _simple_end_label_line_symbol("BL"),
     "holding_line": lambda: _simple_end_label_line_symbol("HL"),
     "release_line": lambda: _simple_end_label_line_symbol("RL"),
 }

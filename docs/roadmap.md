@@ -4821,10 +4821,15 @@ tested, not claimed as done here.
     and an angled end segment tilts its own label. `_end_label_layer()`
     gained a `rotate_with_line=True` parameter (default preserves every
     existing caller unchanged) and Bridgehead Line passes False.
-    **Holding Line and Release Line share the identical bug and were
-    deliberately left alone**, per the standing "one symbol at a time"
-    convention - flagged to the maintainer rather than silently
-    swept in.
+    Holding Line and Release Line share the identical bug; they were
+    flagged rather than silently swept in, per the standing "one symbol
+    at a time" convention, and the maintainer then confirmed the same
+    treatment for both ("fix holding line and release line as well").
+    With all three callers upright, the per-caller flag on
+    `_simple_end_label_line_symbol()` was dropped again as redundant -
+    the shared `_end_label_layer()` keeps its `rotate_with_line`
+    parameter, since Light Line/FEBA and the other modules still use
+    the rotating default.
 
   - **Housekeeping, same day**: removed genuinely dead code found by an
     AST sweep (three orphaned module-level constants -

@@ -178,35 +178,28 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
                     self.assertEqual(font_layer.character(), character)
 
 
-    def test_bridgehead_line_labels_stay_upright(self):
+    def test_simple_end_labelled_lines_keep_their_labels_upright(self):
 
         # 2026-08-12: "the label on both ends should be straight, in our
         # case one of the labels is inverted" - the maintainer's own
-        # words. With the marker line's own rotateSymbols flag on (the
-        # default every other end-labelled line here still uses), a line
-        # digitized right-to-left renders BOTH its labels upside-down,
-        # and an angled end segment tilts its own label - confirmed by
-        # render. Scoped to Bridgehead Line only for now, per this
-        # project's standing "one symbol at a time" convention; Holding
-        # Line and Release Line share the same underlying issue and keep
-        # their own existing behaviour until each is reviewed.
+        # words. With the marker line's own rotateSymbols flag on, a
+        # line digitized right-to-left renders BOTH its labels
+        # upside-down, and an angled end segment tilts its own label -
+        # confirmed by render. Applied to Bridgehead Line first, then to
+        # Holding Line and Release Line the same day ("fix holding line
+        # and release line as well"), so all three now share the one
+        # upright treatment.
         layer = create_maneuver_control_measures_2_lines_layer()
 
-        symbol = _rule_symbol_for(layer, "bridgehead_line")
+        for measure_type in ("bridgehead_line", "holding_line", "release_line"):
 
-        for i in (1, 2):
+            with self.subTest(measure_type=measure_type):
 
-            self.assertFalse(symbol.symbolLayer(i).rotateSymbols())
-
-        for still_rotating in ("holding_line", "release_line"):
-
-            with self.subTest(measure_type=still_rotating):
-
-                other_symbol = _rule_symbol_for(layer, still_rotating)
+                symbol = _rule_symbol_for(layer, measure_type)
 
                 for i in (1, 2):
 
-                    self.assertTrue(other_symbol.symbolLayer(i).rotateSymbols())
+                    self.assertFalse(symbol.symbolLayer(i).rotateSymbols())
 
 
     def test_airhead_line_label_is_a_fixed_centred_string(self):
