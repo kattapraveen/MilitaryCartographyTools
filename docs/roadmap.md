@@ -4864,11 +4864,17 @@ tested, not claimed as done here.
     than running upside-down. Same round, once the black-text-beside-a-
     blue-line mismatch was flagged: "change the colour as per
     affiliation for the airhead line also" - `_build_pal_layer_
-    settings()` gained an `affiliation_coloured` flag (False by
-    default, so every other simple-labelling caller in this appendix
-    keeps its own plain black text until reviewed) that data-defines
-    the label's own Colour from `_AFFILIATION_COLOR_EXPRESSION`,
-    verified across all five affiliations.
+    settings()` now data-defines every label's own Colour from
+    `_AFFILIATION_COLOR_EXPRESSION`. Added first as an opt-in flag for
+    Airhead Line alone; when the same black-label mismatch was flagged
+    as affecting every other simple-labelling caller in this appendix,
+    the maintainer's own instruction was "do it for all", so the flag
+    was dropped again and the colouring made unconditional. Verified
+    across all five affiliations and across every labelled layer
+    (C2/Maneuver II/Airspace/Maritime/FSCM/Target/Target Acquisition).
+    Direction of Attack's own per-rule colour still runs after this and
+    overwrites the same property key, so Enemy's forced red keeps
+    winning - confirmed by probe with `affiliation="friend"`.
 
     739 tests passing on both QGIS versions.
 
