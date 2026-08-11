@@ -2,12 +2,13 @@
 
 """
 Tests for military_symbology/airspace_control_measures.py - the
-Airspace Control Measures line/area layers (Table H-XIII, Mini-Phase
-H7), styled via a QgsRuleBasedRenderer keyed on "measure_type". See that
-module's own docstring for what's approximated (the corridor/route
-family), what's built for real (the zone/area family, IFF Off/On Line),
-and what's skipped (the 25-entry point vocabulary, added instead to
-control_measure_points.py, and Base Defense Zone).
+Airspace Control Measures line/area/point layers (Table H-XIII,
+Mini-Phase H7). The lines and areas are styled via a
+QgsRuleBasedRenderer keyed on "measure_type"; the 26-entry point
+vocabulary is milsymbol-rendered instead, on its own third layer. See
+that module's own docstring for what's approximated (the corridor/route
+family) and what's built for real (the zone/area family, IFF Off/On
+Line, Base Defense Zone, and the points).
 
 Military Cartography Tools
 """
@@ -36,11 +37,19 @@ from MilitaryCartographyTools.military_symbology.airspace_control_measures impor
     AREA_MEASURE_TYPE_LABELS,
     LINES_LAYER_NAME,
     LINE_MEASURE_TYPE_LABELS,
+    POINTS_LAYER_NAME,
+    POINT_ENTITY_LABELS,
     add_airspace_control_measures_areas_layer,
     add_airspace_control_measures_lines_layer,
+    add_airspace_control_measures_points_layer,
     create_airspace_control_measures_areas_layer,
     create_airspace_control_measures_lines_layer,
+    create_airspace_control_measures_points_layer,
 )
+from MilitaryCartographyTools.military_symbology.control_measure_points import (
+    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
+)
+from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
@@ -790,3 +799,249 @@ class TestAddAirspaceControlMeasuresLayers(QgisTestCase):
         names = [child.name() for child in root.children()]
 
         self.assertEqual(names[0], LINES_LAYER_NAME)
+
+
+    def test_points_layer_is_created_and_added(self):
+
+        layer = add_airspace_control_measures_points_layer(self.iface)
+
+        self.assertIsNotNone(layer)
+
+        matching = QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)
+
+        self.assertEqual(len(matching), 1)
+
+
+class TestCreateAirspaceControlMeasuresPointsLayer(QgisTestCase):
+
+    """
+    Table H-XIII's own "Points" sub-section (printed pages 459-464),
+    moved here 2026-08-12 out of the shared control_measure_points.py
+    layer at the project maintainer's own request.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+
+    def test_has_the_expected_fields(self):
+
+        layer = create_airspace_control_measures_points_layer()
+
+        field_names = [field.name() for field in layer.fields()]
+
+        self.assertEqual(
+            field_names,
+            ["affiliation", "entity", "status", "unique_designation"]
+        )
+
+
+    def test_is_a_point_layer(self):
+
+        layer = create_airspace_control_measures_points_layer()
+
+        self.assertEqual(layer.geometryType().name, "Point")
+
+
+    def test_covers_every_code_the_table_lists_from_180000_to_182500(self):
+
+        # The table's own point codes run in an unbroken 100-step
+        # sequence, so the vocabulary can be checked against the
+        # standard directly rather than against itself. 180000 (the
+        # generic "Airspace Control Points" parent) was missing from
+        # sidc.py entirely until this move.
+        codes = sorted(
+            ENTITIES["control_measure"][entity]
+            for entity in POINT_ENTITY_LABELS
+        )
+
+        self.assertEqual(
+            codes,
+            [f"18{step:02d}00" for step in range(0, 26)]
+        )
+
+
+    def test_entity_uses_a_value_map_widget_defaulting_to_air_control_point(self):
+
+        layer = create_airspace_control_measures_points_layer()
+
+        idx = layer.fields().indexOf("entity")
+
+        self.assertEqual(
+            layer.editorWidgetSetup(idx).config()["map"],
+            {label: value for value, label in POINT_ENTITY_LABELS.items()}
+        )
+
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(),
+            "'air_control_point'"
+        )
+
+
+    def test_the_airspace_family_no_longer_appears_on_the_shared_points_layer(self):
+
+        # The point of the move: these must be offered by exactly one
+        # dropdown, not two. sidc.py's own entities are deliberately
+        # left alone, so this checks the LABEL dict (what the user
+        # picks from), not the underlying vocabulary.
+        overlap = set(POINT_ENTITY_LABELS) & set(
+            _CONTROL_MEASURE_POINT_ENTITY_LABELS
+        )
+
+        self.assertEqual(overlap, set())
+
+
+    def test_only_the_downed_aircrew_pickup_point_is_anchored_at_its_tip(self):
+
+        # Its own draw rules: "The point defines the tip of the
+        # inverted cone" - every other entry in this table is a
+        # "Center Point". Confirmed by probe render: 180300's own
+        # rendered viewBox (56 -64 88 168) is identical to Point of
+        # Departure's, which offensive_control_measures.py already
+        # anchors "bottom" for exactly this reason.
+        layer = create_airspace_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        anchors = {}
+
+        for entity in POINT_ENTITY_LABELS:
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("entity", entity)
+            feature.setAttribute("status", "present")
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            value, ok = svg_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.VerticalAnchor,
+                context,
+                ""
+            )
+
+            self.assertTrue(ok)
+
+            anchors[entity] = value
+
+        self.assertEqual(anchors.pop("downed_aircrew_pickup_point"), "bottom")
+
+        self.assertEqual(set(anchors.values()), {"center"})
+
+
+    def test_every_entity_resolves_to_a_real_rendered_symbol(self):
+
+        layer = create_airspace_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        for entity in POINT_ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("affiliation", "friend")
+                feature.setAttribute("entity", entity)
+                feature.setAttribute("status", "present")
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                path, ok = svg_layer.dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.Name,
+                    context,
+                    ""
+                )
+
+                self.assertTrue(ok)
+                self.assertTrue(path.startswith("base64:"))
+
+
+    def test_a_blank_designation_still_renders_the_icon(self):
+
+        # QGIS short-circuits an entire function call to NULL the
+        # moment any argument is NULL, which would blank the whole
+        # icon rather than just its text - hence coalesce(...,'') in
+        # _POINTS_SIDC_EXPRESSION. Regression-pins that.
+        layer = create_airspace_control_measures_points_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", "tacan")
+        feature.setAttribute("status", "present")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name,
+            context,
+            ""
+        )
+
+        self.assertTrue(ok)
+        self.assertTrue(path.startswith("base64:"))
+
+
+    def test_designations_reach_the_three_icons_that_define_a_text_slot(self):
+
+        # A probe render of all 26 codes showed only these three accept
+        # a designation at all, all via milsymbol's plain
+        # `uniqueDesignation` - matching the standard's own templates,
+        # which show a Field T box on exactly these three and no other.
+        # Checked by rendering with and without the designation and
+        # requiring the output to actually differ, rather than trusting
+        # that passing the option did anything.
+        import base64
+
+        layer = create_airspace_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        def rendered(entity, designation):
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("entity", entity)
+            feature.setAttribute("status", "present")
+            feature.setAttribute("unique_designation", designation)
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            path, ok = svg_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Name,
+                context,
+                ""
+            )
+
+            self.assertTrue(ok)
+
+            return base64.b64decode(
+                path[len("base64:"):]
+            ).decode("utf-8")
+
+        for entity in ("air_control_point", "communications_checkpoint", "tacan"):
+
+            with self.subTest(entity=entity):
+
+                svg = rendered(entity, "a7")
+
+                # upper() per H.5.4's "all text labeling in upper case".
+                self.assertIn(">A7<", svg)
+                self.assertNotIn(">a7<", svg)
+
+                self.assertNotEqual(svg, rendered(entity, ""))

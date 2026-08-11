@@ -12,20 +12,44 @@ anchor points plus every segment defined the same way a line is - is a
 band-shaped LINE, not a closed boundary; see below) and areas/zones
 (code range 170000-172000, genuine freeform polygons).
 
-**Points (25 entries, codes 180000-182500) are NOT built here at all -
-every one of them (Air Control Point, Communications Checkpoint, Downed
-Aircrew Pick-Up Point, Pop-Up Point, Air Control Rendezvous, TACAN, CAP/
-AEW/ASW/SUCAP/MIW Stations, Strike Initial Point, Replenishment Station,
-Tanking, Tomcat, Rescue, Unmanned Aerial System, VTUA, Orbit + its 3
-variants) is confirmed present in milsymbol.js's own vendored source
-under this exact numeric code, so they were added directly to sidc.py's
-ENTITIES["control_measure"] and control_measure_points.py's own
-_ENTITY_LABELS instead, the same "point control measures belong to the
-shared, milsymbol-rendered Control Measure Points layer" precedent
-already established for H4's Observation Post family and H5's Point of
-Departure - unlike those two mini-phases, this appendix's own point
-vocabulary genuinely was NOT already present and had to be added.
-milsymbol's own display name for 180400 is "TP.PULL-UP POINT", not
+**Points (26 entries, codes 180000-182500, printed pages 459-464)** get
+their own POINTS layer here, rendered through milsymbol.js exactly the
+way c2_measures.py's and offensive_control_measures.py's own Points
+layers already are (mct_build_sidc()/mct_sidc_svg() into a data-defined
+QgsSvgMarkerSymbolLayer), NOT through this module's own hand-built line/
+area symbology. They originally went straight into the shared
+control_measure_points.py layer when this mini-phase was first built;
+moved here 2026-08-12 at the project maintainer's own request ("all
+symbols related to points, I think they are in control measure points,
+need to be relocated"), the same per-table-layer convention Table H-VI
+(c2_measures.py) and Table H-XI's Point of Departure
+(offensive_control_measures.py) already follow. sidc.py's own entities
+are untouched by the move, so any feature already digitized on the old
+layer keeps rendering.
+
+Two findings from the move, both confirmed by probe render rather than
+assumed:
+
+- **Only three of the 26 take a unique designation at all** - Air
+  Control Point (180100) and Communications Checkpoint (180200) place it
+  at (100,120), directly under their own "ACP"/"CCP" text inside the
+  circle, and TACAN (180600) at (150,70), outside at top right. All
+  three use milsymbol's plain `uniqueDesignation` slot, so this layer
+  needs no per-entity slot lookup of the kind c2_measures.py's own
+  _POINT_TEXT_SLOT_OVERRIDES had to build. Every other entry defines no
+  text slot whatsoever (a passed designation is a harmless no-op),
+  which matches the standard's own templates - only those same three
+  show a Field T box.
+- **Downed Aircrew Pick-Up Point (180300) is the one entry anchored at
+  its own BOTTOM**, not its centre: its draw rules say "The point
+  defines the tip of the inverted cone", and its rendered viewBox
+  (56 -64 88 168) is identical to Point of Departure's own, the symbol
+  offensive_control_measures.py already anchors "bottom" for exactly
+  this reason. See _POINT_VERTICAL_ANCHOR_EXPRESSION.
+
+180000, the table's own generic "Airspace Control Points" parent entry,
+was missing from sidc.py entirely until this move - see that dict's own
+comment. milsymbol's display name for 180400 is "TP.PULL-UP POINT", not
 "Pop-Up Point (PUP)" as the standard calls it - confirmed by inspecting
 its actual drawn geometry (circle + "PUP" text + bowtie path), which
 matches the standard's own template exactly; a milsymbol naming quirk,
@@ -113,6 +137,8 @@ from qgis.core import (
     QgsProject,
     QgsProperty,
     QgsSimpleLineSymbolLayer,
+    QgsSingleSymbolRenderer,
+    QgsSvgMarkerSymbolLayer,
     QgsSymbolLayer,
     QgsVectorLayer,
 )
@@ -139,18 +165,23 @@ from ._control_measure_shared import (
 
 LINES_LAYER_NAME = "Airspace Control Measures (Lines)"
 AREAS_LAYER_NAME = "Airspace Control Measures (Areas)"
+POINTS_LAYER_NAME = "Airspace Control Measures (Points)"
 
 __all__ = [
     "LINES_LAYER_NAME",
     "AREAS_LAYER_NAME",
+    "POINTS_LAYER_NAME",
     "LINE_MEASURE_TYPE_LABELS",
     "AREA_MEASURE_TYPE_LABELS",
+    "POINT_ENTITY_LABELS",
     "AFFILIATION_LABELS",
     "STATUS_LABELS",
     "create_airspace_control_measures_lines_layer",
     "create_airspace_control_measures_areas_layer",
+    "create_airspace_control_measures_points_layer",
     "add_airspace_control_measures_lines_layer",
     "add_airspace_control_measures_areas_layer",
+    "add_airspace_control_measures_points_layer",
 ]
 
 # Table H-XIII - see module docstring for why the "Corridors (Areas)"
@@ -797,4 +828,194 @@ def add_airspace_control_measures_areas_layer(iface):
         iface,
         AREAS_LAYER_NAME,
         create_airspace_control_measures_areas_layer
+    )
+
+
+# --------------------------------------------------------------------
+# Points (Table H-XIII's own "Points" sub-section, printed pages
+# 459-464) - milsymbol-rendered icons, not hand-built symbology. See
+# this module's own docstring for why they moved here out of
+# control_measure_points.py.
+# --------------------------------------------------------------------
+
+# All 26 of the table's own point entries, in the standard's own code
+# order (180000-182500) rather than alphabetically, so the dropdown
+# reads the same way the printed table does.
+POINT_ENTITY_LABELS = {
+    "airspace_control_points": "Airspace Control Points",
+    "air_control_point": "Air Control Point (ACP)",
+    "communications_checkpoint": "Communications Checkpoint (CCP)",
+    "downed_aircrew_pickup_point": "Downed Aircrew Pick-Up Point",
+    "pop_up_point": "Pop-Up Point (PUP)",
+    "air_control_rendezvous": "Air Control Rendezvous",
+    "tacan": "TACAN",
+    "cap_station": "CAP Station",
+    "aew_station": "AEW Station",
+    "asw_fixed_wing_station": "ASW (Helo and F/W) Station",
+    "strike_initial_point": "Strike Initial Point",
+    "replenishment_station": "Replenishment Station",
+    "tanking": "Tanking",
+    "asw_rotary_wing_station": "Antisubmarine Warfare, Rotary Wing",
+    "sucap_fixed_wing": "SUCAP - Fixed Wing",
+    "sucap_rotary_wing": "SUCAP - Rotary Wing",
+    "miw_fixed_wing": "MIW - Fixed Wing",
+    "miw_rotary_wing": "MIW - Rotary Wing",
+    "tomcat": "Tomcat",
+    "rescue": "Rescue",
+    "unmanned_aerial_system": "Unmanned Aerial System (UAS/UA)",
+    "vtua": "VTUA",
+    "orbit": "Orbit",
+    "orbit_figure_eight": "Orbit - Figure Eight",
+    "orbit_race_track": "Orbit - Race Track",
+    "orbit_random_closed": "Orbit - Random Closed",
+}
+
+_POINT_AFFILIATION_LABELS = dict(AFFILIATION_LABELS)
+
+_POINT_STATUS_LABELS = dict(STATUS_LABELS)
+
+_POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
+
+# Downed Aircrew Pick-Up Point's own draw rules: "The point defines the
+# tip of the inverted cone" - i.e. the feature's own coordinate is the
+# BOTTOM of the drawn icon, not its centre, so QGIS has to anchor it
+# there rather than centring the SVG on the point as it does for every
+# other entry here (all of which the table calls "Center Point"). The
+# rendered viewBox for 180300 is "56 -64 88 168", identical to Point of
+# Departure's own (160400), which offensive_control_measures.py's own
+# points renderer already anchors "bottom" for exactly this reason -
+# confirmed here by probe render, not carried over on faith.
+_POINT_VERTICAL_ANCHOR_EXPRESSION = (
+    "CASE WHEN \"entity\" = 'downed_aircrew_pickup_point' "
+    "THEN 'bottom' ELSE 'center' END"
+)
+
+# Plain `uniqueDesignation` for every entity - unlike c2_measures.py's
+# own Points layer, this family needs no per-entity slot lookup: a probe
+# render of all 26 codes through the real milsymbol pipeline showed only
+# 180100/180200/180600 accept a designation at all, and all three take
+# it in this same slot, in the position their own template pictures show
+# (see module docstring). upper(...) per H.5.4's "all text labeling in
+# upper case" rule; coalesce(...,'') because QGIS short-circuits an
+# entire function call to NULL the moment any argument is NULL, which
+# would silently blank the whole icon rather than just its text.
+_POINTS_SIDC_EXPRESSION = (
+    "mct_sidc_svg(mct_build_sidc("
+    "\"affiliation\",\"entity\",'control_measure','unspecified',"
+    "\"status\",false),"
+    "upper(coalesce(\"unique_designation\",'')),"
+    "'uniqueDesignation'"
+    ")"
+)
+
+
+def _configure_points_attribute_form(layer):
+
+    fields = layer.fields()
+
+    affiliation_idx = fields.indexOf("affiliation")
+    entity_idx = fields.indexOf("entity")
+    status_idx = fields.indexOf("status")
+
+    layer.setEditorWidgetSetup(
+        affiliation_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(_POINT_AFFILIATION_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        entity_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(POINT_ENTITY_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        status_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(_POINT_STATUS_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
+    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'air_control_point'"))
+    layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
+
+
+def _build_points_renderer():
+
+    symbol = QgsMarkerSymbol()
+
+    svg_layer = QgsSvgMarkerSymbolLayer("")
+
+    svg_layer.setSize(
+        _POINTS_DEFAULT_MARKER_SIZE_MM
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(_POINTS_SIDC_EXPRESSION)
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.VerticalAnchor,
+        QgsProperty.fromExpression(_POINT_VERTICAL_ANCHOR_EXPRESSION)
+    )
+
+    symbol.changeSymbolLayer(
+        0,
+        svg_layer
+    )
+
+    return QgsSingleSymbolRenderer(symbol)
+
+
+def create_airspace_control_measures_points_layer(name=POINTS_LAYER_NAME):
+
+    """
+    A fresh, empty point layer for Table H-XIII's own "Points"
+    sub-section - all 26 entries, codes 180000-182500. Same fields and
+    same milsymbol-rendered marker as this appendix-by-appendix pass's
+    other Points layers; see this module's own docstring for what the
+    move out of control_measure_points.py did and did not change.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(
+        f"Point?crs={crs.authid()}",
+        name,
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("entity", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+        ]
+    )
+
+    layer.updateFields()
+
+    _configure_points_attribute_form(layer)
+
+    layer.setRenderer(
+        _build_points_renderer()
+    )
+
+    return layer
+
+
+def add_airspace_control_measures_points_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        POINTS_LAYER_NAME,
+        create_airspace_control_measures_points_layer
     )

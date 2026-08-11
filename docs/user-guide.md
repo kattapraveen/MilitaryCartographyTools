@@ -659,9 +659,10 @@ dropdown entry and their own layer(s), freshly verified, as each group's
 own mini-phase gets its turn - see docs/roadmap.md's Phase 10 entry for
 progress. The Control Measure Points layer (below) still covers every
 H.5.x group that hasn't had its own point types split out into a
-dedicated layer yet - as of 2026-08-10 that's everything except Table
-H-VI (now on C2 Measures) and Table H-IX (now on Defensive Control
-Measures).
+dedicated layer yet - as of 2026-08-12 that's everything except Table
+H-VI (now on C2 Measures), Table H-IX (now on Defensive Control
+Measures), Table H-XI's Point of Departure (now on Offensive Control
+Measures) and Table H-XIII (now on Airspace Control Measures).
 
 **Drawing a Boundary**: use QGIS's own native line editing tools (toggle
 editing, **Add Line Feature**) to digitize the line between two units,
@@ -904,10 +905,8 @@ symbol built elsewhere in this plugin.
 ### Airspace Control Measures
 
 MIL-STD-2525D Appendix H.5.15 (Table H-XIII) splits airspace control
-means into points, corridors/routes, and zones. The ~25-entry point
-vocabulary (Air Control Point, TACAN, CAP/AEW/ASW/SUCAP/MIW Stations,
-Orbit and its 3 variants, and similar) is on the **Control Measure
-Points** layer below, not here — see that section.
+means into points, corridors/routes, and zones. All three are here, on
+their own **Lines**, **Areas** and **Points** layers.
 
 **Lines** offers the corridor/route family — **Air Corridor (AC)**,
 **Low-Level Transit Route (LLTR)**, **Minimum-Risk Route (MRR)**, **Safe
@@ -919,8 +918,8 @@ Checkpoint circles at each end and up to 5 extra fields (width, min/max
 altitude, DTG start/end); this plugin keeps only what's SIDC-relevant
 (the measure type, colour, and name) and drops the taper, endpoint
 circles, and extra fields — place separate Air Control Point/
-Communications Checkpoint features from the Control Measure Points layer
-at the ends if you want them shown. Also on this layer: **Identification,
+Communications Checkpoint features from the Points layer below at the
+ends if you want them shown. Also on this layer: **Identification,
 Friend-or-Foe (IFF) Off/On Line**, simple lines with a fixed "IFF OFF"/
 "IFF ON" label at each end.
 
@@ -937,10 +936,34 @@ a genuine hatched fill ("upward diagonal lines are part of the fill"),
 the first area in this plugin's whole Appendix H pass with a real fill
 rather than a plain outline.
 
-**Base Defense Zone (BDZ)** is not built — its own template is a
-fixed-size circle around a single anchor point, which doesn't fit either
-this layer's freeform-polygon model or the Control Measure Points
-layer's milsymbol-driven vocabulary (milsymbol doesn't have it).
+**Base Defense Zone (BDZ)** is on the **Lines** layer, and is drawn by
+clicking **two** points — the first is the zone's centre, the second sets
+its radius. The standard itself specifies a single anchor point and a
+fixed ("Static") size; this plugin deliberately departs from that so the
+zone can be sized to the ground it actually covers. It sits on the Lines
+layer rather than Areas because a centre-plus-radius pair is a 2-point
+line, not a polygon.
+
+**Points** offers all 26 of the table's own point symbols — **Airspace
+Control Points** (the generic parent), **Air Control Point (ACP)**,
+**Communications Checkpoint (CCP)**, **Downed Aircrew Pick-Up Point**,
+**Pop-Up Point (PUP)**, **Air Control Rendezvous**, **TACAN**, **CAP**,
+**AEW**, **ASW (Helo and F/W)**, **Strike Initial Point**,
+**Replenishment Station**, **Tanking**, **Antisubmarine Warfare, Rotary
+Wing**, **SUCAP** and **MIW** (each fixed- and rotary-wing),
+**Tomcat**, **Rescue**, **Unmanned Aerial System (UAS/UA)**, **VTUA**,
+and **Orbit** with its **Figure Eight**, **Race Track** and **Random
+Closed** variants. These are drawn by milsymbol, the same way unit
+symbols are, so they take the usual affiliation/status fields rather
+than this appendix's hand-built line and area styling.
+
+Only three of them show a **unique designation**: ACP and CCP print it
+inside the circle beneath their own text, and TACAN prints it outside at
+top right. The standard shows a designation box on exactly those three
+and no others, so typing one against any other entry has no visible
+effect. Note also that every one of these is centred on the point you
+click except **Downed Aircrew Pick-Up Point**, whose point marks the
+*tip of the inverted cone* — so it draws entirely above where you click.
 
 ### Maritime Control Measures
 
@@ -1078,8 +1101,8 @@ dedicated layer (see the top of this section for which groups have split
 off so far) — maritime hazard/reference points, target and fire-support
 points, obstacle/mine/shelter/CBRN-event points, sustainment/supply
 points (ammunition supply point, casualty collection point, MEDEVAC
-pick-up point, ...), Table H-XIII's own airspace control points, and
-similar. Unlike the Lines/Areas layers above, these ARE rendered through
+pick-up point, ...), and similar. Unlike the Lines/Areas layers above,
+these ARE rendered through
 the same verified milsymbol library as the Units layer, not hand-built
 QGIS symbology — so they're spec-exact, not an approximation.
 
@@ -1092,13 +1115,11 @@ in the attribute form:
   the actual SVG output): friendly/neutral/unknown draw in black, hostile
   draws in red.
 - **Entity** — which point control measure this is (e.g. "Ammunition
-  Supply Point", "TACAN", "Orbit - Figure Eight"). 88 of the standard's
-  ~260 point control measures are available here (Table H-VI's own
-  command/control points and Table H-IX's own Observation Post family
-  moved to their own dedicated layers, see above), including the full
-  Table H-XIII airspace-control-point vocabulary (Air Control Point,
-  Communications Checkpoint, Pop-Up Point, TACAN, CAP/AEW/ASW/SUCAP/MIW
-  Stations, Orbit and its 3 variants, and similar); the more Navy/
+  Supply Point", "Casualty Collection Point", "Iceberg"). 62 of the
+  standard's ~260 point control measures are available here — Table
+  H-VI's own command/control points, Table H-IX's own Observation Post
+  family and Table H-XIII's own 26-entry airspace vocabulary have each
+  moved to their own dedicated layers (see above); the more Navy/
   anti-submarine-warfare-specific ones (sonobuoy types and similar) and
   the granular per-nation supply-class variants aren't currently
   included.

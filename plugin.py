@@ -63,6 +63,7 @@ from .military_symbology.maneuver_control_measures_2 import (
 from .military_symbology.airspace_control_measures import (
     add_airspace_control_measures_lines_layer,
     add_airspace_control_measures_areas_layer,
+    add_airspace_control_measures_points_layer,
 )
 from .military_symbology.maritime_control_measures import (
     add_maritime_control_measures_lines_layer,
@@ -1039,9 +1040,10 @@ class MilitaryCartographyTools:
             "Add Airspace Control Measures layers (MIL-STD-2525D "
             "Appendix H.5.15, Table H-XIII: Air Corridor, Low-Level "
             "Transit Route, Minimum-Risk Route, Safe Lane, SAAFR, "
-            "Transit Corridor, UA Route, IFF Off/On Line, High-Density "
-            "Airspace Control Zone, Restricted/Weapon Engagement Zones, "
-            "Weapons Free Zone)"
+            "Transit Corridor, UA Route, IFF Off/On Line, Base Defense "
+            "Zone, High-Density Airspace Control Zone, Restricted/Weapon "
+            "Engagement Zones, Weapons Free Zone, plus the airspace "
+            "control points - ACP, CCP, TACAN, Orbit and the rest)"
         )
 
         self.airspace_control_measures_action.triggered.connect(
@@ -2044,9 +2046,9 @@ class MilitaryCartographyTools:
         Weapon Engagement Zone family, Weapons Free Zone -
         MIL-STD-2525D Appendix H.5.15, Table H-XIII), ready for
         digitizing with QGIS's own native editing tools. The airspace
-        control point vocabulary itself (ACP, CCP, TACAN, Orbit, and
-        similar) lives on the "Control Measure Points" layer instead -
-        see airspace_control_measures.py's own docstring.
+        control point vocabulary (ACP, CCP, TACAN, Orbit, and similar)
+        now comes with them, on its own third Points layer - see
+        airspace_control_measures.py's own docstring.
         """
 
         add_airspace_control_measures_lines_layer(
@@ -2054,6 +2056,10 @@ class MilitaryCartographyTools:
         )
 
         add_airspace_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_airspace_control_measures_points_layer(
             self.iface
         )
 

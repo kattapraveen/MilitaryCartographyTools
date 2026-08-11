@@ -125,18 +125,22 @@ _STATUS_LABELS = {
 # dict's own comment for what was curated out and why.
 _ENTITY_LABELS = {
     # Table H-VI (Command and control points), Table H-IX (Observation
-    # post), and Table H-XI's own single Point of Departure entry all
-    # moved to their own dedicated layers - c2_measures.py's own
+    # post), Table H-XI's own single Point of Departure entry, and Table
+    # H-XIII's own 26-entry airspace point family have all moved to
+    # their own dedicated layers - c2_measures.py's own
     # POINT_ENTITY_LABELS, defensive_control_measures.py's own
-    # POINT_ENTITY_LABELS, and offensive_control_measures.py's own
+    # POINT_ENTITY_LABELS, offensive_control_measures.py's own
+    # POINT_ENTITY_LABELS, and airspace_control_measures.py's own
     # POINT_ENTITY_LABELS respectively - at the project maintainer's own
-    # request (2026-08-10): a flat ~90-entry dropdown made these groups
-    # hard to find, and the same "own layer(s)" convention c2_measures.py's
-    # own Lines/Areas already follow extends naturally to their own
-    # point-type entities too. Not duplicated here - the underlying
-    # sidc.py entities are untouched, so any already-digitized feature
-    # keeps rendering fine regardless of which layer's dropdown offers
-    # them.
+    # request (2026-08-10, and again 2026-08-12 for the airspace family:
+    # "all symbols related to points, I think they are in control
+    # measure points, need to be relocated"): a flat ~90-entry dropdown
+    # made these groups hard to find, and the same "own layer(s)"
+    # convention c2_measures.py's own Lines/Areas already follow extends
+    # naturally to their own point-type entities too. Not duplicated
+    # here - the underlying sidc.py entities are untouched, so any
+    # already-digitized feature keeps rendering fine regardless of which
+    # layer's dropdown offers them.
     # Maritime hazards / reference points
     "distressed_vessel": "Distressed Vessel",
     "downed_aircraft": "Downed/Ditched Aircraft",
@@ -191,35 +195,6 @@ _ENTITY_LABELS = {
     "destroy_point": "Destroy (Point)",
     "interdict_point": "Interdict (Point)",
     "neutralize_point": "Neutralize (Point)",
-    # Airspace control points (Table H-XIII, Mini-Phase H7) - see
-    # airspace_control_measures.py's own docstring for what's built
-    # there instead (the corridor/route lines and zone/area polygons)
-    # and the one point skipped (Base Defense Zone).
-    "air_control_point": "Air Control Point (ACP)",
-    "communications_checkpoint": "Communications Checkpoint (CCP)",
-    "downed_aircrew_pickup_point": "Downed Aircrew Pick-Up Point",
-    "pop_up_point": "Pop-Up Point (PUP)",
-    "air_control_rendezvous": "Air Control Rendezvous",
-    "tacan": "TACAN",
-    "cap_station": "CAP Station",
-    "aew_station": "AEW Station",
-    "asw_fixed_wing_station": "ASW (Helo and F/W) Station",
-    "strike_initial_point": "Strike Initial Point",
-    "replenishment_station": "Replenishment Station",
-    "tanking": "Tanking",
-    "asw_rotary_wing_station": "Antisubmarine Warfare, Rotary Wing",
-    "sucap_fixed_wing": "SUCAP - Fixed Wing",
-    "sucap_rotary_wing": "SUCAP - Rotary Wing",
-    "miw_fixed_wing": "MIW - Fixed Wing",
-    "miw_rotary_wing": "MIW - Rotary Wing",
-    "tomcat": "Tomcat",
-    "rescue": "Rescue",
-    "unmanned_aerial_system": "Unmanned Aerial System (UAS/UA)",
-    "vtua": "VTUA",
-    "orbit": "Orbit",
-    "orbit_figure_eight": "Orbit - Figure Eight",
-    "orbit_race_track": "Orbit - Race Track",
-    "orbit_random_closed": "Orbit - Random Closed",
     # Maritime control points (Table H-XIV, Mini-Phase H8/H9) - see
     # maritime_control_measures.py's own docstring for what's built
     # there instead (the Bearing Line family) and the much larger

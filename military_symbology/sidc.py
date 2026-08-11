@@ -989,6 +989,17 @@ ENTITIES = {
         # own docstring for the one point skipped, Base Defense Zone,
         # and for milsymbol's own "TP.PULL-UP POINT" display-name quirk
         # for 180400).
+        #
+        # 180000, the table's own generic "Airspace Control Points"
+        # parent entry (printed page 459 - two vertical bars with a
+        # filled centre circle), was missed on that first pass and added
+        # 2026-08-12 when the whole family moved to its own layer. It is
+        # present in milsymbol.js under this code as "TP.AIR CONTROL
+        # POINT" - confusingly close to 180100's own "TP.AIR CONTROL
+        # POINT (ACP)", but a genuinely different icon (bars + dot vs.
+        # circle + "ACP" text), matching the standard's own two separate
+        # template pictures.
+        "airspace_control_points": "180000",
         "air_control_point": "180100",
         "communications_checkpoint": "180200",
         "downed_aircrew_pickup_point": "180300",

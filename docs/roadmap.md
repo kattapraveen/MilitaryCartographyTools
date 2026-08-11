@@ -5049,6 +5049,135 @@ tested, not claimed as done here.
   749 tests passing on both QGIS versions. **Table H-XII is now
   complete** - all ten entries built and reviewed.
 
+- **2026-08-12, Table H-XIII (Airspace control means) reviewed
+  end-to-end.** The maintainer's own live testing produced a list of
+  six defects across the whole table; all six are fixed. Recorded here
+  in one entry rather than six because the first two commits
+  (`93b4f77`, `dc4f49c`) went in without a roadmap entry at all - a
+  lapse against this project's own per-round convention, caught and
+  filled in when the third landed.
+
+  - **Air Corridor and the whole corridor/route family (AC, LLTR, MRR,
+    SL, SAAFR, TC, UA Route) rebuilt as two parallel lines** with the
+    designation label riding BETWEEN them, instead of the single thick
+    line they had been. The maintainer's own words: "it is two parallel
+    lines with the unique designation within the parallel lines, in
+    case of multiple line segments the AC+unique_designator should be
+    in all segments if it fits". Two `QgsSimpleLineSymbolLayer` at
+    `setOffset(±2.0)` mm, and the label given a 45 mm repeat distance
+    so a multi-segment route carries its own name wherever it fits
+    rather than only once at the centre.
+
+  - **Zone labels (HIDACZ, ROZ, AARROZ, UA-ROZ, WEZ/FEZ/JEZ/MEZ/LOMEZ/
+    HIMEZ/SHORADEZ, WFZ) moved to the polygon's own top-left corner,
+    inside it.** The label CONTENT was already correct - the
+    maintainer's own correction mid-round ("the zones names and unique
+    identifier are rendered correctly, they just need to be on to top
+    left corner of polygon, within it") narrowed this from a
+    content bug to a placement one. Needed a new expression function,
+    `mct_area_label_anchor()`, because a bounding-box corner can fall
+    outside a concave polygon entirely: it clips to the top band, then
+    to the left of that band, and returns `pointOnSurface()`, falling
+    back a step at a time if either clip comes up empty. `AboveRight`
+    was tried first and straddled the top edge; `BelowRight` hangs the
+    text down-and-right INTO the shape, which is what was wanted.
+
+  - **IFF Off/On Line labels no longer render upside-down** depending
+    on which direction the line was digitized - the same
+    `rotate_with_line=False` fix already applied to the boundary-line
+    family.
+
+  - **Weapons Free Zone**: hatch spacing tightened 30% (2.5 -> 1.75 mm)
+    and the label given a `QgsTextMaskSettings` mask so it stays
+    readable over the fill.
+
+  - **Base Defense Zone (170800) built**, having been skipped when this
+    mini-phase was first written because its own template is a
+    fixed-size ("Static") circle around ONE anchor point - fitting
+    neither milsymbol's vocabulary nor the Areas layer's freeform-
+    polygon model. Built as a TWO-point circle instead (centre, then
+    radius) on the maintainer's own explicit instruction: "make it a
+    two point circle, one for the center and other for radius". **This
+    deliberately departs from the standard's own one-anchor/Static
+    rule** in exchange for a sizable zone; the departure is recorded in
+    the module docstring, the function docstring, the test, and the
+    commit message, not just here. It lives on the LINES layer because
+    its own geometry is a 2-point line.
+
+  - **All 26 point entries (180000-182500) moved to their own
+    "Airspace Control Measures (Points)" layer**, out of the shared
+    `control_measure_points.py` one - "all symbols related to points, I
+    think they are in control measure points, need to be relocated".
+    Same per-table convention Table H-VI, Table H-IX and Table H-XI's
+    Point of Departure already follow. sidc.py's own entities are
+    untouched by the move, so anything already digitized keeps
+    rendering. Three findings, all from probe renders rather than
+    assumption:
+
+    - **180000, the table's own generic "Airspace Control Points"
+      parent entry, was missing from `sidc.py` entirely** - a gap in
+      the original H7 pass, not something the move introduced. Present
+      in milsymbol as `TP.AIR CONTROL POINT`, confusingly close to
+      180100's own `TP.AIR CONTROL POINT (ACP)` but a genuinely
+      different icon (bars + centre dot vs. circle + "ACP"). Added, and
+      the vocabulary is now pinned by a test that checks the codes form
+      the unbroken 180000-182500 sequence the table itself lists,
+      rather than checking the dict against itself.
+    - **Only 3 of the 26 take a unique designation at all** - ACP
+      (180100) and CCP (180200) place it inside the circle under their
+      own text, TACAN (180600) outside at top right. All three use
+      milsymbol's plain `uniqueDesignation`, so this layer needs no
+      per-entity slot lookup of the kind `c2_measures.py` had to build.
+      The other 23 define no text slot whatsoever - which matches the
+      standard, whose templates show a Field T box on exactly those
+      same three.
+    - **Downed Aircrew Pick-Up Point (180300) anchors at its own
+      bottom**, not its centre ("The point defines the tip of the
+      inverted cone"); its rendered viewBox is identical to Point of
+      Departure's, already anchored `bottom` for the same reason.
+      Every other entry is a "Center Point".
+
+  **Two defects found and reported, NOT fixed** - both are the same
+  underlying QGIS/milsymbol interaction, and fixing either means
+  choosing a size multiplier, which on this project is the
+  maintainer's call:
+
+  - **Pop-Up Point (180400) renders at roughly half its siblings'
+    scale.** Its "PUP" text sits OUTSIDE the circle, so milsymbol's
+    viewBox is 198x108 where the bars family's is 88x148. QGIS scales
+    an SVG marker to the given size as its WIDTH, so a wider viewBox at
+    a fixed 8 mm means a smaller drawn symbol. Static, so a fixed
+    multiplier does fix it: matching PUP's circle to ACP's needs
+    ~1.83x. The anchor is also off-centre horizontally (the drawn
+    circle is centred at x=100 in a 46..244 viewBox), which a size
+    multiplier does NOT fix.
+  - **TACAN (180600) shrinks whenever a designation is typed** - bare
+    it is 88x148, with "629" it is 164.5x148, i.e. 53% scale. Because
+    the width depends on how many characters the user types, no static
+    multiplier can fix this one; it needs either a length-driven size
+    expression or accepting the shrink.
+
+  A related latent bug was found and fixed in passing: **the Weapons
+  Free Zone hatch was rendering black** while its outline was correctly
+  affiliation-coloured. `_apply_affiliation_color()` was being called
+  on the fill layer, but a `QgsLinePatternFillSymbolLayer` paints
+  through its own SUB-SYMBOL, so a data-defined colour set on the fill
+  layer itself is silently ignored. The intent was always there; it
+  just never reached the layer that paints. Verified across all four
+  affiliations.
+
+  One process note: the first version of the WFZ mask test chained
+  `layer.labeling().settings().format().mask()` and segfaulted the
+  interpreter outright. `format()` and `settings()` return by VALUE, so
+  chaining lets the temporary's C++ object be collected mid-expression
+  - a trap `test_offensive_control_measures.py` already documents, and
+  which this walked straight back into. Each intermediate is now held
+  in its own variable, with a comment saying so.
+
+  766 tests passing on both QGIS versions. **Table H-XIII is now
+  complete** - lines, areas and points all built and reviewed, with the
+  two size defects above outstanding for a decision.
+
     739 tests passing on both QGIS versions.
 
 ---

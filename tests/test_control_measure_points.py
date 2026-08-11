@@ -28,6 +28,9 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology import control_measure_points
+from MilitaryCartographyTools.military_symbology.airspace_control_measures import (
+    POINT_ENTITY_LABELS as _AIRSPACE_POINT_ENTITY_LABELS,
+)
 from MilitaryCartographyTools.military_symbology.c2_measures import (
     POINT_ENTITY_LABELS as _C2_POINT_ENTITY_LABELS,
 )
@@ -86,16 +89,18 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
 
         # Not a full match against ENTITIES["control_measure"] on its
         # own any more: Table H-VI (Command and control points), Table
-        # H-IX (Observation Post family), and Table H-XI's own Point of
-        # Departure have all moved out to their own dedicated Points
-        # layers 2026-08-10 (see control_measure_points.py's own
-        # _ENTITY_LABELS comment for why). The real invariant this
+        # H-IX (Observation Post family), Table H-XI's own Point of
+        # Departure (all 2026-08-10) and Table H-XIII's own 26-entry
+        # airspace family (2026-08-12) have all moved out to their own
+        # dedicated Points layers - see control_measure_points.py's own
+        # _ENTITY_LABELS comment for why. The real invariant this
         # guards is that every control_measure entity is offered by SOME
         # dropdown, not necessarily this one - as more H.5.x groups get
         # their own dedicated Points layer, their own entity sets join
         # this union too.
         self.assertEqual(
             set(control_measure_points._ENTITY_LABELS)
+            | set(_AIRSPACE_POINT_ENTITY_LABELS)
             | set(_C2_POINT_ENTITY_LABELS)
             | set(_DEFENSIVE_POINT_ENTITY_LABELS)
             | set(_OFFENSIVE_POINT_ENTITY_LABELS),
