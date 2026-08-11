@@ -626,8 +626,8 @@ measure layer at once, split up at the project maintainer's own request
 so this doesn't keep growing into one unwieldy pile as more of Appendix
 H gets built):
 
-- **C2 Measures** — adds a "Lines" layer and an "Areas" layer (H.5.5/
-  H.5.9/H.5.10, described below).
+- **C2 Measures** — adds a "Lines" layer, an "Areas" layer, and a
+  "Points" layer (H.5.5/H.5.9/H.5.10, described below).
 - **Control Measure Points** — adds the "Control Measure Points" layer
   (checkpoints, decision points, supply points, and similar - described
   further down this section).
@@ -642,16 +642,26 @@ Measures' Lines layer currently offers **Boundary** and **Light Line**;
 its Areas layer offers **Area of Operations**, **Named Area of
 Interest**, **Target Area of Interest**, and **Airfield Zone** (H.5.5/
 Table H-IV and H.5.9/Table H-V, verified against the real MIL-STD-2525D
-template pictures 2026-08-09) - every other line/area measure type from
-an earlier, less rigorous build pass was removed rather than left
-half-verified alongside these, so what's in the dropdown is always
-exactly what's actually been checked. Further Appendix H logical groups
-(Maneuver, Defensive, Offensive, Airspace, Maritime, and the rest) get
-their own new dropdown entry and their own layer(s), freshly verified,
-as each group's own mini-phase gets its turn - see docs/roadmap.md's
-Phase 10 entry for progress. The Control Measure Points layer (below) is
-unaffected by this reorganisation - its ~80 point-type control measures
-are unchanged, and it hasn't been split by logical group yet.
+template pictures 2026-08-09); its Points layer offers all 22 of Table H-VI's own
+command-and-control point types (Checkpoint, Contact/Coordination/
+Decision Point, Fly-To Point, Rally Point, and similar - added
+2026-08-10, moved out of the shared Control Measure Points layer below,
+see that layer's own section for why; two entries this layer briefly
+carried, Target Handover and Key Terrain, were removed again the same
+day once cross-checked against the real standard text and found not to
+exist in Table H-VI, or anywhere in MIL-STD-2525D at all) - every other
+line/area measure type from an earlier,
+less rigorous build pass was removed rather than left half-verified
+alongside these, so what's in each dropdown is always exactly what's
+actually been checked. Further Appendix H logical groups (Maneuver,
+Defensive, Offensive, Airspace, Maritime, and the rest) get their own new
+dropdown entry and their own layer(s), freshly verified, as each group's
+own mini-phase gets its turn - see docs/roadmap.md's Phase 10 entry for
+progress. The Control Measure Points layer (below) still covers every
+H.5.x group that hasn't had its own point types split out into a
+dedicated layer yet - as of 2026-08-10 that's everything except Table
+H-VI (now on C2 Measures) and Table H-IX (now on Defensive Control
+Measures).
 
 **Drawing a Boundary**: use QGIS's own native line editing tools (toggle
 editing, **Add Line Feature**) to digitize the line between two units,
@@ -737,17 +747,341 @@ directly against the standard's real template pictures (not just its
 text), but it's still a hand-built QGIS rendition, not a spec-exact one -
 see this section's own notes above for what's approximated and why.
 
+**C2 Measures' own Points layer** (Table H-VI, H.5.10) works the same
+way as the Control Measure Points layer described later in this section
+- pick an **Entity** from the dropdown (Unspecified Control Point,
+Amnesty Point, Checkpoint, Center of Main Effort, Contact/Coordination/
+Decision Point, Distress Call, Entry Control Point, Fly-To Point
+(Sonobuoy/Weapon/Normal), Linkup/Passage Point, Point of Interest (and
+its own Launch Event variant), Rally/Release/Start/Special Point,
+Waypoint, Airfield), then set **Affiliation** and **Status**; the symbol
+is rendered through the same milsymbol library as the unit layers above,
+not hand-built QGIS symbology like the Lines/Areas layers on this same
+page. Give it a **Unique designation** too and it appears wherever that
+specific icon's own layout puts it - below the main text for most of
+these, but centred in the box for some (Contact Point) and to the right
+of the icon's own line for others (Airfield, Waypoint) - milsymbol
+handles the placement per icon, not a fixed rule this plugin applies
+uniformly.
+
+### Maneuver Control Measures
+
+The **Maneuver Control Measures** entry in the same Control Measures
+dropdown adds its own "Lines" and "Areas" layers (MIL-STD-2525D Appendix
+H.5.11, Table H-VII) - a separate pair from C2 Measures' own, since each
+Appendix H logical group gets its own layers (see the intro to this
+section).
+
+**Lines** offers **Forward Line of Troops (FLOT)** (one continuous
+touching chain of open semicircular arcs, colour driven by Affiliation
+like every other measure here - solid when Present, dotted when Planned/
+Suspected), **Line of Contact (LOC)** (two offset arc chains with a
+4.5mm gap between them, bulging toward the opposite side - friendly
+convex toward the enemy, enemy convex toward friendly, a ")(" shape -
+one chain always black, the other always red, since both sides are shown
+at once and affiliation doesn't apply), **Phase Line** (a plain line with
+"PL" + your own name at each end, no tick), **FEBA** ("FEBA" at each
+end, no tick), and **Principal Direction of Fire** (draw it as a 3-point
+line - the far point, the vertex, then the other far point - for a
+two-armed arrow with both arrowheads pointing away from the vertex).
+
+**Areas** offers a plain **Area** (no label), **Assembly Area (AA)**,
+**Joint/Submarine/Submarine-Generated Action Area** (JTAA/SAA/SGSA -
+labelled "JTAA-02" style, with optional start/end date-time-group
+fields shown as a second line, e.g. "051030-051600Z"), **Drop/
+Extraction/Landing/Pickup Zone** (DZ/EZ/LZ/PZ), **Fortified Area** (a
+genuinely castellated/toothed outline, computed geometry rather than a
+styling approximation - see docs/roadmap.md's own Mini-Phase H3
+correction-pass entry for how), and **Limited Access Area (LAA)** (a
+hatched-fill freeform area, the same technique Airspace Control
+Measures' own Weapons Free Zone uses).
+
+Only **Occupied Assembly Area with Offset Unit(s)** is deliberately not
+built here - it needs a second, separately-connected point/leader-line
+this plugin's control-measure layers don't support yet.
+
+### Defensive Control Measures
+
+The **Defensive Control Measures** entry adds an "Areas" layer (MIL-
+STD-2525D Appendix H.5.12.1, Table H-VIII - this section has no
+line-type control measures at all) and a "Points" layer (H.5.12.2,
+Table H-IX).
+
+**Battle Position** and **Strong Point** both carry an optional
+**Echelon** field (the same Table D-III amplifier Boundary uses under
+C2 Measures - Ø, •, ••, •••, I, II, III, X, XX, ...) - drawn IN the
+perimeter line itself, at the point where you started digitizing the
+polygon, with a real gap cut in the line around it (the same masked-gap
+technique Boundary uses), not as a floating label. Battle Position also
+has a **Prepared** field - set it to add a "(P) " prefix to the name for
+a battle position that's dug in and ready but not yet occupied (e.g.
+"(P) MARS"); setting Prepared always draws the outline dashed, even if
+Status is still left at Present, since "Prepared but not occupied" is
+its own dashed variant in the standard regardless of the separate Status
+field. Strong Point additionally draws a spiked/toothed border around
+the whole outline, pointing outward only regardless of which direction
+you digitized the polygon. **Engagement Area (EA)** is a plain outline
+with an "EA" + optional name label, the same pattern as C2 Measures' own
+AO/NAI/TAI.
+
+**Contain** and **Retain** are deliberately not built - both are
+defined by a center point and a radius (a computed circle with a
+directional gap, not a freeform boundary), which doesn't fit this
+plugin's polygon-digitizing model the way every other area here does.
+
+**Defensive Control Measures' own Points layer** (Table H-IX) offers
+**Observation Post/Outpost** and its own Reconnaissance/Forward
+Observer/CBRN/Sensor-Listening/Combat Outpost variants, plus **Target
+Reference Point** - pick an **Entity** from the dropdown, then set
+**Affiliation** and **Status**, the same way as C2 Measures' own Points
+layer above. Moved here from the shared Control Measure Points layer on
+2026-08-10, since a flat ~90-entry dropdown made these 7 hard to find.
+
+### Offensive Control Measures
+
+The **Offensive Control Measures** entry adds its own "Lines" and
+"Areas" layers (MIL-STD-2525D Appendix H.5.13, Tables H-X/H-XI).
+
+**Lines** offers two visually different arrow families, plus a handful
+of simple end-labelled lines:
+
+- **Axis of Advance** (Friendly Airborne/Aviation, Attack Helicopter,
+  Main Attack, Supporting Attack, for a Feint, Enemy) - drawn as a
+  thick line with a solid arrowhead at the end. The standard's own
+  construction is a variable-width tapered ribbon computed from up to
+  50 anchor points; this plugin approximates it as a single-width line
+  along whatever path you digitize, so the exact taper and the small
+  per-type decorations (a crossed "X" for Attack Helicopter, a doubled
+  outline for Main Attack, ...) aren't reproduced - only the arrow
+  shape and colour are.
+- **Direction of Attack** (the same six sub-types) - drawn for real,
+  not approximated: a thin line with a small open (unfilled) chevron
+  arrowhead at the end.
+- **Final Coordination Line (FCL)**, **Limit of Advance (LOA)**, **Line
+  of Departure (LD)**, **Line of Departure/Line of Contact (LD/LC)** -
+  a plain line with the fixed abbreviation at each end, the same
+  pattern as C2 Measures' own Light Line.
+- **Probable Line of Deployment (PLD)** - same "PLD" end-label
+  construction, but always dashed regardless of the Status field - the
+  standard's own note says this one is dashed in both Present and
+  Planned status.
+
+**Areas** offers **Assault Position (ASLT)**, **Attack Position
+(ATK)**, and **Objective Area (OBJ)** - all the familiar "prefix +
+optional name" pattern.
+
+**Infiltration Lane** and **Point of Departure** are not built here -
+Infiltration Lane is another variable-width construction (like Axis of
+Advance, but as a "lane" a single line doesn't read well as an
+approximation of), and Point of Departure is a point symbol already
+available on the Control Measure Points layer.
+
+### Maneuver Control Measures II
+
+The standard's own Appendix H.5.14 section is titled "Maneuver control
+measure symbols" - the identical title H.5.11 already uses - so this
+entry (Table H-XII) got a "II" suffix to tell it apart from the earlier
+**Maneuver Control Measures** entry, not because it's a lesser or
+optional set.
+
+**Lines** offers **Support by Fire Position** and **Search Area/
+Reconnaissance Area** (both arrow-based, an arrowhead at each end or at
+a shared vertex plus a boxed "A"), plus four simple end-labelled lines:
+**Airhead Line** (a fixed, centred "AIRHEAD LINE" label rather than one
+at each end), **Bridgehead Line (BL)**, **Holding Line (HL)**, and
+**Release Line (RL)**.
+
+**Areas** offers **Encirclement** (a spiked/toothed border, the same
+technique as Defensive Control Measures' own Strong Point) and
+**Penetration Box** (a plain outline, no label).
+
+**Attack By Fire Position** and **Ambush** are not built here - both
+need an arrow shaft that connects not to a point you actually digitize
+but to the *computed midpoint* of a separate line between two other
+points, a genuinely different construction from every arrow-based
+symbol built elsewhere in this plugin.
+
+### Airspace Control Measures
+
+MIL-STD-2525D Appendix H.5.15 (Table H-XIII) splits airspace control
+means into points, corridors/routes, and zones. The ~25-entry point
+vocabulary (Air Control Point, TACAN, CAP/AEW/ASW/SUCAP/MIW Stations,
+Orbit and its 3 variants, and similar) is on the **Control Measure
+Points** layer below, not here — see that section.
+
+**Lines** offers the corridor/route family — **Air Corridor (AC)**,
+**Low-Level Transit Route (LLTR)**, **Minimum-Risk Route (MRR)**, **Safe
+Lane (SL)**, **SAAFR**, **Transit Corridor (TC)**, **Unmanned Aircraft
+(UA) Route** — each drawn as a moderately-thick status-driven line with
+a centred "PREFIX NAME" label. The standard's own template draws these
+as a variable-width ribbon with rounded Air Control Point/Communications
+Checkpoint circles at each end and up to 5 extra fields (width, min/max
+altitude, DTG start/end); this plugin keeps only what's SIDC-relevant
+(the measure type, colour, and name) and drops the taper, endpoint
+circles, and extra fields — place separate Air Control Point/
+Communications Checkpoint features from the Control Measure Points layer
+at the ends if you want them shown. Also on this layer: **Identification,
+Friend-or-Foe (IFF) Off/On Line**, simple lines with a fixed "IFF OFF"/
+"IFF ON" label at each end.
+
+**Areas** offers 12 zone types, all a plain status-driven outline with a
+centred "PREFIX\nNAME" label: **High-Density Airspace Control Zone
+(HIDACZ)**, **Restricted Operations Zone (ROZ)**, **Air-to-Air ROZ
+(AARROZ)**, **Unmanned Aircraft ROZ (UA-ROZ)**, and the Weapon Engagement
+Zone family — **WEZ**, **FEZ**, **JEZ**, **MEZ**, **LOMEZ**, **HIMEZ**,
+**SHORADEZ** (the standard's own note says WEZ "includes" the other five
+as its own sub-types, but the table lists each as its own separate SIDC
+code too, so all six are separate dropdown entries here). **Weapons Free
+Zone (WFZ)** is the one exception — the standard's own template requires
+a genuine hatched fill ("upward diagonal lines are part of the fill"),
+the first area in this plugin's whole Appendix H pass with a real fill
+rather than a plain outline.
+
+**Base Defense Zone (BDZ)** is not built — its own template is a
+fixed-size circle around a single anchor point, which doesn't fit either
+this layer's freeform-polygon model or the Control Measure Points
+layer's milsymbol-driven vocabulary (milsymbol doesn't have it).
+
+### Maritime Control Measures
+
+MIL-STD-2525D Appendix H.5.16 (Table H-XIV) turned out to be
+overwhelmingly Navy-AEGIS-combat-system-specific or anti-submarine-
+warfare/sonar-specific, not general-purpose maritime control measures —
+this section is heavily curated as a result, and (unlike every other
+Appendix H section built so far) has no Areas layer at all, since the
+table's own content never reaches an "Areas" heading.
+
+**Lines** offers the **Bearing Line** family — a simple 2-point line
+with a fixed abbreviation centred along it: **Bearing Line (B)**,
+**Electronic (E)**, **Electronic Warfare (EW)**, **Acoustic (A)**,
+**Acoustic (Ambiguous)** (a separate, always-dashed SIDC code, not a
+status variant), **Torpedo (T)**, **Electro-Optical Intercept (O)**,
+**Jammer (J)**, **Radio Detention Finder (RDF)**.
+
+A curated subset of the table's own general-purpose points — **Plan
+Ship**, **Aim Point**, **Defended Asset**, **Drop Point**, **Entry
+Point**, **Air Detonation**, **Ground Zero**, **Impact Point**,
+**Predicted Impact Point**, **Missile Detection Point**, **Brief
+Contact**, **Datum Lost Contact**, **Navigational Reference Point** —
+was added to the **Control Measure Points** layer below.
+
+**Deliberately not built**: the whole "(AEGIS only)" family of fixed-
+graphic overlay constructs (Launch Area, Defended Area, No Attack Zone,
+Ship Area of Interest, Active Maneuver Area, Cued Acquisition Doctrine,
+Radar Search Doctrine — AEGIS naval combat system display overlays with
+specific fixed colours/fills, a genuinely different display category
+this plugin doesn't otherwise build toward), and the entire anti-
+submarine-warfare/sonar-contact-point and Sonobuoys families (Launched
+Torpedo, ECM Decoy, BT Buoy Drop, Reported Bottomed Sub, Sonobuoy and
+its sub-types, and similar) — the same "more Navy/anti-submarine-
+warfare-specific ones" category already excluded from the base Control
+Measure Points vocabulary.
+
+### Deception Control Measures
+
+The smallest section in this whole Appendix H pass — MIL-STD-2525D
+Appendix H.5.17 (Table H-XV) has exactly one symbol worth building.
+
+**Lines** offers **Decoy/Dummy**: a 3-point line (drag out two arms from
+a shared vertex) drawn as a dashed "tent"/chevron shape, always dashed
+regardless of any present/planned distinction — a decoy is inherently a
+simulated, not-actually-occupied construct.
+
+Everything else in the table is either already covered elsewhere or
+deferred: **Decoy/Dummy and Feint** modifies another, separately-drawn
+control measure rather than standing alone, so it isn't built; **Axis
+of Advance for a Feint** and **Direction of Attack for a Feint** are the
+standard's own cross-references to symbols already on the **Offensive
+Control Measures** layer (`axis_of_advance_feint`/
+`direction_of_attack_feint`); **Decoy Mined Area** and **Dummy
+Minefield** are the standard's own forward-references to the future
+Obstacles table.
+
+### Fire Support Coordination Measures
+
+MIL-STD-2525D Appendix H.5.18 (Table H-XVI) sets a general labelling
+rule for every entry here: abbreviation + controlling headquarters +
+effective times. This plugin keeps the abbreviation and drops the
+controlling-headquarters/effective-times info boxes, the same tolerance
+already used for other appendices' own WIDTH/altitude/DTG fields.
+
+**Areas** offers 5 types, each folding the standard's own separate
+Irregular/Rectangle/Circular SIDC codes into one dropdown entry (draw
+whichever boundary shape you like — the standard's own 3 shape variants
+render identically once only the boundary differs): **Airspace
+Coordination Area (ACA)**, **Free Fire Area (FFA)**, **No Fire Area
+(NFA)** — the one area here with a genuine hatched fill, matching
+Airspace Control Measures' own Weapons Free Zone — **Restricted Fire
+Area (RFA)**, **Position Area For Artillery (PAA)** (Rectangle/Circle
+only, no Irregular variant in the standard's own table).
+
+**Lines** offers 6 types. Four repeat their abbreviation at both ends —
+**Fire Support Coordination Line (FSCL)**, **No Fire Line (NFL)**,
+**Battlefield Coordination Line (BCL)**, **Restrictive Fire Line
+(RFL)**. Two show a single label centred along the line instead —
+**Coordinated Fire Line (CFL)** and **Munition Flight Path (MFP)**.
+**CFL is also always drawn dashed**, a fixed property of the code
+itself (not a present/planned distinction) — its own template and
+example both show it dashed with no solid variant.
+
+### Target Control Measures
+
+MIL-STD-2525D Appendix H.5.19 (Table H-XVII). Most of this table's own
+point vocabulary — Point/Single Target, Nuclear Target, Target-Recorded
+(AEGIS Only), Fire Support Station, and the whole Field Artillery point
+family (Firing/Hide/Launch/Reload/Survey Control Point) — was already
+on the **Control Measure Points** layer from an earlier pass.
+
+**Lines** offers 3 types, each with a perpendicular tick at both ends:
+**Linear Target** (a bare designation, no fixed abbreviation),
+**Linear Smoke Target** (a fixed "SMOKE" second line under an optional
+name), **Final Protective Fire (FPF)** (a fixed centred label).
+
+**Areas** offers 5 types: **Area Target** and **Series or Group of
+Targets** (both a bare name with no fixed prefix — for Series or Group
+of Targets, place the individual target features it groups as their
+own separate point/line/area features; only the boundary + name is
+drawn here), **Smoke** (a fixed "SMOKE" label plus an optional name —
+present/planned folds onto the usual Status field here, unlike this
+appendix's other fixed-dash constructions), **Bomb Area** (a fixed
+"BOMB" label, no name), **Fire Support Area (FSA)** (prefix + optional
+name).
+
+**Rectangular Target - Single Target (AEGIS Only)** is not built — a
+fixed compound diamond+cross icon anchored to one point with a
+permanently-upright orientation, the same AEGIS-combat-system-specific
+category already excluded throughout Maritime Control Measures.
+
+### Target Acquisition Control Measures
+
+MIL-STD-2525D Appendix H.5.20 (Table H-XVIII) — 11 area types, all the
+same "freeform outline + prefix + optional name" construction: **Artillery
+Target Intelligence Zone (ATI)**, **Call For Fire Zone (CFF ZONE)**,
+**Censor Zone**, **Critical Friendly Zone (CF ZONE)**, **Dead Space Area
+(DA)**, **Sensor Zone**, **Target Build-up Area (TBA)**, **Target Value
+Area (TVAR)**, **Zone of Responsibility (ZOR)**, **Blue Kill Box (BKB)**,
+**Purple Kill Box (PKB)**. The prefix text matches each one's own
+template exactly — the standard itself isn't consistent about spelling
+"ZONE" out, so this plugin doesn't force one either.
+
+**Weapon/Sensor Range Fan (Circular and Sector variants)** are not
+built — both need genuinely computed geometry from a single anchor
+point (one or more concentric range rings, or a pie-shaped sector with
+an azimuth centreline and left/right limits) rather than a boundary you
+directly digitize.
+
 ### Control Measure Points
 
-The "Control Measure Points" layer covers MIL-STD-2525D Appendix H's own
-point-type control measures — command/control points (checkpoint, contact
-point, decision point, rally point, ...), observation posts, target and
-fire-support points, obstacle/mine/shelter/CBRN-event points, and
-sustainment/supply points (ammunition supply point, casualty collection
-point, MEDEVAC pick-up point, ...). Unlike the Lines/Areas layers above,
-these ARE rendered through the same verified milsymbol library as the
-Units layer, not hand-built QGIS symbology — so they're spec-exact, not an
-approximation.
+The "Control Measure Points" layer covers whichever of MIL-STD-2525D
+Appendix H's own point-type control measures don't yet have their own
+dedicated layer (see the top of this section for which groups have split
+off so far) — maritime hazard/reference points, target and fire-support
+points, obstacle/mine/shelter/CBRN-event points, sustainment/supply
+points (ammunition supply point, casualty collection point, MEDEVAC
+pick-up point, ...), Table H-XIII's own airspace control points, and
+similar. Unlike the Lines/Areas layers above, these ARE rendered through
+the same verified milsymbol library as the Units layer, not hand-built
+QGIS symbology — so they're spec-exact, not an approximation.
 
 Place points with QGIS's own native **Add Point Feature** tool, then fill
 in the attribute form:
@@ -757,11 +1091,16 @@ in the attribute form:
   (confirmed by rendering real examples through the library and reading
   the actual SVG output): friendly/neutral/unknown draw in black, hostile
   draws in red.
-- **Entity** — which point control measure this is (e.g. "Checkpoint",
-  "Decision Point", "Ammunition Supply Point"). About 80 of the
-  standard's ~260 point control measures are available; the more
-  Navy/anti-submarine-warfare-specific ones (sonobuoy types and similar)
-  and the granular per-nation supply-class variants aren't currently
+- **Entity** — which point control measure this is (e.g. "Ammunition
+  Supply Point", "TACAN", "Orbit - Figure Eight"). 88 of the standard's
+  ~260 point control measures are available here (Table H-VI's own
+  command/control points and Table H-IX's own Observation Post family
+  moved to their own dedicated layers, see above), including the full
+  Table H-XIII airspace-control-point vocabulary (Air Control Point,
+  Communications Checkpoint, Pop-Up Point, TACAN, CAP/AEW/ASW/SUCAP/MIW
+  Stations, Orbit and its 3 variants, and similar); the more Navy/
+  anti-submarine-warfare-specific ones (sonobuoy types and similar) and
+  the granular per-nation supply-class variants aren't currently
   included.
 - **Status** — Present or Planned.
 

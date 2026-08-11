@@ -18,3 +18,7 @@ milsymbol-3.0.4/
 # material, not part of the plugin) - kept locally for verifying symbols
 # against the standard's own text/diagrams.
 reference/
+
+# QGIS-generated local style database - created by headless/GUI QGIS runs,
+# empty and not part of the plugin.
+symbology-style.db

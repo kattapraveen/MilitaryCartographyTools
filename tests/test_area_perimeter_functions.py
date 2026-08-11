@@ -117,6 +117,139 @@ class TestAreaAndPerimeterFunctions(QgisTestCase):
         )
 
 
+class TestCrenellateOutlineFunction(QgisTestCase):
+
+    """
+    Tests for mct_crenellate_outline() - Fortified Area's own
+    castellated boundary (military_symbology/maneuver_control_measures.
+    py). See that function's own docstring for why a real computed
+    geometry was needed here rather than a QgsMarkerLineSymbolLayer
+    styling trick (two earlier attempts using the latter both broke
+    down on a real curved/multi-vertex boundary).
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.feature = QgsFeature()
+
+        self.feature.setGeometry(
+            QgsGeometry.fromWkt(
+                "POLYGON((0 0, 0 10, 10 10, 10 0, 0 0))"
+            )
+        )
+
+        self.context = QgsExpressionContext()
+
+        self.context.setFeature(
+            self.feature
+        )
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _evaluate(self, expression_text):
+
+        expression = QgsExpression(expression_text)
+
+        result = expression.evaluate(self.context)
+
+        self.assertFalse(
+            expression.hasEvalError(),
+            expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_returns_a_non_empty_line_geometry(self):
+
+        result = self._evaluate(
+            "mct_crenellate_outline($geometry, 12)"
+        )
+
+        self.assertIsInstance(result, QgsGeometry)
+        self.assertFalse(result.isEmpty())
+
+
+    def test_teeth_protrude_outward_beyond_the_original_boundary(self):
+
+        # The crenellated outline's own bounding box must be strictly
+        # larger than the original polygon's - if the teeth pointed the
+        # wrong way (inward) or weren't offset at all, the bounding box
+        # would match or shrink instead.
+        result = self._evaluate(
+            "mct_crenellate_outline($geometry, 12)"
+        )
+
+        original_bbox = self.feature.geometry().boundingBox()
+        crenellated_bbox = result.boundingBox()
+
+        self.assertGreater(
+            crenellated_bbox.width(),
+            original_bbox.width()
+        )
+        self.assertGreater(
+            crenellated_bbox.height(),
+            original_bbox.height()
+        )
+
+
+    def test_output_is_a_closed_ring(self):
+
+        result = self._evaluate(
+            "mct_crenellate_outline($geometry, 12)"
+        )
+
+        line = result.constGet()
+
+        first_point = line.pointN(0)
+        last_point = line.pointN(line.numPoints() - 1)
+
+        self.assertAlmostEqual(first_point.x(), last_point.x(), places=9)
+        self.assertAlmostEqual(first_point.y(), last_point.y(), places=9)
+
+
+    def test_more_teeth_produces_more_vertices(self):
+
+        few_teeth = self._evaluate(
+            "mct_crenellate_outline($geometry, 8)"
+        )
+        many_teeth = self._evaluate(
+            "mct_crenellate_outline($geometry, 20)"
+        )
+
+        self.assertGreater(
+            many_teeth.constGet().numPoints(),
+            few_teeth.constGet().numPoints()
+        )
+
+
+    def test_defaults_to_fourteen_teeth_when_omitted(self):
+
+        default_call = self._evaluate(
+            "mct_crenellate_outline($geometry)"
+        )
+        explicit_fourteen = self._evaluate(
+            "mct_crenellate_outline($geometry, 14)"
+        )
+
+        self.assertEqual(
+            default_call.constGet().numPoints(),
+            explicit_fourteen.constGet().numPoints()
+        )
+
+
 class TestLengthFunction(QgisTestCase):
 
     def setUp(self):

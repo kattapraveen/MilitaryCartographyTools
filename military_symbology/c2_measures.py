@@ -125,24 +125,39 @@ each documented on the specific function it fixed:
     Qgis.LabelPlacement.OutsidePolygons placement via
     QgsRuleBasedLabeling).
 
+**2026-08-10: this module gained a third layer, Points (Table H-VI,
+Command and control points, H.5.10)**, moved out of the shared, ~90-entry
+control_measure_points.py dropdown at the project maintainer's own
+request - the same "own layer(s)" convention Lines/Areas already follow
+here, extended to this group's own point-type entities too. Rendered
+through milsymbol.js (mct_build_sidc/mct_sidc_svg), a completely
+different mechanism from this module's own hand-built Lines/Areas
+symbology above - see POINT_ENTITY_LABELS' own comment for the full
+entity list and control_measure_points.py's own _ENTITY_LABELS comment
+for what moved where. This also closes out task #33's own "Table H-VI
+pending audit" note by construction.
+
 Military Cartography Tools
 """
+
+import math
 
 from qgis.core import (
     Qgis,
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsField,
-    QgsFillSymbol,
-    QgsFontMarkerSymbolLayer,
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
-    QgsMarkerLineSymbolLayer,
     QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
     QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
+    QgsSimpleMarkerSymbolLayer,
+    QgsSimpleMarkerSymbolLayerBase,
+    QgsSingleSymbolRenderer,
+    QgsSvgMarkerSymbolLayer,
     QgsSymbolLayer,
     QgsTemplatedLineSymbolLayerBase,
     QgsVectorLayer,
@@ -165,6 +180,8 @@ from ._control_measure_shared import (
     _configure_designation_labeling,
     _configure_echelon_field,
     _configure_status_field,
+    _end_label_layer,
+    _status_driven_area_outline_symbol,
     _value_map,
     add_layer_if_absent,
 )
@@ -172,14 +189,17 @@ from ._control_measure_shared import (
 
 LINES_LAYER_NAME = "C2 Measures (Lines)"
 AREAS_LAYER_NAME = "C2 Measures (Areas)"
+POINTS_LAYER_NAME = "C2 Measures (Points)"
 
 # Re-exported for callers/tests that only need this module's own
 # constants, not every H control-measure module's shared ones.
 __all__ = [
     "LINES_LAYER_NAME",
     "AREAS_LAYER_NAME",
+    "POINTS_LAYER_NAME",
     "LINE_MEASURE_TYPE_LABELS",
     "AREA_MEASURE_TYPE_LABELS",
+    "POINT_ENTITY_LABELS",
     "AFFILIATION_LABELS",
     "STATUS_LABELS",
     "ECHELON_LABELS",
@@ -187,6 +207,8 @@ __all__ = [
     "create_c2_measures_areas_layer",
     "add_c2_measures_lines_layer",
     "add_c2_measures_areas_layer",
+    "create_c2_measures_points_layer",
+    "add_c2_measures_points_layer",
 ]
 
 # Boundary (H0) and Light Line (H2, Table H-IV - the only other buildable
@@ -327,87 +349,6 @@ def _boundary_symbol():
     return symbol
 
 
-def _end_label_layer(placement, character):
-
-    """
-    Shared by _light_line_symbol() (and any future line type with the
-    same "fixed abbreviation at each end" convention) - `character`
-    (e.g. "LL") as a small font-marker label at the given end
-    (FirstVertex/LastVertex), offset above the line so it doesn't overlap
-    the line's own stroke.
-
-    **2026-08-09 correction**: an earlier version of this helper also
-    drew a short perpendicular "tick" mark at each end, reading Table
-    H-IV's own TEMPLATE column (page 397) as if the up-arrows connecting
-    "LL"/"PT 1"/"PT 2" to the line were a drawn tick that's part of the
-    symbol. The project maintainer corrected this: those arrows are the
-    same kind of pointer/callout used throughout this appendix's own
-    diagrams to show where a label attaches or which point is PT1 vs
-    PT2 (compare Table H-III's own Boundary template, which uses
-    identical arrows purely to point at anchor points) - not geometry to
-    be rendered. Confirmed against the EXAMPLE column too: the real
-    drawn symbol there is just the line with "LL" above each end: no
-    separate tick. General lesson, not just this one symbol: this
-    appendix's own EXAMPLE columns mark explanatory-only additions in
-    GREY (e.g. the same Light Line example's own "PL CRAB" name) - grey
-    is the signal for "not part of the control measure", not the
-    presence or absence of an arrow/callout shape, which appears in
-    black throughout this appendix purely as diagram annotation.
-    """
-
-    font_layer = QgsFontMarkerSymbolLayer()
-
-    font_layer.setFontFamily(
-        "Arial"
-    )
-
-    font_layer.setSize(
-        3.5
-    )
-
-    font_layer.setColor(
-        QColor(0, 0, 0)
-    )
-
-    font_layer.setCharacter(
-        character
-    )
-
-    # Offset is in the marker's own tangent-rotated frame (see this
-    # module's other FirstVertex/LastVertex uses), so a plain Y offset
-    # moves perpendicular to the line - negative Y confirmed (by
-    # rendering both signs) to be the one that reads above the line
-    # rather than below it, regardless of the line's own drawn
-    # direction.
-    font_layer.setOffset(
-        QPointF(0, -2.5)
-    )
-
-    _apply_affiliation_color(
-        font_layer,
-        [QgsSymbolLayer.Property.FillColor]
-    )
-
-    label_marker = QgsMarkerSymbol()
-
-    label_marker.changeSymbolLayer(
-        0,
-        font_layer
-    )
-
-    label_layer = QgsMarkerLineSymbolLayer()
-
-    label_layer.setSubSymbol(
-        label_marker
-    )
-
-    label_layer.setPlacements(
-        placement
-    )
-
-    return label_layer
-
-
 def _light_line_symbol():
 
     """
@@ -493,56 +434,6 @@ _LINE_SYMBOL_BUILDERS = {
     "boundary": _boundary_symbol,
     "light_line": _light_line_symbol,
 }
-
-
-def _status_driven_area_outline_symbol():
-
-    """
-    Shared by Area of Operations/Named Area of Interest/Target Area of
-    Interest/Airfield Zone (Table H-V, Mini-Phase H2) - every one of
-    them is a plain unfilled, status-driven solid/dashed outline
-    (H.5.1.1.3/Table H-I; that rule's own text explicitly covers "area
-    control measures", not just linear ones, so it applies here the same
-    way it does to Boundary - see _STATUS_LINE_STYLE_EXPRESSION's own
-    comment) with no other shape distinction between them in their own
-    template pictures (page 399-400) - what differs between these four
-    is only the label (_AREA_DESIGNATION_LABEL_EXPRESSION) and, for
-    Airfield Zone alone, a centred icon (see _airfield_zone_symbol()'s
-    own comment).
-    """
-
-    outline_layer = QgsSimpleLineSymbolLayer()
-
-    outline_layer.setColor(
-        QColor(0, 0, 0)
-    )
-
-    outline_layer.setWidth(
-        0.4
-    )
-
-    _apply_affiliation_color(
-        outline_layer,
-        [QgsSymbolLayer.Property.StrokeColor]
-    )
-
-    outline_layer.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-    )
-
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "style": "no",
-        }
-    )
-
-    symbol.changeSymbolLayer(
-        0,
-        outline_layer
-    )
-
-    return symbol
 
 
 def _area_of_operations_symbol():
@@ -970,4 +861,470 @@ def add_c2_measures_areas_layer(iface):
         iface,
         AREAS_LAYER_NAME,
         create_c2_measures_areas_layer
+    )
+
+
+# Table H-VI (Command and control points, H.5.10) - moved into its own
+# dedicated layer here 2026-08-10, out of the shared, ~90-entry
+# control_measure_points.py dropdown (the project maintainer's own
+# request: "command and control points should have their own dedicated
+# layer... that will also reduce the number of symbols in the Control
+# Measure Points" - the same "own layer(s)" convention this module's own
+# docstring already documents for Lines/Areas, extended to this group's
+# own points too. Closes task #33's own "Table H-VI pending audit" note
+# by construction - every entry here is now this table's own, not a
+# guess at which of the shared layer's ~90 entries belonged to it).
+# Rendered through milsymbol.js (mct_build_sidc/mct_sidc_svg), the SAME
+# mechanism control_measure_points.py itself uses - a completely
+# different rendering pipeline from this module's own hand-built Lines/
+# Areas symbology above, so this section is self-contained.
+#
+# **2026-08-10 correction, found by the project maintainer's own live
+# testing via the Appendix H smoke-test tracker**: Fly-To Point
+# (Sonobuoy/Weapon/Normal, codes 131001-131003) and Point of Interest -
+# Launch Event (131301) were both missing entirely - a real gap in the
+# original ~80-entry curation (sidc.py's own ENTITIES["control_measure"]),
+# not something built elsewhere under a different name (confirmed by
+# grepping the whole codebase). Added here, and to sidc.py's own dict,
+# after confirming the exact codes/names directly against the vendored
+# milsymbol.js source (`t[131001]=C["TP.FLY-TO-POINT (SONOBUOY)"]`, etc.)
+# rather than guessing - the same "check milsymbol.js first" discipline
+# every other entity addition in this project follows.
+POINT_ENTITY_LABELS = {
+    "unspecified_control_point": "Unspecified Control Point",
+    "amnesty_point": "Amnesty Point",
+    "checkpoint": "Checkpoint",
+    "center_of_main_effort": "Center of Main Effort",
+    "contact_point": "Contact Point",
+    "coordinating_point": "Coordinating Point",
+    "decision_point": "Decision Point",
+    "distress_call": "Distress Call",
+    "entry_control_point": "Entry Control Point",
+    "fly_to_point_sonobuoy": "Fly-To Point (Sonobuoy)",
+    "fly_to_point_weapon": "Fly-To Point (Weapon)",
+    "fly_to_point_normal": "Fly-To Point (Normal)",
+    "linkup_point": "Linkup Point",
+    "passage_point": "Passage Point",
+    "point_of_interest": "Point of Interest",
+    "point_of_interest_launch_event": "Point of Interest - Launch Event",
+    "rally_point": "Rally Point",
+    "release_point": "Release Point",
+    "start_point": "Start Point",
+    "special_point": "Special Point",
+    "waypoint": "Waypoint",
+    "airfield": "Airfield",
+}
+
+# H.5.3's own affiliation rule for POINT control measures is the base
+# standard's ordinary friend/hostile/neutral/unknown vocabulary (no
+# "unspecified" 5th value) - milsymbol.js already renders it correctly
+# with no extra code needed, exactly as control_measure_points.py's own
+# docstring documents; this is deliberately NOT the same
+# AFFILIATION_LABELS this module's own Lines/Areas layers import from
+# _control_measure_shared (that 5-value, "unspecified"-inclusive set is
+# specific to the hand-built line/fill symbology's own data-defined
+# colour expression, a different rendering mechanism entirely).
+_POINT_AFFILIATION_LABELS = {
+    "friend": "Friend",
+    "hostile": "Hostile",
+    "neutral": "Neutral",
+    "unknown": "Unknown",
+}
+
+_POINT_STATUS_LABELS = {
+    "present": "Present",
+    "planned": "Planned",
+}
+
+DEFAULT_POINT_MARKER_SIZE_MM = 8.0
+
+# **2026-08-10, found by the project maintainer's own live testing**:
+# several icons render visibly smaller/fainter than their siblings at
+# the same nominal marker size - not a stroke-width difference (every
+# icon's own rendered SVG uses the identical stroke-width="3", confirmed
+# by rendering each one's raw SVG directly and comparing), but simply
+# that a fixed mm marker size reads differently depending on how much of
+# that icon's own bounding box the actual drawn shape fills. milsymbol.js
+# has no separate "make the lines bolder" option (checked - no
+# strokeWidth-style option exists in its own source), so the only lever
+# available is the overall marker size, which the project maintainer
+# gave explicit target increases for: Decision Point/Airfield +20%,
+# Coordinating Point/Contact Point +15% each. Center of Main Effort
+# started at +10%, still reported too small/faint, raised to +15% to
+# match the others.
+#
+# The three Fly-To Point variants are a related but distinct case, found
+# the same way (the maintainer's own live testing): their OUTER box+cone
+# shape is actually identical in size to Checkpoint's own (confirmed by
+# comparing raw SVG output dimensions directly, both 30.8x58.8 at the
+# same milsymbol {size} option) - what reads smaller/fainter is the MAIN
+# TEXT inside it, since "FTP" plus a 3-letter code needs two lines
+# ("FTP"/"SBY") where Checkpoint's own "CKP" only needs one, and
+# milsymbol.js shrinks the font to fit two lines into the same box
+# height. Same fix, same lever (no separate font-size option either) -
+# +15%, matching Coordinating/Contact Point's own successful fix.
+_POINT_SIZE_MULTIPLIERS = {
+    "decision_point": 1.20,
+    "airfield": 1.20,
+    "center_of_main_effort": 1.15,
+    "coordinating_point": 1.15,
+    "contact_point": 1.15,
+    "fly_to_point_sonobuoy": 1.15,
+    "fly_to_point_weapon": 1.15,
+    "fly_to_point_normal": 1.15,
+}
+
+_POINT_SIZE_EXPRESSION = "CASE " + " ".join(
+    f"WHEN \"entity\" = '{entity}' THEN {DEFAULT_POINT_MARKER_SIZE_MM * multiplier}"
+    for entity, multiplier in _POINT_SIZE_MULTIPLIERS.items()
+) + f" ELSE {DEFAULT_POINT_MARKER_SIZE_MM} END"
+
+# Which of milsymbol.js's own several text-modifier options actually
+# renders this module's single "unique_designation" attribute in the
+# position the standard's own EXAMPLE column shows for THAT SPECIFIC
+# icon - read directly from milsymbol.js's own per-icon position-config
+# objects (2026-08-10, found while investigating the project
+# maintainer's own live-testing reports that several entities weren't
+# showing their designation "in the centre"/"below the main text" as
+# expected, and that Unspecified Control Point's own showed up entirely
+# outside the icon instead of inside). See mct_sidc_svg()'s own
+# docstring for why this is an entity-by-entity lookup, not a global
+# constant - milsymbol.js's own option naming is NOT consistent across
+# icons. Every entity not named here either uses the default
+# `uniqueDesignation` (Contact Point, Decision Point, Point of Interest,
+# Airfield, Waypoint, and by extension anything else not yet
+# individually checked) or has no text-modifier slot at all (Center of
+# Main Effort, Coordinating Point, Special Point, Point of Interest -
+# Launch Event) - passing a slot to an icon that doesn't define it is a
+# harmless no-op (confirmed live), so those don't need special-casing.
+_POINT_TEXT_SLOT_OVERRIDES = {
+    "amnesty_point": "uniqueDesignation1",
+    "checkpoint": "uniqueDesignation1",
+    "distress_call": "uniqueDesignation1",
+    "entry_control_point": "uniqueDesignation1",
+    "linkup_point": "uniqueDesignation1",
+    "passage_point": "uniqueDesignation1",
+    "rally_point": "uniqueDesignation1",
+    "release_point": "uniqueDesignation1",
+    "start_point": "uniqueDesignation1",
+    "unspecified_control_point": "additionalInformation1",
+}
+
+_POINT_TEXT_SLOT_EXPRESSION = "CASE " + " ".join(
+    f"WHEN \"entity\" = '{entity}' THEN '{slot}'"
+    for entity, slot in _POINT_TEXT_SLOT_OVERRIDES.items()
+) + " ELSE 'uniqueDesignation' END"
+
+# Literal 'control_measure'/'unspecified'/false for the symbol_set/
+# echelon/headquarters positions mct_build_sidc() still requires - this
+# layer has no fields for them, matching control_measure_points.py's own
+# _SIDC_EXPRESSION exactly. The "unique_designation" field IS passed
+# through - as mct_sidc_svg()'s own second argument, routed to whichever
+# slot _POINT_TEXT_SLOT_EXPRESSION picks for that entity via the third -
+# see that function's own docstring for the 2026-08-10 fix this was
+# missing entirely before. coalesce(...,'') - never a bare NULL - because
+# QGIS's own expression engine short-circuits an ENTIRE function call to
+# NULL the moment any argument evaluates to NULL (confirmed live: a bare
+# `"unique_designation"` reference on a feature that left that field
+# blank silently broke the whole rendered icon, not just the missing
+# text), and mct_sidc_svg() itself already treats an empty string as "no
+# designation" so this is safe either way. upper(...) around it - per
+# H.5.4 Labeling ("All text labeling shall be in upper case letters"),
+# the same rule already enforced on this appendix's own hand-built line/
+# area labels via _PLAIN_DESIGNATION_LABEL_EXPRESSION - missed here at
+# first (2026-08-10, found by the project maintainer's own live testing)
+# since this expression reaches milsymbol.js's own text options directly
+# rather than going through that shared expression at all.
+_POINT_SIDC_EXPRESSION = (
+    "mct_sidc_svg(mct_build_sidc("
+    "\"affiliation\",\"entity\",'control_measure','unspecified',"
+    "\"status\",false),"
+    "upper(coalesce(\"unique_designation\",'')),"
+    + _POINT_TEXT_SLOT_EXPRESSION +
+    ")"
+)
+
+
+def _configure_points_attribute_form(layer):
+
+    fields = layer.fields()
+
+    affiliation_idx = fields.indexOf("affiliation")
+    entity_idx = fields.indexOf("entity")
+    status_idx = fields.indexOf("status")
+
+    layer.setEditorWidgetSetup(
+        affiliation_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(_POINT_AFFILIATION_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        entity_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(POINT_ENTITY_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        status_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(_POINT_STATUS_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
+    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'checkpoint'"))
+    layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
+
+
+# Every entity sharing the box+cone icon construction (confirmed by an
+# IDENTICAL rendered SVG path across all of them, not assumed from name
+# similarity alone) shares the SAME "Anchor Points" draw rule too: "This
+# symbol requires one anchor point. The point defines the TIP of the
+# inverted cone" (read directly for Unspecified Control Point/Amnesty
+# Point/Checkpoint/Distress Call - pages 401-403 - and inferred for the
+# rest of this identically-shaped group by construction, not guessed
+# blind). QGIS's own default SVG marker anchor is the drawn content's
+# own bounding-box CENTRE, which is wrong for all of these - the
+# project maintainer's own observation, generalising past what was
+# first flagged only for Distress Call's own missing diagonal line:
+# "in all these symbols, it is better if the symbol is drawn where the
+# user clicks... if you notice even in the manual, the symbol is drawn
+# AT the anchor point and not around it". Fixed via QGIS's own built-in
+# `VerticalAnchor` symbol layer property (confirmed empirically -
+# `Qgis.LabelQuadrantPosition`-style guessing wasn't needed here, a
+# `verticalAnchorPoint`/`horizontalAnchorPoint` pair exists on
+# QgsMarkerSymbolLayer specifically for this - a controlled 3-value
+# render comparison, "center"/"bottom"/"top", confirmed "bottom" moves
+# the SVG's own bottom edge - the cone's tip, for this whole group - to
+# exactly the feature's own digitized point), data-defined per entity so
+# every OTHER entity on this layer keeps the default centred anchor its
+# own draw rules actually call for (e.g. Contact Point/Coordinating
+# Point/Waypoint/Airfield's own text: "typically centered over the
+# desired location").
+_POINT_ENTITIES_ANCHORED_AT_TIP = (
+    "'unspecified_control_point', 'amnesty_point', 'checkpoint', "
+    "'distress_call', 'entry_control_point', 'linkup_point', "
+    "'passage_point', 'rally_point', 'release_point', 'start_point'"
+)
+
+_POINT_VERTICAL_ANCHOR_EXPRESSION = (
+    "CASE WHEN \"entity\" IN (" + _POINT_ENTITIES_ANCHORED_AT_TIP + ")"
+    " THEN 'bottom' ELSE 'center' END"
+)
+
+# Distress Call's own diagonal anchor-point line (Table H-VI, code
+# 130800, page 403) - confirmed missing entirely from milsymbol.js's own
+# vendored icon definition (found by decoding its raw SVG path data
+# directly: the drawn shape stops exactly at the cone's own tip, with no
+# further segment). Rather than hand-patch the vendored third-party
+# file, drawn as a SEPARATE QgsMarkerSymbol layer stacked on top of the
+# SVG marker, enabled only for this one entity via a data-defined
+# LayerEnabled property. Now that the SVG marker's own anchor IS the
+# cone's tip (see above), this line's own construction is simple: start
+# at (0, 0) - the feature's own point, now genuinely the tip - and
+# extend outward by its own full length.
+#
+# The line's own LENGTH comes from the icon's own known local SVG
+# coordinates (not measured by eye): the box+cone shape spans local x
+# [60,140] (width 80); at the same DEFAULT_POINT_MARKER_SIZE_MM scale
+# this project already uses, that's `DEFAULT_POINT_MARKER_SIZE_MM * 80
+# / 215.33` mm (215.33 being the icon's own full local viewBox width,
+# the value milsymbol.js scales to DEFAULT_POINT_MARKER_SIZE_MM in the
+# first place) - matching the standard's own template text: "same
+# length as the width of the rectangle".
+#
+# The line's own ANGLE (shallow, down-and-left) was measured directly
+# from the standard's own template picture (page 403) by pixel-tracing
+# the drawn diagonal there, not guessed - approximately 15 degrees below
+# horizontal, "recognisable, not exact" like every other decorative
+# construction in this project (Fortified Area's own crenellation,
+# etc.).
+_DISTRESS_CALL_LOCAL_UNITS_TO_MM = DEFAULT_POINT_MARKER_SIZE_MM * 80 / 215.33
+
+_DISTRESS_CALL_ANCHOR_LINE_LENGTH_MM = _DISTRESS_CALL_LOCAL_UNITS_TO_MM
+
+# Degrees below horizontal, measured directly by pixel-tracing the
+# standard's own template picture (page 403), not guessed.
+_DISTRESS_CALL_ANCHOR_LINE_DEGREES_BELOW_HORIZONTAL = 15
+
+_DISTRESS_CALL_ANCHOR_LINE_ANGLE = (
+    90 - _DISTRESS_CALL_ANCHOR_LINE_DEGREES_BELOW_HORIZONTAL
+)
+
+
+# QgsSimpleMarkerSymbolLayer's own `angle` rotates BOTH the drawn shape
+# AND its own `offset` together, around the feature's own placement
+# point - confirmed with a standalone 4-angle/fixed-offset test render
+# (angle=0/90/180/270 against a fixed (0, 5mm) offset) rather than
+# assumed: the offset vector (0, D) rotates to (-D, 0)/(0, -D)/(D, 0)
+# at angle=90/180/270 respectively, i.e. `angle` is applied as a
+# standard counter-clockwise rotation of the (x, y) offset vector
+# (y increasing downward, screen convention) by `math.radians(angle)`.
+# The line's own anchor is now the correctly-repositioned tip itself
+# (see above), so the only offset needed is "extend outward by half the
+# line's own length" (the same "shift by half the segment's own length"
+# technique already used for Strong Point's own outward-only ticks in
+# defensive_control_measures.py, so the drawn segment runs from the tip
+# outward only, not back through the box) - pre-rotated by the INVERSE
+# of `angle` so QGIS's own forward rotation lands it correctly.
+def _distress_call_anchor_line_offset():
+
+    angle_radians = math.radians(_DISTRESS_CALL_ANCHOR_LINE_ANGLE)
+
+    half_length = _DISTRESS_CALL_ANCHOR_LINE_LENGTH_MM / 2
+
+    final_x = half_length * -math.sin(angle_radians)
+    final_y = half_length * math.cos(angle_radians)
+
+    inverse = -angle_radians
+
+    return QPointF(
+        final_x * math.cos(inverse) - final_y * math.sin(inverse),
+        final_x * math.sin(inverse) + final_y * math.cos(inverse),
+    )
+
+
+def _distress_call_anchor_line_layer():
+
+    # Built directly via the concrete QgsSimpleMarkerSymbolLayer class,
+    # not extracted from a QgsMarkerSymbol.createSimple() wrapper (the
+    # pattern this project's OWN other tick/line markers use, e.g.
+    # defensive_control_measures.py's Strong Point) - that pattern keeps
+    # the wrapper symbol alive as a genuine SUB-symbol (via
+    # setSubSymbol(), which takes real ownership); extracting a wrapper's
+    # own symbolLayer(0) and returning it directly, with the wrapper
+    # itself going out of scope, segfaulted here on first render - a
+    # dangling PyQt/SIP reference, the same class of bug this project's
+    # own test-writing conventions already warn about elsewhere.
+    line_layer = QgsSimpleMarkerSymbolLayer()
+
+    line_layer.setShape(
+        QgsSimpleMarkerSymbolLayerBase.Shape.Line
+    )
+
+    line_layer.setColor(
+        QColor(0, 0, 0)
+    )
+
+    line_layer.setStrokeColor(
+        QColor(0, 0, 0)
+    )
+
+    line_layer.setStrokeWidth(
+        0.5
+    )
+
+    line_layer.setSize(
+        _DISTRESS_CALL_ANCHOR_LINE_LENGTH_MM
+    )
+
+    line_layer.setAngle(
+        _DISTRESS_CALL_ANCHOR_LINE_ANGLE
+    )
+
+    line_layer.setOffset(
+        _distress_call_anchor_line_offset()
+    )
+
+    line_layer.setOffsetUnit(
+        Qgis.RenderUnit.Millimeters
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.LayerEnabled,
+        QgsProperty.fromExpression("\"entity\" = 'distress_call'")
+    )
+
+    return line_layer
+
+
+def _build_points_renderer():
+
+    symbol = QgsMarkerSymbol()
+
+    svg_layer = QgsSvgMarkerSymbolLayer("")
+
+    svg_layer.setSize(
+        DEFAULT_POINT_MARKER_SIZE_MM
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(_POINT_SIDC_EXPRESSION)
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Size,
+        QgsProperty.fromExpression(_POINT_SIZE_EXPRESSION)
+    )
+
+    # Re-anchors the box+cone entity family at the cone's own tip instead
+    # of QGIS's own default (the drawn shape's bounding-box centre) -
+    # see _POINT_VERTICAL_ANCHOR_EXPRESSION's own comment above for why.
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.VerticalAnchor,
+        QgsProperty.fromExpression(_POINT_VERTICAL_ANCHOR_EXPRESSION)
+    )
+
+    symbol.changeSymbolLayer(
+        0,
+        svg_layer
+    )
+
+    symbol.appendSymbolLayer(
+        _distress_call_anchor_line_layer()
+    )
+
+    return QgsSingleSymbolRenderer(symbol)
+
+
+def create_c2_measures_points_layer(name=POINTS_LAYER_NAME):
+
+    """
+    A fresh, empty point layer for Table H-VI (Command and control
+    points, H.5.10) - see module docstring for why this is a separate
+    layer from Lines/Areas rather than one shared layer (QGIS layers are
+    always a single geometry type).
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(
+        f"Point?crs={crs.authid()}",
+        name,
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("entity", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+        ]
+    )
+
+    layer.updateFields()
+
+    _configure_points_attribute_form(layer)
+
+    layer.setRenderer(
+        _build_points_renderer()
+    )
+
+    return layer
+
+
+def add_c2_measures_points_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        POINTS_LAYER_NAME,
+        create_c2_measures_points_layer
     )

@@ -35,14 +35,24 @@ from qgis.core import (
     Qgis,
     QgsDefaultValue,
     QgsEditorWidgetSetup,
+    QgsFillSymbol,
+    QgsFontMarkerSymbolLayer,
+    QgsLabelLineSettings,
+    QgsMarkerLineSymbolLayer,
+    QgsMarkerSymbol,
     QgsPalLayerSettings,
     QgsProject,
     QgsProperty,
     QgsRuleBasedRenderer,
+    QgsSimpleLineSymbolLayer,
+    QgsSymbolLayer,
     QgsSymbolLayerReference,
     QgsTextMaskSettings,
     QgsVectorLayerSimpleLabeling,
 )
+
+from qgis.PyQt.QtCore import QPointF
+from qgis.PyQt.QtGui import QColor
 
 from ..core._layer_utils import add_layer_at_default_position
 from ..core.text_format import build_text_format
@@ -290,6 +300,160 @@ def _configure_echelon_field(layer):
     )
 
 
+def _status_driven_area_outline_symbol():
+
+    """
+    A plain unfilled, status-driven solid/dashed outline (H.5.1.1.3/
+    Table H-I; that rule's own text explicitly covers "area control
+    measures", not just linear ones) - the base shape shared by most
+    area-type control measures across every H.5.x group so far
+    (c2_measures.py's own Area of Operations/Named+Target Area of
+    Interest/Airfield Zone, Mini-Phase H2), factored out here
+    (2026-08-09) so H3's own maneuver-area module can reuse it too
+    rather than duplicating it - what usually differs between area
+    types using this base shape is only the label and, occasionally, a
+    centred icon added on top (see each module's own area-symbol
+    functions).
+    """
+
+    outline_layer = QgsSimpleLineSymbolLayer()
+
+    outline_layer.setColor(
+        QColor(0, 0, 0)
+    )
+
+    outline_layer.setWidth(
+        0.4
+    )
+
+    _apply_affiliation_color(
+        outline_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    outline_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsFillSymbol.createSimple(
+        {
+            "style": "no",
+        }
+    )
+
+    symbol.changeSymbolLayer(
+        0,
+        outline_layer
+    )
+
+    return symbol
+
+
+def _end_label_layer(placement, character, rotate_with_line=True):
+
+    """
+    A small font-marker label (`character`, e.g. "LL"/"FEBA") at the
+    given line end (FirstVertex/LastVertex), offset above the line so it
+    doesn't overlap the line's own stroke - factored out of
+    c2_measures.py (2026-08-09, alongside _status_driven_area_outline_
+    symbol() above) so other line measure types with the same "fixed
+    abbreviation at each end, no tick" convention (this module's own
+    FEBA, for instance) can reuse it too.
+
+    `rotate_with_line` (True by default, preserving every existing
+    caller's own behaviour unchanged) controls whether the label turns
+    to follow the line's own tangent or always renders upright.
+    **2026-08-12**, per the project maintainer's own report against
+    maneuver_control_measures_2.py's own Bridgehead Line: "the label on
+    both ends should be straight, in our case one of the labels is
+    inverted". Confirmed by render - with rotation on, a line digitized
+    right-to-left has BOTH its labels rendered upside-down (and pushed
+    below the line rather than above it, since the perpendicular offset
+    rotates with the same frame), and an angled end segment tilts its
+    own label to match. Passing `rotate_with_line=False` turns the
+    marker line's own rotateSymbols flag off, so the label stays upright
+    regardless of the line's own drawn direction; the offset then reads
+    in plain screen space, which is what "straight" needs. Scoped per
+    caller rather than changed globally - other measure types using this
+    helper (Light Line, FEBA, Holding Line, Release Line) keep their own
+    existing behaviour until each is reviewed on its own, per this
+    project's standing "one symbol at a time" convention.
+
+    **2026-08-09 correction (found while building c2_measures.py's own
+    Light Line)**: an earlier version of this helper also drew a short
+    perpendicular "tick" mark at each end, reading Table H-IV's own
+    TEMPLATE column as if the up-arrows connecting a label to the line
+    were a drawn tick that's part of the symbol. The project maintainer
+    corrected this: those arrows are the same kind of pointer/callout
+    used throughout this appendix's own diagrams to show where a label
+    attaches or which point is PT1 vs PT2 - not geometry to be rendered.
+    General lesson, confirmed again while reading Table H-VII for H3:
+    NOT every line measure type in this appendix omits a real tick the
+    same way Light Line does - Phase Line's own EXAMPLE column (page
+    411) shows a genuine BLACK bracket/tick touching each end, distinct
+    from a separate GREY illustrative boundary-line annotation below it
+    - so this decision has to be checked per measure type against the
+    actual EXAMPLE column's colours, not assumed from Light Line's own
+    precedent. Measure types that DO need a real tick use a different
+    helper (see this module's own end-tick construction, added for
+    Phase Line).
+    """
+
+    font_layer = QgsFontMarkerSymbolLayer()
+
+    font_layer.setFontFamily(
+        "Arial"
+    )
+
+    font_layer.setSize(
+        3.5
+    )
+
+    font_layer.setColor(
+        QColor(0, 0, 0)
+    )
+
+    font_layer.setCharacter(
+        character
+    )
+
+    # With `rotate_with_line` on, the offset is in the marker's own
+    # tangent-rotated frame, so a plain Y offset moves perpendicular to
+    # the line - negative Y confirmed (by rendering both signs) to be
+    # the one that reads above the line rather than below it for a
+    # left-to-right line. With it off, the same negative Y reads in
+    # plain screen space and is simply "up", which is what an upright
+    # label wants either way.
+    font_layer.setOffset(
+        QPointF(0, -2.5)
+    )
+
+    _apply_affiliation_color(
+        font_layer,
+        [QgsSymbolLayer.Property.FillColor]
+    )
+
+    label_marker = QgsMarkerSymbol()
+
+    label_marker.changeSymbolLayer(
+        0,
+        font_layer
+    )
+
+    label_layer = QgsMarkerLineSymbolLayer(rotate_with_line)
+
+    label_layer.setSubSymbol(
+        label_marker
+    )
+
+    label_layer.setPlacements(
+        placement
+    )
+
+    return label_layer
+
+
 def _build_rule_based_renderer(root_symbol, symbol_builders):
 
     root_rule = QgsRuleBasedRenderer.Rule(None)
@@ -320,7 +484,10 @@ def _build_pal_layer_settings(
     placement,
     label_expression,
     repeat_distance_mm=None,
-    masked_symbol_layer_ids=None
+    masked_symbol_layer_ids=None,
+    mask_size_mm=1.2,
+    line_anchor_percent=None,
+    anchor_text_point=None
 ):
 
     """
@@ -340,6 +507,29 @@ def _build_pal_layer_settings(
     own "gap in the line" requirement in c2_measures.py, after two
     symbol-layer-only attempts both failed for different reasons - see
     that module's own _boundary_symbol() comment for the full history.
+
+    `mask_size_mm` defaults to 1.2 (a bare buffer around the rendered
+    text itself, right for a label masking a single plain line/outline).
+    Defensive Control Measures' own Strong Point overrides this larger -
+    its echelon label masks not just the outline but ALSO the toothed
+    perimeter's own tick marks (see defensive_control_measures.py's own
+    _configure_area_designation_labeling() comment), and a couple of
+    those ticks sit close enough to the origin point that the default
+    buffer left them poking into the glyph - found by the project
+    maintainer's own live testing.
+
+    `line_anchor_percent`/`anchor_text_point` (placement == Line only,
+    both None by default - every existing caller's own along-whole-line
+    or centred-on-feature behaviour is unchanged): pins the label to a
+    FIXED fraction of the line's own length (0.0 = start, 1.0 = end)
+    instead of QGIS's own default "best along-line position" search,
+    with Qgis.LabelLineAnchorType... - actually QgsLabelLineSettings.
+    AnchorType.Strict, so the anchor is honoured exactly rather than
+    treated as a hint. Direction of Attack - Friendly Aviation's own
+    Field T is the first user of this (2026-08-11) - "just behind the
+    arrow head... in line with the arrow shaft" needs the label pinned
+    near the line's own end, not wherever QGIS's own default search
+    happens to prefer.
     """
 
     settings = QgsPalLayerSettings()
@@ -368,6 +558,22 @@ def _build_pal_layer_settings(
             Qgis.LabelLinePlacementFlag.OnLine
         )
 
+        if line_anchor_percent is not None:
+
+            settings.lineSettings().setAnchorType(
+                QgsLabelLineSettings.AnchorType.Strict
+            )
+
+            settings.lineSettings().setLineAnchorPercent(
+                line_anchor_percent
+            )
+
+            if anchor_text_point is not None:
+
+                settings.lineSettings().setAnchorTextPoint(
+                    anchor_text_point
+                )
+
     text_format = build_text_format(LABEL_FONT_SIZE)
 
     if masked_symbol_layer_ids:
@@ -377,7 +583,7 @@ def _build_pal_layer_settings(
         mask_settings.setEnabled(True)
 
         mask_settings.setSize(
-            1.2
+            mask_size_mm
         )
 
         mask_settings.setSizeUnit(
@@ -407,7 +613,9 @@ def _configure_designation_labeling(
     placement,
     label_expression,
     repeat_distance_mm=None,
-    masked_symbol_layer_ids=None
+    masked_symbol_layer_ids=None,
+    line_anchor_percent=None,
+    anchor_text_point=None
 ):
 
     settings = _build_pal_layer_settings(
@@ -415,7 +623,9 @@ def _configure_designation_labeling(
         placement,
         label_expression,
         repeat_distance_mm,
-        masked_symbol_layer_ids
+        masked_symbol_layer_ids,
+        line_anchor_percent=line_anchor_percent,
+        anchor_text_point=anchor_text_point
     )
 
     layer.setLabeling(

@@ -10,10 +10,8 @@ Military Cartography Tools
 """
 
 from qgis.core import (
-    QgsProject,
     QgsRectangle,
     QgsCoordinateReferenceSystem,
-    QgsLayoutItemMap,
 )
 
 from .qgis_test_case import QgisTestCase

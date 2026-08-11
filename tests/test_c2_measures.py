@@ -26,14 +26,13 @@ from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
     QgsExpression,
-    QgsExpressionContext,
     QgsFeature,
     QgsFontMarkerSymbolLayer,
     QgsGeometry,
     QgsGeometryGeneratorSymbolLayer,
     QgsMarkerLineSymbolLayer,
-    QgsPointXY,
     QgsProject,
+    QgsSimpleMarkerSymbolLayerBase,
     QgsSymbolLayer,
     QgsSymbolLayerUtils,
     QgsTemplatedLineSymbolLayerBase,
@@ -54,11 +53,15 @@ from MilitaryCartographyTools.military_symbology.c2_measures import (
     ECHELON_LABELS,
     LINES_LAYER_NAME,
     LINE_MEASURE_TYPE_LABELS,
+    POINTS_LAYER_NAME,
+    POINT_ENTITY_LABELS,
     STATUS_LABELS,
     add_c2_measures_areas_layer,
     add_c2_measures_lines_layer,
+    add_c2_measures_points_layer,
     create_c2_measures_areas_layer,
     create_c2_measures_lines_layer,
+    create_c2_measures_points_layer,
 )
 from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
 
@@ -1122,3 +1125,442 @@ class TestEchelonLabelsMatchSidc(QgisTestCase):
             set(ECHELONS) - set(ECHELON_LABELS),
             {"unspecified"}
         )
+
+
+class TestCreateC2MeasuresPointsLayer(QgisTestCase):
+
+    """
+    Table H-VI (Command and control points, H.5.10) - moved into its
+    own dedicated layer 2026-08-10 (see module docstring), out of the
+    shared control_measure_points.py dropdown. Same milsymbol.js
+    rendering mechanism as that module - see its own tests for the
+    equivalent coverage this mirrors.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_has_the_expected_fields(self):
+
+        layer = create_c2_measures_points_layer()
+
+        field_names = [field.name() for field in layer.fields()]
+
+        self.assertEqual(
+            field_names,
+            ["affiliation", "entity", "status", "unique_designation"]
+        )
+
+
+    def test_is_a_point_layer(self):
+
+        layer = create_c2_measures_points_layer()
+
+        self.assertEqual(
+            layer.geometryType().name,
+            "Point"
+        )
+
+
+    def test_entity_dropdown_offers_exactly_table_h_vi(self):
+
+        layer = create_c2_measures_points_layer()
+
+        idx = layer.fields().indexOf("entity")
+
+        widget_setup = layer.editorWidgetSetup(idx)
+
+        self.assertEqual(
+            widget_setup.config()["map"],
+            {label: value for value, label in POINT_ENTITY_LABELS.items()}
+        )
+
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(),
+            "'checkpoint'"
+        )
+
+
+    def test_renderers_svg_layer_has_a_data_defined_name(self):
+
+        layer = create_c2_measures_points_layer()
+
+        symbol = layer.renderer().symbol()
+        svg_layer = symbol.symbolLayer(0)
+
+        self.assertTrue(
+            svg_layer.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.Name
+            )
+        )
+
+
+    def test_unspecified_control_point_routes_through_its_own_slot(self):
+
+        # 2026-08-10 correction: unlike its siblings (which share a
+        # common position-config object in milsymbol.js's own source),
+        # Unspecified Control Point (130100) defines its OWN, differently
+        # named slot for this position - `additionalInformation1`, not
+        # `uniqueDesignation1` - found after the maintainer reported the
+        # designation rendering OUTSIDE the icon instead of inside.
+        layer = create_c2_measures_points_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", "unspecified_control_point")
+        feature.setAttribute("status", "present")
+        feature.setAttribute("unique_designation", "un")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        symbol = layer.renderer().symbol()
+        svg_layer = symbol.symbolLayer(0)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name,
+            context,
+            ""
+        )
+
+        self.assertTrue(ok)
+
+        import base64
+        svg = base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+        self.assertIn(">UN<", svg)
+
+
+    def test_distress_call_has_a_diagonal_anchor_line_only_for_that_entity(self):
+
+        # 2026-08-10, per the project maintainer's own explicit request:
+        # milsymbol.js's own vendored icon definition for Distress Call
+        # is missing its diagonal anchor-point line entirely (confirmed
+        # by decoding its raw SVG path data directly) - drawn here as a
+        # second symbol layer instead, enabled only for this one entity.
+        layer = create_c2_measures_points_layer()
+
+        symbol = layer.renderer().symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        anchor_line_layer = symbol.symbolLayer(1)
+
+        self.assertEqual(
+            anchor_line_layer.shape(),
+            QgsSimpleMarkerSymbolLayerBase.Shape.Line
+        )
+
+        for entity, expected_enabled in [
+            ("distress_call", True),
+            ("checkpoint", False),
+        ]:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("entity", entity)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                enabled, ok = anchor_line_layer.dataDefinedProperties().valueAsBool(
+                    QgsSymbolLayer.Property.LayerEnabled,
+                    context,
+                    True
+                )
+
+                self.assertTrue(ok, entity)
+                self.assertEqual(enabled, expected_enabled, entity)
+
+
+    def test_a_real_feature_with_no_unique_designation_still_resolves(self):
+
+        # Regression test: coalesce(...,'') around every "unique_
+        # designation" reference in _POINT_SIDC_EXPRESSION exists
+        # specifically because a bare NULL field reference used to make
+        # QGIS's own expression engine short-circuit mct_sidc_svg()'s
+        # entire call to NULL - breaking the icon completely, not just
+        # leaving the designation text blank - for every feature that
+        # simply left the field empty (the common case).
+        layer = create_c2_measures_points_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", "checkpoint")
+        feature.setAttribute("status", "present")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        symbol = layer.renderer().symbol()
+        svg_layer = symbol.symbolLayer(0)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name,
+            context,
+            ""
+        )
+
+        self.assertTrue(ok)
+        self.assertTrue(path.startswith("base64:"))
+
+
+    def test_unique_designation_routes_to_the_slot_each_icon_actually_uses(self):
+
+        # 2026-08-10 correction: milsymbol.js's own per-icon layout uses
+        # TWO different text-modifier slots (uniqueDesignation/
+        # uniqueDesignation1) depending on the icon, not
+        # interchangeably - see mct_sidc_svg()'s own docstring and this
+        # module's own _POINT_SIDC_EXPRESSION comment for the full
+        # finding. Decoding the rendered SVG's own <text> element
+        # confirms the designation landed in the position the standard's
+        # own template picture actually shows for each icon, not just
+        # that SOME text rendered somewhere.
+        layer = create_c2_measures_points_layer()
+
+        cases = [
+            # (entity, expected slot)
+            ("checkpoint", "uniqueDesignation1"),
+            ("distress_call", "uniqueDesignation1"),
+            ("contact_point", "uniqueDesignation"),
+            ("decision_point", "uniqueDesignation"),
+        ]
+
+        for entity, expected_slot in cases:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("affiliation", "friend")
+                feature.setAttribute("entity", entity)
+                feature.setAttribute("status", "present")
+                feature.setAttribute("unique_designation", "7")
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                symbol = layer.renderer().symbol()
+                svg_layer = symbol.symbolLayer(0)
+
+                path, ok = svg_layer.dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.Name,
+                    context,
+                    ""
+                )
+
+                self.assertTrue(ok, entity)
+
+                import base64
+                svg = base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+                self.assertIn(">7<", svg, entity)
+
+
+    def test_unique_designation_is_upper_cased(self):
+
+        # Per H.5.4 Labeling ("All text labeling shall be in upper case
+        # letters") - the same rule c2_measures.py's own hand-built
+        # line/area labels already enforce - missed here at first
+        # (2026-08-10) since this Points layer reaches milsymbol.js's
+        # own text options directly, not through the shared
+        # _PLAIN_DESIGNATION_LABEL_EXPRESSION that already upper-cases.
+        layer = create_c2_measures_points_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", "checkpoint")
+        feature.setAttribute("status", "present")
+        feature.setAttribute("unique_designation", "alpha")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        symbol = layer.renderer().symbol()
+        svg_layer = symbol.symbolLayer(0)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name,
+            context,
+            ""
+        )
+
+        self.assertTrue(ok)
+
+        import base64
+        svg = base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+        self.assertIn(">ALPHA<", svg)
+        self.assertNotIn(">alpha<", svg)
+
+
+    def test_decision_point_airfield_coordinating_point_contact_point_and_center_of_main_effort_render_larger(self):
+
+        # 2026-08-10, per the project maintainer's own explicit
+        # percentages (Decision Point/Airfield +20%; Coordinating Point/
+        # Contact Point/the three Fly-To Point variants +15% each once
+        # asked; Center of Main Effort started at +10%, still reported
+        # too small/faint, raised to +15% to match) - see
+        # _POINT_SIZE_MULTIPLIERS' own comment for why size is the only
+        # lever available (milsymbol.js has no separate "bolder line"/
+        # "bigger font" option).
+        layer = create_c2_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        cases = [
+            ("decision_point", 8.0 * 1.20),
+            ("airfield", 8.0 * 1.20),
+            ("center_of_main_effort", 8.0 * 1.15),
+            ("coordinating_point", 8.0 * 1.15),
+            ("contact_point", 8.0 * 1.15),
+            ("fly_to_point_sonobuoy", 8.0 * 1.15),
+            ("fly_to_point_weapon", 8.0 * 1.15),
+            ("fly_to_point_normal", 8.0 * 1.15),
+            ("checkpoint", 8.0),
+        ]
+
+        for entity, expected_size in cases:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("entity", entity)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                size, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+                    QgsSymbolLayer.Property.Size,
+                    context,
+                    -1.0
+                )
+
+                self.assertTrue(ok, entity)
+                self.assertAlmostEqual(size, expected_size, places=5)
+
+
+    def test_box_and_cone_entities_are_anchored_at_their_own_tip(self):
+
+        # 2026-08-10, at the project maintainer's own explicit request:
+        # every entity sharing the box+cone icon construction anchors at
+        # the cone's own TIP (its own draw rules: "the point defines the
+        # tip of the inverted cone"), not QGIS's own default bounding-box
+        # centre - see _POINT_VERTICAL_ANCHOR_EXPRESSION's own comment.
+        # Every other entity keeps the default centred anchor.
+        layer = create_c2_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        cases = [
+            ("unspecified_control_point", "bottom"),
+            ("amnesty_point", "bottom"),
+            ("checkpoint", "bottom"),
+            ("distress_call", "bottom"),
+            ("entry_control_point", "bottom"),
+            ("linkup_point", "bottom"),
+            ("passage_point", "bottom"),
+            ("rally_point", "bottom"),
+            ("release_point", "bottom"),
+            ("start_point", "bottom"),
+            ("contact_point", "center"),
+            ("coordinating_point", "center"),
+            ("decision_point", "center"),
+            ("center_of_main_effort", "center"),
+            ("point_of_interest", "center"),
+            ("waypoint", "center"),
+            ("airfield", "center"),
+        ]
+
+        for entity, expected_anchor in cases:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("entity", entity)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                anchor, ok = svg_layer.dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.VerticalAnchor,
+                    context,
+                    ""
+                )
+
+                self.assertTrue(ok, entity)
+                self.assertEqual(anchor, expected_anchor, entity)
+
+
+    def test_a_real_feature_resolves_to_a_valid_symbol_path(self):
+
+        layer = create_c2_measures_points_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "hostile")
+        feature.setAttribute("entity", "decision_point")
+        feature.setAttribute("status", "present")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        symbol = layer.renderer().symbol()
+        svg_layer = symbol.symbolLayer(0)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name,
+            context,
+            ""
+        )
+
+        self.assertTrue(ok)
+        self.assertTrue(path.startswith("base64:"))
+
+
+class TestAddC2MeasuresPointsLayer(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        self.iface = FakeIface()
+
+
+    def test_creates_and_adds_the_layer(self):
+
+        layer = add_c2_measures_points_layer(self.iface)
+
+        self.assertIsNotNone(layer)
+
+        matching = QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)
+
+        self.assertEqual(len(matching), 1)
+
+
+    def test_does_nothing_and_warns_if_one_already_exists(self):
+
+        first = add_c2_measures_points_layer(self.iface)
+
+        result = add_c2_measures_points_layer(self.iface)
+
+        self.assertIsNone(result)
+
+        matching = QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)
+
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0].id(), first.id())

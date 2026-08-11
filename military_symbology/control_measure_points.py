@@ -78,12 +78,32 @@ DEFAULT_MARKER_SIZE_MM = 8.0
 # Literal 'control_measure'/'unspecified'/false for the symbol_set/
 # echelon/headquarters positions mct_build_sidc() still requires - this
 # layer has no fields for them (see module docstring), so the expression
-# supplies fixed values directly rather than reading absent fields.
+# supplies fixed values directly rather than reading absent fields. The
+# "unique_designation" field IS passed through - as mct_sidc_svg()'s own
+# second, optional argument (its own `uniqueDesignation` slot), upper-
+# cased per H.5.4 Labeling - see that function's own docstring for the
+# 2026-08-10 fixes this was missing entirely before (the field existed
+# on this layer's own schema, but nothing ever read it; then, once
+# wired up, wasn't upper-cased either), and for why coalesce(...,'')
+# matters (a bare NULL field reference silently breaks the whole
+# rendered icon, not just the missing text).
+#
+# **Known limitation, not yet resolved**: c2_measures.py's own Points
+# layer found (2026-08-10) that several icons actually need the text in
+# milsymbol.js's OTHER slot, `uniqueDesignation1`, to land where the
+# standard's own template shows it - see that module's own
+# _POINT_SIDC_EXPRESSION comment for the full finding. This layer's own
+# ~88 entities haven't been individually checked against that same
+# per-icon distinction yet (Table H-VI's 22 were, since that's what
+# prompted the finding) - every entity here still only ever uses
+# `uniqueDesignation`, which will be in the wrong position for whichever
+# of these entities turns out to work the same way Amnesty Point/
+# Checkpoint/Distress Call did. Revisit if reported.
 _SIDC_EXPRESSION = (
     "mct_sidc_svg(mct_build_sidc("
     "\"affiliation\",\"entity\",'control_measure','unspecified',"
     "\"status\",false"
-    "))"
+    "),upper(coalesce(\"unique_designation\",'')))"
 )
 
 # Display labels for this plugin's own UI - kept separate from sidc.py's
@@ -104,36 +124,19 @@ _STATUS_LABELS = {
 # Mirrors sidc.py's ENTITIES["control_measure"] exactly - see that
 # dict's own comment for what was curated out and why.
 _ENTITY_LABELS = {
-    # Command and control points
-    "unspecified_control_point": "Unspecified Control Point",
-    "amnesty_point": "Amnesty Point",
-    "checkpoint": "Checkpoint",
-    "center_of_main_effort": "Center of Main Effort",
-    "contact_point": "Contact Point",
-    "coordination_point": "Coordination Point",
-    "decision_point": "Decision Point",
-    "distress_call": "Distress Call",
-    "entry_control_point": "Entry Control Point",
-    "linkup_point": "Linkup Point",
-    "passage_point": "Passage Point",
-    "point_of_interest": "Point of Interest",
-    "rally_point": "Rally Point",
-    "release_point": "Release Point",
-    "start_point": "Start Point",
-    "special_point": "Special Point",
-    "waypoint": "Waypoint",
-    "airfield": "Airfield",
-    "target_handover": "Target Handover",
-    "key_terrain": "Key Terrain",
-    # Maneuver / observation points
-    "observation_post": "Observation Post/Outpost",
-    "observation_post_reconnaissance": "Observation Post - Reconnaissance",
-    "observation_post_forward_observer": "Observation Post - Forward Observer/Spotter",
-    "observation_post_cbrn": "Observation Post - CBRN",
-    "observation_post_sensor_listening": "Observation Post - Sensor/Listening Post",
-    "observation_post_combat": "Observation Post - Combat Outpost",
-    "target_reference_point": "Target Reference Point",
-    "point_of_departure": "Point of Departure",
+    # Table H-VI (Command and control points), Table H-IX (Observation
+    # post), and Table H-XI's own single Point of Departure entry all
+    # moved to their own dedicated layers - c2_measures.py's own
+    # POINT_ENTITY_LABELS, defensive_control_measures.py's own
+    # POINT_ENTITY_LABELS, and offensive_control_measures.py's own
+    # POINT_ENTITY_LABELS respectively - at the project maintainer's own
+    # request (2026-08-10): a flat ~90-entry dropdown made these groups
+    # hard to find, and the same "own layer(s)" convention c2_measures.py's
+    # own Lines/Areas already follow extends naturally to their own
+    # point-type entities too. Not duplicated here - the underlying
+    # sidc.py entities are untouched, so any already-digitized feature
+    # keeps rendering fine regardless of which layer's dropdown offers
+    # them.
     # Maritime hazards / reference points
     "distressed_vessel": "Distressed Vessel",
     "downed_aircraft": "Downed/Ditched Aircraft",
@@ -188,6 +191,52 @@ _ENTITY_LABELS = {
     "destroy_point": "Destroy (Point)",
     "interdict_point": "Interdict (Point)",
     "neutralize_point": "Neutralize (Point)",
+    # Airspace control points (Table H-XIII, Mini-Phase H7) - see
+    # airspace_control_measures.py's own docstring for what's built
+    # there instead (the corridor/route lines and zone/area polygons)
+    # and the one point skipped (Base Defense Zone).
+    "air_control_point": "Air Control Point (ACP)",
+    "communications_checkpoint": "Communications Checkpoint (CCP)",
+    "downed_aircrew_pickup_point": "Downed Aircrew Pick-Up Point",
+    "pop_up_point": "Pop-Up Point (PUP)",
+    "air_control_rendezvous": "Air Control Rendezvous",
+    "tacan": "TACAN",
+    "cap_station": "CAP Station",
+    "aew_station": "AEW Station",
+    "asw_fixed_wing_station": "ASW (Helo and F/W) Station",
+    "strike_initial_point": "Strike Initial Point",
+    "replenishment_station": "Replenishment Station",
+    "tanking": "Tanking",
+    "asw_rotary_wing_station": "Antisubmarine Warfare, Rotary Wing",
+    "sucap_fixed_wing": "SUCAP - Fixed Wing",
+    "sucap_rotary_wing": "SUCAP - Rotary Wing",
+    "miw_fixed_wing": "MIW - Fixed Wing",
+    "miw_rotary_wing": "MIW - Rotary Wing",
+    "tomcat": "Tomcat",
+    "rescue": "Rescue",
+    "unmanned_aerial_system": "Unmanned Aerial System (UAS/UA)",
+    "vtua": "VTUA",
+    "orbit": "Orbit",
+    "orbit_figure_eight": "Orbit - Figure Eight",
+    "orbit_race_track": "Orbit - Race Track",
+    "orbit_random_closed": "Orbit - Random Closed",
+    # Maritime control points (Table H-XIV, Mini-Phase H8/H9) - see
+    # maritime_control_measures.py's own docstring for what's built
+    # there instead (the Bearing Line family) and the much larger
+    # AEGIS-specific/ASW-sonar/sonobuoy family deliberately left out.
+    "plan_ship": "Plan Ship",
+    "aim_point": "Aim Point",
+    "defended_asset": "Defended Asset",
+    "drop_point": "Drop Point",
+    "entry_point": "Entry Point",
+    "air_detonation": "Air Detonation",
+    "ground_zero": "Ground Zero",
+    "impact_point": "Impact Point",
+    "predicted_impact_point": "Predicted Impact Point",
+    "missile_detection_point": "Missile Detection Point",
+    "brief_contact": "Brief Contact",
+    "datum_lost_contact": "Datum Lost Contact",
+    "navigational_reference_point": "Navigational Reference Point",
 }
 
 
@@ -237,9 +286,11 @@ def _configure_attribute_form(layer):
 
     # Sensible defaults so a feature added and saved without touching
     # every field still resolves to a valid SIDC rather than an
-    # empty-string one mct_build_sidc() would reject.
+    # empty-string one mct_build_sidc() would reject. Default entity was
+    # "checkpoint" until 2026-08-10, when Table H-VI (which owned it)
+    # moved out to its own layer - see _ENTITY_LABELS' own comment.
     layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
-    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'checkpoint'"))
+    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'distressed_vessel'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
 

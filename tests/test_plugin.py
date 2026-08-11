@@ -155,7 +155,14 @@ class TestPluginLifecycle(QgisTestCase):
 
             self.assertEqual(
                 control_measures_option_texts,
-                ["C2 Measures", "Control Measure Points"]
+                [
+                    "C2 Measures", "Maneuver Control Measures",
+                    "Defensive Control Measures", "Offensive Control Measures",
+                    "Maneuver Control Measures II", "Airspace Control Measures",
+                    "Maritime Control Measures", "Deception Control Measures",
+                    "Fire Support Coordination Measures", "Target Control Measures",
+                    "Target Acquisition Control Measures", "Control Measure Points",
+                ]
             )
 
         finally:
@@ -214,6 +221,16 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_sigint_action)
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
         self.assertIsNone(plugin.c2_measures_action)
+        self.assertIsNone(plugin.maneuver_control_measures_action)
+        self.assertIsNone(plugin.defensive_control_measures_action)
+        self.assertIsNone(plugin.offensive_control_measures_action)
+        self.assertIsNone(plugin.maneuver_control_measures_2_action)
+        self.assertIsNone(plugin.airspace_control_measures_action)
+        self.assertIsNone(plugin.maritime_control_measures_action)
+        self.assertIsNone(plugin.deception_control_measures_action)
+        self.assertIsNone(plugin.fire_support_coordination_measures_action)
+        self.assertIsNone(plugin.target_control_measures_action)
+        self.assertIsNone(plugin.target_acquisition_control_measures_action)
         self.assertIsNone(plugin.control_measure_points_action)
         self.assertIsNone(plugin.control_measures_menu)
         self.assertIsNone(plugin.sub_grid_menu)

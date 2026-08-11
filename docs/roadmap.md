@@ -2551,6 +2551,2301 @@ tested, not claimed as done here.
     default-insert-position/duplicate-guard semantics), this was a pure
     reorganisation.
 
+- **2026-08-09 — Mini-Phase H3, Maneuver Control Measure Symbols
+  (Table H-VII, H.5.11)**, the first mini-phase built under the new
+  per-logical-group architecture above - `military_symbology/maneuver_
+  control_measures.py`, its own "Maneuver Control Measures (Lines)"/
+  "(Areas)" layers, its own "Maneuver Control Measures" entry in the
+  Control Measures submenu. At the project maintainer's own explicit
+  instruction for H3 onward: read every control measure's own template/
+  draw-rules/example in the actual standard BEFORE building it, rather
+  than batch-reading the whole table first - the whole table was still
+  read up front this once (to plan the module's own architecture before
+  writing any code), but each symbol's own construction decision was
+  made only after re-checking its own EXAMPLE column colours directly,
+  which is what caught the Phase Line-vs-Light-Line tick distinction
+  below. Confirmed first, directly against the vendored milsymbol.js
+  source: zero support for any Table H-VII entry (no "tactical graphic"/
+  "MultiPoint" string anywhere in its own source, zero literal
+  symbol-set-25 codes) - every measure type here is 100% hand-built
+  QGIS symbology, matching c2_measures.py's own Boundary/Light Line.
+  - **Scope decisions made with the maintainer before building** (see
+    maneuver_control_measures.py's own docstring for the full
+    reasoning): Occupied Assembly Area with Offset Unit/Units
+    (150301/150302) and Limited Access Area (151100) skipped outright -
+    each needs a second connected geometry (leader line to an external
+    point/icon) this module's "one feature, one symbol" model doesn't
+    fit; Line of Contact (140200) not built as its own symbol either -
+    its own DRAW RULES text says it's simply what results from placing
+    this module's own Friendly and Enemy FLOT lines next to each other,
+    not a separate drawable control measure.
+  - **Field N ("Hostile (Enemy)", literal fixed text "ENY") is not
+    rendered at all**, on every Enemy-flagged entry in this table
+    (FLOT Enemy, Enemy Area, JTAA/SAA/SGSA) - per Table VII's own field
+    definition (5.3.4, checked directly: "A text amplifier for
+    equipment; letters 'ENY' denote hostile symbols"), this is a
+    monochrome-only fallback the standard's own printed (grayscale)
+    tables spell out in text; a colour system - which this plugin
+    already is, red=hostile per H.5.1.1.1 - doesn't need it, confirmed
+    directly by the maintainer ("if colour coded, then ENY is not
+    required... only in grayscale ENY is written"). Nothing in this
+    module defaults any field to the literal text "ENY", though the
+    maintainer left room to add an optional field there later if a real
+    need comes up.
+  - **"Occupied Assembly Area" folded into "Assembly Area", "Friendly
+    Area"/"Enemy Area" folded into one plain "Area"** - each pair's own
+    TEMPLATE column is visually identical once Field N is dropped (the
+    standard's own note on Occupied Assembly Area's example already
+    says the unit icon shown there "is not part of this control measure
+    symbol"), so two dropdown entries that would always render
+    pixel-identically added little value - the existing Affiliation
+    field already covers what "friendly" vs "enemy" would have shown.
+  - **Status-pair codes folded into ONE measure type using the existing
+    shared "status" field**, matching Boundary/Light Line's own
+    precedent, wherever the underlying shape doesn't actually change
+    between Present/Planned: FLOT Friendly (140101/140102), FLOT Enemy
+    (140103/140104), and every area type. FEBA (140400)/Proposed FEBA
+    (140401) fold the same way once the DRAW RULES text is read
+    carefully - the "3 anchor points vs 2" language turned out to be
+    guidance for how the USER should digitize a forward-bulging shape
+    (the apex comes from whichever vertices they draw, exactly like
+    Boundary's own middle vertices), not something the symbol itself
+    needs to construct differently.
+  - **Two new hand-built line techniques**, confirmed by render-and-
+    compare against the actual page images before use (not assumed):
+    - **FLOT's own coiled/crescent wavy lines** - a
+      QgsMarkerLineSymbolLayer repeating a QgsSimpleMarkerSymbolLayer
+      SemiCircle shape along the line; Friendly's own interval is tight
+      enough that consecutive arcs touch (reading as one continuous
+      coil), Enemy's own is wider (separated crescents) - confirmed
+      literally the same repeated shape at different spacing by zooming
+      into both EXAMPLE columns (pages 410-411) side by side. Status
+      (present/planned) drives the arc's own stroke style between solid
+      and dot - the template's own Planned rows show a dotted version of
+      the identical shape, not the shared module's usual dashed one, so
+      this needed its own local `_FLOT_STROKE_STYLE_EXPRESSION` rather
+      than reusing `_STATUS_LINE_STYLE_EXPRESSION`.
+    - **Fortified Area's crenellated outline** - approximated (not
+      pixel-exact - real castellation would need polygon-offset
+      geometry synthesis, disproportionate effort for one entry) with a
+      repeating Square marker along the outline at a tight interval,
+      giving a recognisably "blocky" boundary rather than the standard's
+      own precise tooth shape - the same "recognisable, not exact"
+      standard this project applies elsewhere (Airfield Zone's icon,
+      Land Equipment curation, ...).
+  - **A real construction mistake caught and fixed by render-and-
+    compare, not assumed**: Phase Line's own perpendicular end tick
+    (built with a "line"-shape marker, the same shape Airfield Zone's
+    own runway icon in c2_measures.py uses) rendered ALONG the line
+    instead of across it at first - `angle=90` on a rotate-with-line
+    marker turned out to mean "flat along the tangent" and `angle=0`
+    means "perpendicular", the opposite of what the angle's own name
+    suggests. Confirmed by rendering both signs side by side rather
+    than assuming, the same discipline this project has applied to
+    every other offset/rotation ambiguity so far.
+  - **Phase Line's own "PL" + name needed a different construction than
+    FEBA's fixed "FEBA" label**, discovered only after render-and-
+    compare: routing Phase Line's own name through the Lines layer's
+    general along-line PAL label (the same mechanism FEBA's own
+    OPTIONAL extra name uses) put a single "PL ECHO" wherever PAL found
+    room along the line - nowhere near either end, unlike the standard's
+    own template, which pairs the label with the tick at EACH end
+    specifically. Fixed with a new `_end_designation_label_layer()`
+    helper: the same fixed-end-marker technique `_end_label_layer()`
+    already uses for FEBA/Light Line, but with the font marker's own
+    Character set as a DATA-DEFINED property (`QgsSymbolLayer.Property.
+    Character`) instead of a fixed literal, so each end shows "PL" plus
+    whatever the user actually typed. Confirmed against Table H-VII's
+    own EXAMPLE column that Phase Line genuinely needs a real tick
+    (unlike Light Line, where the up-arrow turned out to be a pointer/
+    callout only) - the standard's own "PL ECHO" example (page 413)
+    shows a real BLACK bracket touching each end, distinct from a
+    separate GREY illustrative boundary-line annotation drawn further
+    out - so this per-symbol check has to be repeated for every future
+    measure type, not assumed from either prior precedent.
+  - `_end_label_layer()` and `_status_driven_area_outline_symbol()`
+    (Boundary/Light Line's fixed-end-marker and every area type's
+    status-driven outline) moved from c2_measures.py into
+    `_control_measure_shared.py`, since this module needed both too -
+    c2_measures.py itself now imports them from there instead of
+    defining its own copies, no behaviour change.
+  - 517 tests passing on both QGIS versions (30 new); render-and-
+    compare verified via `QgsMapRendererCustomPainterJob` throughout,
+    including every line technique and every area label format.
+
+- **2026-08-09 — Mini-Phase H4, Defensive maneuver (Table H-VIII,
+  H.5.12.1 "Areas") + Table H-IX (Observation post, H.5.12.2)** -
+  `military_symbology/defensive_control_measures.py`, its own
+  "Defensive Control Measures (Areas)" layer, its own submenu entry.
+  **Areas-only** - H.5.12 has no line-type entries at all, so unlike
+  c2_measures.py/maneuver_control_measures.py this module deliberately
+  builds only one layer, not a matched Lines/Areas pair; "own layer(s)"
+  was never meant to imply every group needs both.
+  - **Table H-IX (all 7 Observation Post variants, plus Target
+    Reference Point) is NOT built in this module at all** - every entry
+    is a single-anchor-point symbol, and confirmed already present by
+    name in `control_measure_points.py`'s own vocabulary
+    (`observation_post`, `observation_post_reconnaissance`,
+    `observation_post_forward_observer`, `observation_post_cbrn`,
+    `observation_post_sensor_listening`, `observation_post_combat`,
+    `target_reference_point`) - milsymbol.js already renders these.
+    Not yet formally cross-checked entry-by-entry against Table H-IX's
+    own template pictures, the same kind of follow-up already flagged
+    for Table H-VI under task #33 - worth doing, not urgent.
+  - **Contain (151204) and Retain (151205) skipped outright** - both
+    are defined by a center point plus a radius (a computed circle with
+    a directional 30-degree gap, "the opening will be on the friendly
+    side of the symbol"), not a freeform user-drawn boundary the way
+    every other area in this table is - doesn't fit this module's (or
+    any other H.5.x area module's) "one polygon feature, one symbol"
+    pattern, the same "doesn't fit the model" reasoning already applied
+    to H3's own Offset-Unit/Limited Access Area entries.
+  - **Battle Position's own three Present/Planned/"Prepared (P) but not
+    Occupied" variants don't map onto the shared status field's two
+    values on their own** - "Prepared but not Occupied" is dashed (like
+    Planned) PLUS an extra "(P) " name prefix, not a genuinely distinct
+    line style. Modelled as the existing shared status field (solid/
+    dashed) plus a new, module-local "prepared" Yes/No field that adds
+    the prefix when set - confirmed against the standard's own "(P)
+    MARS" example.
+  - **Battle Position and Strong Point both reuse the Table D-III
+    echelon amplifier** (Field B) directly from `_control_measure_
+    shared.py` - the same vocabulary/glyphs/masking-free construction
+    Boundary already established in c2_measures.py, confirmed against
+    the standard's own "7"/"II" example.
+  - **One new hand-built technique**: Strong Point's own spiked/toothed
+    perimeter - the exact same "line"-shape marker technique already
+    confirmed for Phase Line's own end tick in maneuver_control_
+    measures.py (angle=0 is perpendicular for a rotate-with-line
+    marker, not angle=90), just repeated at Interval placement around
+    the WHOLE boundary instead of only at two ends - render-and-compare
+    confirmed a clean spiked border matching the standard's own
+    template.
+  - Every symbol render-and-compared directly against the standard's
+    own examples before being called done: "XRAY" (Battle Position
+    Present), "7"/"II" (Planned + echelon), "(P) MARS" (Prepared),
+    "TWO"/echelon (Strong Point), "EA ROCK" (Engagement Area) - all
+    matched the standard's own literal example text exactly.
+  - 533 tests passing on both QGIS versions (16 new).
+
+- **2026-08-09 — Mini-Phase H5, Offensive maneuver (Table H-X "Axis of
+  Advance" + Table H-XI "Direction of attack", H.5.13)** -
+  `military_symbology/offensive_control_measures.py`, its own
+  "Offensive Control Measures (Lines)"/"(Areas)" layers, its own
+  submenu entry.
+  - **Table H-X is deliberately APPROXIMATED, not built exactly** -
+    the first (and so far only) time this appendix-by-appendix pass has
+    made that call for an entire table rather than a handful of
+    entries within one. Every real entry (Friendly Airborne/Aviation,
+    Attack Helicopter, Main Attack, Supporting Attack, for a Feint,
+    Enemy) is defined by the standard's own DRAW RULES as a
+    variable-width tapered "ribbon" polygon computed from up to 50
+    anchor points (points 1 through N-2 trace a centerline, point N-1
+    is the rear, point N sets an arrowhead's own width) - a genuinely
+    different rendering paradigm from every other control measure
+    built in this appendix so far, which all style a shape the user
+    already drew rather than computing a new one from it. Approximated
+    as a single moderately-thick line (the user's own digitized path)
+    with one filled arrowhead at the end - loses the taper and the
+    small per-type decorations (a crossed "X" for Attack Helicopter, a
+    doubled outline for Main Attack, a dashed trailing edge for a
+    Feint), but reads recognisably as an "axis of advance" arrow, the
+    same "recognisable, not exact" standard already used for Fortified
+    Area's crenellation. Each sub-type stays its own selectable
+    measure_type (so the correct SIDC-relevant meaning is still
+    recorded and correctly coloured/labelled) even though several now
+    render identically.
+  - **Table H-XI (Direction of Attack) is built for real** - despite
+    reusing several of the same sub-type names as Table H-X, it's a
+    much simpler, genuinely different construction: a plain 2-point
+    line with a small UNFILLED chevron arrowhead
+    (`QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead`, not
+    "ArrowHeadFilled") at the end - confirmed by directly comparing the
+    standard's own template pictures for both tables side by side
+    before writing any code, rather than assuming Table H-XI would need
+    the same approximation as Table H-X just because several sub-type
+    names repeat.
+  - **Two entries skipped**: **Infiltration Lane** (140800) - a third
+    variable-width construction (2 centerline points + 1 width point)
+    with a zig-zag "stitched" double boundary, but unlike Table H-X's
+    own arrows a single line doesn't read as a "lane" even
+    approximately, so this wasn't approximated either, just deferred.
+    **Point of Departure** (160400) - a point symbol, already present
+    in `control_measure_points.py`'s own vocabulary
+    (`point_of_departure`).
+  - **Probable Line of Deployment (141200) is the first line in this
+    entire appendix pass where the shared "status" field's own solid/
+    dashed switch doesn't apply** - the standard's own explicit note
+    says its dashed line "shall be displayed in present AND anticipated
+    status" (i.e. always dashed); built with a fixed `Qt.PenStyle.
+    DashLine` and no data-defined StrokeStyle override at all, instead
+    of the usual `_STATUS_LINE_STYLE_EXPRESSION`.
+  - Field N ("ENY") again not rendered on the Enemy-flagged Axis of
+    Advance/Direction of Attack variants, same reasoning as
+    maneuver_control_measures.py.
+  - Every buildable symbol render-and-compared against the standard's
+    own examples: Axis of Advance/Direction of Attack arrows (solid and
+    dashed, filled vs. open arrowhead), FCL/LOA/PLD end labels (PLD
+    confirmed dashed even when "status" was set to present), and area
+    labels "ASLT DANUBE"/"ATK NILE"/"OBJ FIVE" matching the standard's
+    own example text exactly.
+  - 552 tests passing on both QGIS versions (19 new).
+
+- **2026-08-09 — Mini-Phase H6, "Maneuver control measure symbols"
+  (Table H-XII, H.5.14)** - `military_symbology/maneuver_control_
+  measures_2.py` (a "_2" suffix, not "_h6" - H.5.14's own section title
+  is LITERALLY "Maneuver control measure symbols" again, the identical
+  title H.5.11/`maneuver_control_measures.py` already uses; the
+  standard repeats the heading for a later, separate group of measures,
+  not a naming slip on this project's own part), its own "Maneuver
+  Control Measures II (Lines)"/"(Areas)" layers, its own submenu entry.
+  - **Two entries skipped**: **Attack By Fire Position (152000)** and
+    **Ambush (141700)** both need a real geometric construction this
+    appendix hasn't required before - an arrow shaft whose own tail
+    connects not to a digitized vertex but to the COMPUTED MIDPOINT of
+    a separate line between two other anchor points. Genuinely
+    different from every other "arrows from a shared point" symbol
+    already built (Principal Direction of Fire, Search Area/
+    Reconnaissance Area below), where every arm meets AT a directly
+    digitized vertex, never a point computed partway along another
+    segment.
+  - **Two entries nominally coded as "Areas" in the standard's own SIDC
+    numbering (a "15" prefix) are built on the LINES layer instead** -
+    Support by Fire Position (152100) and Search Area/Reconnaissance
+    Area (152200) are both multi-point arrows, not closed boundaries a
+    polygon layer could hold. Confirms this module (like every other
+    one in this pass) organises its own layers by ACTUAL QGIS geometry
+    type, not by the standard's own field-code grouping, since a QGIS
+    layer can only ever hold one geometry type regardless of what a
+    SIDC prefix implies. Support by Fire Position's own two arrowheads
+    both connect directly to digitized vertices (no midpoint needed,
+    unlike Attack By Fire Position above), so it's built for real, not
+    skipped - the same First/LastVertex arrowhead technique already
+    used for Principal Direction of Fire.
+  - **Encirclement's own Friendly (151801)/Enemy (151802) variants
+    folded into one measure type** - the same "Field N (ENY) dropped,
+    so the pair is visually identical once affiliation-colour is the
+    only real difference" reasoning already applied to Friendly/Enemy
+    Area in maneuver_control_measures.py. Its own spiked/toothed border
+    reuses defensive_control_measures.py's own Strong Point technique
+    directly (a QgsMarkerLineSymbolLayer repeating a "line"-shape
+    marker at Interval placement) - the third time this exact technique
+    has been reused since Strong Point first established it in H4.
+  - **Airhead Line (141300) is the first line in this whole appendix
+    pass with a single, fixed, CENTRED label** ("AIRHEAD LINE") rather
+    than one repeating along the line or fixed at each end - built with
+    `Qgis.LabelPlacement.Line`'s own default single-placement behaviour,
+    not the repeating/end-anchored patterns every other labelled line
+    here has needed.
+  - Every buildable symbol render-and-compared against the standard's
+    own template pictures: Support by Fire Position/Search Area arrows,
+    Airhead Line's centred label, BL/HL/RL end labels, Encirclement's
+    spiked border, Penetration Box's plain outline.
+  - 572 tests passing on both QGIS versions (20 new).
+
+- **2026-08-09 — Mini-Phase H7, Airspace Control Measures (Table
+  H-XIII, H.5.15)** - `military_symbology/airspace_control_measures.py`,
+  its own "Airspace Control Measures (Lines)"/"(Areas)" layers, its own
+  submenu entry - plus 25 new entries added directly to `sidc.py`'s
+  `ENTITIES["control_measure"]` and `control_measure_points.py`'s own
+  `_ENTITY_LABELS`, unlike every prior H-subphase's point vocabulary
+  (H4's Table H-IX, H5's Point of Departure), which was already present
+  and needed no code change.
+  - **Every one of Table H-XIII's ~25 point entries (Air Control Point,
+    Communications Checkpoint, Downed Aircrew Pick-Up Point, Pop-Up
+    Point, Air Control Rendezvous, TACAN, CAP/AEW/ASW/SUCAP/MIW
+    Stations, Strike Initial Point, Replenishment Station, Tanking,
+    Tomcat, Rescue, Unmanned Aerial System, VTUA, Orbit + its 3
+    variants) confirmed present in milsymbol.js's own vendored source
+    under the exact numeric code the standard's own table gives** -
+    added to the shared, milsymbol-rendered Control Measure Points
+    layer rather than hand-built, the same "point control measures
+    belong there" precedent as H4/H5, just the first time this pass's
+    own point vocabulary genuinely needed adding rather than merely
+    confirming. Render-and-compared all 25 through the real QJSEngine
+    pipeline - every icon matches the standard's own EXAMPLE column
+    exactly, including milsymbol's own display-name quirk for 180400
+    ("TP.PULL-UP POINT" instead of the standard's "Pop-Up Point (PUP)")
+    which turned out to be a naming difference only - its actual drawn
+    geometry (circle + "PUP" text + bowtie path) matches the template
+    exactly.
+  - **One point skipped: Base Defense Zone (170800, BDZ)** - a
+    fixed-size ("Static") plain circle around ONE anchor point, not in
+    milsymbol's vocabulary and not a fit for the Areas layer's freeform-
+    polygon model either - the same "genuinely a point construct"
+    reasoning already applied to H4's Contain/Retain and H6's Attack By
+    Fire Position/Ambush.
+  - **Corridors/Routes (7 types, standard's own "17" Area SIDC prefix)
+    built on the LINES layer instead** - Air Corridor, Low-Level Transit
+    Route, Minimum-Risk Route, Safe Lane, SAAFR, Transit Corridor,
+    Unmanned Aircraft Route are all really a path (2-99 sequential PT
+    anchor points), not a closed boundary - same "organise by actual
+    QGIS geometry type, not the SIDC field-code grouping" principle as
+    H6's Support by Fire Position/Search Area. Each is, per its own
+    template, really a variable-width RIBBON with rounded ACP/CCP
+    endpoint circles and 5 extra fields (WIDTH/MIN ALT/MAX ALT/DTG
+    START/DTG END) - approximated as a single moderately-thick
+    status-driven line with a centred "PREFIX NAME" label, the same
+    whole-table-approximation tolerance already used for offensive_
+    control_measures.py's own Axis of Advance family. "Air Corridor
+    with Multiple Segments" is the same code (170100) as plain Air
+    Corridor, just more anchor points - not a separate measure type.
+  - **Two simple end-labelled lines**: IFF Off Line (190100, "IFF OFF"
+    at both ends) and IFF On Line (190200, "IFF ON") - the same
+    `_end_label_layer()` technique as FCL/LOA/LD elsewhere in this
+    appendix.
+  - **12 zone/area types all share the identical "freeform outline +
+    PREFIX + optional name" construction** via a shared prefix dict:
+    HIDACZ, ROZ, AARROZ, UA-ROZ, and the Weapon Engagement Zone family
+    (WEZ, FEZ, JEZ, MEZ, LOMEZ, HIMEZ, SHORADEZ) - the standard's own
+    WEZ note says it "includes" the other five as its own sub-types, but
+    the table then lists each as its own separate SIDC code too, so all
+    six are built as distinct measure types rather than collapsed under
+    WEZ.
+  - **Weapons Free Zone (172000, WFZ) is the first area in this entire
+    appendix-by-appendix pass with a genuine fill** - the standard's own
+    note reads "Upward diagonal lines are part of the fill", not a plain
+    "no fill" outline like every other area built so far. Built with a
+    `QgsLinePatternFillSymbolLayer` at 45 degrees on top of the usual
+    status-driven outline - a new technique for this project, confirmed
+    by render-and-compare against the standard's own hatched template.
+  - Every buildable symbol render-and-compared against the standard's
+    own template pictures: all 7 corridor types' centred labels, IFF
+    Off/On's end labels, all 12 zone types' outlines and labels, WFZ's
+    hatched fill, and all 25 point icons through the real rendering
+    pipeline.
+  - 592 tests passing on both QGIS versions (20 new).
+
+- **2026-08-09 — Mini-Phase H8/H9, Maritime control measures (Table
+  H-XIV, H.5.16)** - `military_symbology/maritime_control_measures.py`,
+  a Lines-ONLY layer ("Maritime Control Measures (Lines)", no Areas
+  layer at all - Table H-XIV's own content ends right after its last
+  line entry, straight into H.5.17/Table H-XV Deception, without ever
+  reaching an "Areas" heading the way every other H.5.x section so far
+  has had one) - plus 13 new points added directly to `sidc.py`'s
+  `ENTITIES["control_measure"]` and `control_measure_points.py`'s own
+  `_ENTITY_LABELS`, the second time this pass's own point vocabulary
+  needed adding (after H7) rather than merely confirming.
+  - **This table turned out to be overwhelmingly Navy-AEGIS-combat-
+    system-specific or anti-submarine-warfare/sonar-specific** - by far
+    the heaviest curation of any H-subphase so far. Read through the
+    table's own template pictures page by page (pages 466-504 printed)
+    before deciding scope, rather than assuming from the section's own
+    intro text ("points, lines and areas") that a full three-geometry
+    build was needed.
+  - **The whole "(AEGIS only)" family skipped**: Launch Area (200101/
+    200102, Ellipse/Rectangle), Defended Area (200201/200202), No Attack
+    (NOTACK) Zone (200300), Ship Area of Interest (200400 grid-heatmap/
+    200401 Ellipse/200402 Rectangle), Active Maneuver Area (200500),
+    Cued Acquisition Doctrine (200600), Radar Search Doctrine (200700) -
+    every one of these needs a FIXED-graphic overlay (some parametric,
+    like an ellipse from one anchor point + major/minor axis radii +
+    rotation angle; others literally a static pre-drawn icon like a
+    diamond or curved arrow anchored to one point) with specific fixed
+    colours/fills, a genuinely different display category from every
+    other freeform-polygon or simple-line construction this whole
+    Appendix H pass has built - confirmed by reading every one of their
+    own template pictures directly, not assumed from the "(AEGIS only)"
+    tag alone.
+  - **The entire anti-submarine-warfare/sonar-contact-point family and
+    Sonobuoys sub-section skipped** (roughly codes 211000-213399 plus
+    213500+: Launched Torpedo, Acoustic Countermeasure (Decoy), ECM
+    Decoy, BT Buoy Drop, Reported Bottomed Sub, Moving Haven, Acoustic/
+    Electromagnetic/MAD Fix, Sonobuoy and its Ambient Noise/ATAC/Barra/
+    etc. sub-types) - the same "more Navy/anti-submarine-warfare-
+    specific ones (sonobuoy types and similar)" category this project's
+    own control_measure_points.py docstring already documents as
+    curated out of the base vocabulary; this mini-phase applies that
+    same standing decision rather than reversing it. Confirmed via
+    milsymbol.js's own TP.* name list (dozens of matching sonobuoy/
+    sonar-fix entries) that this reflects the standard's own real
+    scope, not an undercount on this project's part.
+  - **13 general-purpose points kept and added**: Plan Ship, Aim Point,
+    Defended Asset, Drop Point, Entry Point, Air Detonation, Ground
+    Zero, Impact Point, Predicted Impact Point, Missile Detection Point,
+    Brief Contact, Datum Lost Contact, Navigational Reference Point -
+    confirmed present in milsymbol.js under each exact numeric code,
+    added to the shared Control Measure Points layer per the same
+    precedent as every other H-subphase's point vocabulary. Render-and-
+    compared all 13 through the real QJSEngine pipeline - every icon
+    matches the standard's own EXAMPLE column.
+  - **The Bearing Line family (9 types, codes 220100-220108) built for
+    real** - the ONE genuinely general-purpose construction in this
+    whole table: a simple 2-point line with a fixed abbreviation centred
+    along it (Bearing/B, Electronic/E, Electronic Warfare/EW, Acoustic/
+    A, Torpedo/T, Electro-Optical Intercept/O, Jammer/J, RDF). Each
+    variant's own template also shows an optional "H" identifier info
+    box (e.g. "MSL"/"TENT" for EW, "PAT-1" for Jammer) - dropped, the
+    same "extra descriptive field box" tolerance already used for H7's
+    corridor family's WIDTH/altitude/DTG fields, rather than modelling a
+    different fixed vocabulary per sub-type for one small label.
+  - **Bearing Line, Acoustic (Ambiguous) (220104) confirmed a genuinely
+    separate SIDC code from plain Acoustic (220103), not a status
+    variant** - always drawn dashed in both its own template and
+    example regardless of a present/planned distinction, so built with
+    `setPenStyle(Qt.PenStyle.DashLine)` directly and no data-defined
+    StrokeStyle override, the same fixed-dash construction already used
+    for offensive_control_measures.py's own Probable Line of Deployment
+    (H5).
+  - Every buildable symbol render-and-compared against the standard's
+    own template pictures: all 9 Bearing Line variants' labels and the
+    Acoustic (Ambiguous) dash, and all 13 point icons through the real
+    rendering pipeline.
+  - 603 tests passing on both QGIS versions (11 new).
+
+- **2026-08-09 — Mini-Phase H10, Deception control measures (Table
+  H-XV, H.5.17)** - `military_symbology/deception_control_measures.py`,
+  the smallest mini-phase in this whole appendix-by-appendix pass: the
+  table has exactly ONE new drawable symbol.
+  - **Decoy/Dummy (230100) built as a 3-point line** (PT2 -> PT1 -> PT3,
+    vertex at PT1) drawn as two dashed segments forming a "tent"/
+    chevron shape - the same 3-point-line-from-a-shared-vertex
+    construction already used repeatedly (Principal Direction of Fire,
+    Search Area/Reconnaissance Area), just without arrowheads. **Always
+    dashed**, not status-driven (no `status` field on this layer at
+    all) - the standard's own template/example show it dashed with no
+    solid variant, consistent with a decoy being inherently simulated
+    rather than present/planned - the same fixed-dash technique as H5's
+    Probable Line of Deployment and H8/H9's Bearing Line, Acoustic
+    (Ambiguous). **No label at all** - the standard's own EXAMPLE column
+    shows an information box with 3 grey circle icons inside
+    (representing whatever's being decoyed), entirely grey, matching
+    this appendix's own established "grey in the EXAMPLE column is
+    illustrative-only" convention (first confirmed for c2_measures.py's
+    own Light Line) - nothing in that box is modelled.
+  - **Everything else in the table needs no new code**: Decoy/Dummy and
+    Feint (230200) is an explicit MODIFIER of another, separately-drawn
+    control measure ("anchor points are determined by the relationship
+    between the control measure symbol being modified and the decoy/
+    dummy or feint... modifying it") - the same "doesn't fit this
+    project's one-feature-one-symbol model" reasoning as every other
+    compound construct skipped elsewhere in this appendix. Axis of
+    Advance for a Feint and Direction of Attack for a Feint are the
+    standard's own explicit cross-references to symbols already built
+    in Mini-Phase H5 (`axis_of_advance_feint`/`direction_of_attack_
+    feint` in offensive_control_measures.py). Decoy Mined Area and
+    Dummy Minefield are the standard's own explicit forward-references
+    to Table H-XIX (Obstacles, Mini-Phase H15/H16, not yet reached).
+  - Render-and-compared the dashed tent shape against the standard's
+    own template picture.
+  - 612 tests passing on both QGIS versions (9 new).
+
+- **2026-08-09 — Mini-Phase H11, Fire Support Coordination Measures
+  (Table H-XVI, H.5.18)** - `military_symbology/fire_support_
+  coordination_measures.py`, its own "Fire Support Coordination
+  Measures (Lines)"/"(Areas)" layers, its own submenu entry.
+  - **The table's own intro text sets a general labelling rule for
+    every entry**: abbreviation + controlling headquarters (Field T) +
+    effective times (Field W/W1), repeated at both ends for lines. Kept
+    the abbreviation (SIDC-relevant), dropped the controlling-
+    headquarters/effective-times info boxes - the same "extra
+    descriptive field box" tolerance already used for H7's corridor
+    family and H8/H9's Bearing Line family.
+  - **5 area types, each folding a separate Irregular/Rectangle/
+    Circular SIDC code triple into ONE measure type**: Airspace
+    Coordination Area (240101/240102/240103, "ACA"), Free Fire Area
+    (240201/240202/240203, "FFA"), No Fire Area (240301/240302/240303,
+    "NFA"), Restricted Fire Area (240401/240402/240403, "RFA"),
+    Position Area For Artillery (240501/240502, "PAA" - only Rectangle/
+    Circle, no Irregular variant in the standard's own table) - the
+    same "these render pixel-identically once only the boundary shape
+    differs" reasoning already applied throughout this appendix.
+  - **No Fire Area (NFA) confirmed to need a genuine hatched fill** -
+    the SECOND area in this whole appendix-by-appendix pass after H7's
+    Weapons Free Zone, built the identical way
+    (QgsLinePatternFillSymbolLayer at 45 degrees over the usual
+    status-driven outline).
+  - **6 line types, split into two label conventions confirmed by
+    reading each one's own template picture** (not assumed from the
+    family's shared framing): Fire Support Coordination Line (FSCL),
+    No Fire Line (NFL), Battlefield Coordination Line (BCL), and
+    Restrictive Fire Line (RFL) all show their abbreviation at BOTH
+    ends (`_end_label_layer()`); Coordinated Fire Line (CFL) and
+    Munition Flight Path (MFP) both show a single label CENTRED along
+    the line (`Qgis.LabelPlacement.Line`, the same technique as
+    Airhead Line and this appendix's own corridor/route family).
+  - **CFL (260200) confirmed always dashed as a fixed property of the
+    code itself, not status-driven** - its own template and example
+    both show it dashed with no solid variant, the same fixed-dash
+    construction already used for H5's Probable Line of Deployment,
+    H8/H9's Bearing Line Acoustic (Ambiguous), and H10's Decoy/Dummy.
+  - Every buildable symbol render-and-compared against the standard's
+    own template pictures: all 6 line types' labels/dash styles, and
+    all 5 area types' outlines/labels/fill.
+  - 633 tests passing on both QGIS versions (21 new).
+
+- **2026-08-09 — Mini-Phase H12, Targets (Table H-XVII, H.5.19)** -
+  `military_symbology/target_control_measures.py`, its own "Target
+  Control Measures (Lines)"/"(Areas)" layers, its own submenu entry.
+  - **Most of this table's own point vocabulary was already present**
+    from an earlier pass, confirmed by code and name rather than
+    assumed: Point/Single Target (240601), Nuclear Target (240602),
+    Target-Recorded (AEGIS Only) (240603 - confirmed against
+    milsymbol.js's own "TP.TARGETRECORDED (AEGIS ONLY)" entry, which
+    genuinely draws the standard's own rectangle+diamond icon, not a
+    gap), Fire Support Station (240900), and the whole Field Artillery
+    points sub-section (Firing/Hide/Launch/Reload/Survey Control
+    Point). Nothing new needed there.
+  - **3 new line types, all sharing a perpendicular end-tick
+    construction** confirmed against each one's own EXAMPLE column
+    (genuine black ticks, not grey annotation - the same per-type check
+    used since Phase Line's H3 precedent): Linear Target (240701, a
+    bare optional name with no fixed abbreviation), Linear Smoke Target
+    (240702, fixed "SMOKE" second line under an optional name), Final
+    Protective Fire (240703, fixed centred "FPF").
+  - **5 new area types**, folding Irregular/Rectangle/Circular code
+    triples where present: Area Target (240801/802/803, a bare name
+    with NO fixed prefix - unlike most other prefixed areas in this
+    appendix, confirmed by its own EXAMPLE column), Series or Group of
+    Targets (240805, also a bare name - its own template shows
+    individual target-designator crosses inside the boundary, each one
+    a separate already-covered feature the user places on this
+    module's own other layers, not part of the boundary's own drawn
+    geometry), Smoke (240806 present/240807 planned - confirmed this
+    IS a genuine present/planned pair, unlike this appendix's other
+    fixed-dash codes, so it folds cleanly onto the existing status
+    field), Bomb Area (240808, fixed "BOMB" label), Fire Support Area
+    (241001/002/003, "FSA" prefix + optional name).
+  - **One entry skipped**: Rectangular Target - Single Target (240804,
+    AEGIS Only) needs a fixed compound diamond+cross icon anchored to
+    one point with a permanently-upright orientation regardless of the
+    area's own rotation - the same AEGIS-combat-system-specific
+    curation already applied throughout H8/H9.
+  - **Bug caught and fixed before shipping**: the first version of both
+    label expressions evaluated `upper("unique_designation")` directly
+    in the bare-name branches (Linear Target, Area Target, Series or
+    Group of Targets) - `upper(NULL)` returns NULL, not `''`, so a
+    feature with no name set failed its own "empty label" test. Fixed
+    by wrapping each in the same `CASE WHEN ... IS NOT NULL AND != ''`
+    guard already used everywhere else in this appendix; caught by the
+    test suite itself, not by rendering.
+  - Every buildable symbol render-and-compared against the standard's
+    own template pictures: all 3 line types' end-ticks and labels, and
+    all 5 area types' outlines and labels.
+  - 656 tests passing on both QGIS versions (23 new).
+
+- **2026-08-09 — Mini-Phase H13/H14, Target acquisition (Table H-XVIII,
+  H.5.20)** - `military_symbology/target_acquisition_control_measures.
+  py`, its own "Target Acquisition Control Measures (Areas)" layer
+  (Areas only, no Lines/Points - the whole table is this one
+  construction), its own submenu entry.
+  - **11 measure types, every one the identical "freeform outline +
+    prefix + optional name" construction**, each folding a separate
+    Irregular/Rectangle/Circular SIDC code triple into one measure
+    type: Artillery Target Intelligence Zone (241101/102/103, "ATI"),
+    Call For Fire Zone (241201/202/203, "CFF ZONE" - the standard's
+    own template text, not "CFFZ"), Censor Zone (241301/302/303,
+    "CENSOR ZONE"), Critical Friendly Zone (241401/402/403, "CF
+    ZONE"), Dead Space Area (241501/502/503, "DA"), Sensor Zone
+    (241601/602/603, "SENSOR ZONE"), Target Build-up Area (241701/702/
+    703, "TBA"), Target Value Area (241801/802/803, "TVAR"), Zone of
+    Responsibility (241901/902/903, "ZOR"), Blue Kill Box (242301/302/
+    303, "BKB"), Purple Kill Box (242304/305/306, "PKB"). Confirmed
+    each family's own code triple by reading its own template pages
+    directly (not assumed from the first two families) - the standard
+    itself is inconsistent about which families spell "ZONE" out in
+    their own fixed template text, kept as-is rather than normalised.
+  - **Two entries skipped**: Weapon/Sensor Range Fan - Circular
+    (242100) and - Sector (242200) both need genuinely parametric/
+    computed geometry from a single anchor point (one or more
+    concentric range rings, or a pie-shaped sector with an azimuth
+    centreline plus left/right limits and multiple range arcs) - not a
+    freeform polygon a user directly digitizes, the same reasoning
+    already applied to H4's Contain/Retain.
+  - Every measure type render-and-compared against the standard's own
+    template pictures - all 11 prefixes and optional names match the
+    standard's own EXAMPLE column exactly.
+  - 667 tests passing on both QGIS versions (11 new).
+
+- **2026-08-09/10 — live smoke-testing follow-up: Mini-Phase H3
+  correction pass (Table H-VII)** - the project maintainer began working
+  through every H3 measure type by hand in QGIS and found several real
+  construction defects the original build/render-compare pass missed,
+  each fixed the same day and re-verified by rendering:
+  - **FLOT was wrongly split into "flot_friendly"/"flot_enemy"** with
+    different arc intervals - merged into one `flot` measure type,
+    coloured by the shared affiliation field like every other measure
+    here, since the standard's own construction is identical regardless
+    of affiliation. Its own semicircles were also closing with a drawn
+    "chord" line across the flat edge - fixed by switching from
+    `QgsSimpleMarkerSymbolLayerBase.Shape.SemiCircle` (a closed shape,
+    stroke and all) to `Shape.HalfArc` (a genuinely open arc), found by
+    enumerating QGIS's own Shape enum directly rather than guessing.
+  - **Line of Contact (140200), previously skipped as "not a real
+    control measure"**, turned out to need building after all once the
+    maintainer clarified the standard's own construction: two FLOT-style
+    arc chains, offset apart with a gap, each bulging toward the
+    opposite side (friendly convex toward the enemy, enemy convex toward
+    friendly - a ")(" shape) rather than one shared line. Iterated to a
+    final 4.5mm gap and one chain fixed black / one fixed red (not
+    affiliation-driven, since both sides are always shown at once) after
+    several rounds of maintainer feedback on gap size and colour.
+  - **Phase Line's own end tick was wrong** - re-reading the maintainer's
+    own correction: the tick shown in the template is a grey
+    illustrative annotation, not drawn geometry (the same "grey =
+    explanatory only" lesson H2's own Light Line already taught, now
+    confirmed to need re-checking per measure type rather than assumed
+    from precedent). Removed entirely - Phase Line is now just the line
+    plus "PL "+name at both ends, no tick.
+  - **FEBA's own optional unique-designation label was wrong** - it has
+    no such field in the standard at all; removed the general along-line
+    label mechanism from the Lines layer entirely (FEBA was its only
+    remaining consumer).
+  - **Principal Direction of Fire's arrowheads** went through an
+    extended, ultimately unnecessary investigation (the maintainer's own
+    explicit correction: "you are complicating the issue... both...have
+    the arrow pointing outwards away from vertex") before landing back on
+    the ORIGINAL unmodified construction - a real lesson in trusting the
+    maintainer's own literal geometric description over pixel-level
+    reinterpretation when the two conflict. Its Field A vertex label
+    ("A") was removed too, on the maintainer's clarification that it
+    marks where a separate symbol belongs, not literal text to render.
+  - **Fortified Area's crenellated outline needed THREE real attempts**
+    before it worked on a genuine curved/multi-vertex boundary (not just
+    a synthetic rectangle): a single row of Square markers ("beaded
+    chain"), then two staggered offset marker-line chains (passed a
+    synthetic-rectangle test but broke down on the maintainer's own real
+    map screenshot near bends), then a Gemini-suggested dashed-line
+    variant (worse still). The actual fix abandoned symbol-layer styling
+    entirely for a genuine computed geometry: a new
+    `mct_crenellate_outline()` expression function (`expressions/
+    military_symbology_functions.py`) walking the ring in tooth+gap
+    cycles via `QgsGeometry.interpolate()`, with the OUTWARD direction
+    resolved once from the ring's own winding order (a shoelace
+    signed-area test), not a per-segment centroid-distance heuristic
+    (which got confused in concave stretches) - fed into a
+    `QgsGeometryGeneratorSymbolLayer`. This technique (ring-winding-order
+    for a reliable outward normal) was reused again in the H4 pass below.
+  - **Limited Access Area (151100), previously skipped**, was built
+    after all - a hatched-fill freeform area reusing the same
+    `QgsLinePatternFillSymbolLayer` recipe already used for Weapons Free
+    Zone/No Fire Area elsewhere in this appendix.
+  - 680 tests passing on both QGIS versions.
+
+- **2026-08-10 — live smoke-testing follow-up: Mini-Phase H4 correction
+  pass (Table H-VIII) + a Points-layer architecture change (Tables
+  H-VI/H-IX)** - two more real construction defects found by the
+  maintainer's own hands-on QGIS testing, plus a scope change requested
+  the same day:
+  - **The Field B echelon glyph was rendering as a second line of Battle
+    Position's/Strong Point's own floating, polygon-centred name
+    label**, not sitting IN the perimeter line with a real gap cut
+    around it the way the standard's own template shows (and the way
+    Boundary already does it in c2_measures.py). Fixed by moving the
+    echelon glyph to its own, separate, masked label - anchored at the
+    polygon's own ORIGIN point (its first digitized vertex, via a label
+    geometry generator, `point_n($geometry, 1)`) rather than the
+    feature's own centroid, per the maintainer's explicit instruction.
+  - **Strong Point's own tick marks straddled the perimeter line
+    symmetrically** (half inside the polygon, half outside) instead of
+    pointing outward only - fixed with the same ring-winding-order
+    technique H3's Fortified Area pass had already established: wrap the
+    tick layer in a `QgsGeometryGeneratorSymbolLayer` using
+    `force_rhr($geometry)` to force a fixed winding direction, so a
+    fixed marker offset reliably means "outward" for every feature
+    regardless of how the user digitized it. Once fixed, the maintainer
+    then found the ticks were crowding the echelon glyph at the origin
+    point - the masked gap only cut through the outline, not the
+    separate tick layer. Fixed by adding the tick layer's own id to the
+    same masked-symbol-layer list and widening the mask.
+  - **Battle Position's "Prepared but not occupied" checkbox rendered a
+    SOLID perimeter** unless the separate "status" field was ALSO
+    switched to Planned by hand - wrong, since a dedicated field exists
+    for exactly this variant. Fixed with Battle Position's own line-style
+    expression (dashed when either "status" is planned OR "prepared" is
+    set) instead of reusing the shared status-only one.
+  - **Points-layer architecture change, at the maintainer's own explicit
+    request**: Table H-VI (Command and control points) and Table H-IX
+    (Observation post) both moved out of the shared, ~90-entry
+    `control_measure_points.py` dropdown into their own dedicated
+    layers - "C2 Measures (Points)" and "Defensive Control Measures
+    (Points)" respectively - matching the "own layer(s)" convention
+    every other H.5.x group's Lines/Areas layers already follow, and
+    closing task #33's own "Table H-VI pending audit" note by
+    construction. Not duplicated in both places - the underlying
+    `sidc.py` entities are untouched, so this only changes which
+    layer's dropdown offers them, not how anything already digitized
+    renders. The remaining H.5.x groups' own point-type entities
+    (Airspace/Maritime control points, plus everything belonging to the
+    not-yet-built H15-H22 mini-phases) stay in the shared layer for now
+    - splitting those out is scoped to happen naturally as/when each
+    group gets its own dedicated Points layer, not ahead of time.
+  - 696 tests passing on both QGIS versions (16 new).
+
+- **2026-08-10 — third live-testing round on Table H-VI, C2 Measures'
+  own new Points layer**, all found by the project maintainer's own
+  hands-on QGIS testing against the actual standard's own Table H-VI
+  pages (reference/MIL-STD-2525D.pdf, rendered as page images and
+  visually compared, not just text-extracted - the same discipline this
+  project applies everywhere else):
+  - **Four entities missing from the original ~80-entry curation**:
+    Fly-To Point (Sonobuoy/Weapon/Normal, codes 131001-131003) and Point
+    of Interest - Launch Event (131301) - genuinely absent from
+    `sidc.py`'s own `ENTITIES["control_measure"]`, not built elsewhere
+    under a different name (confirmed by grepping the whole codebase).
+    Added after confirming the exact codes/names directly against the
+    vendored milsymbol.js source.
+  - **Two entities removed after direct verification against the
+    standard found they don't exist there at all**: Target Handover
+    (132000) and Key Terrain (132100). Table H-VI's own last page (409)
+    ends at Airfield (131900), immediately followed by H.5.11/Table
+    H-VII on the very next page - confirmed by rendering both pages as
+    images, not just trusting `pdftotext` (whose own extracted text
+    already agreed, but the project's own standing discipline is to
+    never stop at text alone). "Target Handover"/132000 doesn't even
+    exist in milsymbol.js's own dispatch table under any name; Key
+    Terrain/132100 does (`TP.KEY TERRAIN`), but is a milsymbol-only
+    addition with no basis in the actual MIL-STD-2525D text - both
+    removed from `sidc.py` and this module's own `POINT_ENTITY_LABELS`.
+    Table H-VI is now a verified-complete, gap-free 22 entities (130100
+    through 131900, confirmed against every single "Code:" line in the
+    standard's own text for that page range).
+  - **The "Unique designation" field was being collected on every
+    Points layer's own attribute form but never actually rendered at
+    all** - a real, if quiet, bug affecting C2 Measures' new Points
+    layer, Defensive Control Measures' new Points layer, and the
+    original `control_measure_points.py` layer alike: the SIDC string
+    itself has no room for free text, so it has to reach the rendered
+    symbol through milsymbol.js's own separate render options, which
+    nothing was populating. Fixed via `mct_sidc_svg()`'s own new
+    optional second/third arguments.
+  - **The fix above then surfaced a second, subtler bug**: milsymbol.js
+    itself uses TWO different, non-interchangeable text-modifier options
+    per icon (`uniqueDesignation` vs `uniqueDesignation1`), and guessing
+    wrong puts the designation in a visibly different position than the
+    standard's own template shows (or, for one wrong guess along the
+    way - `additionalInformation` - a third position entirely, above the
+    icon, matching neither). Resolved by reading milsymbol.js's own
+    per-icon position-config objects directly for every Table H-VI
+    entity rather than guessing per-icon: Contact Point/Decision Point/
+    Point of Interest/Airfield/Waypoint use `uniqueDesignation`; Amnesty
+    Point/Checkpoint/Distress Call/Entry Control Point/Linkup/Passage/
+    Rally/Release/Start Point use `uniqueDesignation1` instead, for the
+    exact same visual position the standard's own EXAMPLE column shows.
+    `_POINT_SIDC_EXPRESSION` now routes accordingly via a `CASE`
+    expression. Every reference to the field had to be wrapped in
+    `coalesce(...,'')` - QGIS's own expression engine short-circuits an
+    entire function call to NULL the moment any argument evaluates to
+    NULL, which a bare field reference does for the (common) case of a
+    feature that simply left "Unique designation" blank - this broke
+    the ENTIRE icon, not just the missing text, for every feature
+    without a designation, until caught and fixed.
+  - **Several icons render visibly smaller/fainter than their siblings
+    at the same nominal 8mm marker size**, despite every icon's own
+    rendered SVG sharing the identical `stroke-width="3"` (confirmed by
+    rendering each one's raw SVG and comparing directly) - milsymbol.js
+    has no separate "bolder line" option, so size is the only lever
+    available. Fixed for the two entities the maintainer gave explicit
+    target increases for (Decision Point +20%, Center of Main Effort
+    +10%) via a data-defined `Size` property, `_POINT_SIZE_MULTIPLIERS`.
+    Coordination Point and Contact Point were flagged with the same
+    root cause but no specific target percentage - left at the default
+    pending that number.
+  - **Distress Call's own diagonal anchor-point line is genuinely
+    missing from milsymbol.js's own vendored icon definition** -
+    confirmed by decoding its raw SVG path data directly: the drawn
+    shape stops exactly at the cone's own tip, with no further segment
+    extending toward an external anchor point the way the standard's
+    own template/example both show. Not fixed yet - the two ways to
+    fix it (hand-patching the vendored third-party file, which this
+    project avoids on principle, or building a second, precisely
+    positioned QGIS symbol layer stacked on top of the opaque SVG
+    marker to draw just that one line) are both real engineering
+    investment for one decorative line on one entity - flagged to the
+    maintainer rather than unilaterally built.
+  - `control_measure_points.py`'s own remaining ~88 entities share the
+    exact same `coalesce(...,'')` NULL-propagation fix (this one WAS
+    applied everywhere, since it was silently breaking icons outright),
+    but NOT yet individually checked against the `uniqueDesignation`/
+    `uniqueDesignation1` per-icon distinction the way Table H-VI's own
+    22 were - noted as a known limitation in that module's own
+    `_SIDC_EXPRESSION` comment, to revisit if reported.
+  - 699 tests passing on both QGIS versions (3 new).
+  - **Same-day follow-up**: Coordination Point and Contact Point's own
+    size boost, left pending above, was set to +15% each once the
+    maintainer gave that number. Separately, the maintainer's own next
+    check found the "unique_designation" field wasn't being upper-cased
+    at all on any of the three Points layers (C2 Measures', Defensive
+    Control Measures', and the original `control_measure_points.py`) -
+    a real H.5.4 Labeling violation, missed because this whole code path
+    reaches milsymbol.js's own text options directly rather than through
+    the shared `_PLAIN_DESIGNATION_LABEL_EXPRESSION` that already
+    upper-cases the appendix's own hand-built line/area labels. All
+    three expressions now wrap the field in `upper(...)`. 700 tests
+    passing on both QGIS versions (1 new).
+  - **Second same-day follow-up**: three more real findings from the
+    maintainer's own continued live testing.
+    - Coordination Point's own display label was wrong - the standard
+      itself calls it **Coordinating Point** (confirmed against the
+      actual template heading, page 403); renamed both the entity key
+      (`coordination_point` -> `coordinating_point`, in `sidc.py` and
+      this module) and its label, not just the label, so the internal
+      identifier stays honest about what it represents. Center of Main
+      Effort's own +10% size bump (previous round) was still reported
+      too small/faint - raised to +15% to match Coordinating Point/
+      Contact Point.
+    - Unspecified Control Point's own designation was rendering OUTSIDE
+      the icon (to the right) instead of inside/below like its
+      siblings, and appeared smaller - the size turned out to be a red
+      herring (its own SVG output dimensions are, if anything, very
+      slightly LARGER than Amnesty Point's - confirmed by rendering
+      both and comparing directly; the "smaller" impression was almost
+      certainly just an empty box reading as sparser than a
+      "AMN"-filled one). The real, confirmed bug: this ONE entity
+      defines its own, differently-named milsymbol.js option for that
+      position - `additionalInformation1`, not the `uniqueDesignation1`
+      its siblings share - found by reading its own position-config
+      object directly. This pushed `mct_sidc_svg()` past a design limit
+      (a THIRD distinct slot name) - refactored from two fixed
+      positional "which slot" arguments to a general `(text, slot_name)`
+      pair, so any future per-icon slot discovery is a one-line entity
+      lookup, not another new function parameter.
+    - **Distress Call's own missing diagonal anchor-point line was
+      built**, at the maintainer's own request, as a genuinely new
+      symbol layer (not a vendored-file patch) - length and tip-offset
+      derived directly from the icon's own known local SVG coordinates
+      (both work out to the same value, `DEFAULT_POINT_MARKER_SIZE_MM *
+      80 / 215.33` mm - not a coincidence, the icon's own box width and
+      half its own total height are equal in local units), angle
+      measured by pixel-tracing the standard's own template picture
+      (~15 degrees below horizontal). Getting the direction right needed
+      a real, standalone diagnostic first: a QgsSimpleMarkerSymbolLayer's
+      own `angle` rotates its `offset` together with its drawn shape (a
+      controlled 4-angle test render, not assumed), which meant the
+      "reach the tip" component of the offset (which must stay fixed
+      straight down in absolute space) had to be pre-rotated by the
+      INVERSE of the line's own angle before handing it to QGIS, so
+      QGIS's own forward rotation lands it correctly - ordinary vector
+      math once the rotation behaviour itself was confirmed empirically.
+      Also hit, and fixed, a real PyQt/SIP segfault along the way:
+      extracting a symbol layer from a `QgsMarkerSymbol.createSimple()`
+      wrapper and returning it after the wrapper itself goes out of
+      scope leaves a dangling reference - built directly via the
+      concrete `QgsSimpleMarkerSymbolLayer` class instead, sidestepping
+      the whole issue.
+  - 702 tests passing on both QGIS versions (2 new).
+  - **Third same-day follow-up**: Airfield joined the same +20% size fix
+    as Decision Point. More significantly, the maintainer's own report
+    that the new Distress Call diagonal line still wasn't landing at the
+    right spot led to a genuinely better fix than the one already
+    shipped, on the maintainer's own suggestion: "why not use the point
+    where the user clicks as the origin for the symbol, the bottom tip
+    of triangle sits there... if you notice even in the manual, the
+    symbol is drawn AT the anchor point and not around it." This was
+    right, and generalises well past Distress Call - EVERY entity
+    sharing the box+cone icon construction (confirmed by an identical
+    rendered SVG path across all of them: Unspecified Control Point,
+    Amnesty Point, Checkpoint, Distress Call, Entry Control Point,
+    Linkup/Passage/Rally/Release/Start Point) shares the same "Anchor
+    Points... the point defines the TIP of the inverted cone" draw
+    rule, which QGIS's own default SVG marker anchor (the drawn
+    content's bounding-box CENTRE) has been quietly getting wrong for
+    all ten of them, not just Distress Call. Replaced the previous
+    (broken - a QgsSvgMarkerSymbolLayer's own `Offset` property turned
+    out to have no visible effect at all on rendering, confirmed by a
+    controlled before/after comparison) offset-based hack with QGIS's
+    own purpose-built `VerticalAnchor` symbol layer property
+    (`center`/`bottom`/`top`, confirmed empirically with the same kind
+    of controlled render comparison that this project already leans on
+    for every ambiguous rendering question) - data-defined per entity,
+    `bottom` for the whole box+cone family, `center` (the previous
+    default) for everything else, matching each entity's own actual
+    draw rule rather than a blanket assumption either way. The new
+    diagonal line's own construction simplified as a direct result -
+    with the SVG's own anchor now genuinely at the tip, the line just
+    starts at (0, 0) and extends outward, no more "reach the tip first"
+    offset component to compute.
+  - 703 tests passing on both QGIS versions (1 new).
+  - **Fourth same-day follow-up**: the three Fly-To Point variants
+    joined the same size fix (+15%), for a related but distinct reason -
+    their own outer box+cone shape is actually IDENTICAL in size to
+    Checkpoint's own (confirmed by comparing raw SVG output dimensions
+    directly), but "FTP" plus a 3-letter code needs two text lines where
+    Checkpoint's own "CKP" needs one, and milsymbol.js shrinks the font
+    to fit two lines into the same box height - the same underlying
+    "no separate boldness/font-size lever, size is the only one" finding
+    as the earlier round, just a text-density cause rather than a
+    line-weight one. 703 tests passing on both QGIS versions (existing
+    size test extended, no new test).
+  - **Live smoke-testing moved to Table H-VII (Maneuver Control Measure
+    Symbols, `maneuver_control_measures.py`)**: the maintainer reported
+    only two of that table's entities had issues - FLOT and Line of
+    Contact both had semicircle "arcs" that were too big, and Line of
+    Contact's own two chains (one per side, black + red) needed a
+    genuine visible gap between them, with the black chain recoloured
+    blue. Fixed by parameterising `_arc_marker_layer()`'s previously
+    hardcoded `size_mm=6` and introducing a shared `_ARC_SIZE_MM = 6 *
+    0.6` constant (-40%, applied identically to both symbols so they
+    stay visually consistent with each other); Line of Contact's
+    friendly-side chain colour changed `QColor(0, 0, 0)` ->
+    `QColor(0, 0, 255)`. The gap took one round of maintainer
+    correction to get right: the first attempt (`offset_mm=1.0`/`-1.0`)
+    was reported as "the red and blue lines are overlapping" on direct
+    inspection, so it was increased to `2.2`/`-2.2` and re-rendered -
+    confirmed via a zoomed render crop to show a clear, non-overlapping,
+    discernible gap between the two chains, matching the request for
+    "a very slight discernable gap" rather than a wide separation.
+    704 tests passing on both QGIS versions (1 new: arc-size equality
+    test; 1 renamed: the two-chain colour test now expects blue+red
+    instead of black+red).
+  - **Live smoke-testing moved to Table H-IX (Observation post,
+    `defensive_control_measures.py`)**: the maintainer reported two
+    real bugs, both confirmed by direct evidence rather than
+    assumption before fixing. **Bug 1** - a unique designation typed
+    into any of the six Observation Post entities (Unspecified,
+    Reconnaissance, Forward Observer, CBRN, Sensor/Listening, Combat)
+    never rendered - traced to milsymbol.js's own control-measure
+    position-config table, read directly: `t[160100]={},t[160200]={},
+    t[160201]={} ... t[160205]={}` are all genuinely EMPTY objects, a
+    different (and worse) problem than the earlier C2-points slot-name
+    mismatch - there's no text position at all to configure our way
+    into, unlike Target Reference Point right next to them in the same
+    table (`t[160300]={uniqueDesignation:{...}}`), which already works
+    and was left untouched. Fixed with a real QGIS point label (not a
+    milsymbol one) placed directly over the feature's own point
+    (`Qgis.LabelPlacement.OverPoint` + `Quadrant.Over`), at a small
+    (3.5pt) bespoke font size - the shared 9pt line/area label size
+    badly overflowed this family's own 8mm triangle on a first live
+    render. **Bug 2** - Forward Observer/Spotter's own triangle was
+    missing the diagonal line the standard's own template picture
+    (page 425) shows running from the bottom-left vertex, through the
+    dot, to the midpoint of the right edge - confirmed a genuine gap in
+    the vendored milsymbol.js itself (its own icon definition draws
+    only the triangle and the dot) by rendering the actual SIDC and
+    reading the returned SVG directly, not by comparing pictures alone.
+    Rather than hand-patching the vendored third-party file, added the
+    line as this project's own extra marker layer, reusing
+    c2_measures.py's own Distress Call "milsymbol is missing a stroke"
+    technique (a LayerEnabled data-defined property keyed on the one
+    affected entity) but drawn BENEATH the SVG icon this time rather
+    than above it, since the standard's own picture shows the dot
+    sitting on top of the line, the opposite ordering from Distress
+    Call's own diagonal. The line's own endpoints came from milsymbol's
+    real local SVG coordinates (confirmed live via
+    `render_symbol_svg()`, not eyeballed), and the local-unit-to-mm
+    scale came from rendering a real feature and measuring the filled
+    dot's own pixel radius against its known local radius of 15 units
+    (a filled shape measures more precisely than a thin stroked
+    outline) - the same render-and-measure discipline this project has
+    used for every other ambiguous QGIS rendering behaviour this
+    session. `core/text_format.py`'s own `build_font()` needed a small
+    one-line fix alongside this (`setPointSize` -> `setPointSizeF`) to
+    accept the fractional 3.5pt label size at all. 706 tests passing on
+    both QGIS versions (3 new: the diagonal line's own shape/
+    LayerEnabled test, the new label's own text/upper-casing/exclusion
+    test; 2 existing tests updated for the renderer's new symbol-layer
+    ordering, index 0 -> 1 for the SVG icon layer).
+  - **Two other H-VIII/H-IX findings reported the same session were
+    investigated and found NOT to be bugs, or were withdrawn by the
+    maintainer before any code changed** - noted here so a future pass
+    doesn't re-litigate them from scratch: Contain (151204)/Retain
+    (151205)/a "weapon-sensor range fan" report were raised, then the
+    maintainer said the observation was incorrect and asked to stop
+    before any fix was scoped or built; module docstring's existing
+    Contain/Retain "deliberately skipped" note (procedural circle/arc
+    constructions, not a freeform-polygon fit) stands unchanged.
+  - **Live smoke-testing moved to Table H-X/H-XI (Offensive Control
+    Measures, `offensive_control_measures.py`)** - the maintainer's own
+    report was large (six separate findings) and confirmed against the
+    standard's own template pictures (pages 428-439) table row by table
+    row before any code changed:
+    - **Field T (unique designation) and Field W-W1 (DTG range) never
+      rendered at all** on any Axis of Advance/Direction of Attack
+      variant. Fixed via a new `_designation_end_marker_layer()` - the
+      same data-defined-Character `QgsFontMarkerSymbolLayer` technique
+      maneuver_control_measures.py's own Phase Line already established
+      for per-feature dynamic text - placed near the arrowhead (Axis of
+      Advance: T below the shaft, DTG above; Direction of Attack: T on
+      the shaft, DTG below), a `dtg_start`/`dtg_end` field pair added to
+      the Lines layer schema (matching the same Fields W/W1 maneuver_
+      control_measures.py's own action areas already use).
+    - **Every Axis of Advance sub-type rendered identically** - restored
+      Attack Helicopter's own perpendicular crossbar (a rotate-with-line
+      "line"-shape marker, Strong Point's own established convention),
+      Main Attack's own doubled/parallel-line outline (two close offset
+      copies of the shaft), and Direction of Attack's own Friendly
+      Aviation bowtie glyph (two opposed `Triangle` marker layers, each
+      offset half its own size outward so their tips meet at the anchor
+      instead of just overlapping - QGIS has no native bowtie shape).
+    - **Enemy-flagged variants didn't automatically render red** -
+      fixed with a small local colour override
+      (`_OFFENSIVE_LINE_COLOR_EXPRESSION`) that forces red for exactly
+      `axis_of_advance_enemy`/`direction_of_attack_enemy`, deferring to
+      the ordinary affiliation-driven colour for every other measure
+      type in this module.
+    - **Infiltration Lane (140800) was re-scoped from "skipped" to
+      "built"** - re-reading its own draw rules directly (not relying on
+      the earlier session's own assumption that it needed the same
+      variable-width polygon synthesis Axis of Advance does) showed it's
+      just two parallel lines with a centred Field T, the same "two
+      fixed-offset copies" approximation Main Attack's own doubled
+      outline uses. One real bug surfaced building this: the first
+      attempt (1.2mm offset each side, matching Main Attack's own
+      spacing) put Field T's text directly on top of both lines at
+      once - and since the text and lines share the same affiliation-
+      driven colour, the overlap made the text unreadable (a negative-
+      space silhouette, not a rendering failure) rather than merely
+      crowded, caught by rendering a real feature and sampling actual
+      pixel colours rather than eyeballing a thumbnail. Fixed by
+      widening the gap to 2.0mm each side and shrinking the label.
+    - **Table H-XI's own "Points" sub-section (Point of Departure,
+      160400) had no dedicated layer** - the one H.5.13 point family
+      still sitting in the shared `control_measure_points.py` dropdown
+      instead of getting the "own layer(s)" treatment every sibling
+      H.5.x group already has. Given its own new `Offensive Control
+      Measures (Points)` layer, moved out of control_measure_points.py
+      (not duplicated). Its own unique designation also didn't land
+      where the template shows it (immediately right of the box,
+      vertically centred) - milsymbol.js's own position config for this
+      SIDC turned out to be a genuine mismatch (`t[160400]=E`, only an
+      ABOVE-the-box slot under the wrong field name, confirmed by
+      rendering the real SVG output for both the slot this project was
+      using and the one milsymbol actually defines, not guessed), so
+      this uses the same real-QGIS-label workaround Table H-IX's own
+      Observation Post family established, positioned via an explicit
+      (x, y) mm offset derived from the icon's own real local SVG
+      coordinates. Building this caught a real sign-convention error
+      the hard way: `QgsPalLayerSettings.yOffset` turned out to use the
+      SAME Y-down convention as the local SVG coordinates themselves,
+      not the inverted Y-up convention first assumed - confirmed by
+      rendering a real feature and seeing the label land well below the
+      box instead of beside it, then fixing the sign and re-confirming.
+    - `core/text_format.py`'s own `build_font()` needed the same
+      `setPointSize` -> `setPointSizeF` fix already made for Table
+      H-IX's own label to accept a font size below 1pt granularity
+      cleanly (unrelated to this round directly, already fixed).
+      717 tests passing on both QGIS versions (11 new: Field T/W-W1
+      structure and font-marker presence for both families, Main
+      Attack's own doubled-outline offsets, the Aviation bowtie, the
+      forced-red Enemy colour, Infiltration Lane's own parallel-line/
+      label structure, and the new Points layer's own field/anchor/
+      label/SIDC-path tests; several existing tests updated for the new
+      symbol-layer counts and the Lines layer's own two new DTG fields).
+  - **Same-day follow-up, back on Table H-IX**: the project maintainer's
+    own live testing found the shared 3.5pt Observation Post label size
+    (fixed earlier this round) unreadable specifically for "Observation
+    Post/Outpost" itself - the one entity of the six with an otherwise
+    completely empty triangle, so it has the most room of any of them
+    and was asked to go to 8pt; Forward Observer/Spotter's own earlier
+    fix (the missing diagonal line) was separately confirmed working
+    and left untouched. Rather than bump the size for all six (which
+    would have crowded the other five, each already sharing its own
+    triangle with an interior glyph), this is now a per-entity data-
+    defined `Size` property on the label (`_POINTS_LABEL_FONT_SIZE_
+    EXPRESSION`) - 8pt for the plain/unspecified variant, 3.5pt
+    everywhere else. Building the test for this hit a real segfault
+    the same "dangling intermediate reference through several PyQt/
+    SIP-wrapped QGIS objects in one chained expression" class of bug
+    this project has hit before (c2_measures.py's own Distress Call
+    anchor line) - fixed by holding each intermediate (`labeling`,
+    `settings`, `properties`, `size_property`) as its own named local
+    instead of one long chain. 718 tests passing on both QGIS versions
+    (1 new).
+  - **Same-day follow-up, first "one at a time" pass on Table H-X's
+    still-approximated Axis of Advance family**: at the project
+    maintainer's own explicit direction ("H-X and H-XI have too many
+    errors, let's fix one at a time, that way, it can be a template for
+    others also"), started with Friendly Airborne/Aviation (151401),
+    replacing the single-thick-line-plus-filled-arrowhead approximation
+    with the standard's own REAL variable-width tapered-ribbon
+    construction, simplified to exactly 3 user clicks (origin, bend,
+    tip) rather than the standard's own general N-point form, per the
+    maintainer's own request. Two real findings along the way:
+    - **The maintainer's own suggested QGIS technique (a single
+      expression chaining ~20 `with_variable()` calls through
+      `azimuth()`/`project()`) produced the right shape** (confirmed by
+      an independent plain-Python/PIL debug render of the same point
+      math) **but blew up exponentially on a real render** - directly
+      timed rather than assumed: evaluation time roughly DOUBLED with
+      each added chained variable (0.01s -> 1.05s by variable 17 of
+      ~24), and the full expression timed out completely. Root cause:
+      QGIS's own `with_variable()` doesn't memoize - every `@ref`
+      re-evaluates its entire dependency chain from scratch. Moved to a
+      plain Python `@qgsfunction`, `mct_axis_of_advance_ribbon()`
+      (expressions/military_symbology_functions.py), the same
+      "real point/geometry math belongs in Python, not a deeply chained
+      expression" lesson `mct_crenellate_outline()` already established
+      for Fortified Area's own crenellated outline (maneuver_control_
+      measures.py) - wired into a `QgsGeometryGeneratorSymbolLayer` the
+      identical way. Runs instantly; no expression-engine involvement
+      beyond the single top-level function call.
+    - **The maintainer's own suggested widths were fixed absolute map
+      units** (`100`/`250`/`300`, assuming a projected metric CRS) -
+      this project's own control-measure layers are built in whatever
+      CRS the QGIS project itself uses, often geographic WGS84 (degrees),
+      where a "100-unit" width would be enormous. Changed to ratios of
+      the drawn Point-1-to-Point-3 distance instead (shaft/barb width
+      and barb length as percentages of the arrow's own drawn length),
+      which reads correctly regardless of the layer's CRS and matches
+      the standard's own general "size determined by anchor points"
+      phrasing already seen throughout this appendix. **Exact ratio
+      values are explicit placeholders, not yet tuned against the
+      standard's own template picture** - the maintainer's own explicit
+      instruction was to get the construction technique right first,
+      "we will fill the data later".
+    - The construction's own topology (two parallel edges holding
+      constant width from Point 1 through Point 2, THEN swapping sides
+      in a short crossing region close to the tip before flaring into
+      the arrowhead) was arrived at empirically - a first, simpler
+      attempt (offset edges going straight from the bend to the
+      arrowhead's back corners, or forcing an explicit zero-width pinch
+      at the Point-2-to-Point-3 midpoint) each produced a visibly wrong
+      kite/lopsided shape on a real render, confirmed via a debug PIL
+      plot of the actual computed vertices before landing on the
+      version that matches the standard's own template picture (page
+      428) reasonably well.
+    - Also split "Friendly Airborne/Aviation" (one dropdown entry) into
+      two - "Friendly Airborne" and "Friendly Aviation" - sharing the
+      one SIDC the standard's own table lists (151401, whose own
+      EXAMPLE column shows two illustrative pictures under that single
+      code) and this same new ribbon construction, per the maintainer's
+      own explicit request ("they are two different tasks"). The rest
+      of the Axis of Advance family (Attack Helicopter, Main Attack,
+      Supporting Attack, Feint, Enemy) keeps the older approximation
+      for now, queued for its own future "one at a time" round using
+      this same technique as the template. 720 tests passing on both
+      QGIS versions (2 new: the ribbon symbol-layer wiring, direct
+      coverage of `mct_axis_of_advance_ribbon()`'s own geometry output;
+      1 existing test narrowed to exclude the now-real construction).
+  - **Same-day second follow-up, matched against a reference picture of
+    the standard's own template the maintainer shared directly**: two
+    real construction corrections to `mct_axis_of_advance_ribbon()`.
+    The shaft's own width and the arrowhead's own widest point were two
+    independent ratios (0.02 vs. 0.06) that only happened to be close -
+    collapsed into one shared `width_ratio` per the maintainer's own
+    explicit instruction ("the width of the arrow shaft should be as
+    wide as the distance between the side tips of the arrowhead"),
+    which also removed the visible "flare" the first version had
+    (the shaft widening into the arrowhead) - the standard's own
+    picture has no such flare, just a clean crossover at constant
+    width. Separately, the crossing region itself was two straight
+    line segments meeting at a sharp point; replaced with a quadratic
+    Bezier curve per edge (`_quadratic_bezier_points()`, a new small
+    helper), each bulging outward on its own starting side before
+    sweeping across, per the maintainer's own explicit request for the
+    crossing to "look natural" rather than a sharp geometric X - a
+    direct, visible match against the reference picture's own soft
+    curve there, confirmed by rendering and zooming into the arrowhead
+    region specifically, not just eyeballing the full symbol. No test
+    changes needed (the existing structural tests - 3-piece
+    MultiLineString output, symbol-layer wiring - didn't depend on the
+    removed second width ratio or the straight-vs-curved segment
+    shape). 720 tests passing on both QGIS versions (unchanged count).
+  - **Same-day third follow-up**, after the maintainer shared their own
+    live QGIS render side-by-side with the standard's own template
+    picture again: the curve was starting too LATE - the shaft stayed
+    straight past the bend (Point 2) for a while, then curved only in
+    a short region just before the arrowhead, where the reference
+    picture's own curve clearly starts right AT the bend and sweeps
+    continuously all the way to the arrowhead's own back corner.
+    Removed the intermediate straight "pre-crossing" segment entirely -
+    each edge's own quadratic Bezier now runs directly from Point 2's
+    own offset point to the OPPOSITE arrowhead corner, with the curve's
+    own bulge scaled to that now-longer span (30% of the straight-line
+    distance between the two, instead of a fixed multiple of the
+    shaft's own width) so it stays proportional regardless of how far
+    apart Point 2 and the arrowhead end up. The arrowhead's own two
+    sides stay straight, per the maintainer's own explicit description
+    ("assume the arrowhead is an isosceles triangle, from the tip for
+    about 15% each side, let the lines be straight") - `barb_length_
+    ratio`'s own default moved to 0.15 to match that "about 15%"
+    figure directly (was 0.12, an earlier unconfirmed guess). 720 tests
+    passing on both QGIS versions (unchanged count - no structural test
+    depended on where the curve started).
+  - **Same-day fourth follow-up**, from a zoomed crop of the standard's
+    own template picture the maintainer shared directly, plus their
+    own live QGIS render: three more real corrections.
+    - **The arrowhead is a true EQUILATERAL triangle**, not merely
+      isosceles, per the maintainer's own explicit correction ("make
+      it equilateral instead of isosceles") - `barb_length` (the
+      triangle's own height) is now DERIVED from `width` (`width *
+      sqrt(3)`, the height of an equilateral triangle whose base is
+      `2 * width`) instead of the independent `barb_length_ratio` from
+      the previous round, which could drift out of an equilateral
+      proportion. New `test_ribbon_arrowhead_is_equilateral` asserts
+      all three sides equal directly, for any `width_ratio`.
+    - **The shaft's own edges attach partway along the arrowhead's
+      own back EDGE, not at its CORNERS** - the maintainer's own
+      direct observation against the zoomed crop ("the lines from the
+      shaft do not hit the triangle edges but slightly along the
+      third side"). Each edge now attaches at `attach_ratio` (a
+      placeholder 0.55) of the way from the base's own centre toward
+      each corner, rather than at the corner itself.
+    - A first attempt at "a slightly rounded turn, otherwise straight"
+      (the maintainer's own suggested simplification, after the long
+      shallow curve from the third follow-up still didn't look right)
+      tried rounding Point 2 with two SEPARATELY offset points (one on
+      the incoming heading, one on the outgoing) and curving between
+      them - this is a well-known hard case for line offsetting: on
+      the bend's own INNER side, the two offsets land on the wrong
+      side of each other, so the curve loops back on itself instead of
+      rounding smoothly. Confirmed on a real render (the outer/left
+      side curved cleanly, the inner/right side produced a visible
+      self-intersecting notch), not assumed. Fixed with a genuine
+      corner-cutting fillet instead (`_rounded_corner_points()`, a new
+      helper) - cuts back a fixed radius along each of the polyline's
+      own ALREADY-STRAIGHT adjoining segments and curves between those
+      two points using the sharp corner itself as the Bezier control
+      point, the standard technique for rounding a polyline vertex
+      without this failure mode. Combined with the maintainer's own
+      "keep the crossing straight otherwise" request, each edge is now
+      a single straight line from just past the Point 2 fillet
+      directly to its own (opposite-side) attachment point.
+    - **A visible gap between where each shaft edge stopped and the
+      arrowhead's own drawn outline** - since the attachment point is
+      now inset from the corner (previous bullet), but the arrowhead
+      itself was still drawn as only its own two sides (corner-to-tip),
+      nothing drew the short remaining stretch from the attachment
+      point out to the actual corner, leaving a visible break in the
+      outline on a real render. Fixed by extending each shaft edge's
+      own polyline one point further, straight from its attachment
+      point out to that corner, closing the gap.
+    721 tests passing on both QGIS versions (1 new: the equilateral-
+    triangle check).
+  - **Same-day fifth follow-up, moving from the arrow's own shape to
+    its text/context markers** - the project maintainer confirmed the
+    arrow shape itself was done ("perfect on the arrow") and asked to
+    start on Field T/context-icon placement, Friendly Airborne first.
+    Added `_airborne_unit_context_icon_layer()` - a small rectangle (a
+    generic ground-unit frame) with MIL-STD-2525D's own Airborne
+    modifier glyph inside (confirmed directly against milsymbol.js's
+    own vendored source, `icn["GR.M2.AIRBORNE"]` in milsymbol-3.0.4's
+    src/iconparts/ground.js: two side-by-side semicircular humps,
+    exactly what this project's own `Shape.HalfArc` marker - already
+    used for FLOT/Line of Contact's own arc chains - already draws, so
+    built from that instead of hand-authoring separate path data),
+    placed at the shaft's own start (Point 1). Not routed through the
+    real milsymbol.js/mct_build_sidc() pipeline - MODIFIERS in sidc.py
+    has no "ground_unit" entry at all yet (sector 1/2 modifier support
+    was only ever built for the point-symbol appendices, a known,
+    already-tracked gap) - so this is a hand-built decorative marker,
+    the same "hand-build the one glyph actually needed" choice
+    Direction of Attack's own bowtie already made. Field T also moved
+    from its usual place near the tip to just above this new icon,
+    still near Point 1, per the maintainer's own explicit layout
+    instruction - Friendly Aviation (which shares this same builder
+    function) keeps the older tip-side T placement and gets no context
+    icon for now, queued for its own future round. 722 tests passing on
+    both QGIS versions (1 new: the context icon's own structure/
+    placement, and Field T's own move to Point 1 for this one variant).
+  - **Same-day sixth follow-up, Field W-W1 (DTG) for the same pair.**
+    Tried a two-stacked-font-marker construction to match the
+    standard's own two-line DTG-range display (Field T's own single
+    `QgsFontMarkerSymbolLayer` technique can't do this in one marker -
+    confirmed live that its Character property silently drops an
+    embedded `'\n'`, rendering "LINE1\nLINE2" as the single concatenated
+    run "LINE1LINE2" rather than starting a real second line). Wired a
+    `_dtg_marker_layers()` helper (two markers, one per DTG half,
+    offset apart on the line-perpendicular axis) into all four Axis of
+    Advance/Direction of Attack call sites, but a render-and-compare
+    check turned up serious text overlap. Before iterating on positions
+    further, the project maintainer said this wasn't worth the effort
+    for Friendly Airborne/Aviation and asked for Field W-W1 to be
+    dropped **for that pair only** - explicitly not the rest of the
+    Axis of Advance/Direction of Attack family, which keep the original
+    single-line `_DTG_RANGE_LABEL_EXPRESSION` display unchanged.
+    Reverted the helper/two-marker wiring everywhere it had been
+    over-applied, keeping only the removal scoped to
+    `_axis_of_advance_ribbon_symbol()`'s airborne/aviation branches, per
+    the maintainer's own explicit "one at a time" methodology for this
+    section (H5) - not to apply a fix across the board unless told to.
+    722 tests passing on both QGIS versions (font-marker/layer counts
+    updated for the two ribbon variants only).
+  - **Same-day seventh follow-up - a real live-GUI-only bug (headless
+    rendering never caught it), plus a new standing H5 workflow.** From
+    here, the project maintainer asked to do H-X/H-XI strictly one item
+    at a time, smoke-testing each in the actual QGIS GUI before moving
+    on, rather than batching several fixes before a live check. First
+    smoke test (Friendly Airborne) found the context icon rendering as
+    QGIS's own generic broken/placeholder SVG glyph, even though every
+    prior headless offscreen render (both QGIS versions, real plugin
+    code) showed it fine - narrowed down by asking the maintainer to
+    confirm the exact symptom (a generic placeholder, not blank or a
+    legible-but-tiny icon) rather than guessing blind. Root cause,
+    found by static analysis once the symptom was confirmed: a freshly
+    digitized feature's own "affiliation" field defaults to
+    DEFAULT_AFFILIATION ("unspecified", this appendix's genuine 5th
+    "black, no standard identity asserted" colour per H.5.1.1.1 -
+    _control_measure_shared.py's own comment) - a value sidc.py's own
+    AFFILIATIONS dict has no entry for (point-symbol SIDCs only have
+    friend/hostile/neutral/unknown). Passed straight into
+    mct_build_sidc(), that raised KeyError and returned an error string
+    instead of a real SIDC, which mct_sidc_svg() couldn't render -
+    hence the placeholder glyph, while the arrow's own line colour and
+    Field T's own text both still rendered fine (their own CASE
+    expressions already had a safe ELSE fallback; only the icon's own
+    SIDC-building call didn't). This is why the bug only ever showed up
+    in the maintainer's own live GUI testing and never in this
+    project's own headless render-and-compare checks so far - every
+    headless test script had explicitly set a real affiliation value on
+    its test feature, never exercising the field's own actual default.
+    Confirmed live by the maintainer (manually setting Affiliation to
+    "Friend" fixed it) before any code changed. Fixed the icon's own
+    SIDC-building expression to map "unspecified" (or any other value
+    sidc.py doesn't recognise) to 'unknown' for the icon's own
+    affiliation argument only - the field itself keeps its real 5-value
+    range for the line's own colour. Separately, at the maintainer's
+    own follow-up suggestion ("since the line is for friendly, can't it
+    default to friend"), overrode this Lines layer's own default
+    Affiliation value to 'friend' (nearly every measure type here is an
+    inherently friendly, own-force graphic; the two Enemy-flagged
+    variants already ignore this field for their own line colour) -
+    scoped to just this module's own layer via a setDefaultValueDefinition()
+    call after _configure_affiliation_field(), not a change to the
+    shared DEFAULT_AFFILIATION constant every other H control-measure
+    layer (Boundaries, Maneuver, Defensive, C2 Measures) still uses
+    unchanged. 723 tests passing on both QGIS versions (1 new: the
+    Lines layer's own affiliation default).
+  - **Same-day eighth follow-up, Friendly Aviation's own turn** (per the
+    now-standing H5 workflow: one item at a time, smoke test, only then
+    move on - Friendly Airborne confirmed working live before this
+    started). Brought Friendly Aviation over to the same unit-context-
+    icon + Field T layout Friendly Airborne got, per the maintainer's
+    own explicit instruction ("remove the infantry symbol and the
+    'm'... replace with the aviation symbol i.e. Land Unit - Aviation
+    Rotary Wing symbol... rest remains same, friendly, unique
+    designation etc, DTG is removed"). Generalised the former
+    `_airborne_unit_context_icon_layer()` into `_unit_context_icon_
+    layer(entity, airborne_modifier=False)` - confirmed by directly
+    rendering both entities' own SIDCs and comparing their SVG
+    `viewBox`s (identical "21 46 158 108") that Infantry and Aviation
+    Rotary Wing share the exact same Ground Unit rectangle frame, only
+    the icon glyph inside differs, so the same `svg_angle=90` correction
+    and layout carry over unchanged; Aviation gets `airborne_modifier=
+    False` since the Aviation Rotary Wing icon's own rotor-blade glyph
+    already identifies the unit type without the extra humps.
+    `_axis_of_advance_ribbon_symbol()`'s own `airborne` boolean became a
+    `variant` string ("airborne"/"aviation") now that both branches
+    share the same icon+Field-T-at-Point-1 structure and only differ in
+    icon content - the old tip-side Field T placement Aviation
+    previously kept is gone, both variants now match. 724 tests passing
+    on both QGIS versions (1 new: Aviation's own context icon/no-
+    modifier structure; the shared ribbon-construction test's own
+    layer-count expectations updated to match, both variants now equal).
+  - **Same-day ninth follow-up, Attack Helicopter's own turn - a new
+    standing H5 workflow, and a real custom glyph supplied by the
+    maintainer directly.** The maintainer set an explicit rule for the
+    rest of H5 going forward: one item at a time, smoke test each in
+    the live GUI, only then move to the next (Friendly Aviation
+    confirmed working live before this started). Attack Helicopter
+    (151402) moved off the approximated single-thick-line-plus-crossbar
+    construction (`_axis_of_advance_crossbar_layer()`, now deleted -
+    dead code once its only caller moved) onto the same real ribbon
+    construction Airborne/Aviation already use, reusing Aviation's own
+    Aviation Rotary Wing base icon at the shaft's own start
+    ("base of the shaft remains same - aviation rotary wing icon") and
+    adding a new crossing-point glyph "at the point of intersection"
+    (the ribbon's own edge-crossing, computed directly as a plain
+    midpoint-of-Point-2-and-Point-3 expression, not requiring a new
+    Python function). Getting the glyph itself right took several
+    rounds: confirmed via direct milsymbol.js source search that
+    nothing in its vendored icon parts matches (`COM.M1/M2.ROTARY WING`
+    is a plain filled bowtie parallelogram-pair, not an arrow-through-
+    bowtie combination); two hand-built QGIS-native attempts (built
+    from `Shape.Triangle`/`Shape.Line` marker layers, tuned in the
+    scratchpad per this project's own established "finalise the icon
+    before inserting into main code" discipline) were both rejected by
+    the maintainer as not matching their own reference image closely
+    enough; the maintainer then supplied the glyph's own exact SVG path/
+    polygon data directly, which is what's actually built now - a
+    static (not data-defined) `QgsSvgMarkerSymbolLayer` fed the
+    maintainer's own SVG verbatim via the project's existing "base64:"
+    inline-SVG technique, since the glyph doesn't vary per-feature
+    (fixed black, matching every other structural modifier glyph in
+    this appendix - Field N, the Airborne humps, the Direction of
+    Attack bowtie). Placed via a `QgsGeometryGeneratorSymbolLayer`
+    producing a Marker (not Line) from the computed midpoint, which
+    - confirmed by render, not assumed - naturally has no line-rotation
+    applied at all, satisfying the maintainer's own explicit requirement
+    that "the orientation of the symbol will remain vertical irrespective
+    of the direction of arrow" without needing any extra fixed-angle
+    workaround. `_axis_of_advance_ribbon_symbol()`'s own `variant`
+    parameter grew a third value ("attack_helicopter") alongside
+    "airborne"/"aviation". 725 tests passing on both QGIS versions (1
+    new: Attack Helicopter's own ribbon+icon+glyph structure; the
+    approximated-family test's own layer-count loop simplified now that
+    Attack Helicopter no longer needs its own crossbar special-case).
+  - **Same-day tenth follow-up, three corrections to the crossing glyph
+    once live-smoke-testable in a real render**: (1) **colour** - the
+    maintainer asked to standardise the glyph's colour with the rest of
+    the affiliation system rather than leaving it fixed black; switched
+    the SVG's own hardcoded `#000000` fill/stroke to QGIS's own
+    `param(fill)`/`param(outline)` placeholder syntax and wired
+    `_apply_offensive_line_color()` onto the `QgsSvgMarkerSymbolLayer`'s
+    own Fill/StrokeColor data-defined properties - confirmed live (not
+    assumed) that this recolours an INLINE base64 SVG exactly like
+    QGIS's own bundled parametrised SVG library does for file-based
+    ones, a technique not used anywhere else in this project yet. (2)
+    **size** - increased from 8mm to 12mm (50% larger), per the
+    maintainer's own direct comparison against the ribbon's own
+    arrowhead triangle in a live render. (3) **position** - the
+    maintainer found the glyph consistently sat "slightly right and
+    above the point of intersection" across several different arrow
+    geometries they tried, "the error of position seems to be the
+    same" - a systematic offset, not a one-off, correctly diagnosed as
+    the earlier midpoint-of-Point-2-and-Point-3 expression being only
+    an APPROXIMATION of the ribbon's own real crossing point, which is
+    actually a function of `width` (itself scaling with the line's own
+    total length) and `attach_ratio`. Fixed by factoring the ribbon's
+    own shared point math out of mct_axis_of_advance_ribbon() into a
+    new `_axis_of_advance_ribbon_geometry()` helper (used by both, so
+    they can't drift out of sync), and adding a new
+    `mct_axis_of_advance_crossing_point()` expression function that
+    computes the TRUE line-line intersection of the ribbon's own two
+    edges via a new `_line_intersection()` helper - not another
+    approximation. Also fixed a genuine mistake caught before it
+    shipped: the `@qgsfunction` decorator for `mct_axis_of_advance_
+    ribbon` ended up decorating the wrong function (`_line_intersection`,
+    the next `def` after it) when the new functions were inserted above
+    it - moved each decorator back onto its own actual function.
+    726 tests passing on both QGIS versions (1 new: a direct geometric
+    check that the crossing-point function's own result lies exactly ON
+    both of the ribbon's own edges, for more than one geometry - strong
+    enough that a regression back to the midpoint approximation would
+    fail it even though that still "returns a point somewhere in the
+    middle").
+  - **Same-day eleventh follow-up, Main Attack's own turn - shape only,
+    per the maintainer's own "render the arrow for now" scoping.** Main
+    Attack (also listed among Table H-X's "real" ribbon-construction
+    entries in this module's own docstring) moved off the old doubled-
+    parallel-line approximation onto the real ribbon too, but with a
+    genuinely different shape: "similar except the lines do not
+    crossover, further the width of the shaft is constant" (the
+    maintainer's own words). Added a `crossed` parameter to
+    mct_axis_of_advance_ribbon() (default true, preserving Airborne/
+    Aviation/Attack Helicopter's existing crossed behaviour unchanged) -
+    when false, each edge runs straight to its own SAME-SIDE arrowhead
+    corner instead of the opposite side's inset attachment point,
+    skipping the attach_ratio math entirely (the shaft was already
+    constant-width in the existing construction - width is a single
+    shared value for both the Point-1 and Point-2 offsets already, so
+    only the crossing behaviour needed to change). `_axis_of_advance_
+    ribbon_symbol()` gained a `variant="main_attack"` branch, handled as
+    an early return since it shares almost nothing with the icon-
+    focused branches: no unit-context icon, Field T/Field W-W1 left at
+    their ORIGINAL tip placement (LastVertex) rather than moved to
+    Point 1 - explicitly scoped to shape only this round, per the
+    maintainer's own "for now" framing, consistent with how Airborne's
+    own first round also built the arrow alone before icon/label work
+    followed in later rounds. Cleaned up the now-dead `doubled`
+    parameter/branch on `_axis_of_advance_symbol()` (Main Attack was
+    its only `doubled=True` caller) - that builder is now only
+    Supporting Attack/Feint/Enemy, all identical. Caught and fixed one
+    test regression along the way: `test_line_colours_follow_
+    affiliation_per_ms_std_2525d_h_5_1_1_1` used Main Attack as its own
+    representative Axis of Advance measure type, checking colour
+    directly on `symbol.symbolLayer(0)` - which is now the geometry
+    generator layer itself (colour lives on its own sub-symbol instead,
+    same structure the airborne/aviation/attack-helicopter trio already
+    use), swapped to Supporting Attack instead, unaffected by this
+    round. 727 tests passing on both QGIS versions (2 new: the ribbon
+    construction's own layer structure at Main Attack's own tip
+    placement, and direct coverage of `crossed=false`'s own edge-
+    termination geometry - each edge's own last point lands exactly on
+    the arrowhead's SAME-SIDE corner, not the opposite one). Rendered
+    for the maintainer's own review before any icon/label work - the
+    arrowhead reads as a subtle taper rather than a pronounced barb
+    without the crossing, flagged directly rather than assumed
+    acceptable.
+  - **Same-day twelfth follow-up, Field T's own placement.** The
+    maintainer accepted the arrow shape and asked to "move the unique
+    designation to the shaft, about 1/3 distance from the edge, text
+    orientation should be horizontal, remove the DTG." Factored the
+    shared font-marker-symbol setup out of `_designation_end_marker_
+    layer()` into a new `_designation_font_marker()` helper (identical
+    font/colour/Character wiring, only the wrapping symbol layer
+    differs), then added `_shaft_fraction_label_layer()` - a
+    QgsGeometryGeneratorSymbolLayer producing a Marker from QGIS's own
+    `line_interpolate_point($geometry, length($geometry) * fraction)`
+    expression (no new Python function needed, unlike the ribbon's own
+    construction) at Point 1 read as "the edge." Reused the same
+    "geometry-generator marker has no placement-driven rotation" fact
+    Attack Helicopter's own crossing glyph already established -
+    exactly what "text orientation should be horizontal" needed, no
+    extra fixed-angle workaround. Dropped Field W-W1 (DTG) entirely for
+    Main Attack too, the same "not worth the effort" call already made
+    for Airborne/Aviation/Attack Helicopter, this time at the
+    maintainer's own explicit request rather than inferred. 727 tests
+    passing on both QGIS versions (the shape test rewritten for the new
+    2-layer structure - ribbon + horizontal-label generator, zero
+    QgsMarkerLineSymbolLayers now that Field T no longer rotates with
+    the line and DTG is gone).
+  - **Same-day thirteenth follow-up, the arrowhead's own width.** The
+    maintainer flagged the arrowhead as "the same width as the shaft,
+    increase the arrowhead width by 20%, and join the edge of the shaft
+    tip and the arrowhead tips with a straight line - something similar
+    to the arrowhead shape of the axis of advance of attack helicopter
+    or friendly airborne." Added an `arrow_width_ratio` parameter to
+    mct_axis_of_advance_ribbon() (default 1.0, so Airborne/Aviation/
+    Attack Helicopter's own crossed construction is completely
+    unaffected) and to `_axis_of_advance_ribbon_geometry()` - the
+    arrowhead's own corners (`corner_left`/`corner_right`) now use
+    `width * arrow_width_ratio` instead of the shaft's own plain
+    `width`, with a new `shaft_corner_left`/`shaft_corner_right` pair
+    (the shaft's own un-widened width, projected onto the same back-
+    edge point) added specifically for the non-crossed construction's
+    own edges to terminate at BEFORE one more straight segment out to
+    the (now wider) arrowhead corner - the same "close the visible gap
+    between a narrower run and a wider destination point" technique the
+    CROSSED construction's own inset attachment points already needed,
+    for a different underlying reason. Main Attack's own call site
+    passes `arrow_width_ratio=1.2`. 728 tests passing on both QGIS
+    versions (1 new: the arrowhead's own base width is exactly 1.2x the
+    shaft's own width, computed directly from the returned geometry,
+    not eyeballed off a render).
+  - **Same-day fourteenth follow-up, the final piece of what the
+    maintainer named the "master arrow"** (see this same date's own
+    entry documenting that naming, and the standing project memory it
+    was saved to for future cross-referencing). The maintainer asked to
+    "add another line connecting the two edges of the shaft near the
+    triangle following the shape of the triangle keeping the same
+    distance - in effect the arrow tip is double lined," with a
+    reference image showing two nested, parallel chevron lines. Added
+    `_offset_arrowhead_chevron()` - a TRUE constant-perpendicular-
+    distance parallel offset of the arrowhead's own two front edges
+    (not a scaled-down copy, which would touch the real tip with a zero
+    gap instead of keeping the same gap the whole way, per the
+    maintainer's own explicit "keeping the same distance"), each offset
+    edge extended back to where it crosses the real shaft edge nearest
+    it. First attempt intersected the offset edge with the SHORT gap-
+    closing segment's own line (`shaft_corner_left`-to-`corner_left`) -
+    a real, test-caught bug: that segment is nearly perpendicular to
+    the shaft, so the intersection point often lands nowhere near the
+    actual drawn edge. Fixed by intersecting with the shaft edge's own
+    SUBSTANTIAL straight run instead (`p2_left`-to-`shaft_corner_left`,
+    the line the edge polyline actually follows just before that
+    corner). Added a new `double_lined_arrowhead` parameter to
+    mct_axis_of_advance_ribbon() (default false, so every other variant
+    is unaffected), wired to `true` only for Main Attack's own call
+    site. 729 tests passing on both QGIS versions (1 new: the inner
+    chevron's own two base points land exactly ON the real shaft edges,
+    not merely near them, and its own tip sits measurably back from the
+    real tip rather than coincident with it - this test is what caught
+    the gap-closing-segment bug above before it reached the maintainer).
+  - **2026-08-11 correction, the inner chevron's own base points.** The
+    maintainer flagged the fix above as still wrong: "no the inner
+    chevron should be touching the tip of the arrow shaft, where the
+    small line joining the triangle begins" - i.e. the base points
+    should be EXACTLY `shaft_corner_left`/`shaft_corner_right`
+    themselves (the point where the shaft's own constant width ends and
+    the short gap-closing segment to the wider arrowhead corner
+    begins), not a computed intersection with the shaft's own long
+    straight run further back. Simplified `_offset_arrowhead_chevron()`
+    accordingly - it now only computes the inner TIP (the true
+    intersection of the two inward-offset edge lines); the two base
+    points are passed straight through unchanged. Strengthened the
+    existing test to check exact equality against each edge's own
+    second-to-last vertex, not just "somewhere on the edge geometry" -
+    the earlier, looser version of that assertion is exactly why this
+    wrong placement wasn't caught the first time. 729 tests passing on
+    both QGIS versions (no new test - the existing one now checks the
+    right thing).
+  - **2026-08-11 second correction, the inner chevron's own edges must
+    be truly PARALLEL.** The maintainer caught a follow-on problem from
+    the fix above: "the distance between the inner and outer chevron
+    should be same throughout, so that the sides of the triangles are
+    parallel lines, presently the inner chevron is slanting slightly
+    with respect to the main triangle." Root cause: anchoring the base
+    point exactly at `shaft_corner_left`/`shaft_corner_right` while
+    still computing the inner edge's own DIRECTION from an
+    independently-chosen perpendicular offset distance (from the
+    PREVIOUS attempt) over-determined the line - the direction implied
+    by "offset the real edge inward by a fixed distance" and the
+    direction implied by "pass through this specific fixed point" only
+    agree by coincidence. Fixed by dropping the `offset_distance`
+    parameter entirely: each inner edge now runs from its own fixed
+    base point along the SAME AZIMUTH as the corresponding real edge
+    (`corner_left`-to-tip's own azimuth for the left side, mirrored for
+    the right) - anchoring a point and a direction together, rather
+    than a point and an independently-chosen distance, is what actually
+    guarantees parallel sides; the inner tip is just where those two
+    fixed-point/fixed-azimuth lines cross. 729 tests passing on both
+    QGIS versions (1 new: the inner edges' own azimuth matches the real
+    edges' azimuth exactly, computed directly rather than eyeballed -
+    this is the check that would have caught the slant before it
+    reached the maintainer). Main Attack's own arrow is now frozen -
+    the maintainer confirmed "perfect, this can be frozen for main
+    attack."
+  - **2026-08-11, Supporting Attack's own turn - a verbatim reuse, not
+    a new construction.** "just replicate the master arrow for the
+    supporting attack, no other changes to it" - the maintainer's own
+    words. Added a `_MASTER_ARROW_VARIANTS` module-level constant
+    (`("main_attack", "supporting_attack")`) and generalised
+    `_axis_of_advance_ribbon_symbol()`'s own master-arrow branch to key
+    off membership in that tuple instead of the literal string
+    `"main_attack"` - adding a future variant that's "just the master
+    arrow too" is now a one-line addition to that tuple, not a new
+    branch. Supporting Attack's own call site
+    (`_LINE_SYMBOL_BUILDERS["axis_of_advance_supporting_attack"]`) now
+    points at `_axis_of_advance_ribbon_symbol(variant="supporting_
+    attack")` instead of the old shared `_axis_of_advance_symbol()`
+    approximation, which is now down to just Feint/Enemy. Test fallout
+    handled the same way Main Attack's own move required: Supporting
+    Attack removed from the approximated-family loop test, and swapped
+    out as `test_line_colours_follow_affiliation_per_ms_std_2525d_h_
+    5_1_1_1`'s own representative measure type (its colour now lives on
+    the geometry generator's own sub-symbol, not `symbolLayer(0)`
+    directly) in favour of Feint. 729 tests passing on both QGIS
+    versions (the Main-Attack-specific shape test generalised to cover
+    both master-arrow variants in one parametrised test, rather than a
+    second near-duplicate test). Rendered and confirmed structurally
+    and visually identical to Main Attack's own frozen shape.
+  - **2026-08-11, a scope-creep mistake caught and corrected in the same
+    round: the double-lined arrowhead is Main Attack's own only, NOT
+    part of what Supporting Attack replicates.** Right after Supporting
+    Attack's own replication, the maintainer said "remove the inner
+    chevron from this, keep only the outer triangle and the connectors
+    from the shaft to the outer triangle" - read (wrongly) as applying
+    to the shared master-arrow construction, so the double-lined
+    arrowhead feature (`_offset_arrowhead_chevron()`, the
+    `double_lined_arrowhead` parameter, its own test) was deleted
+    outright, removing it from BOTH Main Attack and Supporting Attack.
+    The maintainer caught this immediately: "we are doing one symbol at
+    a time, once i confirm something works, don't touch it again - the
+    main attack was not supposed to be touched, main attack requires
+    the inner chevron, supporting attack does not require it!" - Main
+    Attack's own arrowhead had already been explicitly frozen
+    ("perfect, this can be frozen for main attack") earlier the same
+    session; the instruction to drop the chevron was actually scoped to
+    Supporting Attack alone, the symbol actually being worked on.
+    Restored `_offset_arrowhead_chevron()`, the `double_lined_
+    arrowhead` parameter/branch in mct_axis_of_advance_ribbon(), and
+    its own dedicated test, all verbatim. Added a new
+    `_DOUBLE_LINED_ARROWHEAD_VARIANTS = ("main_attack",)` constant and
+    a small `_axis_of_advance_master_arrow_expression(variant)` helper
+    in offensive_control_measures.py, so the master arrow's own shared
+    branch can differ on this ONE point per variant (Main Attack's own
+    call passes `double_lined_arrowhead=true`, Supporting Attack's own
+    doesn't) without duplicating the rest of the construction. 729
+    tests passing on both QGIS versions (back to the pre-mistake count -
+    the double-line test restored, plus the shared shape test updated
+    to expect the two variants' own now-genuinely-different ribbon
+    expressions rather than assuming they're identical). This is now a
+    standing reminder for the rest of H5/H-XI: once the maintainer
+    confirms a specific symbol's own construction, treat it as frozen
+    even when a nearby instruction about a DIFFERENT symbol could be
+    read as applying more broadly - when in doubt about scope, the
+    symbol actually in focus is the default target, not the shared code
+    path underneath it.
+  - **2026-08-11, Axis of Advance for a Feint's own turn.** Main Attack
+    and Supporting Attack both confirmed fine and explicitly frozen
+    ("please don't touch them anymore"). Feint's own instruction: "use
+    the arrow and unique identification of supporting attack as the
+    base, now add an outer chevron, outside the arrowhead, made of
+    dashed line with adequate gap between the arrowhead and the new
+    outer chevron." Added Feint to `_MASTER_ARROW_VARIANTS` (reusing
+    the shared base, no double-lined arrowhead - `_DOUBLE_LINED_
+    ARROWHEAD_VARIANTS` stays Main-Attack-only) and built a genuinely
+    new construction on top: a new `mct_axis_of_advance_outer_chevron()`
+    expression function - the mirror image of `_offset_arrowhead_
+    chevron()`'s own inner chevron (same "parallel line through a fixed
+    point" technique), offset OUTWARD from each arrowhead corner by a
+    `gap` distance instead of anchored to the shaft. Rendered via its
+    own SEPARATE `QgsGeometryGeneratorSymbolLayer` (not folded into
+    mct_axis_of_advance_ribbon()'s own MultiLineString the way the
+    inner chevron is) with a fixed dashed pen (`Qt.PenStyle.DashLine`)
+    - this mark is dashed regardless of the feature's own status, not
+    status-driven like the shaft/arrowhead's shared stroke style, so it
+    needed its own independent line style. Tuned over three rounds of
+    direct maintainer feedback against real renders: `gap_ratio=1.0`
+    (first render) -> `0.8` ("the gap is too much, reduce it by 1/5th,
+    adjust the chevron size accordingly") -> `0.2` ("gap is still too
+    high, reduce the gap by 75%", i.e. `0.8 * 0.25`) -> `0.32`
+    ("increase gap by 60%", i.e. `0.2 * 1.6`) - no separate "size"
+    parameter was ever needed, since the chevron's own shape is a pure
+    function of the gap, so it stays proportionate at any value. Test
+    fallout from Feint leaving the old approximated family (down to
+    Enemy's own only now): removed Feint from the approximated-family
+    loop test, and swapped `test_line_colours_follow_affiliation_per_
+    ms_std_2525d_h_5_1_1_1`'s own representative measure type from
+    Feint to Final Coordination Line (Table H-XI's own simple end-
+    labelled line) - Enemy alone remained in the approximated family
+    but its own hardcoded red-regardless-of-affiliation colour can't
+    stand in for testing the general affiliation-colour mapping either.
+    731 tests passing on both QGIS versions (2 new: Feint's own 3-layer
+    structure - master arrow base + dashed outer chevron - and direct
+    geometric coverage confirming the outer chevron's own two base
+    points sit strictly outside the real arrowhead's own corners, not
+    overlapping or inside).
+  - **2026-08-11, Axis of Advance - Enemy Confirmed/Templated - the
+    LAST Table H-X "real" entry, closing out this appendix's own
+    master-arrow rollout.** "just use the master arrow and default
+    colour to red" - already true by construction: the shared
+    `_OFFENSIVE_LINE_COLOR_EXPRESSION`/`_ENEMY_MEASURE_TYPES` mechanism
+    (built long before the master arrow existed) applies uniformly via
+    `_apply_offensive_line_color()` regardless of which construction a
+    measure type uses, so switching Enemy's own construction needed no
+    new colour code at all. Added `"enemy"` to `_MASTER_ARROW_VARIANTS`
+    and pointed its own `_LINE_SYMBOL_BUILDERS` entry at
+    `_axis_of_advance_ribbon_symbol(variant="enemy")`. This left
+    `_axis_of_advance_symbol()` (the old single-thick-line-plus-
+    arrowhead approximation) with ZERO remaining callers in Table H-X -
+    deleted it outright rather than leaving dead code behind, per this
+    project's own standing convention (Table H-XI's own Direction of
+    Attack family has its own separate, still-used approximation,
+    `_direction_of_attack_symbol()`, untouched). Test fallout: the
+    approximated-family loop test (`test_axis_of_advance_variants_are_
+    a_thick_line_with_a_filled_arrowhead`) had nothing left to test
+    once Enemy left, so it was deleted rather than kept as an empty
+    loop; `test_enemy_variants_render_red_regardless_of_affiliation`
+    updated for Axis of Advance - Enemy's own colour now living on the
+    geometry generator's own sub-symbol (the same relocation every
+    other master-arrow variant already needed), Direction of Attack -
+    Enemy unaffected. Rewrote the module's own top-of-file narrative to
+    reflect that all seven of Table H-X's own real ribbon-construction
+    entries are now complete. 730 tests passing on both QGIS versions
+    (one fewer than before - the deleted empty-loop test, not a
+    coverage gap).
+  - **2026-08-11, Table H-XI, Direction of Attack - Friendly Aviation
+    (140601), two real construction defects fixed.** The project
+    maintainer's own instruction: "the aviation symbol should be
+    before the line origin, and should be bounded in a rectangle; the
+    unique designation should be just behind the arrow head with
+    suitable masking, in line with the arrow shaft."
+    1. **Unit icon before the line's own origin.** Re-reading the
+       template picture directly (page 432) showed the first pass had
+       missed a real element: the standard's own construction shows the
+       bowtie/hourglass glyph TWICE - once ON the line at its own
+       origin (Point 2, already built), and again, separately, BOXED,
+       BEFORE that origin - both in solid black line-art, not this
+       appendix's usual grey "illustrative only" annotation colour, so
+       both are real drawn geometry. First attempt hand-built a custom
+       inline-SVG rectangle outline to frame a shifted copy of the
+       bowtie (QGIS's own `QgsSimpleMarkerSymbolLayerBase.Shape` enum
+       has no non-square "Rectangle", confirmed directly against the
+       enum) - the maintainer redirected mid-build: "we can use the
+       aviation - fixed wing symbol from the milsymbol.js" instead, an
+       already-catalogued `ENTITIES["ground_unit"]["aviation_fixed_
+       wing"]` (120800) entity. Reused `_unit_context_icon_layer()`
+       (the same real-SIDC-render technique Axis of Advance's own
+       Airborne/Aviation/Attack Helicopter icons already use) rather
+       than the hand-built SVG - simpler AND more standard-compliant,
+       since the real SIDC render already comes rectangle-framed with
+       no extra frame needed. Extended that function with a new
+       optional `offset` parameter (None by default, every existing
+       caller unchanged) so this one caller could shift the icon off
+       its usual at-the-vertex position. One genuine surprise, found by
+       render-and-compare rather than assumed: `QgsSvgMarkerSymbolLayer.
+       setOffset()` is applied BEFORE that same layer's own `setAngle
+       (90)` (the existing rotation this icon frame already needed, to
+       put its broad dimension along the shaft), not after - so a
+       desired final along-shaft offset of (-8, 0) actually needed to
+       be requested as local (0, +8), confirmed by first trying the
+       "obvious" (-8, 0) value, observing the icon jump vertically
+       instead of horizontally in the render, then solving the implied
+       90-degree rotation and re-testing.
+    2. **Field T real masking.** Every other Direction of Attack/Axis
+       of Advance variant's own Field T is a `QgsFontMarkerSymbolLayer`
+       glyph, which has no masking capability of its own (confirmed by
+       re-reading c2_measures.py's own `_boundary_symbol()` history -
+       real Selective Masking, `QgsTextMaskSettings`, only ever attaches
+       to a genuine PAL label). Moved Friendly Aviation's own Field T,
+       and ONLY that one measure type's, onto a real PAL label: gave
+       its own line symbol layer a stable `.setId()` (
+       `_DIRECTION_OF_ATTACK_AVIATION_LINE_SYMBOL_LAYER_ID`) and wired
+       the Lines layer's previously-placeholder empty-string labelling
+       call to a real CASE-guarded expression (every other measure type
+       on the layer still resolves to `''`, unaffected) with
+       `masked_symbol_layer_ids` pointing at that one id. "Just behind
+       the arrow head... in line with the arrow shaft" needed the label
+       pinned to a FIXED point along the line rather than QGIS's own
+       default best-position search - extended `_build_pal_layer_
+       settings()`/`_configure_designation_labeling()` in
+       `_control_measure_shared.py` with two new optional parameters,
+       `line_anchor_percent`/`anchor_text_point` (both None by default,
+       every existing caller - Boundary, Light Line, Areas - unchanged),
+       using `QgsLabelLineSettings.AnchorType.Strict` plus a 0.9 anchor
+       percent and `AnchorTextPoint.EndOfText` so the label's own
+       trailing edge sits just short of the line's end, extending
+       backward along the shaft rather than past it into the arrowhead.
+       Confirmed by render: a real gap cut into the shaft exactly the
+       shape of the rendered text, sitting just short of the chevron.
+    One test segfaulted the whole interpreter during this round, not
+    merely failed - `settings.format().mask()` chained in one
+    expression: `QgsPalLayerSettings.format()` returns a `QgsTextFormat`
+    BY VALUE, and calling `.mask()` straight off that temporary let its
+    own C++ object get garbage-collected before the returned
+    `QgsTextMaskSettings` was read, a sharper case of the same "wrapped
+    C/C++ object has been deleted" class of bug this project's test
+    suite hit once before (a loop-variable shadowing a symbol layer,
+    same appendix, 2026-08-11 earlier). Fixed by holding the
+    intermediate `QgsTextFormat` in its own named variable. 733 tests
+    passing on both QGIS versions (3 new: the unit icon's own
+    placement/exclusivity, the masked PAL label's own configuration,
+    and the line layer's own stable id).
+
+    **2026-08-12 follow-up, Axis of Advance only** (a minor correction
+    the project maintainer caught after the Direction of Attack round
+    above): the shaft's own base unit-context icon (Friendly Airborne's
+    Infantry+Airborne-modifier, Friendly Aviation's and Attack
+    Helicopter's shared Aviation Rotary Wing) was rotating to match the
+    arrow's own direction, the same rotate-with-line behaviour every
+    other marker on these ribbons uses - "the symbol at the base of the
+    shaft... should not be rotated but be straight", then "same is the
+    case for... attack helicopter" once asked directly. `_unit_context_
+    icon_layer()` gained a new `rotate=True` parameter (default True,
+    every pre-existing caller unchanged) controlling the wrapping
+    `QgsMarkerLineSymbolLayer`'s own `rotateSymbols` flag; the one call
+    site inside `_axis_of_advance_ribbon_symbol()`'s icon branch (shared
+    by all three variants) now passes `rotate=False`. Direction of
+    Attack - Friendly Aviation's own icon (added the round before,
+    different call site, different placement logic - "before the line
+    origin") is untouched, still rotates - not part of this correction.
+    Confirmed by rendering all three variants on a deliberately diagonal
+    shaft: the icon frame now stays upright/level regardless of the
+    arrow's own direction, while Attack Helicopter's own separate
+    crossing-point glyph (already fixed-orientation by construction) is
+    unaffected. 733 tests passing on both QGIS versions (no new tests
+    needed new coverage beyond 3 added assertions - `rotateSymbols()` is
+    now explicitly checked False on each of the three icon layers in
+    their own existing tests).
+
+    **Immediate correction the same day**: "all three icons are 90 deg
+    off, rotate them counter clockwise by 90 deg" - the maintainer's own
+    words, right after seeing the render above. Root cause: the fixed
+    `svg_angle=90` on `_unit_context_icon_layer()`'s own frame/hump
+    layers was tuned specifically for the rotate-WITH-line case (it
+    compensates for the SVG's own native orientation vs. the outer
+    line-rotation's own reference axis - see that function's own
+    docstring) - once `rotate=False` removed that outer reference
+    entirely, the same fixed value rendered 90 degrees off. Both
+    `frame_layer.setAngle()` and the airborne modifier's own `hump_
+    layer.setAngle()` now branch on `rotate` (`90 if rotate else 0`,
+    counter-clockwise per QGIS's own clockwise-increasing angle
+    convention). Direction of Attack - Friendly Aviation's own icon
+    (still `rotate=True`, added the round before) is unaffected - kept
+    its original 90. Confirmed by render: all three Axis of Advance
+    icon frames are now landscape (matching the real SIDC's own 158x108
+    viewBox) and level, Friendly Airborne's own Infantry-cross-plus-
+    Airborne-modifier-humps glyph and Aviation/Attack Helicopter's
+    shared Aviation Rotary Wing glyph both read correctly inside their
+    own boxes. 733 tests passing on both QGIS versions (angle
+    assertions added to the same three existing tests, plus a
+    regression check on Direction of Attack - Friendly Aviation's own
+    icon confirming it kept `rotate=True`/angle 90, unaffected).
+
+    **Same-day follow-up round, Direction of Attack - Friendly Aviation
+    only**, after the project maintainer pasted the standard's own
+    EXAMPLE picture directly for comparison against a live plugin
+    render:
+    1. **Bowtie fill + position.** "it is filled instead of being an
+       outline only and is left and above the line" - both triangles in
+       `_direction_of_attack_bowtie_layer()` now render unfilled
+       (transparent fill, affiliation-coloured stroke only). Getting it
+       correctly "at the beginning of the shaft moved inward slightly"
+       took three real attempts, each render-verified, not assumed:
+       (a) adding the same local X delta to both triangles' own
+       `setOffset()` broke the tip-to-tip meeting entirely (two
+       disconnected triangles); (b) `QgsMarkerLineSymbolLayer.
+       setOffsetAlongLine()` looked like the right tool (a genuine
+       "shift the anchor N mm along the line" primitive) but combined
+       badly with the triangles' own per-layer offsets, shifting the
+       whole glyph off the line vertically; (c) a dedicated standalone
+       probe script (rendering single markers at known angle/offset
+       combinations and measuring rendered centroids in pixels) revealed
+       the real rule: a marker's own `setOffset()` is applied in its
+       OWN pre-rotation local frame, then rotated by that marker's own
+       `angle` - for angle=90, local (x,y) rotates to final (-y,x); for
+       angle=270, local (x,y) rotates to final (y,-x). Solving both for
+       a shared final target gave each triangle its own DIFFERENT local
+       offset (right: (0,-3), left: (0,3)) - this also fixed a small
+       pre-existing vertical bias (-triangle_size/2) baked into the
+       ORIGINAL, never-corrected baseline offsets, very likely part of
+       what "above the line" was describing even before this round.
+    2. **Icon "should be straight".** "like axis of advance, the symbol
+       for aviation should be straight" - `_unit_context_icon_layer()`'s
+       own call for this icon now passes `rotate=False` too (same
+       correction Axis of Advance's own base icons got earlier the same
+       day), plus a matching offset fix (the old QPointF(0,8) value was
+       specifically solved for the OLD rotate=True/angle=90 case; the
+       non-rotating case needs a plain QPointF(-8,0), no rotation
+       compensation).
+    3. **DTG two-line + repositioned.** "the DTG in the plugin is going
+       ahead of the arrow, if possible split it into two lines and
+       place it below the arrow." Confirmed by a dedicated probe that
+       `QgsFontMarkerSymbolLayer`'s own Character property has no
+       multi-line text layout of its own (silently drops an embedded
+       `\n`, unlike a real PAL label) - already documented elsewhere in
+       this module from an earlier round (Main Attack/Supporting
+       Attack/Feint's own DTG, dropped entirely rather than pay this
+       cost) but not yet applied here. Split into two separate
+       expressions/marker layers (`_DTG_START_LINE_EXPRESSION`/
+       `_DTG_END_LINE_EXPRESSION`), also dropping a redundant trailing
+       "Z" the old single-expression version appended (each raw DTG
+       value already carries its own embedded Zulu-time designator).
+       Repositioning needed -17.0mm of backward X offset to clear the
+       chevron arrowhead's own painted stroke outline entirely - -10/
+       -11/-13 all still clipped the first line's own trailing "-"
+       under that outline, confirmed by a dedicated probe render (the
+       dash was never truly "missing", just hidden under the chevron's
+       own opaque stroke - a plain single-character isolated probe of
+       the same string rendered it fine, which is what pointed at
+       overlap rather than a text-rendering bug).
+    This round applies to Direction of Attack - Friendly Aviation only
+    for the bowtie/icon; Field W-W1's own fix (item 3) is shared, generic
+    code and applies to every Direction of Attack variant. 733 tests
+    passing on both QGIS versions (layer/font-marker counts updated for
+    the extra DTG marker layer, plus a new bowtie-fill assertion).
+
+    **Immediate same-day follow-up round**, three more corrections from
+    a live plugin screenshot compared directly against the standard's
+    own EXAMPLE picture:
+    1. **Arrowhead width.** "reduce the arrowhead width to match the
+       shaft width" - the chevron's own stroke width dropped from 1.3mm
+       (the 2026-08-10 "bold enough to read" widening, see this
+       function's own docstring) to 0.5mm, matching the shaft's own
+       line width exactly. Shared code, applies to every Direction of
+       Attack variant.
+    2. **Bowtie tips overlapping.** "only the tips should touch each
+       other - shape like a bowtie, right now they are overlapping."
+       The PRECEDING round's own fix (moving the glyph "inward slightly"
+       - see that entry's own math) solved both triangles converging on
+       the exact SAME shared point, which turned out to be each
+       triangle's own CENTRE, not its tip - concentric, heavily
+       overlapping shapes, not a bowtie. Re-solved the same rotation
+       equations for each triangle's own centre landing
+       `triangle_size / 2` on its own AWAY side of the shared meeting
+       point instead of directly on it - confirmed by a dedicated probe
+       measuring the two rendered triangles' own pixel bounds: zero
+       overlapping pixels, one triangle's own rightmost column exactly
+       equal to the other's own leftmost column.
+    3. **Line visible below the bowtie.** "the line should not be
+       visible below the bowtie." First attempt: a SECOND masked PAL
+       label (the exact same real-masking technique Field T's own
+       label already uses), positioned near the bowtie instead of the
+       arrowhead, via `QgsRuleBasedLabeling` (two rules sharing one
+       feature, the same tool `_configure_area_designation_labeling()`
+       already uses in c2_measures.py for a different-placement
+       situation). This did NOT work, confirmed by render - the second
+       rule's own `QgsTextMaskSettings` evaluated correctly in
+       isolation (`enabled() == True`, the right symbol layer id
+       referenced) but never actually cut a visible gap, regardless of
+       which rule came first; QGIS's Selective Masking appears not to
+       compose across two independent rules/providers both masking the
+       same symbol layer on one `QgsRuleBasedLabeling` layer. Rather
+       than depend on that undocumented limitation, switched to real
+       geometry instead: for Friendly Aviation only, the base line
+       layer is now wrapped in a `QgsGeometryGeneratorSymbolLayer`
+       using `line_substring()` to drop the line's own first ~11% of
+       length (tuned by render against a single test line to clear the
+       bowtie's own footprint plus a small margin - a percentage of
+       total line length, not a fixed mm distance, the same "not exact,
+       an approximation" trade-off Field T's own anchor percent already
+       accepts, since `line_substring()` takes CRS-unit distances, not
+       render units) - real geometry, not compositing, so nothing is
+       left underneath to show through regardless of any masking-engine
+       quirk. `line_layer`'s own stable id (used by Field T's own mask)
+       is unchanged, just nested one level deeper inside the new
+       generator's own sub-symbol.
+    733 tests passing on both QGIS versions (one test rewritten for the
+    new nested-generator structure, one obsolete masking test removed
+    after the approach changed, `_control_measure_shared.py`'s own
+    speculative `text_color` parameter added and then removed again in
+    the same round once the masking approach was abandoned).
+
+    **Immediate next-day-equivalent follow-up round** (same session),
+    three more requests plus a real design pivot on the trim/mask
+    saga above:
+    1. **Field T colour.** "change the colour of the unique designation
+       also into blue (friend)" - Field T's own PAL label had no colour
+       override before (plain black, the shared text format's own
+       default); now carries a DATA-DEFINED `QgsPalLayerSettings.
+       Property.Color` using the same `_OFFENSIVE_LINE_COLOR_EXPRESSION`
+       every other piece of this construction already uses (fetched
+       back off `layer.labeling().settings()` after `_configure_
+       designation_labeling()` runs, mutated, and reapplied via a fresh
+       `QgsVectorLayerSimpleLabeling` - no new parameter added to the
+       shared `_build_pal_layer_settings()` helper for a single-caller
+       need).
+    2. **The `@map_scale` trim didn't generalise either.** The previous
+       round's fix (see its own entry above) replaced a fixed-fraction
+       line trim with one derived from `@map_scale / 1000`, reasoning
+       that this would give a genuine physical mm distance regardless
+       of the digitized line's own length. Confirmed by a direct,
+       careful comparison of `QgsMapSettings.scale()` computed BEFORE
+       rendering against the SAME expression evaluated with the SAME
+       map settings that render_dtg_check.py's own script actually
+       uses: consistent scale (~62000), and evaluating the trim
+       expression in that exact context returned the ENTIRE untrimmed
+       line - `line_substring()`'s own start/end distances, computed
+       from that scale, came out far larger than the line's own total
+       length in its own CRS units for this test geometry, and the
+       real render's own gap pattern didn't match either the "fully
+       untrimmed" or the "correctly trimmed" prediction cleanly. Rather
+       than keep chasing exactly how `@map_scale` resolves inside a
+       geometry-generator expression at real paint time, the maintainer
+       proposed a genuinely simpler design instead of another patch:
+       **don't overlap the bowtie with the real line at all.** The
+       bowtie's own shared centre moved from a small positive offset
+       (sitting ON the drawn line, needing something to hide the line
+       underneath) to `-triangle_size` (fully BEFORE the line's own
+       start, its own right edge touching Point 2 exactly) - the real
+       shaft now draws completely plain and untouched, for every
+       Direction of Attack variant including Friendly Aviation, no
+       trim/mask/generator wrapping of any kind. "The arrow shaft
+       should protrude slightly beyond the bowtie" (the same request)
+       is a new, separate, purely decorative fixed-length `Shape.Line`
+       marker (`_direction_of_attack_bowtie_stub_layer()`) positioned
+       at the bowtie's own left edge - not real line geometry at all,
+       just another small mm-sized glyph positioned the same "fixed
+       offset, solved through the marker's own angle rotation" way
+       every other glyph in this module already is. This retires the
+       ENTIRE `@map_scale`/`line_substring()` construction from the
+       previous round - simpler, and immune to whatever `@map_scale`
+       actually does inside that specific rendering context, since it's
+       no longer used at all.
+    3. **Icon spacing.** Once the stub (item 2) landed almost exactly
+       where the unit icon already sat (their two positions were only
+       0.1mm apart, coincidence of the two independently-chosen
+       numbers), "shift the aviation symbol left of the stub with some
+       gap" moved the icon's own offset to a new constant derived from
+       the stub's own left edge plus a 3mm gap, rather than the
+       original hand-picked -8.0mm - so icon, stub, and bowtie now read
+       as three visually distinct pieces left to right.
+    733 tests passing on both QGIS versions (layer count/order tests
+    updated for the new stub layer and the reverted-to-plain line
+    layer).
+
+    **Moving on to Direction of Attack - Main Attack (140602, page
+    433)**, same session: "using with the DOA - Friendly aviation
+    symbol, drop the aviation symbol, bowtie and line segment stub. now
+    move the unique designation Field T to center of shaft, add a
+    chevron outside the arrowhead and connect the two arrowheads."
+    Confirmed against the standard's own template/example pictures
+    directly (zoomed well past print resolution): Main Attack shares
+    the plain status-driven shaft every Direction of Attack variant
+    has, no unit icon/bowtie/stub (those are Friendly Aviation's own),
+    and its own DOUBLE chevron arrowhead - two nested V shapes, back
+    (open) ends joined by a short strut on each side, not two
+    independent V's. `_direction_of_attack_symbol()` gained a `main_
+    attack` parameter, scoped to `direction_of_attack_main` only via
+    the `_LINE_SYMBOL_BUILDERS` lambda - every other variant (Supporting
+    Attack/Ground Axis/Feint/Enemy) is untouched.
+
+    The double chevron itself needed real geometry, not QGIS's own
+    built-in `Shape.ArrowHead` (no way to express "two nested copies
+    plus struts", and its own corner coordinates for a given size
+    aren't exposed to build struts against) - a hand-authored inline
+    SVG instead (`_DIRECTION_OF_ATTACK_MAIN_ATTACK_CHEVRON_SVG`, the
+    same `base64:`/`param(fill)`/`param(outline)` technique
+    `_attack_helicopter_direction_glyph_layer()` already uses). Getting
+    the actual shape right took four real rounds of maintainer feedback
+    against live renders, each one a genuine geometry correction, not
+    just re-guessing numbers:
+    1. **First cut**: two independently hand-picked V's. Feedback:
+       "the chevron should be made of parallel lines for the side of
+       the triangle, and you added an inner chevron instead of outer,
+       anyway make the lines of both chevron lines parallel." Computing
+       both arms' own slopes directly (not eyeballing) confirmed the
+       two V's genuinely weren't parallel - the inner one was
+       independently steeper, which is very likely also what read as
+       "inner instead of outer" (a wider-angled inner V visually
+       competes with the outer one instead of sitting cleanly inside
+       it).
+    2. **Second cut**: picked the OUTER chevron's own corners first
+       (back corners at the SVG's own declared-viewBox centre, i.e. the
+       marker's own default anchor point), derived the INNER chevron as
+       a true parallel offset toward the centreline (same principle
+       `expressions/military_symbology_functions.py`'s own
+       `_offset_arrowhead_chevron()` already uses for Axis of Advance's
+       own double-lined arrowhead, worked out by hand since this glyph
+       is a fixed-size marker, not real ribbon geometry). This also
+       answered "the shaft should touch the arrowhead" (anchoring the
+       OUTER chevron's own back corners at the anchor put the shaft's
+       own end exactly there) and added "Field T - unique designator
+       should have a mask so that line is not seen below it" (see
+       below).
+    3. **Third correction**: "make the arrow shaft touch the arrow
+       head - inner chevron." Anchoring the OUTER chevron at the
+       marker's own anchor point meant the shaft touched the OUTER
+       shape, leaving the smaller INNER one set back with a visible
+       gap - backwards from what real double-chevron arrowheads (and
+       every other Direction of Attack variant's own single arrowhead)
+       actually do: the shaft flows into the "real"/inner arrowhead,
+       with the outer one added around/past it. Swapped which shape is
+       built first: INNER chevron's own corners now sit at the anchor,
+       OUTER is a genuine parallel expansion OUTWARD from it (the same
+       principle `mct_axis_of_advance_outer_chevron()` already
+       established for Axis of Advance's own Feint - a chevron
+       expanded from a real one, not built independently).
+    4. **Fourth correction**: "the angle of the triangle is slightly
+       less, check the angle of the triangle of the arrow head of DOA -
+       friendly aviation, make this also same." Measured the real,
+       already-confirmed single-chevron marker directly with a
+       dedicated probe render (found its own half-angle from the
+       centreline is ~43.7 degrees, a near-90-degree full V) rather
+       than eyeballing a match, then recomputed the inner chevron's own
+       back-corner-Y/tip-reach ratio to match that measured angle
+       exactly, rebuilding the outer chevron the same "parallel
+       expansion" way once more.
+
+    Field T's own move to the shaft centre started as a plain
+    `CentralPoint`-placed font marker (rotate-with-line, same technique
+    every other variant's own Field T uses, just relocated) - then
+    "Field T - unique designator should have a mask so that line is not
+    seen below it" (the shaft now runs directly under the centred text)
+    moved it onto a genuine masked PAL label instead, the exact same
+    technique Friendly Aviation's own Field T already uses, just
+    anchored at the shaft's own centre (0.5) instead of near the
+    arrowhead (0.9) and masking Main Attack's own line id instead of
+    aviation's. This meant reintroducing `QgsRuleBasedLabeling` on this
+    layer (abandoned earlier in the Friendly Aviation bowtie-masking
+    dead end) - but this time each rule matches a DIFFERENT feature
+    (aviation's own Field T vs. Main Attack's own), not two rules
+    competing to mask the SAME feature's line, which is what actually
+    failed before. That distinction still weren't quite enough on its
+    own: giving each rule its OWN single masked-symbol-layer-id list
+    logged "Different sets of symbol layers are masked by different
+    sources! Only one (arbitrary) set will be retained!" and silently
+    dropped one variant's own masking - QGIS's own Selective Masking
+    configuration is apparently LAYER-wide, not per-rule/per-provider.
+    Fixed by giving BOTH rules the SAME combined list (both variants'
+    own line ids together) - masking an id a given feature doesn't even
+    have is harmless, since the cut only happens where that rule's own
+    label text actually renders. Main Attack's own Field T also kept
+    its existing affiliation colouring (the font-marker technique
+    already had this via `_designation_font_marker()`) by setting the
+    same data-defined `QgsPalLayerSettings.Property.Color` on both
+    rules' own settings, not just aviation's.
+
+    737 tests passing on both QGIS versions (four new: Main Attack's
+    own masked PAL label, stable line id, absence of a font-marker
+    Field T, and the double-chevron glyph's own presence/absence across
+    variants; existing layer/font-marker-count tests updated for one
+    fewer symbol layer now that Field T is a label, not a marker).
+
+- **2026-08-12, Table H-XI's own remaining Direction of Attack variants,
+  a full cross-check against the standard, and the start of Table
+  H-XII.** Worked strictly to the maintainer's own dictated
+  instructions this round, with the manual explicitly set aside until
+  they asked for it ("just follow my instructions please, don't refer
+  the manual for now, i will tell you when to refer the manual").
+
+  - **Supporting Attack / Enemy / Friendly Ground Axis** each built
+    from the previous one's own confirmed construction, exactly as
+    dictated: Supporting Attack = Friendly Aviation minus the unit
+    icon, bowtie and stub; Enemy = Supporting Attack with the colour
+    forced red (which needed no new code at all -
+    `direction_of_attack_enemy` was already in `_ENEMY_MEASURE_TYPES`,
+    so every `_apply_offensive_line_color()` call this construction
+    already goes through renders red automatically - verified by
+    rendering with `affiliation="friend"` and confirming it still came
+    out red); Ground Axis = Supporting Attack verbatim with ordinary
+    affiliation colouring. Each got its own stable line-symbol-layer id
+    and its own masked-PAL Field T rule, all sharing one combined
+    `masked_symbol_layer_ids` list per the H5 finding above.
+
+  - **Direction of Attack for a Feint** - "add a dashed chevron outside
+    the main arrowhead, at a gap 1/6 of the length of arrowhead side,
+    the new chevron being parallel to the existing arrowhead". The real
+    arrowhead is the built-in `Shape.ArrowHead` marker, whose exact
+    corner coordinates aren't exposed, so it was **measured** with a
+    dedicated probe render (single marker, rendered alone, true tip
+    located via a column-wise min-y-spread scan so stroke bleed
+    couldn't skew it): half-angle ~43.727 degrees, arm length
+    ~4.8505mm, and the marker's own anchor confirmed to BE the tip
+    (within 0.05mm), not the bounding-box centre. The outer chevron is
+    then a genuine perpendicular offset of each arm by gap =
+    side/6 ≈ 0.8084mm with the two offset lines re-intersected for the
+    new tip - not a scaled copy, which is what produced non-parallel
+    arms the first time this technique was tried for Main Attack.
+
+  - **Main Attack rebuilt** on that same measured geometry - "start
+    with the symbol for feint; change the outer chevron to solid line,
+    add line segments to join ends of both the stubs". Main Attack no
+    longer has a special-cased chevron branch at all: it now uses the
+    same real single-chevron marker every other variant does, plus one
+    extra SVG layer carrying the solid outer chevron and the two struts
+    joining each side's back corners. The original fully hand-authored
+    double-chevron SVG (four rounds of correction) was retired.
+
+  - **Cross-check against the standard**, at the maintainer's own
+    request once the family was complete ("that clears all chapter
+    X/XI - cross check please"). Read Tables H-X and H-XI directly
+    (printed pages 428-433). Reported five discrepancies; the
+    maintainer ruled on each, and **three were explicitly dismissed as
+    non-issues**, which is itself worth recording: Main Attack's own
+    double-lined arrowhead IS correct as built (my reading of the
+    printed glyph as a single thick stroke was wrong); Enemy's Field N
+    / "ENY" literal / absent DTG are monochrome-print conventions that
+    don't apply once the symbol is rendered red, and an unfilled DTG
+    field simply renders nothing, so neither needs changing. Of the
+    two real findings, **Field T and Field W-W1 (DTG) were in the wrong
+    place on all six variants** - the standard clusters both just past
+    PT2, near the line's own START, where this build had put them near
+    the tip (and, for Main Attack, at the shaft's centre). Both moved:
+    one shared `_DIRECTION_OF_ATTACK_LABEL_ANCHOR_PERCENT` (0.12,
+    `StartOfText`) replaced the old per-variant 0.9/0.5 anchors, and
+    the DTG's own two font markers moved from `LastVertex` with a large
+    negative pull-back to `FirstVertex` with a small positive push.
+    Friendly Aviation's own icon box was checked and confirmed already
+    correct.
+
+  - **Point of Departure (160400) rebuilt.** Reported as "missing"; it
+    turned out to exist but to be positioning its unique designation
+    with a hand-computed `QgsPalLayerSettings` offset (local-SVG-
+    coordinate probe plus an mm-per-unit scale factor), on the strength
+    of a comment claiming both of milsymbol.js's own text slots were
+    wrong for this SIDC. A direct probe render disproved that: the
+    plain `uniqueDesignation` slot places the text at (150, -30) - same
+    y as the "PD" glyph, just past the box's right edge - exactly the
+    standard's own top-right placement. Rebuilt on the same
+    `mct_sidc_svg(...)` technique Fly-To-Point already uses, deleting
+    the custom-offset machinery (~50 lines: two constants, an offset
+    helper, and the whole `_configure_points_labeling()` function).
+
+  - **Table H-XII started - Encirclement.** Perimeter decoration
+    changed from repeated tick strokes to real triangles, base on the
+    perimeter, gap 60% of base (interval = 1.6 x base); then hollow,
+    +20% size, rotated 180 degrees with the base - not the tip - flush
+    on the line, which needed the marker offset by half its own
+    measured height so the perimeter stopped cutting through the
+    shape's bounding-box centre. **A third round then caught a real
+    bug the earlier renders had hidden**: the maintainer reported the
+    triangles pointing inward in live QGIS. Reproduced with a probe
+    rendering the same polygon in both ring windings - apex direction
+    depends on whether the polygon was digitized clockwise or
+    counterclockwise, and QGIS does not normalise that for hand-drawn
+    shapes. Every render up to that point had happened to use a
+    counterclockwise test ring, so the correct-looking result was a
+    coincidence, not a guarantee. Fixed by normalising the winding
+    before the markers are placed - a `QgsGeometryGeneratorSymbolLayer`
+    feeding `boundary(force_polygon_ccw($geometry))` to the marker line
+    - and re-verified on an irregular polygon.
+
+  - **Bridgehead Line's end labels** - "the label on both ends should
+    be straight, in our case one of the labels is inverted". Confirmed
+    by render that with the marker line's own `rotateSymbols` flag on,
+    a right-to-left line renders BOTH labels upside-down (and below the
+    line, since the perpendicular offset rotates with the same frame),
+    and an angled end segment tilts its own label. `_end_label_layer()`
+    gained a `rotate_with_line=True` parameter (default preserves every
+    existing caller unchanged) and Bridgehead Line passes False.
+    **Holding Line and Release Line share the identical bug and were
+    deliberately left alone**, per the standing "one symbol at a time"
+    convention - flagged to the maintainer rather than silently
+    swept in.
+
+  - **Housekeeping, same day**: removed genuinely dead code found by an
+    AST sweep (three orphaned module-level constants -
+    `_END_LABEL_CHARACTERS`, `_AIRBORNE_AVIATION_MEASURE_TYPES`,
+    `_SIMPLE_LINE_END_LABELS` - and ~25 unused imports across the
+    symbology and test modules); migrated 13 call sites off the
+    deprecated `QgsTemplatedLineSymbolLayerBase.placement()` getter to
+    `placements()`, which was already the established pattern in the
+    other test modules; and gitignored `symbology-style.db`, an empty
+    QGIS-generated local style database that had been sitting untracked
+    in the repo root. One lesson worth recording from that sweep: a
+    per-file "imported but not referenced here" check is NOT safe on
+    its own - it flagged `LAND_RAMP`/`SEA_RAMP` in
+    `terrain/tanaka_contours.py`, which are deliberate re-exports that
+    `tests/test_tanaka_contours.py` imports from there. That removal
+    broke the module's own test import and was caught by the full suite
+    and restored; every other removal was then re-checked for the same
+    re-export pattern before committing.
+
+    739 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
@@ -2566,4 +4861,4 @@ tested, not claimed as done here.
 9. ✅ ~~Phase 7's Plugin Repository packaging~~ — published 2026-07-28, moderator approved, plugin ID 5843. Phase 7 is now fully complete, including both known-issue items, genuinely fixed and re-verified (see Phase 7 above).
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
-12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix.
+12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix. **Update 2026-08-09/10**: H0-H14 built and tested headlessly; live hands-on QGIS smoke-testing by the project maintainer (started 2026-08-09, table-by-table henceforth via a dedicated tracker artifact) found and fixed real construction defects in H3 (FLOT/Line of Contact/Phase Line/FEBA/Principal Direction of Fire/Fortified Area, plus building the previously-skipped Limited Access Area) and H4 (echelon placement, Strong Point tick direction/masking, Battle Position's "prepared" line style) - see both dated entries above for the full list. Also, at the maintainer's own request, Table H-VI and Table H-IX's point-type entries moved out of the shared `control_measure_points.py` layer into their own dedicated Points layers (C2 Measures/Defensive Control Measures respectively), matching every other H.5.x group's own "own layer(s)" convention - the remaining groups' own points (Airspace/Maritime control points; everything under the not-yet-built H15-H22) are scoped to move the same way once each group's own mini-phase is built, not preemptively. H15-H22 remain pending. 696 tests passing on both QGIS versions as of 2026-08-10.

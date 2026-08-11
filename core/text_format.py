@@ -33,7 +33,11 @@ def build_font(size, family=DEFAULT_FONT_FAMILY, bold=False, italic=False, under
 
     font = QFont(family)
 
-    font.setPointSize(size)
+    # setPointSizeF, not setPointSize, so a fractional size (e.g. a
+    # small point-symbol label needing finer granularity than a whole
+    # point) works too - every existing caller already passes a plain
+    # int, and QFont accepts those identically either way.
+    font.setPointSizeF(size)
 
     if bold:
         font.setBold(True)

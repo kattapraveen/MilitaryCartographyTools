@@ -1,0 +1,539 @@
+# -*- coding: utf-8 -*-
+
+"""
+Builds ready-to-use layers for MIL-STD-2525D Appendix H.5.15 (Table
+H-XIII, "Airspace control means") - Mini-Phase H7, the seventh H.5.x
+logical group in this appendix-by-appendix pass.
+
+Table H-XIII's own text splits airspace control means into four groups:
+points, lines, corridors/routes (nominally "Areas" in the standard's own
+SIDC prefix, code range 170000, but their own construction - PT1/PT2
+anchor points plus every segment defined the same way a line is - is a
+band-shaped LINE, not a closed boundary; see below) and areas/zones
+(code range 170000-172000, genuine freeform polygons).
+
+**Points (25 entries, codes 180000-182500) are NOT built here at all -
+every one of them (Air Control Point, Communications Checkpoint, Downed
+Aircrew Pick-Up Point, Pop-Up Point, Air Control Rendezvous, TACAN, CAP/
+AEW/ASW/SUCAP/MIW Stations, Strike Initial Point, Replenishment Station,
+Tanking, Tomcat, Rescue, Unmanned Aerial System, VTUA, Orbit + its 3
+variants) is confirmed present in milsymbol.js's own vendored source
+under this exact numeric code, so they were added directly to sidc.py's
+ENTITIES["control_measure"] and control_measure_points.py's own
+_ENTITY_LABELS instead, the same "point control measures belong to the
+shared, milsymbol-rendered Control Measure Points layer" precedent
+already established for H4's Observation Post family and H5's Point of
+Departure - unlike those two mini-phases, this appendix's own point
+vocabulary genuinely was NOT already present and had to be added.
+milsymbol's own display name for 180400 is "TP.PULL-UP POINT", not
+"Pop-Up Point (PUP)" as the standard calls it - confirmed by inspecting
+its actual drawn geometry (circle + "PUP" text + bowtie path), which
+matches the standard's own template exactly; a milsymbol naming quirk,
+not a missing/wrong symbol.
+
+**One point is skipped outright: Base Defense Zone (170800, BDZ).**
+Its own template is a fixed-size ("Static") plain circle labelled "BDZ"
+around ONE anchor point - not in milsymbol's vocabulary, and it doesn't
+fit the Areas layer's freeform-polygon model either (a fixed circle
+around a single point is a genuine point construct, the same
+"doesn't fit this project's own techniques" reasoning already applied to
+H4's Contain/Retain and H6's Attack By Fire Position/Ambush).
+
+**Corridors/Routes (7 types, all under the standard's own "17" Area SIDC
+prefix) are built on the LINES layer instead**, because their actual
+construction (2-99 sequential PT anchor points defining a centerline,
+same as any other digitized line) is a path, not a closed boundary a
+polygon layer could hold - the same "organise by actual QGIS geometry
+type, not the standard's own SIDC field-code grouping" principle already
+applied to H6's Support by Fire Position/Search Area. Every one of them
+(Air Corridor 170100, Low-Level Transit Route 170200, Minimum-Risk Route
+170300, Safe Lane 170400, SAAFR 170500, Transit Corridor 170600,
+Unmanned Aircraft Route 170700) is, per its own template picture, really
+a variable-width RIBBON/BAND with rounded ACP/CCP circle endpoints and up
+to 5 extra descriptive fields (WIDTH/MIN ALT/MAX ALT/DTG START/DTG END) -
+approximated here as a single moderately-thick status-driven line with a
+centred "PREFIX NAME" label, the same whole-table-approximation
+tolerance already used for offensive_control_measures.py's own Axis of
+Advance family: the taper, the ACP/CCP endpoint circles (themselves just
+separate, already-covered point symbols the standard's own draw rules
+say anchor each end - not part of the corridor's own drawn geometry) and
+the WIDTH/altitude/DTG fields are all dropped, keeping only what's
+SIDC-relevant (measure_type, correct colour, the name). "Air Corridor
+with Multiple Segments" is the same code (170100) as plain Air Corridor,
+just with more than 2 anchor points - not a separate measure_type.
+
+**Two simple end-labelled lines**: Identification, Friend-or-Foe (IFF)
+Off Line (190100, "IFF OFF" at both ends) and IFF On Line (190200,
+"IFF ON") - the same _end_label_layer() fixed-character-marker technique
+already used throughout this appendix (FCL/LOA/LD/BL/HL/RL, etc.).
+
+**Areas/Zones (12 types, code range 170900-172000)** all share the
+identical "freeform outline + PREFIX + optional name" construction
+already proven extensively elsewhere in this appendix (AO/NAI/TAI/AA/DZ/
+EZ/LZ/PZ/etc.) via a shared prefix dict: High-Density Airspace Control
+Zone (170900, HIDACZ), Restricted Operations Zone (171000, ROZ),
+Air-to-Air ROZ (171100, AARROZ), Unmanned Aircraft ROZ (171200, UA-ROZ),
+Weapon Engagement Zone (171300, WEZ - the standard's own note says WEZ
+"includes" FEZ/JEZ/MEZ(LOMEZ/HIMEZ)/SHORADEZ as its own sub-types, but
+the table then goes on to list each of those as its OWN separate code
+too, so all 6 are built as distinct measure types, matching the
+table's own literal code list rather than collapsing them under WEZ),
+Fighter Engagement Zone (171400, FEZ), Joint Engagement Zone (171500,
+JEZ), Missile Engagement Zone (171600, MEZ), Low/High (Altitude) Missile
+Engagement Zone (171700/171800, LOMEZ/HIMEZ), Short Range Air Defense
+Engagement Zone (171900, SHORADEZ). **Weapons Free Zone (172000, WFZ) is
+the first area in this entire appendix-by-appendix pass whose own
+template requires a genuine HATCHED FILL** ("Note: Upward diagonal lines
+are part of the fill", not a plain "no fill" outline like every other
+area built so far) - built with a QgsLinePatternFillSymbolLayer, a new
+technique for this project.
+
+Military Cartography Tools
+"""
+
+from qgis.core import (
+    Qgis,
+    QgsDefaultValue,
+    QgsEditorWidgetSetup,
+    QgsField,
+    QgsLinePatternFillSymbolLayer,
+    QgsLineSymbol,
+    QgsProject,
+    QgsProperty,
+    QgsSimpleLineSymbolLayer,
+    QgsSymbolLayer,
+    QgsVectorLayer,
+)
+
+from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtGui import QColor
+
+from ._control_measure_shared import (
+    AFFILIATION_LABELS,
+    STATUS_LABELS,
+    _PLAIN_DESIGNATION_LABEL_EXPRESSION,
+    _STATUS_LINE_STYLE_EXPRESSION,
+    _apply_affiliation_color,
+    _build_rule_based_renderer,
+    _configure_affiliation_field,
+    _configure_designation_labeling,
+    _configure_status_field,
+    _end_label_layer,
+    _status_driven_area_outline_symbol,
+    _value_map,
+    add_layer_if_absent,
+)
+
+
+LINES_LAYER_NAME = "Airspace Control Measures (Lines)"
+AREAS_LAYER_NAME = "Airspace Control Measures (Areas)"
+
+__all__ = [
+    "LINES_LAYER_NAME",
+    "AREAS_LAYER_NAME",
+    "LINE_MEASURE_TYPE_LABELS",
+    "AREA_MEASURE_TYPE_LABELS",
+    "AFFILIATION_LABELS",
+    "STATUS_LABELS",
+    "create_airspace_control_measures_lines_layer",
+    "create_airspace_control_measures_areas_layer",
+    "add_airspace_control_measures_lines_layer",
+    "add_airspace_control_measures_areas_layer",
+]
+
+# Table H-XIII - see module docstring for why the "Corridors (Areas)"
+# section's own 7 entries live here instead, and for what's skipped
+# (Base Defense Zone).
+LINE_MEASURE_TYPE_LABELS = {
+    "air_corridor": "Air Corridor (AC)",
+    "low_level_transit_route": "Low-Level Transit Route (LLTR)",
+    "minimum_risk_route": "Minimum-Risk Route (MRR)",
+    "safe_lane": "Safe Lane (SL)",
+    "saafr": "Standard Use Army Aircraft Flight Route (SAAFR)",
+    "transit_corridor": "Transit Corridor (TC)",
+    "unmanned_aircraft_route": "Unmanned Aircraft (UA) Route",
+    "iff_off_line": "Identification, Friend-or-Foe (IFF) Off Line",
+    "iff_on_line": "Identification, Friend-or-Foe (IFF) On Line",
+}
+
+AREA_MEASURE_TYPE_LABELS = {
+    "hidacz": "High-Density Airspace Control Zone (HIDACZ)",
+    "roz": "Restricted Operations Zone (ROZ)",
+    "aarroz": "Air-to-Air Restricted Operations Zone (AARROZ)",
+    "ua_roz": "Unmanned Aircraft Restricted Operations Zone (UA-ROZ)",
+    "wez": "Weapon Engagement Zone (WEZ)",
+    "fez": "Fighter Engagement Zone (FEZ)",
+    "jez": "Joint Engagement Zone (JEZ)",
+    "mez": "Missile Engagement Zone (MEZ)",
+    "lomez": "Low (Altitude) Missile Engagement Zone (LOMEZ)",
+    "himez": "High (Altitude) Missile Engagement Zone (HIMEZ)",
+    "shoradez": "Short Range Air Defense Engagement Zone (SHORADEZ)",
+    "weapons_free_zone": "Weapons Free Zone (WFZ)",
+}
+
+# Table H-XIII's own examples: "AC GOLD", "LLTR COBRA", "MRR RED",
+# "SL LION", "SAAFR BLUE", "TC KING", "UA DRAGON" - identical
+# "prefix + optional name" pattern to c2_measures.py's own AO/NAI/TAI
+# and maneuver_control_measures.py's own AA/DZ/EZ/LZ/PZ.
+_CORRIDOR_LABEL_PREFIXES = {
+    "air_corridor": "AC",
+    "low_level_transit_route": "LLTR",
+    "minimum_risk_route": "MRR",
+    "safe_lane": "SL",
+    "saafr": "SAAFR",
+    "transit_corridor": "TC",
+    "unmanned_aircraft_route": "UA",
+}
+
+_LINE_DESIGNATION_LABEL_EXPRESSION = (
+    "CASE "
+    + " ".join(
+        f"WHEN \"measure_type\" = '{measure_type}' THEN "
+        f"'{prefix}' || CASE WHEN \"unique_designation\" IS NOT NULL"
+        " AND \"unique_designation\" != '' THEN"
+        f" ' ' || {_PLAIN_DESIGNATION_LABEL_EXPRESSION} ELSE '' END"
+        for measure_type, prefix in _CORRIDOR_LABEL_PREFIXES.items()
+    )
+    + " ELSE '' END"
+)
+
+
+def _corridor_symbol():
+
+    """
+    A moderately-thick, status-driven line approximating the standard's
+    own variable-width ribbon (see module docstring for what's dropped).
+    Shared by all 7 corridor/route measure types - only the label prefix
+    differs between them.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setColor(
+        QColor(0, 0, 0)
+    )
+
+    line_layer.setWidth(
+        1.0
+    )
+
+    _apply_affiliation_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(
+        0,
+        line_layer
+    )
+
+    return symbol
+
+
+def _iff_line_symbol(character):
+
+    """
+    Table H-XIII, codes 190100/190200, page 465. A plain status-driven
+    line with a fixed "IFF OFF"/"IFF ON" label at each end - the same
+    _end_label_layer() technique as FCL/LOA/LD elsewhere in this
+    appendix.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setColor(
+        QColor(0, 0, 0)
+    )
+
+    line_layer.setWidth(
+        0.4
+    )
+
+    _apply_affiliation_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(
+        0,
+        line_layer
+    )
+
+    for placement in (
+        Qgis.MarkerLinePlacement.FirstVertex,
+        Qgis.MarkerLinePlacement.LastVertex,
+    ):
+
+        symbol.appendSymbolLayer(
+            _end_label_layer(placement, character)
+        )
+
+    return symbol
+
+
+_LINE_SYMBOL_BUILDERS = {
+    "air_corridor": _corridor_symbol,
+    "low_level_transit_route": _corridor_symbol,
+    "minimum_risk_route": _corridor_symbol,
+    "safe_lane": _corridor_symbol,
+    "saafr": _corridor_symbol,
+    "transit_corridor": _corridor_symbol,
+    "unmanned_aircraft_route": _corridor_symbol,
+    "iff_off_line": lambda: _iff_line_symbol("IFF OFF"),
+    "iff_on_line": lambda: _iff_line_symbol("IFF ON"),
+}
+
+
+# Table H-XIII's own examples: "HIDACZ\n32AADC", "ROZ\n11 ADA BDE",
+# "AARROZ\n2ID", "WFZ\nATF" - same "prefix + optional name" pattern as
+# the corridor family above and every other prefixed area in this
+# appendix, just on the Areas layer.
+_AREA_LABEL_PREFIXES = {
+    "hidacz": "HIDACZ",
+    "roz": "ROZ",
+    "aarroz": "AARROZ",
+    "ua_roz": "UA-ROZ",
+    "wez": "WEZ",
+    "fez": "FEZ",
+    "jez": "JEZ",
+    "mez": "MEZ",
+    "lomez": "LOMEZ",
+    "himez": "HIMEZ",
+    "shoradez": "SHORADEZ",
+    "weapons_free_zone": "WFZ",
+}
+
+_AREA_DESIGNATION_LABEL_EXPRESSION = (
+    "CASE "
+    + " ".join(
+        f"WHEN \"measure_type\" = '{measure_type}' THEN "
+        f"'{prefix}' || CASE WHEN \"unique_designation\" IS NOT NULL"
+        " AND \"unique_designation\" != '' THEN"
+        f" '\\n' || {_PLAIN_DESIGNATION_LABEL_EXPRESSION} ELSE '' END"
+        for measure_type, prefix in _AREA_LABEL_PREFIXES.items()
+    )
+    + " ELSE '' END"
+)
+
+
+def _weapons_free_zone_symbol():
+
+    """
+    Table H-XIII, code 172000, page 459. The one area in this whole
+    appendix-by-appendix pass with a real fill - "Note: Upward diagonal
+    lines are part of the fill." A QgsLinePatternFillSymbolLayer at 45
+    degrees on top of the same status-driven outline every other area
+    here uses.
+    """
+
+    symbol = _status_driven_area_outline_symbol()
+
+    hatch_layer = QgsLinePatternFillSymbolLayer()
+
+    hatch_layer.setLineAngle(
+        45
+    )
+
+    hatch_layer.setDistance(
+        2.5
+    )
+
+    hatch_layer.setLineWidth(
+        0.2
+    )
+
+    hatch_layer.setColor(
+        QColor(0, 0, 0)
+    )
+
+    _apply_affiliation_color(
+        hatch_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    symbol.appendSymbolLayer(
+        hatch_layer
+    )
+
+    return symbol
+
+
+_AREA_SYMBOL_BUILDERS = {
+    "hidacz": _status_driven_area_outline_symbol,
+    "roz": _status_driven_area_outline_symbol,
+    "aarroz": _status_driven_area_outline_symbol,
+    "ua_roz": _status_driven_area_outline_symbol,
+    "wez": _status_driven_area_outline_symbol,
+    "fez": _status_driven_area_outline_symbol,
+    "jez": _status_driven_area_outline_symbol,
+    "mez": _status_driven_area_outline_symbol,
+    "lomez": _status_driven_area_outline_symbol,
+    "himez": _status_driven_area_outline_symbol,
+    "shoradez": _status_driven_area_outline_symbol,
+    "weapons_free_zone": _weapons_free_zone_symbol,
+}
+
+
+def create_airspace_control_measures_lines_layer(name=LINES_LAYER_NAME):
+
+    """
+    A fresh, empty line layer for Table H-XIII's own line-geometry
+    measure types (the corridor/route family plus IFF Off/On Line) - see
+    this module's own docstring for the full list and what's scoped out.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(
+        f"LineString?crs={crs.authid()}",
+        name,
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("length_km", QMetaType.Type.Double),
+        ]
+    )
+
+    layer.updateFields()
+
+    measure_type_idx = layer.fields().indexOf("measure_type")
+
+    layer.setEditorWidgetSetup(
+        measure_type_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(LINE_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        measure_type_idx,
+        QgsDefaultValue("'air_corridor'")
+    )
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("length_km"),
+        QgsDefaultValue("mct_length_km($geometry)", True)
+    )
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
+    )
+
+    _configure_designation_labeling(
+        layer,
+        Qgis.LabelPlacement.Line,
+        _LINE_DESIGNATION_LABEL_EXPRESSION
+    )
+
+    return layer
+
+
+def create_airspace_control_measures_areas_layer(name=AREAS_LAYER_NAME):
+
+    """
+    A fresh, empty polygon layer for Table H-XIII's own 12 zone/area
+    measure types.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(
+        f"Polygon?crs={crs.authid()}",
+        name,
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("area_km2", QMetaType.Type.Double),
+            QgsField("perimeter_km", QMetaType.Type.Double),
+        ]
+    )
+
+    layer.updateFields()
+
+    measure_type_idx = layer.fields().indexOf("measure_type")
+
+    layer.setEditorWidgetSetup(
+        measure_type_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(AREA_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        measure_type_idx,
+        QgsDefaultValue("'roz'")
+    )
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("area_km2"),
+        QgsDefaultValue("mct_area_km2($geometry)", True)
+    )
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("perimeter_km"),
+        QgsDefaultValue("mct_perimeter_km($geometry)", True)
+    )
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _AREA_SYMBOL_BUILDERS)
+    )
+
+    _configure_designation_labeling(
+        layer,
+        Qgis.LabelPlacement.OverPoint,
+        _AREA_DESIGNATION_LABEL_EXPRESSION
+    )
+
+    return layer
+
+
+def add_airspace_control_measures_lines_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        LINES_LAYER_NAME,
+        create_airspace_control_measures_lines_layer
+    )
+
+
+def add_airspace_control_measures_areas_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        AREAS_LAYER_NAME,
+        create_airspace_control_measures_areas_layer
+    )

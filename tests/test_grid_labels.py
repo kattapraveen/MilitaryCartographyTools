@@ -19,7 +19,6 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsProject,
     QgsRectangle,
-    QgsRuleBasedLabeling,
 )
 
 from .qgis_test_case import QgisTestCase

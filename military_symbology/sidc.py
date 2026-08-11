@@ -885,21 +885,38 @@ ENTITIES = {
         "checkpoint": "130300",
         "center_of_main_effort": "130400",
         "contact_point": "130500",
-        "coordination_point": "130600",
+        "coordinating_point": "130600",
         "decision_point": "130700",
         "distress_call": "130800",
         "entry_control_point": "130900",
+        "fly_to_point_sonobuoy": "131001",
+        "fly_to_point_weapon": "131002",
+        "fly_to_point_normal": "131003",
         "linkup_point": "131100",
         "passage_point": "131200",
         "point_of_interest": "131300",
+        "point_of_interest_launch_event": "131301",
         "rally_point": "131400",
         "release_point": "131500",
         "start_point": "131600",
         "special_point": "131700",
         "waypoint": "131800",
         "airfield": "131900",
-        "target_handover": "132000",
-        "key_terrain": "132100",
+        # Table H-VI (Command and control points) ends here, at 131900 -
+        # confirmed 2026-08-10 by reading the actual standard text
+        # directly (reference/MIL-STD-2525D.pdf), after the project
+        # maintainer questioned two entries that used to sit right here,
+        # "target_handover" (132000) and "key_terrain" (132100). Neither
+        # exists anywhere in Table H-VI, or anywhere in the standard at
+        # all under any name/code - "target_handover"/132000 doesn't
+        # even exist in the vendored milsymbol.js's own dispatch table,
+        # and while milsymbol.js DOES define an icon for 132100 ("TP.KEY
+        # TERRAIN"), that code and name appear nowhere in the actual
+        # MIL-STD-2525D text - a non-standard addition of milsymbol's
+        # own, not a real symbol this plugin should expose as MIL-STD-
+        # 2525D-compliant. Both removed outright, not just relabelled -
+        # the same "verify against the real standard, not just
+        # milsymbol.js" discipline this project applies everywhere else.
         # Maneuver / observation points
         "observation_post": "160100",
         "observation_post_reconnaissance": "160201",
@@ -966,6 +983,58 @@ ENTITIES = {
         "destroy_point": "340900",
         "interdict_point": "341400",
         "neutralize_point": "341600",
+        # Airspace control points (Table H-XIII/H.5.15, Mini-Phase H7,
+        # 2026-08-09) - confirmed present in milsymbol.js under each of
+        # these exact numeric codes (see airspace_control_measures.py's
+        # own docstring for the one point skipped, Base Defense Zone,
+        # and for milsymbol's own "TP.PULL-UP POINT" display-name quirk
+        # for 180400).
+        "air_control_point": "180100",
+        "communications_checkpoint": "180200",
+        "downed_aircrew_pickup_point": "180300",
+        "pop_up_point": "180400",
+        "air_control_rendezvous": "180500",
+        "tacan": "180600",
+        "cap_station": "180700",
+        "aew_station": "180800",
+        "asw_fixed_wing_station": "180900",
+        "strike_initial_point": "181000",
+        "replenishment_station": "181100",
+        "tanking": "181200",
+        "asw_rotary_wing_station": "181300",
+        "sucap_fixed_wing": "181400",
+        "sucap_rotary_wing": "181500",
+        "miw_fixed_wing": "181600",
+        "miw_rotary_wing": "181700",
+        "tomcat": "181800",
+        "rescue": "181900",
+        "unmanned_aerial_system": "182000",
+        "vtua": "182100",
+        "orbit": "182200",
+        "orbit_figure_eight": "182300",
+        "orbit_race_track": "182400",
+        "orbit_random_closed": "182500",
+        # Maritime control points (Table H-XIV/H.5.16, Mini-Phase H8/H9,
+        # 2026-08-09) - confirmed present in milsymbol.js under each of
+        # these exact numeric codes. This is a heavily curated subset -
+        # see maritime_control_measures.py's own docstring for the much
+        # larger AEGIS-combat-system-specific and anti-submarine-
+        # warfare/sonobuoy-specific families deliberately left out,
+        # matching this dict's own pre-existing curation note above
+        # ("the more Navy/anti-submarine-warfare-specific ones").
+        "plan_ship": "210100",
+        "aim_point": "210200",
+        "defended_asset": "210300",
+        "drop_point": "210400",
+        "entry_point": "210500",
+        "air_detonation": "210600",
+        "ground_zero": "210700",
+        "impact_point": "210800",
+        "predicted_impact_point": "210900",
+        "missile_detection_point": "211100",
+        "brief_contact": "211400",
+        "datum_lost_contact": "211500",
+        "navigational_reference_point": "213400",
     },
     # Real codes from milsymbol-3.0.4's own src/numbersidc/sidc/space.js
     # (symbolSet == "05") - cross-checked directly against the standard's

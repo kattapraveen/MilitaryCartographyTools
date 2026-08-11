@@ -41,6 +41,45 @@ from .military_symbology.control_measure_points import (
 from .military_symbology.c2_measures import (
     add_c2_measures_lines_layer,
     add_c2_measures_areas_layer,
+    add_c2_measures_points_layer,
+)
+from .military_symbology.maneuver_control_measures import (
+    add_maneuver_control_measures_lines_layer,
+    add_maneuver_control_measures_areas_layer,
+)
+from .military_symbology.defensive_control_measures import (
+    add_defensive_control_measures_areas_layer,
+    add_defensive_control_measures_points_layer,
+)
+from .military_symbology.offensive_control_measures import (
+    add_offensive_control_measures_lines_layer,
+    add_offensive_control_measures_areas_layer,
+    add_offensive_control_measures_points_layer,
+)
+from .military_symbology.maneuver_control_measures_2 import (
+    add_maneuver_control_measures_2_lines_layer,
+    add_maneuver_control_measures_2_areas_layer,
+)
+from .military_symbology.airspace_control_measures import (
+    add_airspace_control_measures_lines_layer,
+    add_airspace_control_measures_areas_layer,
+)
+from .military_symbology.maritime_control_measures import (
+    add_maritime_control_measures_lines_layer,
+)
+from .military_symbology.deception_control_measures import (
+    add_deception_control_measures_lines_layer,
+)
+from .military_symbology.fire_support_coordination_measures import (
+    add_fire_support_coordination_measures_lines_layer,
+    add_fire_support_coordination_measures_areas_layer,
+)
+from .military_symbology.target_control_measures import (
+    add_target_control_measures_lines_layer,
+    add_target_control_measures_areas_layer,
+)
+from .military_symbology.target_acquisition_control_measures import (
+    add_target_acquisition_control_measures_areas_layer,
 )
 from .terrain import (
     show_tanaka_contour_dialog,
@@ -119,6 +158,16 @@ class MilitaryCartographyTools:
         # (see c2_measures.py's own docstring).
         self.control_measures_menu = None
         self.c2_measures_action = None
+        self.maneuver_control_measures_action = None
+        self.defensive_control_measures_action = None
+        self.offensive_control_measures_action = None
+        self.maneuver_control_measures_2_action = None
+        self.airspace_control_measures_action = None
+        self.maritime_control_measures_action = None
+        self.deception_control_measures_action = None
+        self.fire_support_coordination_measures_action = None
+        self.target_control_measures_action = None
+        self.target_acquisition_control_measures_action = None
         self.control_measure_points_action = None
 
         self.sub_grid_menu = None
@@ -886,7 +935,8 @@ class MilitaryCartographyTools:
         self.c2_measures_action.setToolTip(
             "Add C2 Measures layers (MIL-STD-2525D Appendix H.5.5/"
             "H.5.9/H.5.10: Boundary, Light Line, Area of Operations, "
-            "Named/Target Area of Interest, Airfield Zone)"
+            "Named/Target Area of Interest, Airfield Zone, Command and "
+            "Control Points)"
         )
 
         self.c2_measures_action.triggered.connect(
@@ -895,6 +945,211 @@ class MilitaryCartographyTools:
 
         self.control_measures_menu.addAction(
             self.c2_measures_action
+        )
+
+        self.maneuver_control_measures_action = QAction(
+            "Maneuver Control Measures",
+            self.control_measures_menu
+        )
+
+        self.maneuver_control_measures_action.setToolTip(
+            "Add Maneuver Control Measures layers (MIL-STD-2525D "
+            "Appendix H.5.11, Table H-VII: Forward Line of Troops, "
+            "Phase Line, FEBA, Principal Direction of Fire, Assembly "
+            "Area, Action Areas, Drop/Extraction/Landing/Pickup Zones, "
+            "Fortified Area, and similar)"
+        )
+
+        self.maneuver_control_measures_action.triggered.connect(
+            self.create_maneuver_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.maneuver_control_measures_action
+        )
+
+        self.defensive_control_measures_action = QAction(
+            "Defensive Control Measures",
+            self.control_measures_menu
+        )
+
+        self.defensive_control_measures_action.setToolTip(
+            "Add Defensive Control Measures layers (MIL-STD-2525D "
+            "Appendix H.5.12: Table H-VIII areas - Battle Position, "
+            "Strong Point, Engagement Area; Table H-IX points - "
+            "Observation Post and variants, Target Reference Point)"
+        )
+
+        self.defensive_control_measures_action.triggered.connect(
+            self.create_defensive_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.defensive_control_measures_action
+        )
+
+        self.offensive_control_measures_action = QAction(
+            "Offensive Control Measures",
+            self.control_measures_menu
+        )
+
+        self.offensive_control_measures_action.setToolTip(
+            "Add Offensive Control Measures layers (MIL-STD-2525D "
+            "Appendix H.5.13, Tables H-X/H-XI: Axis of Advance, "
+            "Direction of Attack, Final Coordination Line, Limit of "
+            "Advance, Line of Departure, Assault/Attack Position, "
+            "Objective Area, and similar)"
+        )
+
+        self.offensive_control_measures_action.triggered.connect(
+            self.create_offensive_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.offensive_control_measures_action
+        )
+
+        self.maneuver_control_measures_2_action = QAction(
+            "Maneuver Control Measures II",
+            self.control_measures_menu
+        )
+
+        self.maneuver_control_measures_2_action.setToolTip(
+            "Add a second set of Maneuver Control Measures layers "
+            "(MIL-STD-2525D Appendix H.5.14, Table H-XII: Encirclement, "
+            "Penetration Box, Support by Fire Position, Search Area/"
+            "Reconnaissance Area, Airhead/Bridgehead/Holding/Release "
+            "Line)"
+        )
+
+        self.maneuver_control_measures_2_action.triggered.connect(
+            self.create_maneuver_control_measures_2
+        )
+
+        self.control_measures_menu.addAction(
+            self.maneuver_control_measures_2_action
+        )
+
+        self.airspace_control_measures_action = QAction(
+            "Airspace Control Measures",
+            self.control_measures_menu
+        )
+
+        self.airspace_control_measures_action.setToolTip(
+            "Add Airspace Control Measures layers (MIL-STD-2525D "
+            "Appendix H.5.15, Table H-XIII: Air Corridor, Low-Level "
+            "Transit Route, Minimum-Risk Route, Safe Lane, SAAFR, "
+            "Transit Corridor, UA Route, IFF Off/On Line, High-Density "
+            "Airspace Control Zone, Restricted/Weapon Engagement Zones, "
+            "Weapons Free Zone)"
+        )
+
+        self.airspace_control_measures_action.triggered.connect(
+            self.create_airspace_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.airspace_control_measures_action
+        )
+
+        self.maritime_control_measures_action = QAction(
+            "Maritime Control Measures",
+            self.control_measures_menu
+        )
+
+        self.maritime_control_measures_action.setToolTip(
+            "Add a Maritime Control Measures (Lines) layer (MIL-STD-2525D "
+            "Appendix H.5.16, Table H-XIV: the Bearing Line family - "
+            "Bearing/Electronic/Electronic Warfare/Acoustic/Torpedo/"
+            "Electro-Optical Intercept/Jammer/RDF)"
+        )
+
+        self.maritime_control_measures_action.triggered.connect(
+            self.create_maritime_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.maritime_control_measures_action
+        )
+
+        self.deception_control_measures_action = QAction(
+            "Deception Control Measures",
+            self.control_measures_menu
+        )
+
+        self.deception_control_measures_action.setToolTip(
+            "Add a Deception Control Measures (Lines) layer "
+            "(MIL-STD-2525D Appendix H.5.17, Table H-XV: Decoy/Dummy)"
+        )
+
+        self.deception_control_measures_action.triggered.connect(
+            self.create_deception_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.deception_control_measures_action
+        )
+
+        self.fire_support_coordination_measures_action = QAction(
+            "Fire Support Coordination Measures",
+            self.control_measures_menu
+        )
+
+        self.fire_support_coordination_measures_action.setToolTip(
+            "Add Fire Support Coordination Measures layers "
+            "(MIL-STD-2525D Appendix H.5.18, Table H-XVI: ACA, Free/No/"
+            "Restricted Fire Area, Position Area For Artillery, FSCL, "
+            "CFL, NFL, BCL, RFL, Munition Flight Path)"
+        )
+
+        self.fire_support_coordination_measures_action.triggered.connect(
+            self.create_fire_support_coordination_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.fire_support_coordination_measures_action
+        )
+
+        self.target_control_measures_action = QAction(
+            "Target Control Measures",
+            self.control_measures_menu
+        )
+
+        self.target_control_measures_action.setToolTip(
+            "Add Target Control Measures layers (MIL-STD-2525D Appendix "
+            "H.5.19, Table H-XVII: Linear/Linear Smoke Target, Final "
+            "Protective Fire, Area Target, Series or Group of Targets, "
+            "Smoke, Bomb Area, Fire Support Area)"
+        )
+
+        self.target_control_measures_action.triggered.connect(
+            self.create_target_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.target_control_measures_action
+        )
+
+        self.target_acquisition_control_measures_action = QAction(
+            "Target Acquisition Control Measures",
+            self.control_measures_menu
+        )
+
+        self.target_acquisition_control_measures_action.setToolTip(
+            "Add a Target Acquisition Control Measures (Areas) layer "
+            "(MIL-STD-2525D Appendix H.5.20, Table H-XVIII: Artillery "
+            "Target Intelligence Zone, Call For Fire Zone, Censor Zone, "
+            "Critical Friendly Zone, Dead Space Area, Sensor Zone, "
+            "Target Build-up/Value Area, Zone of Responsibility, Blue/"
+            "Purple Kill Box)"
+        )
+
+        self.target_acquisition_control_measures_action.triggered.connect(
+            self.create_target_acquisition_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.target_acquisition_control_measures_action
         )
 
         self.control_measure_points_action = QAction(
@@ -1288,6 +1543,16 @@ class MilitaryCartographyTools:
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
         self.c2_measures_action = None
+        self.maneuver_control_measures_action = None
+        self.defensive_control_measures_action = None
+        self.offensive_control_measures_action = None
+        self.maneuver_control_measures_2_action = None
+        self.airspace_control_measures_action = None
+        self.maritime_control_measures_action = None
+        self.deception_control_measures_action = None
+        self.fire_support_coordination_measures_action = None
+        self.target_control_measures_action = None
+        self.target_acquisition_control_measures_action = None
         self.control_measure_points_action = None
 
         # sub_grid_menu/group, control_measures_menu, and every
@@ -1672,8 +1937,10 @@ class MilitaryCartographyTools:
         """
         Add the C2 Measures layers (lines: Boundary, Light Line; areas:
         Area of Operations, Named/Target Area of Interest, Airfield
-        Zone - MIL-STD-2525D Appendix H.5.5/H.5.9/H.5.10), ready for
-        digitizing with QGIS's own native editing tools.
+        Zone; points: Checkpoint, Contact/Coordination/Decision Point,
+        and similar, Table H-VI - MIL-STD-2525D Appendix H.5.5/H.5.9/
+        H.5.10), ready for digitizing with QGIS's own native editing
+        tools.
         """
 
         add_c2_measures_lines_layer(
@@ -1681,6 +1948,207 @@ class MilitaryCartographyTools:
         )
 
         add_c2_measures_areas_layer(
+            self.iface
+        )
+
+        add_c2_measures_points_layer(
+            self.iface
+        )
+
+
+    def create_maneuver_control_measures(self):
+        """
+        Add the Maneuver Control Measures layers (lines: Forward Line
+        of Troops, Phase Line, FEBA, Principal Direction of Fire;
+        areas: Area, Assembly Area, Action Areas, Drop/Extraction/
+        Landing/Pickup Zones, Fortified Area - MIL-STD-2525D Appendix
+        H.5.11, Table H-VII), ready for digitizing with QGIS's own
+        native editing tools.
+        """
+
+        add_maneuver_control_measures_lines_layer(
+            self.iface
+        )
+
+        add_maneuver_control_measures_areas_layer(
+            self.iface
+        )
+
+
+    def create_defensive_control_measures(self):
+        """
+        Add the Defensive Control Measures layers (areas: Battle
+        Position, Strong Point, Engagement Area, Table H-VIII; points:
+        Observation Post and its variants, Target Reference Point,
+        Table H-IX - MIL-STD-2525D Appendix H.5.12), ready for
+        digitizing with QGIS's own native editing tools.
+        """
+
+        add_defensive_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_defensive_control_measures_points_layer(
+            self.iface
+        )
+
+
+    def create_offensive_control_measures(self):
+        """
+        Add the Offensive Control Measures layers (lines: Axis of
+        Advance, Direction of Attack, Infiltration Lane, Final
+        Coordination Line, Limit of Advance, Line of Departure(/Line of
+        Contact), Probable Line of Deployment; areas: Assault Position,
+        Attack Position, Objective Area; points: Point of Departure -
+        MIL-STD-2525D Appendix H.5.13, Tables H-X/H-XI), ready for
+        digitizing with QGIS's own native editing tools.
+        """
+
+        add_offensive_control_measures_lines_layer(
+            self.iface
+        )
+
+        add_offensive_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_offensive_control_measures_points_layer(
+            self.iface
+        )
+
+
+    def create_maneuver_control_measures_2(self):
+        """
+        Add a second set of Maneuver Control Measures layers
+        (Encirclement, Penetration Box, Support by Fire Position,
+        Search Area/Reconnaissance Area, Airhead/Bridgehead/Holding/
+        Release Line - MIL-STD-2525D Appendix H.5.14, Table H-XII),
+        ready for digitizing with QGIS's own native editing tools.
+        """
+
+        add_maneuver_control_measures_2_lines_layer(
+            self.iface
+        )
+
+        add_maneuver_control_measures_2_areas_layer(
+            self.iface
+        )
+
+
+    def create_airspace_control_measures(self):
+        """
+        Add Airspace Control Measures layers (lines: Air Corridor,
+        Low-Level Transit Route, Minimum-Risk Route, Safe Lane, SAAFR,
+        Transit Corridor, UA Route, IFF Off/On Line; areas: High-Density
+        Airspace Control Zone, Restricted Operations Zone family,
+        Weapon Engagement Zone family, Weapons Free Zone -
+        MIL-STD-2525D Appendix H.5.15, Table H-XIII), ready for
+        digitizing with QGIS's own native editing tools. The airspace
+        control point vocabulary itself (ACP, CCP, TACAN, Orbit, and
+        similar) lives on the "Control Measure Points" layer instead -
+        see airspace_control_measures.py's own docstring.
+        """
+
+        add_airspace_control_measures_lines_layer(
+            self.iface
+        )
+
+        add_airspace_control_measures_areas_layer(
+            self.iface
+        )
+
+
+    def create_maritime_control_measures(self):
+        """
+        Add a Maritime Control Measures (Lines) layer (the Bearing Line
+        family - Bearing, Electronic, Electronic Warfare, Acoustic (and
+        its Ambiguous variant), Torpedo, Electro-Optical Intercept,
+        Jammer, Radio Detention Finder - MIL-STD-2525D Appendix H.5.16,
+        Table H-XIV), ready for digitizing with QGIS's own native
+        editing tools. Table H-XIV has no Areas section. A curated
+        subset of its own general-purpose point vocabulary (Plan Ship,
+        Aim Point, Defended Asset, and similar) lives on the "Control
+        Measure Points" layer instead - see maritime_control_measures.
+        py's own docstring for what's deliberately out of scope (the
+        AEGIS-combat-system-specific and anti-submarine-warfare/
+        sonobuoy-specific families).
+        """
+
+        add_maritime_control_measures_lines_layer(
+            self.iface
+        )
+
+
+    def create_deception_control_measures(self):
+        """
+        Add a Deception Control Measures (Lines) layer (Decoy/Dummy -
+        MIL-STD-2525D Appendix H.5.17, Table H-XV), ready for digitizing
+        with QGIS's own native editing tools. Every other entry in this
+        table is either a cross-reference to a symbol already built in
+        Maneuver/Offensive Control Measures, or deferred to the future
+        Obstacles table - see deception_control_measures.py's own
+        docstring.
+        """
+
+        add_deception_control_measures_lines_layer(
+            self.iface
+        )
+
+
+    def create_fire_support_coordination_measures(self):
+        """
+        Add Fire Support Coordination Measures layers (areas: Airspace
+        Coordination Area, Free/No/Restricted Fire Area, Position Area
+        For Artillery; lines: Fire Support Coordination Line,
+        Coordinated Fire Line, No Fire Line, Battlefield Coordination
+        Line, Restrictive Fire Line, Munition Flight Path -
+        MIL-STD-2525D Appendix H.5.18, Table H-XVI), ready for
+        digitizing with QGIS's own native editing tools.
+        """
+
+        add_fire_support_coordination_measures_lines_layer(
+            self.iface
+        )
+
+        add_fire_support_coordination_measures_areas_layer(
+            self.iface
+        )
+
+
+    def create_target_control_measures(self):
+        """
+        Add Target Control Measures layers (lines: Linear Target,
+        Linear Smoke Target, Final Protective Fire; areas: Area Target,
+        Series or Group of Targets, Smoke, Bomb Area, Fire Support Area
+        - MIL-STD-2525D Appendix H.5.19, Table H-XVII), ready for
+        digitizing with QGIS's own native editing tools. Most of this
+        table's own point vocabulary (Point/Single/Nuclear/Recorded
+        Target, Fire Support Station, Firing/Hide/Launch/Reload/Survey
+        Control Point) was already on the Control Measure Points layer.
+        """
+
+        add_target_control_measures_lines_layer(
+            self.iface
+        )
+
+        add_target_control_measures_areas_layer(
+            self.iface
+        )
+
+
+    def create_target_acquisition_control_measures(self):
+        """
+        Add a Target Acquisition Control Measures (Areas) layer
+        (Artillery Target Intelligence Zone, Call For Fire Zone,
+        Censor Zone, Critical Friendly Zone, Dead Space Area, Sensor
+        Zone, Target Build-up Area, Target Value Area, Zone of
+        Responsibility, Blue Kill Box, Purple Kill Box - MIL-STD-2525D
+        Appendix H.5.20, Table H-XVIII), ready for digitizing with
+        QGIS's own native editing tools. Both Weapon/Sensor Range Fan
+        variants are not built - see that module's own docstring.
+        """
+
+        add_target_acquisition_control_measures_areas_layer(
             self.iface
         )
 
