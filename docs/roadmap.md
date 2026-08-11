@@ -4899,6 +4899,47 @@ tested, not claimed as done here.
     regression test that Main Attack (no side in its name) still
     follows the field.
 
+- **2026-08-12, Table H-XII resumed - Attack By Fire Position (152000)
+  built.** Deferred through all of Mini-Phase H6 for needing a shaft
+  anchored to a COMPUTED midpoint rather than a digitized vertex; built
+  now from the maintainer's own dictated Anchor Points/Size/Shape/
+  Orientation rules. Three anchor points (PT1 = arrowhead tip, PT2/PT3 =
+  the back line's own endpoints), with BOTH drawn pieces produced by
+  geometry generators over that one 3-point line, since the rendered
+  shape resembles the digitized path not at all:
+  `mct_attack_by_fire_back()` for the back line plus a swept-back wing
+  at each end, and `mct_attack_by_fire_shaft()` for the arrow, whose own
+  last vertex the filled arrowhead rides so it inherits rotation for
+  free.
+
+  Both halves share one `_attack_by_fire_frame()` helper that derives
+  its own normal direction from PT1 via a cross product, so the wings
+  sweep away from PT1 and the arrow points towards it regardless of
+  which side PT1 sits on or which order PT2/PT3 were digitized in -
+  written that way deliberately after Encirclement's own winding bug
+  the same day. Collinear input returns the digitized geometry
+  untouched rather than inventing a direction.
+
+  **The wings are not in the standard's own DRAW RULES text at all** -
+  that text covers only the straight line and the midpoint connection -
+  but both the TEMPLATE and EXAMPLE pictures clearly show them, so they
+  were measured off the EXAMPLE by pixel analysis (length ~0.37x the
+  PT2-PT3 distance, swept ~53 degrees back) and made proportional so
+  they scale with whatever PT2/PT3 the user places. Flagged to the
+  maintainer as measured-not-specified.
+
+  **Same-round correction**: "the arrow is not perpendicular to the
+  base, especially when PT2 and PT3 are not equidistant from PT1, make
+  the arrow always perpendicular halfway between PT2 and PT3". The
+  first version drew midpoint -> PT1 directly, which is only
+  perpendicular when PT1 happens to sit over the midpoint. The arrow
+  now always leaves the midpoint along the true normal, with PT1
+  contributing only its own PERPENDICULAR DISTANCE (how far out, and
+  which side) - the equidistant case is unchanged, so nothing already
+  correct moved.
+
+  744 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

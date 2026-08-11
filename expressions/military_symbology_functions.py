@@ -1120,6 +1120,240 @@ def mct_axis_of_advance_outer_chevron(values, feature=None, parent=None):
     )
 
 
+def _attack_by_fire_frame(p1, p2, p3):
+
+    """
+    The shared local frame both halves of Attack By Fire Position/
+    Ambush are built in: the midpoint of PT2-PT3, a unit vector along
+    that line, a unit NORMAL to it pointing towards PT1, and PT1's own
+    perpendicular distance from the line.
+
+    Deriving the normal's own direction from PT1 via the cross product
+    (rather than from screen direction) is what keeps the whole symbol
+    correct whichever side of the back line PT1 sits on and whichever
+    order PT2/PT3 were digitized in - the same class of winding bug
+    that turned Encirclement's own triangles inward.
+
+    Returns None when the three points are collinear: there is then no
+    meaningful "towards PT1" side, so callers draw nothing rather than
+    picking an arbitrary direction.
+    """
+
+    back_dx = p3.x() - p2.x()
+    back_dy = p3.y() - p2.y()
+
+    back_length = math.hypot(back_dx, back_dy)
+
+    if back_length == 0:
+        return None
+
+    ux = back_dx / back_length
+    uy = back_dy / back_length
+
+    # Left-hand normal, then flipped if PT1 is on the other side. The
+    # cross product is positive exactly when PT1 lies on the left-hand
+    # side of PT2 -> PT3.
+    cross = back_dx * (p1.y() - p2.y()) - back_dy * (p1.x() - p2.x())
+
+    if cross == 0:
+        return None
+
+    towards = 1.0 if cross > 0 else -1.0
+
+    return {
+        "midpoint": QgsPointXY(
+            (p2.x() + p3.x()) / 2.0,
+            (p2.y() + p3.y()) / 2.0,
+        ),
+        "ux": ux,
+        "uy": uy,
+        "nx": towards * -uy,
+        "ny": towards * ux,
+        "back_length": back_length,
+        "perpendicular_distance": abs(cross) / back_length,
+    }
+
+
+def _attack_by_fire_back_geometry(p1, p2, p3, wing_ratio, wing_angle_deg):
+
+    """
+    The back side of Attack By Fire Position/Ambush - the straight line
+    PT2-PT3 plus one swept-back "wing" at each end. Factored out so it
+    can be unit-tested directly on plain QgsPointXY values, the same
+    convention _axis_of_advance_ribbon_geometry() above already follows.
+
+    Both wings sweep AWAY from PT1, which is what makes the back side
+    "encompass the firing position" (the standard's own wording) rather
+    than opening towards the target.
+    """
+
+    frame = _attack_by_fire_frame(p1, p2, p3)
+
+    if frame is None:
+        return None
+
+    ux = frame["ux"]
+    uy = frame["uy"]
+
+    # Away from PT1 - the opposite of the frame's own towards-PT1
+    # normal.
+    ax = -frame["nx"]
+    ay = -frame["ny"]
+
+    angle = math.radians(wing_angle_deg)
+
+    wing_length = frame["back_length"] * wing_ratio
+
+    cos_a = math.cos(angle)
+    sin_a = math.sin(angle)
+
+    # Each wing runs outward along the back line (away from the other
+    # end) and `wing_angle_deg` swept towards the far side from PT1.
+    left_wing = QgsPointXY(
+        p2.x() + wing_length * (-ux * cos_a + ax * sin_a),
+        p2.y() + wing_length * (-uy * cos_a + ay * sin_a),
+    )
+
+    right_wing = QgsPointXY(
+        p3.x() + wing_length * (ux * cos_a + ax * sin_a),
+        p3.y() + wing_length * (uy * cos_a + ay * sin_a),
+    )
+
+    # One open path start-wing -> PT2 -> PT3 -> end-wing, so the back
+    # line and both wings share their own corners exactly (a
+    # MultiLineString of three separate pieces would leave hairline
+    # gaps at the joins at some zoom levels).
+    return QgsGeometry.fromPolylineXY(
+        [left_wing, QgsPointXY(p2), QgsPointXY(p3), right_wing]
+    )
+
+
+@qgsfunction(
+    'mct_attack_by_fire_back',
+    group='Military Cartography Tools'
+)
+def mct_attack_by_fire_back(values, feature=None, parent=None):
+
+    """
+    Table H-XII, Attack By Fire Position (152000) and Ambush (141700) -
+    the back side of the symbol, from a 3-point digitized line
+    (PT1 = arrowhead tip, PT2/PT3 = the endpoints of the straight line
+    on the back side, per the standard's own Anchor Points rules).
+
+    Returns the straight PT2-PT3 line plus a swept-back wing at each
+    end, as one open path so the corners join exactly. The arrow itself
+    is NOT included - it is a separate symbol layer, so its own
+    arrowhead marker can sit at the shaft's own last vertex and pick up
+    the shaft's rotation automatically; see maneuver_control_measures_2.
+    py's own _attack_by_fire_position_symbol() for how the two combine.
+
+    `wing_ratio` (second argument, default 0.37) is the wing's own
+    length as a fraction of the PT2-PT3 distance, and `wing_angle_deg`
+    (third, default 53.0) is how far each wing is swept back from the
+    back line itself. **Neither is specified anywhere in the standard's
+    own text** - its Size/Shape rules only cover the straight line and
+    the arrow's own midpoint connection - so both were measured off the
+    standard's own EXAMPLE picture (printed page 442, rendered at 150
+    dpi and measured by pixel analysis: wing ~0.37x the back line's own
+    width, swept ~55 degrees back from it) and made proportional so the
+    symbol scales with whatever PT2/PT3 the user actually places.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    wing_ratio = float(values[1]) if len(values) > 1 else 0.37
+    wing_angle_deg = float(values[2]) if len(values) > 2 else 53.0
+
+    line = geometry.constGet()
+
+    if hasattr(line, "geometryN"):
+        line = line.geometryN(0)
+
+    if line.numPoints() < 3:
+        return geometry
+
+    back = _attack_by_fire_back_geometry(
+        QgsPointXY(line.pointN(0)),
+        QgsPointXY(line.pointN(1)),
+        QgsPointXY(line.pointN(2)),
+        wing_ratio,
+        wing_angle_deg,
+    )
+
+    return geometry if back is None else back
+
+
+@qgsfunction(
+    'mct_attack_by_fire_shaft',
+    group='Military Cartography Tools'
+)
+def mct_attack_by_fire_shaft(values, feature=None, parent=None):
+
+    """
+    Table H-XII, Attack By Fire Position (152000)/Ambush (141700) - the
+    arrow, from the midpoint of PT2-PT3 out to PT1's own side of that
+    line. Its own layer (not folded into mct_attack_by_fire_back()'s
+    geometry) so the arrowhead marker can ride this line's own last
+    vertex and inherit its rotation.
+
+    **2026-08-12 correction**, per the project maintainer: "the arrow is
+    not perpendicular to the base, especially when PT2 and PT3 are not
+    equidistant from PT1, make the arrow always perpendicular halfway
+    between PT2 and PT3". The first version simply drew midpoint -> PT1,
+    which is only perpendicular in the special case where PT1 happens to
+    sit directly over the midpoint - any other PT1 gave a visibly
+    skewed arrow. The arrow now always leaves the midpoint along the
+    true NORMAL to PT2-PT3, and PT1 contributes only its own
+    PERPENDICULAR DISTANCE from that line (which side, and how far out).
+    So PT1 still controls the arrow's length and which way it points,
+    but can no longer tilt it. In the equidistant case the two
+    definitions coincide exactly, so already-correct symbols are
+    unchanged.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    line = geometry.constGet()
+
+    if hasattr(line, "geometryN"):
+        line = line.geometryN(0)
+
+    if line.numPoints() < 3:
+        return geometry
+
+    frame = _attack_by_fire_frame(
+        QgsPointXY(line.pointN(0)),
+        QgsPointXY(line.pointN(1)),
+        QgsPointXY(line.pointN(2)),
+    )
+
+    if frame is None:
+        return geometry
+
+    midpoint = frame["midpoint"]
+    reach = frame["perpendicular_distance"]
+
+    return QgsGeometry.fromPolylineXY([
+        midpoint,
+        QgsPointXY(
+            midpoint.x() + frame["nx"] * reach,
+            midpoint.y() + frame["ny"] * reach,
+        ),
+    ])
+
+
 _FUNCTIONS = [
     mct_sidc_svg,
     mct_build_sidc,
@@ -1130,6 +1364,8 @@ _FUNCTIONS = [
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,
     mct_axis_of_advance_outer_chevron,
+    mct_attack_by_fire_back,
+    mct_attack_by_fire_shaft,
 ]
 
 

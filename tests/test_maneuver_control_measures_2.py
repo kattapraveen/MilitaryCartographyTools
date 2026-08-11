@@ -15,10 +15,13 @@ from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
     QgsExpression,
+    QgsExpressionContext,
     QgsFeature,
+    QgsGeometry,
     QgsGeometryGeneratorSymbolLayer,
     QgsMarkerLineSymbolLayer,
     QgsPalLayerSettings,
+    QgsPointXY,
     QgsProject,
     QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
@@ -121,6 +124,212 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
                 for measure_type in LINE_MEASURE_TYPE_LABELS
             }
         )
+
+
+    def test_attack_by_fire_position_is_a_back_side_plus_a_midpoint_arrow(self):
+
+        # 2026-08-12, built from the maintainer's own dictated rules:
+        # "Point 1 is the tip arrowhead. Points 2 and 3 define the
+        # endpoints of the straight line on the back side... The rear of
+        # the arrow should connect to the midpoint of the line between
+        # points 2 and 3." Deferred through all of Mini-Phase H6 for
+        # exactly that midpoint connection, which no other construction
+        # in this appendix needed - so BOTH drawn pieces come from
+        # geometry generators over the one 3-point digitized line,
+        # rather than the line being drawn as digitized.
+        layer = create_maneuver_control_measures_2_lines_layer()
+
+        symbol = _rule_symbol_for(layer, "attack_by_fire_position")
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        for i in (0, 1):
+
+            self.assertIsInstance(
+                symbol.symbolLayer(i),
+                QgsGeometryGeneratorSymbolLayer
+            )
+
+        self.assertIn(
+            "mct_attack_by_fire_back",
+            symbol.symbolLayer(0).geometryExpression()
+        )
+
+        # The arrowhead rides the shaft's own last vertex (PT1), so it
+        # inherits the shaft's rotation instead of needing a hand-
+        # computed angle.
+        shaft = symbol.symbolLayer(1)
+
+        arrow_layers = [
+            shaft.subSymbol().symbolLayer(i)
+            for i in range(shaft.subSymbol().symbolLayerCount())
+            if isinstance(shaft.subSymbol().symbolLayer(i), QgsMarkerLineSymbolLayer)
+        ]
+
+        self.assertEqual(len(arrow_layers), 1)
+        self.assertEqual(
+            arrow_layers[0].placements(),
+            Qgis.MarkerLinePlacement.LastVertex
+        )
+
+
+    def test_attack_by_fire_arrow_is_always_perpendicular_to_the_back_line(self):
+
+        # 2026-08-12 correction: "the arrow is not perpendicular to the
+        # base, especially when PT2 and PT3 are not equidistant from
+        # PT1, make the arrow always perpendicular halfway between PT2
+        # and PT3" - the maintainer's own words. The first version drew
+        # midpoint -> PT1, which only comes out perpendicular in the
+        # special case where PT1 sits directly over the midpoint.
+        military_symbology_functions.register()
+
+        try:
+
+            expression = QgsExpression("mct_attack_by_fire_shaft($geometry)")
+
+            def shaft_for(p1, p2, p3):
+
+                feature = QgsFeature()
+                feature.setGeometry(
+                    QgsGeometry.fromPolylineXY([
+                        QgsPointXY(*p1), QgsPointXY(*p2), QgsPointXY(*p3)
+                    ])
+                )
+
+                context = QgsExpressionContext()
+                context.setFeature(feature)
+
+                result = expression.evaluate(context)
+
+                self.assertFalse(
+                    expression.hasEvalError(), expression.evalErrorString()
+                )
+
+                points = result.asPolyline()
+                self.assertEqual(len(points), 2)
+
+                return points
+
+            # PT1 directly over the midpoint - the case that was always
+            # correct, and must stay byte-for-byte unchanged.
+            points = shaft_for((10, 40), (0, 0), (20, 0))
+
+            self.assertAlmostEqual(points[0].x(), 10.0, places=6)
+            self.assertAlmostEqual(points[0].y(), 0.0, places=6)
+            self.assertAlmostEqual(points[1].x(), 10.0, places=6)
+            self.assertAlmostEqual(points[1].y(), 40.0, places=6)
+
+            # PT1 far off to one side - the case that used to skew. The
+            # arrow must still rise straight from the midpoint, with
+            # only PT1's own PERPENDICULAR distance setting its length.
+            points = shaft_for((95, 40), (0, 0), (20, 0))
+
+            self.assertAlmostEqual(points[0].x(), 10.0, places=6)
+            self.assertAlmostEqual(points[0].y(), 0.0, places=6)
+            self.assertAlmostEqual(points[1].x(), 10.0, places=6)
+            self.assertAlmostEqual(points[1].y(), 40.0, places=6)
+
+            # Same, on an oblique back line: the arrow's own direction
+            # must stay exactly normal to PT2 -> PT3 whatever PT1 does.
+            # None of these may sit ON the line y = x - a collinear PT1
+            # has no "towards PT1" side at all, and is covered
+            # separately below.
+            for p1 in ((0, 30), (60, 5), (-10, 25)):
+
+                points = shaft_for(p1, (0, 0), (20, 20))
+
+                back_dx, back_dy = 20.0, 20.0
+                arrow_dx = points[1].x() - points[0].x()
+                arrow_dy = points[1].y() - points[0].y()
+
+                self.assertAlmostEqual(points[0].x(), 10.0, places=6)
+                self.assertAlmostEqual(points[0].y(), 10.0, places=6)
+                self.assertAlmostEqual(
+                    back_dx * arrow_dx + back_dy * arrow_dy, 0.0, places=6
+                )
+
+            # A PT1 lying ON the back line has no side to point
+            # towards, so both halves fall back to returning the
+            # digitized geometry untouched rather than inventing a
+            # direction. Pinned because it is easy to trip over by
+            # accident - this very test did, with a PT1 that happened
+            # to sit on y = x.
+            feature = QgsFeature()
+            feature.setGeometry(
+                QgsGeometry.fromPolylineXY([
+                    QgsPointXY(30, 30), QgsPointXY(0, 0), QgsPointXY(20, 20)
+                ])
+            )
+
+            context = QgsExpressionContext()
+            context.setFeature(feature)
+
+            self.assertEqual(len(expression.evaluate(context).asPolyline()), 3)
+
+        finally:
+
+            military_symbology_functions.unregister()
+
+
+    def test_attack_by_fire_wings_always_sweep_away_from_point_1(self):
+
+        # "The back side of the symbol encompasses the firing position
+        # while the arrowhead typically points at the target" - so the
+        # wings must open AWAY from PT1 no matter which side of the
+        # back line PT1 sits on, and no matter which order PT2/PT3 were
+        # digitized in. Both were caught as real risks by the
+        # Encirclement winding bug earlier the same day.
+        military_symbology_functions.register()
+
+        try:
+
+            expression = QgsExpression("mct_attack_by_fire_back($geometry)")
+
+            def wing_ys(p1, p2, p3):
+
+                feature = QgsFeature()
+                feature.setGeometry(
+                    QgsGeometry.fromPolylineXY([
+                        QgsPointXY(*p1), QgsPointXY(*p2), QgsPointXY(*p3)
+                    ])
+                )
+
+                context = QgsExpressionContext()
+                context.setFeature(feature)
+
+                result = expression.evaluate(context)
+
+                self.assertFalse(
+                    expression.hasEvalError(), expression.evalErrorString()
+                )
+
+                points = result.asPolyline()
+
+                # wing tip, PT2, PT3, wing tip
+                self.assertEqual(len(points), 4)
+
+                return points[0].y(), points[3].y()
+
+            # PT1 above the back line -> both wings below it
+            for a, b in (wing_ys((10, 40), (0, 0), (20, 0)),):
+                pass
+            above = wing_ys((10, 40), (0, 0), (20, 0))
+            self.assertLess(above[0], 0)
+            self.assertLess(above[1], 0)
+
+            # PT2/PT3 digitized in reverse -> unchanged behaviour
+            reversed_order = wing_ys((10, 40), (20, 0), (0, 0))
+            self.assertLess(reversed_order[0], 0)
+            self.assertLess(reversed_order[1], 0)
+
+            # PT1 below the back line -> both wings flip above it
+            below = wing_ys((10, -40), (0, 0), (20, 0))
+            self.assertGreater(below[0], 0)
+            self.assertGreater(below[1], 0)
+
+        finally:
+
+            military_symbology_functions.unregister()
 
 
     def test_support_by_fire_position_has_an_arrowhead_at_each_end(self):
@@ -287,6 +496,15 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
 
             symbol = _rule_symbol_for(layer, measure_type)
             stroke_layer = symbol.symbolLayer(0)
+
+            # Attack By Fire Position draws through a geometry
+            # generator (its shape bears no resemblance to the
+            # digitized path), so its stroke - and therefore its
+            # affiliation colour - lives on that generator's own
+            # SUB-symbol rather than directly on symbolLayer(0).
+            if isinstance(stroke_layer, QgsGeometryGeneratorSymbolLayer):
+
+                stroke_layer = stroke_layer.subSymbol().symbolLayer(0)
 
             for affiliation, hex_color in expected.items():
 

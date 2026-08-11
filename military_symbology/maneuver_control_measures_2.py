@@ -118,6 +118,7 @@ __all__ = [
 # the LINES layer despite the standard's own "15" (Area) SIDC prefix,
 # and for what was skipped (Attack By Fire Position, Ambush).
 LINE_MEASURE_TYPE_LABELS = {
+    "attack_by_fire_position": "Attack By Fire Position",
     "support_by_fire_position": "Support by Fire Position",
     "search_area_reconnaissance_area": "Search Area/Reconnaissance Area",
     "airhead_line": "Airhead Line",
@@ -130,6 +131,144 @@ AREA_MEASURE_TYPE_LABELS = {
     "encirclement": "Encirclement",
     "penetration_box": "Penetration Box",
 }
+
+
+def _attack_by_fire_position_symbol():
+
+    """
+    Table H-XII, code 152000, page 442 - built 2026-08-12 from the
+    project maintainer's own dictated Anchor Points/Size/Shape/
+    Orientation rules, after having been deferred through the whole of
+    Mini-Phase H6 (see module docstring's own "Two entries skipped
+    outright" note) for needing a shaft anchored to a COMPUTED midpoint
+    rather than a digitized vertex.
+
+    Three anchor points, digitized in the standard's own order: PT1 is
+    the arrowhead's own tip, PT2/PT3 are the endpoints of the straight
+    line on the back side. Drawn as two geometry-generator layers over
+    that one 3-point line, since the drawn shape is nothing like the
+    digitized path:
+
+      - the back side (PT2-PT3 plus a swept-back wing at each end) -
+        see mct_attack_by_fire_back()'s own docstring, including why the
+        wings' own length/angle are measured off the standard's own
+        picture rather than taken from its text;
+      - the arrow, leaving the midpoint of PT2-PT3 along the true
+        NORMAL to that line, with a FILLED arrowhead at its own tip -
+        filled confirmed by zooming the standard's own EXAMPLE picture,
+        and matching Support by Fire Position's own arrowhead in this
+        same table. PT1 sets only how far out and which side; it can no
+        longer tilt the arrow - see mct_attack_by_fire_shaft()'s own
+        docstring for the maintainer's 2026-08-12 correction that
+        forced this ("the arrow is not perpendicular to the base...
+        make the arrow always perpendicular halfway between PT2 and
+        PT3").
+    """
+
+    symbol = QgsLineSymbol()
+
+    back_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    back_generator.setGeometryExpression(
+        "mct_attack_by_fire_back($geometry)"
+    )
+
+    back_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    back_symbol = QgsLineSymbol()
+
+    back_line_layer = back_symbol.symbolLayer(0)
+
+    back_line_layer.setWidth(
+        0.5
+    )
+
+    _apply_affiliation_color(
+        back_line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    back_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    back_generator.setSubSymbol(
+        back_symbol
+    )
+
+    symbol.changeSymbolLayer(
+        0,
+        back_generator
+    )
+
+    shaft_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    shaft_generator.setGeometryExpression(
+        "mct_attack_by_fire_shaft($geometry)"
+    )
+
+    shaft_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    shaft_symbol = QgsLineSymbol()
+
+    shaft_line_layer = shaft_symbol.symbolLayer(0)
+
+    shaft_line_layer.setWidth(
+        0.5
+    )
+
+    _apply_affiliation_color(
+        shaft_line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    shaft_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    arrow_marker = QgsMarkerSymbol.createSimple(
+        {
+            "name": "filled_arrowhead",
+            "color": "0,0,0",
+            "outline_color": "0,0,0",
+            "size": "4",
+        }
+    )
+
+    _apply_affiliation_color(
+        arrow_marker.symbolLayer(0),
+        [QgsSymbolLayer.Property.FillColor, QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    arrow_layer = QgsMarkerLineSymbolLayer(True)
+
+    arrow_layer.setSubSymbol(
+        arrow_marker
+    )
+
+    arrow_layer.setPlacements(
+        Qgis.MarkerLinePlacement.LastVertex
+    )
+
+    shaft_symbol.appendSymbolLayer(
+        arrow_layer
+    )
+
+    shaft_generator.setSubSymbol(
+        shaft_symbol
+    )
+
+    symbol.appendSymbolLayer(
+        shaft_generator
+    )
+
+    return symbol
 
 
 def _support_by_fire_position_symbol():
@@ -380,6 +519,7 @@ def _airhead_line_symbol():
 
 
 _LINE_SYMBOL_BUILDERS = {
+    "attack_by_fire_position": _attack_by_fire_position_symbol,
     "support_by_fire_position": _support_by_fire_position_symbol,
     "search_area_reconnaissance_area": _search_area_reconnaissance_area_symbol,
     "airhead_line": _airhead_line_symbol,
