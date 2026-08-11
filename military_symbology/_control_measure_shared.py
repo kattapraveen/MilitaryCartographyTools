@@ -487,7 +487,8 @@ def _build_pal_layer_settings(
     masked_symbol_layer_ids=None,
     mask_size_mm=1.2,
     line_anchor_percent=None,
-    anchor_text_point=None
+    anchor_text_point=None,
+    line_placement_flags=None
 ):
 
     """
@@ -554,8 +555,22 @@ def _build_pal_layer_settings(
         # anchor point, so a multi-line label naturally straddles it -
         # see c2_measures.py's own _BOUNDARY_DESIGNATION_LABEL_
         # EXPRESSION comment for why this mattered there.
+        #
+        # OnLine stays the default here because that straddling IS the
+        # requirement for Boundary's own near/far designation pair, and
+        # because every masked-label caller (Direction of Attack's own
+        # Field T family) relies on the label sitting ON the line and
+        # cutting its own gap in it. `line_placement_flags` overrides it
+        # for the cases that genuinely want the text clear of the line -
+        # 2026-08-12, maneuver_control_measures_2.py's own Airhead Line:
+        # "the text is overlapping the line, it should be above the
+        # line" (the maintainer's own words). That label has no mask of
+        # its own, so OnLine left the line drawn straight through the
+        # glyphs.
         settings.lineSettings().setPlacementFlags(
-            Qgis.LabelLinePlacementFlag.OnLine
+            line_placement_flags
+            if line_placement_flags is not None
+            else Qgis.LabelLinePlacementFlag.OnLine
         )
 
         if line_anchor_percent is not None:
@@ -615,7 +630,8 @@ def _configure_designation_labeling(
     repeat_distance_mm=None,
     masked_symbol_layer_ids=None,
     line_anchor_percent=None,
-    anchor_text_point=None
+    anchor_text_point=None,
+    line_placement_flags=None
 ):
 
     settings = _build_pal_layer_settings(
@@ -625,7 +641,8 @@ def _configure_designation_labeling(
         repeat_distance_mm,
         masked_symbol_layer_ids,
         line_anchor_percent=line_anchor_percent,
-        anchor_text_point=anchor_text_point
+        anchor_text_point=anchor_text_point,
+        line_placement_flags=line_placement_flags
     )
 
     layer.setLabeling(

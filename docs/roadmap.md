@@ -4849,6 +4849,20 @@ tested, not claimed as done here.
     and restored; every other removal was then re-checked for the same
     re-export pattern before committing.
 
+  - **Airhead Line's own label** - "the text is overlapping the line,
+    it should be above the line". The shared `_build_pal_layer_
+    settings()` had been forcing `OnLine` placement flags for every
+    Line-placement label, which centres the text block vertically on
+    the line. That IS the requirement for Boundary's own near/far
+    designation pair and for every masked Field T label (which cuts its
+    own gap in the line it sits on), but Airhead Line has no mask, so
+    the line rendered straight through the glyphs. Added a
+    `line_placement_flags` parameter (None by default, preserving
+    `OnLine` for every existing caller) and passed `AboveLine |
+    MapOrientation` for this one layer - MapOrientation included so the
+    text still flips to stay readable on a right-to-left line rather
+    than running upside-down.
+
     739 tests passing on both QGIS versions.
 
 ---

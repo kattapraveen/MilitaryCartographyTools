@@ -227,6 +227,16 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
             Qgis.LabelPlacement.Line
         )
 
+        # 2026-08-12: "the text is overlapping the line, it should be
+        # above the line" - the maintainer's own words. The shared
+        # helper defaults to OnLine (which Boundary and every masked
+        # Field T label need); this label has no mask of its own, so
+        # OnLine drew the line straight through the glyphs.
+        flags = settings.lineSettings().placementFlags()
+
+        self.assertTrue(flags & Qgis.LabelLinePlacementFlag.AboveLine)
+        self.assertFalse(flags & Qgis.LabelLinePlacementFlag.OnLine)
+
 
     def test_line_colours_follow_affiliation_per_ms_std_2525d_h_5_1_1_1(self):
 

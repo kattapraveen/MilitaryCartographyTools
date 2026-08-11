@@ -676,10 +676,23 @@ def create_maneuver_control_measures_2_lines_layer(name=LINES_LAYER_NAME):
         _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
     )
 
+    # 2026-08-12: "the text is overlapping the line, it should be above
+    # the line" - the maintainer's own words about Airhead Line, the
+    # only measure type on this layer that shows a label at all. The
+    # shared helper defaults to OnLine (which Boundary and every masked
+    # Field T label need); this one has no mask, so it needs the text
+    # clear of the line instead - see _build_pal_layer_settings()'s own
+    # comment. MapOrientation is included alongside AboveLine, matching
+    # QGIS's own default pair, so the text still flips to stay readable
+    # rather than running upside-down on a right-to-left line.
     _configure_designation_labeling(
         layer,
         Qgis.LabelPlacement.Line,
-        _LINE_DESIGNATION_LABEL_EXPRESSION
+        _LINE_DESIGNATION_LABEL_EXPRESSION,
+        line_placement_flags=(
+            Qgis.LabelLinePlacementFlag.AboveLine
+            | Qgis.LabelLinePlacementFlag.MapOrientation
+        )
     )
 
     return layer
