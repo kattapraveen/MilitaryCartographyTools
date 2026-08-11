@@ -4968,6 +4968,40 @@ tested, not claimed as done here.
 
   746 tests passing on both QGIS versions.
 
+- **2026-08-12, Ambush (141700) built - Table H-XII complete.** The last
+  outstanding entry, deferred through Mini-Phase H6 alongside Attack By
+  Fire Position for the same computed-midpoint reason. Same three anchor
+  points and the same "which side is PT1 on" frame, but the standard
+  draws this one's back side as a CURVE ("Points 2 and 3 define the
+  endpoints of the curved line on the back side of the symbol") - a
+  circular arc bulging towards PT1, with comb teeth.
+
+  **Corrected mid-build by the maintainer**: "the teeth behind the curve
+  are all of equal length, also the distance between the arrow shaft end
+  and the teeth is also equal". The first pass ran each tooth from the
+  arc all the way down to the chord, making them longest in the middle
+  and vanishing at PT2/PT3 - wrong. Every tooth is the SAME length, set
+  back from the arc, so their tails trace a curve congruent to it, and
+  the arrow's own tail sits on that same curve.
+
+  Re-measured properly to settle it: a least-squares circle fit through
+  the standard's own EXAMPLE picture (printed page 447) gives sagitta
+  0.333 x chord and tooth 0.273 x chord, which predicts the arrow's tail
+  at x=67.4 in that picture's own pixels against 67 measured. The first
+  reading had put the apex ~20px too far out because the arrow overlaps
+  the arc at exactly that row and contaminated the per-row maximum - a
+  reminder that "rightmost ink in the row" is not the same as "the
+  curve" wherever another element crosses it.
+
+  Worth recording: this places the arrow's tail slightly SHORT of the
+  chord midpoint (0.27 back from the apex where the chord is 0.33), so
+  the standard's own drawing and its own prose ("the rear of the arrow
+  should connect to the midpoint of the line between points 2 and 3")
+  disagree here by ~6% of the chord. The maintainer chose the drawing.
+
+  748 tests passing on both QGIS versions. **Table H-XII is now
+  complete** - all ten entries built and reviewed.
+
     739 tests passing on both QGIS versions.
 
 ---

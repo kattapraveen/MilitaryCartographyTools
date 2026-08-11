@@ -175,6 +175,129 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
         )
 
 
+    def test_ambush_is_a_curved_back_side_plus_the_shared_arrow(self):
+
+        # 2026-08-12: same three anchor points as Attack By Fire
+        # Position, but "Points 2 and 3 define the endpoints of the
+        # CURVED line on the back side" - so the back side is an arc
+        # with equal-length comb teeth. The arrow runs along the same
+        # true normal, but its tail is set back from the arc by one
+        # tooth length rather than sitting on the chord, so it has its
+        # own shaft function.
+        layer = create_maneuver_control_measures_2_lines_layer()
+
+        symbol = _rule_symbol_for(layer, "ambush")
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        self.assertIn(
+            "mct_ambush_back",
+            symbol.symbolLayer(0).geometryExpression()
+        )
+        self.assertIn(
+            "mct_ambush_shaft",
+            symbol.symbolLayer(1).geometryExpression()
+        )
+
+
+    def test_ambush_back_is_an_arc_bulging_towards_point_1_with_teeth(self):
+
+        military_symbology_functions.register()
+
+        try:
+
+            feature = QgsFeature()
+            feature.setGeometry(
+                QgsGeometry.fromPolylineXY([
+                    QgsPointXY(40, 0),    # PT1 - arrowhead tip, to the right
+                    QgsPointXY(0, 10),    # PT2
+                    QgsPointXY(0, -10),   # PT3
+                ])
+            )
+
+            context = QgsExpressionContext()
+            context.setFeature(feature)
+
+            back = QgsExpression("mct_ambush_back($geometry)").evaluate(context)
+
+            parts = back.asMultiPolyline()
+
+            # One arc plus the default 7 teeth.
+            self.assertEqual(len(parts), 8)
+
+            arc = parts[0]
+
+            # The arc runs PT2 -> PT3 and bulges TOWARDS PT1, so every
+            # arc point sits on PT1's own side of the chord (x > 0),
+            # peaking at the middle.
+            self.assertAlmostEqual(arc[0].x(), 0.0, places=6)
+            self.assertAlmostEqual(arc[-1].x(), 0.0, places=6)
+
+            apex = max(arc, key=lambda point: point.x())
+
+            self.assertGreater(apex.x(), 0)
+            self.assertAlmostEqual(apex.y(), 0.0, places=6)
+
+            # Sagitta is 0.33 x the chord (chord here is 20 long).
+            self.assertAlmostEqual(apex.x(), 20.0 * 0.33, places=4)
+
+            # 2026-08-12 correction: "the teeth behind the curve are all
+            # of equal length" - so every tooth is the SAME length, set
+            # back from the arc, rather than running all the way to the
+            # chord (which would make them longest in the middle and
+            # vanish at PT2/PT3).
+            lengths = []
+
+            for tooth in parts[1:]:
+
+                self.assertEqual(len(tooth), 2)
+                self.assertAlmostEqual(tooth[0].y(), tooth[1].y(), places=6)
+
+                lengths.append(abs(tooth[1].x() - tooth[0].x()))
+
+            for length in lengths:
+
+                self.assertAlmostEqual(length, 20.0 * 0.27, places=6)
+
+            # "the distance between the arrow shaft end and the teeth is
+            # also equal" - the arrow's own tail sits on that same
+            # set-back curve, one tooth-length behind the apex, NOT on
+            # the chord.
+            shaft = QgsExpression(
+                "mct_ambush_shaft($geometry)"
+            ).evaluate(context).asPolyline()
+
+            self.assertAlmostEqual(
+                shaft[0].x(), apex.x() - 20.0 * 0.27, places=6
+            )
+            self.assertAlmostEqual(shaft[0].y(), 0.0, places=6)
+
+            # Still perpendicular to the chord, and reaching PT1's own
+            # perpendicular distance.
+            self.assertAlmostEqual(shaft[1].y(), 0.0, places=6)
+            self.assertAlmostEqual(shaft[1].x(), 40.0, places=6)
+
+            # Flip PT1 to the other side - the arc must follow it.
+            feature.setGeometry(
+                QgsGeometry.fromPolylineXY([
+                    QgsPointXY(-40, 0), QgsPointXY(0, 10), QgsPointXY(0, -10),
+                ])
+            )
+            context.setFeature(feature)
+
+            flipped = QgsExpression(
+                "mct_ambush_back($geometry)"
+            ).evaluate(context).asMultiPolyline()
+
+            self.assertLess(
+                min(point.x() for point in flipped[0]), 0
+            )
+
+        finally:
+
+            military_symbology_functions.unregister()
+
+
     def test_attack_by_fire_arrow_is_always_perpendicular_to_the_back_line(self):
 
         # 2026-08-12 correction: "the arrow is not perpendicular to the

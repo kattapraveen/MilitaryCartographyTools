@@ -1253,6 +1253,267 @@ def _attack_by_fire_back_geometry(p1, p2, p3, wing_ratio, wing_angle_deg):
     )
 
 
+def _ambush_geometry_frame(p1, p2, p3, sagitta_ratio, tooth_ratio):
+
+    """
+    Ambush's own shared measurements - the arc through PT2/PT3 bulging
+    towards PT1, plus the constant tooth length both the teeth and the
+    arrow's own tail are set back by.
+
+    **2026-08-12 correction**, per the project maintainer: "the teeth
+    behind the curve are all of equal length, also the distance between
+    the arrow shaft end and the teeth is also equal". The first build
+    ran each tooth from the arc all the way to the chord, which makes
+    them longest in the middle and vanishing at PT2/PT3 - wrong. Every
+    tooth is instead the SAME length, set back from the arc, so their
+    own tails trace a curve congruent to it; and the arrow's tail sits
+    on that same curve rather than on the chord.
+
+    Confirmed against the standard's own EXAMPLE picture (printed page
+    447) by least-squares circle fit rather than by eye - the first
+    reading of the apex was contaminated by the arrow overlapping the
+    arc at exactly that row. Fitted: sagitta 0.333 x chord, tooth
+    0.273 x chord, which predicts the arrow's own tail at x=67.4 in
+    that picture's own pixels against 67 measured.
+
+    Note this puts the arrow's tail a little SHORT of the chord's
+    midpoint (0.27 x chord back from the apex, where the chord itself
+    is 0.33 back), so it follows the standard's own drawing rather than
+    its prose, which says the rear "should connect to the midpoint of
+    the line between points 2 and 3". The two disagree slightly; the
+    maintainer chose the drawing.
+    """
+
+    frame = _attack_by_fire_frame(p1, p2, p3)
+
+    if frame is None:
+        return None
+
+    chord_length = frame["back_length"]
+
+    sagitta = chord_length * sagitta_ratio
+
+    if sagitta <= 0:
+        return None
+
+    radius = (chord_length * chord_length / 4.0 + sagitta * sagitta) / (2.0 * sagitta)
+
+    frame["chord_length"] = chord_length
+    frame["sagitta"] = sagitta
+    frame["radius"] = radius
+    frame["centre_offset"] = radius - sagitta
+    frame["tooth_length"] = chord_length * tooth_ratio
+
+    return frame
+
+
+def _ambush_arc_height(frame, along):
+
+    """
+    Perpendicular height of Ambush's own arc above its chord, `along`
+    measured from the chord's own midpoint.
+    """
+
+    return math.sqrt(
+        max(frame["radius"] * frame["radius"] - along * along, 0.0)
+    ) - frame["centre_offset"]
+
+
+def _ambush_back_geometry(
+    p1, p2, p3, sagitta_ratio, tooth_ratio, tooth_count, segments=48
+):
+
+    """
+    The back side of Ambush (141700) - a circular arc from PT2 to PT3
+    bulging TOWARDS PT1, with equal-length comb teeth set back from it.
+
+    Same three anchor points as Attack By Fire Position, and the same
+    "which side is PT1 on" frame, but the standard draws this one's back
+    side as a CURVE rather than a straight line with wings ("Points 2
+    and 3 define the endpoints of the curved line on the back side of
+    the symbol"), so it gets its own geometry rather than sharing
+    _swept_back_line_geometry(). See _ambush_geometry_frame() for the
+    measured proportions and for why the teeth are constant-length.
+    """
+
+    frame = _ambush_geometry_frame(p1, p2, p3, sagitta_ratio, tooth_ratio)
+
+    if frame is None:
+        return None
+
+    midpoint = frame["midpoint"]
+
+    ux = frame["ux"]
+    uy = frame["uy"]
+    nx = frame["nx"]
+    ny = frame["ny"]
+
+    chord_length = frame["chord_length"]
+    tooth_length = frame["tooth_length"]
+
+    def point_at(along, height):
+
+        return QgsPointXY(
+            midpoint.x() + ux * along + nx * height,
+            midpoint.y() + uy * along + ny * height,
+        )
+
+    arc = [
+        point_at(
+            (step / segments - 0.5) * chord_length,
+            _ambush_arc_height(frame, (step / segments - 0.5) * chord_length),
+        )
+        for step in range(segments + 1)
+    ]
+
+    parts = [arc]
+
+    for index in range(1, tooth_count + 1):
+
+        along = (index / (tooth_count + 1) - 0.5) * chord_length
+
+        height = _ambush_arc_height(frame, along)
+
+        # Constant length, set back from the arc - so every tooth is the
+        # same and their own tails trace a curve congruent to it.
+        parts.append([
+            point_at(along, height - tooth_length),
+            point_at(along, height),
+        ])
+
+    return QgsGeometry.fromMultiPolylineXY(parts)
+
+
+@qgsfunction(
+    'mct_ambush_shaft',
+    group='Military Cartography Tools'
+)
+def mct_ambush_shaft(values, feature=None, parent=None):
+
+    """
+    Table H-XII, Ambush (141700) - the arrow. Runs along the true NORMAL
+    to the PT2-PT3 chord, exactly as Attack By Fire Position's own does
+    (see mct_attack_by_fire_shaft() for the maintainer's own "always
+    perpendicular" correction, which applies to both), so PT1 sets only
+    how far out and which side.
+
+    It differs from Attack By Fire's shaft in where the TAIL sits: not
+    on the chord, but set back from the arc's own apex by the same
+    constant distance the teeth are - "the distance between the arrow
+    shaft end and the teeth is also equal", the maintainer's own words.
+    That is why this is its own function rather than reusing Attack By
+    Fire's.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    sagitta_ratio = float(values[1]) if len(values) > 1 else 0.33
+    tooth_ratio = float(values[2]) if len(values) > 2 else 0.27
+
+    line = geometry.constGet()
+
+    if hasattr(line, "geometryN"):
+        line = line.geometryN(0)
+
+    if line.numPoints() < 3:
+        return geometry
+
+    frame = _ambush_geometry_frame(
+        QgsPointXY(line.pointN(0)),
+        QgsPointXY(line.pointN(1)),
+        QgsPointXY(line.pointN(2)),
+        sagitta_ratio,
+        tooth_ratio,
+    )
+
+    if frame is None:
+        return geometry
+
+    tail_height = frame["sagitta"] - frame["tooth_length"]
+    tip_height = frame["perpendicular_distance"]
+
+    # A PT1 closer in than the arrow's own tail would give a zero or
+    # backwards arrow; leave the digitized geometry alone rather than
+    # draw one.
+    if tip_height <= tail_height:
+        return geometry
+
+    midpoint = frame["midpoint"]
+
+    return QgsGeometry.fromPolylineXY([
+        QgsPointXY(
+            midpoint.x() + frame["nx"] * tail_height,
+            midpoint.y() + frame["ny"] * tail_height,
+        ),
+        QgsPointXY(
+            midpoint.x() + frame["nx"] * tip_height,
+            midpoint.y() + frame["ny"] * tip_height,
+        ),
+    ])
+
+
+@qgsfunction(
+    'mct_ambush_back',
+    group='Military Cartography Tools'
+)
+def mct_ambush_back(values, feature=None, parent=None):
+
+    """
+    Table H-XII, Ambush (141700) - the curved back side plus its comb
+    teeth, from the same 3-point digitized line Attack By Fire Position
+    uses (PT1 = arrowhead tip, PT2/PT3 = the curved line's own
+    endpoints). See _ambush_back_geometry() for the construction.
+
+    Ambush's own ARROW is not built here - see mct_ambush_shaft().
+
+    `sagitta_ratio` (default 0.33) is how far the arc bulges off its own
+    chord, `tooth_ratio` (default 0.27) the teeth's own constant length,
+    and `tooth_count` (default 7) how many there are - all as fractions
+    of the chord, so the symbol scales with whatever PT2/PT3 the user
+    places. **None is given anywhere in the standard's own text** - its
+    Size/Shape rules cover only the chord's length and the arrow's own
+    midpoint connection - so all three were fitted to the standard's own
+    EXAMPLE picture (printed page 447); see _ambush_geometry_frame().
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    sagitta_ratio = float(values[1]) if len(values) > 1 else 0.33
+    tooth_ratio = float(values[2]) if len(values) > 2 else 0.27
+    tooth_count = int(values[3]) if len(values) > 3 else 7
+
+    line = geometry.constGet()
+
+    if hasattr(line, "geometryN"):
+        line = line.geometryN(0)
+
+    if line.numPoints() < 3:
+        return geometry
+
+    back = _ambush_back_geometry(
+        QgsPointXY(line.pointN(0)),
+        QgsPointXY(line.pointN(1)),
+        QgsPointXY(line.pointN(2)),
+        sagitta_ratio,
+        tooth_ratio,
+        tooth_count,
+    )
+
+    return geometry if back is None else back
+
+
 def _support_by_fire_frame(geometry):
 
     """
@@ -1567,6 +1828,8 @@ _FUNCTIONS = [
     mct_attack_by_fire_shaft,
     mct_support_by_fire_back,
     mct_support_by_fire_arrows,
+    mct_ambush_back,
+    mct_ambush_shaft,
 ]
 
 

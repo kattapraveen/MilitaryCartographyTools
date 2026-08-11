@@ -117,6 +117,7 @@ __all__ = [
 # and for what was skipped (Attack By Fire Position, Ambush).
 LINE_MEASURE_TYPE_LABELS = {
     "attack_by_fire_position": "Attack By Fire Position",
+    "ambush": "Ambush",
     "support_by_fire_position": "Support by Fire Position",
     "search_area_reconnaissance_area": "Search Area/Reconnaissance Area",
     "airhead_line": "Airhead Line",
@@ -206,6 +207,136 @@ def _attack_by_fire_position_symbol():
 
     shaft_generator.setGeometryExpression(
         "mct_attack_by_fire_shaft($geometry)"
+    )
+
+    shaft_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    shaft_symbol = QgsLineSymbol()
+
+    shaft_line_layer = shaft_symbol.symbolLayer(0)
+
+    shaft_line_layer.setWidth(
+        0.5
+    )
+
+    _apply_affiliation_color(
+        shaft_line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    shaft_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    arrow_marker = QgsMarkerSymbol.createSimple(
+        {
+            "name": "filled_arrowhead",
+            "color": "0,0,0",
+            "outline_color": "0,0,0",
+            "size": "4",
+        }
+    )
+
+    _apply_affiliation_color(
+        arrow_marker.symbolLayer(0),
+        [QgsSymbolLayer.Property.FillColor, QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    arrow_layer = QgsMarkerLineSymbolLayer(True)
+
+    arrow_layer.setSubSymbol(
+        arrow_marker
+    )
+
+    arrow_layer.setPlacements(
+        Qgis.MarkerLinePlacement.LastVertex
+    )
+
+    shaft_symbol.appendSymbolLayer(
+        arrow_layer
+    )
+
+    shaft_generator.setSubSymbol(
+        shaft_symbol
+    )
+
+    symbol.appendSymbolLayer(
+        shaft_generator
+    )
+
+    return symbol
+
+
+def _ambush_symbol():
+
+    """
+    Table H-XII, code 141700, page 447 - deferred through the whole of
+    Mini-Phase H6 alongside Attack By Fire Position, for the same
+    computed-midpoint reason, and built 2026-08-12 once that symbol had
+    established the technique.
+
+    Same three anchor points and the same rules Attack By Fire Position
+    has ("Point 1 is the tip of the arrowhead. Points 2 and 3 define the
+    endpoints of the curved line on the back side of the symbol... The
+    rear of the arrow should connect to the midpoint of the line between
+    points 2 and 3"), with one difference: this symbol's own back side
+    is a CURVE with comb teeth rather than a straight line with wings -
+    see mct_ambush_back()'s own docstring.
+
+    The arrow runs along the same true normal Attack By Fire's own does
+    (the maintainer's "always perpendicular" correction applies to
+    both), but its TAIL is set back from the arc by the same constant
+    the teeth are - "the distance between the arrow shaft end and the
+    teeth is also equal" - rather than sitting on the chord, so it has
+    its own mct_ambush_shaft() rather than reusing Attack By Fire's.
+    """
+
+    symbol = QgsLineSymbol()
+
+    back_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    back_generator.setGeometryExpression(
+        "mct_ambush_back($geometry)"
+    )
+
+    back_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    back_symbol = QgsLineSymbol()
+
+    back_line_layer = back_symbol.symbolLayer(0)
+
+    back_line_layer.setWidth(
+        0.5
+    )
+
+    _apply_affiliation_color(
+        back_line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    back_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    back_generator.setSubSymbol(
+        back_symbol
+    )
+
+    symbol.changeSymbolLayer(
+        0,
+        back_generator
+    )
+
+    shaft_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    shaft_generator.setGeometryExpression(
+        "mct_ambush_shaft($geometry)"
     )
 
     shaft_generator.setSymbolType(
@@ -581,6 +712,7 @@ def _airhead_line_symbol():
 
 _LINE_SYMBOL_BUILDERS = {
     "attack_by_fire_position": _attack_by_fire_position_symbol,
+    "ambush": _ambush_symbol,
     "support_by_fire_position": _support_by_fire_position_symbol,
     "search_area_reconnaissance_area": _search_area_reconnaissance_area_symbol,
     "airhead_line": _airhead_line_symbol,
