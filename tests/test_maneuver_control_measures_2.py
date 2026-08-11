@@ -11,6 +11,8 @@ standard's own "Area" SIDC prefix.
 Military Cartography Tools
 """
 
+import math
+
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
@@ -332,20 +334,162 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
             military_symbology_functions.unregister()
 
 
-    def test_support_by_fire_position_has_an_arrowhead_at_each_end(self):
+    def test_support_by_fire_position_is_a_two_click_back_line_plus_arrows(self):
 
+        # 2026-08-12 rebuild, per the maintainer: "the user will click
+        # two points PT1 and PT2 - they are equivalent to PT2 and PT3 of
+        # the attack by fire... now at the two vertex where the wings
+        # touch the horizontal line, make two arrows of same length as
+        # the wings". The standard's own version takes FOUR anchor
+        # points (PT3/PT4 being the arrow tips); this one derives both
+        # arrows from the two back-line points instead, so it is two
+        # geometry-generator layers over a 2-point line rather than the
+        # old plain 4-point line with end markers.
         layer = create_maneuver_control_measures_2_lines_layer()
 
         symbol = _rule_symbol_for(layer, "support_by_fire_position")
 
-        self.assertEqual(symbol.symbolLayerCount(), 3)
+        self.assertEqual(symbol.symbolLayerCount(), 2)
 
-        for i in (1, 2):
+        for i in (0, 1):
 
             self.assertIsInstance(
                 symbol.symbolLayer(i),
-                QgsMarkerLineSymbolLayer
+                QgsGeometryGeneratorSymbolLayer
             )
+
+        self.assertIn(
+            "mct_support_by_fire_back",
+            symbol.symbolLayer(0).geometryExpression()
+        )
+        self.assertIn(
+            "mct_support_by_fire_arrows",
+            symbol.symbolLayer(1).geometryExpression()
+        )
+
+        # Both arrows arrive as one two-part MultiLineString, so a
+        # single LastVertex marker line heads each of them.
+        arrows = symbol.symbolLayer(1)
+
+        arrow_layers = [
+            arrows.subSymbol().symbolLayer(i)
+            for i in range(arrows.subSymbol().symbolLayerCount())
+            if isinstance(arrows.subSymbol().symbolLayer(i), QgsMarkerLineSymbolLayer)
+        ]
+
+        self.assertEqual(len(arrow_layers), 1)
+        self.assertEqual(
+            arrow_layers[0].placements(),
+            Qgis.MarkerLinePlacement.LastVertex
+        )
+
+
+    def test_support_by_fire_arrows_are_tilted_outward_from_perpendicular(self):
+
+        military_symbology_functions.register()
+
+        try:
+
+            feature = QgsFeature()
+            feature.setGeometry(
+                QgsGeometry.fromPolylineXY([
+                    QgsPointXY(0, 0), QgsPointXY(20, 0)
+                ])
+            )
+
+            context = QgsExpressionContext()
+            context.setFeature(feature)
+
+            arrows = QgsExpression(
+                "mct_support_by_fire_arrows($geometry)"
+            ).evaluate(context)
+
+            parts = arrows.asMultiPolyline()
+
+            self.assertEqual(len(parts), 2)
+
+            # Each arrow starts at its own back-line corner...
+            self.assertAlmostEqual(parts[0][0].x(), 0.0, places=6)
+            self.assertAlmostEqual(parts[1][0].x(), 20.0, places=6)
+
+            # ...both rise to the SAME side (the left of PT1 -> PT2)...
+            self.assertGreater(parts[0][1].y(), 0)
+            self.assertGreater(parts[1][1].y(), 0)
+
+            # ...tilted 15 degrees OUTWARD, so the left arrow leans
+            # further left and the right one further right rather than
+            # both leaning the same way.
+            self.assertLess(parts[0][1].x(), 0)
+            self.assertGreater(parts[1][1].x(), 20.0)
+
+            # Same length as a wing (0.37 x the back line), and
+            # symmetric about the centre.
+            left_len = math.hypot(
+                parts[0][1].x() - parts[0][0].x(),
+                parts[0][1].y() - parts[0][0].y(),
+            )
+            right_len = math.hypot(
+                parts[1][1].x() - parts[1][0].x(),
+                parts[1][1].y() - parts[1][0].y(),
+            )
+
+            self.assertAlmostEqual(left_len, 20.0 * 0.37, places=6)
+            self.assertAlmostEqual(right_len, 20.0 * 0.37, places=6)
+
+            # Tilt really is 15 degrees off the perpendicular.
+            self.assertAlmostEqual(
+                math.degrees(math.atan2(
+                    abs(parts[0][1].x() - parts[0][0].x()),
+                    parts[0][1].y() - parts[0][0].y(),
+                )),
+                15.0,
+                places=4
+            )
+
+        finally:
+
+            military_symbology_functions.unregister()
+
+
+    def test_support_by_fire_wings_and_arrows_take_opposite_sides(self):
+
+        military_symbology_functions.register()
+
+        try:
+
+            context = QgsExpressionContext()
+
+            def evaluate(expression_text, points):
+
+                feature = QgsFeature()
+                feature.setGeometry(
+                    QgsGeometry.fromPolylineXY(
+                        [QgsPointXY(*p) for p in points]
+                    )
+                )
+                context.setFeature(feature)
+
+                return QgsExpression(expression_text).evaluate(context)
+
+            # Digitized left -> right: arrows above, wings below.
+            back = evaluate("mct_support_by_fire_back($geometry)",
+                            [(0, 0), (20, 0)]).asPolyline()
+
+            self.assertEqual(len(back), 4)
+            self.assertLess(back[0].y(), 0)
+            self.assertLess(back[3].y(), 0)
+
+            # Digitized right -> left: the whole symbol flips, which is
+            # how the user orients it with only two clicks.
+            flipped = evaluate("mct_support_by_fire_back($geometry)",
+                               [(20, 0), (0, 0)]).asPolyline()
+
+            self.assertGreater(flipped[0].y(), 0)
+            self.assertGreater(flipped[3].y(), 0)
+
+        finally:
+
+            military_symbology_functions.unregister()
 
 
     def test_search_area_has_two_arrowheads_and_a_vertex_a_label(self):

@@ -4940,6 +4940,34 @@ tested, not claimed as done here.
 
   744 tests passing on both QGIS versions.
 
+- **2026-08-12, Support by Fire Position (152100) rebuilt as a two-click
+  symbol.** The maintainer's own simplification of the standard's own
+  four-anchor-point construction: "the user will click two points PT1
+  and PT2 - they are equivalent to PT2 and PT3 of the attack by fire...
+  now at the two vertex where the wings touch the horizontal line, make
+  two arrows of same length as the wings... tilted slightly outward from
+  perpendicular, say about 15deg". The standard places the two arrowhead
+  tips as PT3/PT4; deriving them instead means they can never be placed
+  inconsistently with the back line they spring from.
+
+  Shares Attack By Fire Position's own back side via a new
+  `_swept_back_line_geometry()` helper - the two symbols differ only in
+  how they decide which way the wings sweep, so that decision is passed
+  in rather than recomputed. Both arrows come back as one two-part
+  MultiLineString with each part ordered base -> tip, so a single
+  LastVertex marker line heads both and each picks up its own part's
+  rotation.
+
+  **One genuine ambiguity, flagged rather than guessed at**: with only
+  two anchor points there is nothing in the geometry to say which side
+  the firing position faces. Fixed by convention - arrows to the LEFT of
+  PT1 -> PT2, wings sweeping right - which matches the standard's own
+  EXAMPLE picture read left-to-right and lets the user orient the symbol
+  simply by choosing which end to click first. Verified by render and by
+  test that digitizing the other way flips the whole symbol.
+
+  746 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

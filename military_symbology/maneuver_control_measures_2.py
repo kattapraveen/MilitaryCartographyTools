@@ -13,29 +13,27 @@ measures, not a naming inconsistency on this project's own part; adding
 
 **Mini-Phase H6, 2026-08-09.**
 
-**Two entries skipped outright**: **Attack By Fire Position (152000)**
-and **Ambush (141700)** both require the SAME real geometric
-construction this appendix hasn't needed before - a single arrow shaft
-whose own tail connects not to a digitized vertex but to the COMPUTED
-MIDPOINT of a separate line between two other anchor points ("the rear
-of the arrow should connect to the midpoint of the line between points
-2 and 3"). A simple user-digitized path can represent any number of
-SEQUENTIAL vertices, but not a shaft branching off a midpoint partway
-along a separate segment - genuinely different from every other
-"arrow(s) from a shared vertex" construction already built (Principal
-Direction of Fire in maneuver_control_measures.py, Search Area/
-Reconnaissance Area below), which all have every arm meeting AT a
-shared, directly-digitized vertex, not at a computed point between two
-others. Deferred, the same "doesn't fit this module's own techniques"
-reasoning already applied to compound entries in earlier H-subphases.
+**Attack By Fire Position (152000) was deferred through the whole of
+Mini-Phase H6 and built later, 2026-08-12**, along with a rebuilt
+Support by Fire Position. It needed a shaft whose own tail connects not
+to a digitized vertex but to the COMPUTED MIDPOINT between two other
+anchor points - a simple user-digitized path can represent any number
+of SEQUENTIAL vertices, but not a branch off a midpoint partway along a
+separate segment. The answer was to stop drawing the digitized path at
+all and generate BOTH halves of the symbol from it instead (see
+_attack_by_fire_position_symbol()), which also made Support by Fire
+Position's own rebuild straightforward - the two now share their back
+side's own geometry helper. **Ambush (141700)** remains unbuilt, and is
+the last outstanding entry in this table.
 
 **Two entries nominally coded as "Areas" in the standard's own SIDC
 numbering (a "15" prefix) are built on the LINES layer here instead**,
 because their actual geometry is a multi-point arrow/line, not a closed
 boundary a polygon layer could hold: **Support by Fire Position
-(152100)** (a 4-point line with an arrowhead at each end - built for
-real, since unlike Attack By Fire Position/Ambush its own two arrowheads
-connect directly to digitized vertices, no midpoint needed) and
+(152100)** (rebuilt 2026-08-12 as a TWO-click symbol - the user places
+only the back line's own endpoints and both arrows are derived from
+them, rather than the standard's own four anchor points; see
+_support_by_fire_position_symbol()) and
 **Search Area/Reconnaissance Area (152200)** (the same "two arrows from
 a shared vertex" construction as Principal Direction of Fire, plus a
 boxed "A" at the vertex - the standard's own double-notched arrow shaft
@@ -274,37 +272,94 @@ def _attack_by_fire_position_symbol():
 def _support_by_fire_position_symbol():
 
     """
-    Table H-XII, code 152100, page 443. A plain line with a filled
-    arrowhead at BOTH ends - unlike Attack By Fire Position/Ambush, all
-    4 of this symbol's own anchor points connect directly (PT3 -> PT1
-    -> PT2 -> PT4 in the standard's own numbering: one arrow tip, the
-    base's two endpoints, the other arrow tip), so no midpoint
-    computation is needed - the same First/LastVertex arrowhead
-    technique already used for maneuver_control_measures.py's own
-    Principal Direction of Fire, just at both ends instead of a shared
-    vertex.
+    Table H-XII, code 152100, page 443 - rebuilt 2026-08-12 from the
+    project maintainer's own dictated construction, on top of Attack By
+    Fire Position's own shared back-side geometry.
+
+    The standard's own version takes FOUR anchor points (PT1/PT2 the
+    back line, PT3/PT4 the arrowhead tips). This one deliberately takes
+    just TWO - "the user will click two points PT1 and PT2 - they are
+    equivalent to PT2 and PT3 of the attack by fire" - and DERIVES both
+    arrows from them, so they can never be placed inconsistently with
+    the back line they spring from. Each arrow is the same length as a
+    wing and leaves its own corner perpendicular to the back line,
+    tilted 15 degrees outward ("the two arrows are tilted slightly
+    outward from perpendicular, say about 15deg").
+
+    With only two anchor points there is nothing in the geometry to say
+    which side the position faces, so the arrows go to the LEFT of
+    PT1 -> PT2 by convention and the wings sweep right - matching the
+    standard's own EXAMPLE picture read left-to-right, and letting the
+    user orient the symbol just by choosing which end to click first.
+    See mct_support_by_fire_back()/mct_support_by_fire_arrows() for the
+    geometry itself.
     """
 
-    line_layer = QgsSimpleLineSymbolLayer()
+    symbol = QgsLineSymbol()
 
-    line_layer.setColor(
-        QColor(0, 0, 0)
+    back_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    back_generator.setGeometryExpression(
+        "mct_support_by_fire_back($geometry)"
     )
 
-    line_layer.setWidth(
+    back_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    back_symbol = QgsLineSymbol()
+
+    back_line_layer = back_symbol.symbolLayer(0)
+
+    back_line_layer.setWidth(
         0.5
     )
 
     _apply_affiliation_color(
-        line_layer,
+        back_line_layer,
         [QgsSymbolLayer.Property.StrokeColor]
     )
 
-    symbol = QgsLineSymbol()
+    back_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    back_generator.setSubSymbol(
+        back_symbol
+    )
 
     symbol.changeSymbolLayer(
         0,
-        line_layer
+        back_generator
+    )
+
+    arrows_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    arrows_generator.setGeometryExpression(
+        "mct_support_by_fire_arrows($geometry)"
+    )
+
+    arrows_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    arrows_symbol = QgsLineSymbol()
+
+    arrows_line_layer = arrows_symbol.symbolLayer(0)
+
+    arrows_line_layer.setWidth(
+        0.5
+    )
+
+    _apply_affiliation_color(
+        arrows_line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    arrows_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
     )
 
     arrow_marker = QgsMarkerSymbol.createSimple(
@@ -321,24 +376,30 @@ def _support_by_fire_position_symbol():
         [QgsSymbolLayer.Property.FillColor, QgsSymbolLayer.Property.StrokeColor]
     )
 
-    for placement in (
-        Qgis.MarkerLinePlacement.FirstVertex,
-        Qgis.MarkerLinePlacement.LastVertex,
-    ):
+    # Both arrows come back as one two-part MultiLineString, each part
+    # ordered base -> tip, so a single LastVertex marker line puts an
+    # arrowhead on each and both pick up their own part's rotation.
+    arrow_layer = QgsMarkerLineSymbolLayer(True)
 
-        arrow_layer = QgsMarkerLineSymbolLayer(True)
+    arrow_layer.setSubSymbol(
+        arrow_marker
+    )
 
-        arrow_layer.setSubSymbol(
-            arrow_marker.clone()
-        )
+    arrow_layer.setPlacements(
+        Qgis.MarkerLinePlacement.LastVertex
+    )
 
-        arrow_layer.setPlacements(
-            placement
-        )
+    arrows_symbol.appendSymbolLayer(
+        arrow_layer
+    )
 
-        symbol.appendSymbolLayer(
-            arrow_layer
-        )
+    arrows_generator.setSubSymbol(
+        arrows_symbol
+    )
+
+    symbol.appendSymbolLayer(
+        arrows_generator
+    )
 
     return symbol
 

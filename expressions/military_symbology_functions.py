@@ -1174,11 +1174,62 @@ def _attack_by_fire_frame(p1, p2, p3):
     }
 
 
+def _swept_back_line_geometry(start, end, ax, ay, wing_ratio, wing_angle_deg):
+
+    """
+    The "back side" shape shared by Attack By Fire Position and Support
+    by Fire Position: the straight line `start`-`end` plus one wing at
+    each end, swept `wing_angle_deg` away from the line towards the
+    (already-decided) `ax`/`ay` unit direction.
+
+    The two callers differ only in how they work out that away
+    direction - Attack By Fire derives it from its own third anchor
+    point, Support by Fire from its digitizing direction - so it is
+    passed in rather than computed here.
+    """
+
+    back_dx = end.x() - start.x()
+    back_dy = end.y() - start.y()
+
+    back_length = math.hypot(back_dx, back_dy)
+
+    if back_length == 0:
+        return None
+
+    ux = back_dx / back_length
+    uy = back_dy / back_length
+
+    angle = math.radians(wing_angle_deg)
+
+    wing_length = back_length * wing_ratio
+
+    cos_a = math.cos(angle)
+    sin_a = math.sin(angle)
+
+    # Each wing runs outward along the back line (away from the other
+    # end) and `wing_angle_deg` swept towards the away direction.
+    start_wing = QgsPointXY(
+        start.x() + wing_length * (-ux * cos_a + ax * sin_a),
+        start.y() + wing_length * (-uy * cos_a + ay * sin_a),
+    )
+
+    end_wing = QgsPointXY(
+        end.x() + wing_length * (ux * cos_a + ax * sin_a),
+        end.y() + wing_length * (uy * cos_a + ay * sin_a),
+    )
+
+    # One open path so the back line and both wings share their own
+    # corners exactly (three separate pieces would leave hairline gaps
+    # at the joins at some zoom levels).
+    return QgsGeometry.fromPolylineXY(
+        [start_wing, QgsPointXY(start), QgsPointXY(end), end_wing]
+    )
+
+
 def _attack_by_fire_back_geometry(p1, p2, p3, wing_ratio, wing_angle_deg):
 
     """
-    The back side of Attack By Fire Position/Ambush - the straight line
-    PT2-PT3 plus one swept-back "wing" at each end. Factored out so it
+    The back side of Attack By Fire Position/Ambush. Factored out so it
     can be unit-tested directly on plain QgsPointXY values, the same
     convention _axis_of_advance_ribbon_geometry() above already follows.
 
@@ -1192,40 +1243,188 @@ def _attack_by_fire_back_geometry(p1, p2, p3, wing_ratio, wing_angle_deg):
     if frame is None:
         return None
 
+    return _swept_back_line_geometry(
+        p2,
+        p3,
+        -frame["nx"],
+        -frame["ny"],
+        wing_ratio,
+        wing_angle_deg,
+    )
+
+
+def _support_by_fire_frame(geometry):
+
+    """
+    Support by Fire Position's own local frame, from the TWO points the
+    user digitizes (PT1, PT2 - the back line's own endpoints, equivalent
+    to Attack By Fire's own PT2/PT3).
+
+    With only two anchor points there is nothing in the geometry itself
+    to say which side the firing position faces, so it is fixed by
+    convention: the arrows go to the LEFT of PT1 -> PT2 and the wings
+    sweep RIGHT. That matches the standard's own EXAMPLE picture read
+    left-to-right (page 443: PT1 left, PT2 right, arrows up, wings
+    down), and it means the user orients the symbol simply by choosing
+    which end to click first.
+    """
+
+    line = geometry.constGet()
+
+    if hasattr(line, "geometryN"):
+        line = line.geometryN(0)
+
+    if line.numPoints() < 2:
+        return None
+
+    start = QgsPointXY(line.pointN(0))
+    end = QgsPointXY(line.pointN(line.numPoints() - 1))
+
+    dx = end.x() - start.x()
+    dy = end.y() - start.y()
+
+    length = math.hypot(dx, dy)
+
+    if length == 0:
+        return None
+
+    ux = dx / length
+    uy = dy / length
+
+    return {
+        "start": start,
+        "end": end,
+        "ux": ux,
+        "uy": uy,
+        # Left-hand normal of PT1 -> PT2 - the arrows' own side.
+        "nx": -uy,
+        "ny": ux,
+        "back_length": length,
+    }
+
+
+@qgsfunction(
+    'mct_support_by_fire_back',
+    group='Military Cartography Tools'
+)
+def mct_support_by_fire_back(values, feature=None, parent=None):
+
+    """
+    Table H-XII, Support by Fire Position (152100) - the back side, from
+    the two points the user digitizes. Identical construction to Attack
+    By Fire Position's own back side (same shared
+    _swept_back_line_geometry(), same default wing ratio/angle), with
+    the wings swept to the side OPPOSITE the arrows - see
+    _support_by_fire_frame()'s own docstring for that convention.
+
+    **2026-08-12**, per the project maintainer: the standard's own
+    version takes FOUR anchor points (PT1/PT2 the back line, PT3/PT4 the
+    arrowhead tips). This build deliberately takes only the two back-line
+    points and DERIVES the arrows from them - "the user will click two
+    points PT1 and PT2 - they are equivalent to PT2 and PT3 of the
+    attack by fire... now at the two vertex where the wings touch the
+    horizontal line, make two arrows of same length as the wings" - a
+    simpler two-click symbol whose arrows can no longer be placed
+    inconsistently with the back line.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    wing_ratio = float(values[1]) if len(values) > 1 else 0.37
+    wing_angle_deg = float(values[2]) if len(values) > 2 else 53.0
+
+    frame = _support_by_fire_frame(geometry)
+
+    if frame is None:
+        return geometry
+
+    back = _swept_back_line_geometry(
+        frame["start"],
+        frame["end"],
+        -frame["nx"],
+        -frame["ny"],
+        wing_ratio,
+        wing_angle_deg,
+    )
+
+    return geometry if back is None else back
+
+
+@qgsfunction(
+    'mct_support_by_fire_arrows',
+    group='Military Cartography Tools'
+)
+def mct_support_by_fire_arrows(values, feature=None, parent=None):
+
+    """
+    Table H-XII, Support by Fire Position (152100) - the two arrows,
+    rising from the same two corners where the wings meet the back line
+    (PT1 and PT2 themselves).
+
+    Each arrow is the same length as a wing and leaves its own corner
+    perpendicular to the back line, then tilted `tilt_deg` OUTWARD -
+    away from the symbol's own centre, so the pair splay apart the way
+    the standard's own picture shows ("the arrowheads typically indicate
+    the left and right limits of coverage that the firing position is
+    meant to support"). Per the project maintainer, 2026-08-12: "the two
+    arrows are tilted slightly outward from perpendicular, say about
+    15deg".
+
+    Returned as a two-part MultiLineString with each part ordered
+    base -> tip, so a single QgsMarkerLineSymbolLayer at LastVertex
+    puts an arrowhead on both, each picking up its own part's rotation.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    wing_ratio = float(values[1]) if len(values) > 1 else 0.37
+    tilt_deg = float(values[2]) if len(values) > 2 else 15.0
+
+    frame = _support_by_fire_frame(geometry)
+
+    if frame is None:
+        return geometry
+
     ux = frame["ux"]
     uy = frame["uy"]
+    nx = frame["nx"]
+    ny = frame["ny"]
 
-    # Away from PT1 - the opposite of the frame's own towards-PT1
-    # normal.
-    ax = -frame["nx"]
-    ay = -frame["ny"]
+    arrow_length = frame["back_length"] * wing_ratio
 
-    angle = math.radians(wing_angle_deg)
+    tilt = math.radians(tilt_deg)
 
-    wing_length = frame["back_length"] * wing_ratio
+    cos_t = math.cos(tilt)
+    sin_t = math.sin(tilt)
 
-    cos_a = math.cos(angle)
-    sin_a = math.sin(angle)
-
-    # Each wing runs outward along the back line (away from the other
-    # end) and `wing_angle_deg` swept towards the far side from PT1.
-    left_wing = QgsPointXY(
-        p2.x() + wing_length * (-ux * cos_a + ax * sin_a),
-        p2.y() + wing_length * (-uy * cos_a + ay * sin_a),
+    # Outward = away from the other corner, so the start arrow leans
+    # back along -u and the end arrow forward along +u.
+    start_tip = QgsPointXY(
+        frame["start"].x() + arrow_length * (nx * cos_t - ux * sin_t),
+        frame["start"].y() + arrow_length * (ny * cos_t - uy * sin_t),
     )
 
-    right_wing = QgsPointXY(
-        p3.x() + wing_length * (ux * cos_a + ax * sin_a),
-        p3.y() + wing_length * (uy * cos_a + ay * sin_a),
+    end_tip = QgsPointXY(
+        frame["end"].x() + arrow_length * (nx * cos_t + ux * sin_t),
+        frame["end"].y() + arrow_length * (ny * cos_t + uy * sin_t),
     )
 
-    # One open path start-wing -> PT2 -> PT3 -> end-wing, so the back
-    # line and both wings share their own corners exactly (a
-    # MultiLineString of three separate pieces would leave hairline
-    # gaps at the joins at some zoom levels).
-    return QgsGeometry.fromPolylineXY(
-        [left_wing, QgsPointXY(p2), QgsPointXY(p3), right_wing]
-    )
+    return QgsGeometry.fromMultiPolylineXY([
+        [frame["start"], start_tip],
+        [frame["end"], end_tip],
+    ])
 
 
 @qgsfunction(
@@ -1366,6 +1565,8 @@ _FUNCTIONS = [
     mct_axis_of_advance_outer_chevron,
     mct_attack_by_fire_back,
     mct_attack_by_fire_shaft,
+    mct_support_by_fire_back,
+    mct_support_by_fire_arrows,
 ]
 
 
