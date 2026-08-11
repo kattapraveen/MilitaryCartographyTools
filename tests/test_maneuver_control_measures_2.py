@@ -615,18 +615,116 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
             military_symbology_functions.unregister()
 
 
-    def test_search_area_has_two_arrowheads_and_a_vertex_a_label(self):
+    def test_search_area_arms_are_barbed_and_independently_proportioned(self):
 
+        # 2026-08-12 rebuild: the standard's own double-notched arrow
+        # shaft (printed page 444) had never been reproduced - this
+        # drew two plain straight arrows. Digitizing order is PT2, PT1,
+        # PT3 (the maintainer's own instruction), so PT1 is the middle
+        # vertex both arms spring from.
         layer = create_maneuver_control_measures_2_lines_layer()
 
         symbol = _rule_symbol_for(layer, "search_area_reconnaissance_area")
 
-        self.assertEqual(symbol.symbolLayerCount(), 4)
+        self.assertEqual(symbol.symbolLayerCount(), 1)
 
-        vertex_label = symbol.symbolLayer(3)
-        font_layer = vertex_label.subSymbol().symbolLayer(0)
+        self.assertIsInstance(
+            symbol.symbolLayer(0),
+            QgsGeometryGeneratorSymbolLayer
+        )
+        self.assertIn(
+            "mct_search_area_arms",
+            symbol.symbolLayer(0).geometryExpression()
+        )
 
-        self.assertEqual(font_layer.character(), "A")
+        # Nothing is drawn at PT1. The standard wants a real unit
+        # symbol there ("the tactical symbol indicator... centered over
+        # point 1"); an earlier build stood in the bare letter "A",
+        # removed 2026-08-12 - "it is supposed to be a military symbol,
+        # user can add separately", the maintainer's own words.
+        self.assertEqual(
+            [
+                symbol.symbolLayer(i).__class__.__name__
+                for i in range(symbol.symbolLayerCount())
+            ],
+            ["QgsGeometryGeneratorSymbolLayer"]
+        )
+
+
+    def test_search_area_barbs_scale_to_each_arm_independently(self):
+
+        # "The length and orientation of the arrows can vary
+        # independently" - the standard's own Size/Shape rule, and the
+        # maintainer's own reminder. Each arm's barb is placed as a
+        # fraction of THAT arm's own length, so a short arm and a long
+        # one are each correctly proportioned rather than sharing one
+        # absolute offset.
+        military_symbology_functions.register()
+
+        try:
+
+            feature = QgsFeature()
+            feature.setGeometry(
+                QgsGeometry.fromPolylineXY([
+                    QgsPointXY(100, 50),    # PT2 - long arm
+                    QgsPointXY(0, 0),       # PT1 - vertex
+                    QgsPointXY(20, -10),    # PT3 - short arm, 1/5 the length
+                ])
+            )
+
+            context = QgsExpressionContext()
+            context.setFeature(feature)
+
+            arms = QgsExpression(
+                "mct_search_area_arms($geometry)"
+            ).evaluate(context).asMultiPolyline()
+
+            self.assertEqual(len(arms), 2)
+
+            for arm in arms:
+
+                # PT1 -> outer barb -> step back in -> tip
+                self.assertEqual(len(arm), 4)
+
+                # every arm starts at the shared vertex...
+                self.assertAlmostEqual(arm[0].x(), 0.0, places=6)
+                self.assertAlmostEqual(arm[0].y(), 0.0, places=6)
+
+            long_arm, short_arm = arms
+
+            def barb_offsets(arm):
+
+                tip = arm[3]
+                length = math.hypot(tip.x(), tip.y())
+                ux, uy = tip.x() / length, tip.y() / length
+
+                offsets = []
+
+                for point in (arm[1], arm[2]):
+
+                    along = point.x() * ux + point.y() * uy
+                    perp = abs(-point.x() * uy + point.y() * ux)
+                    offsets.append((along / length, perp / length))
+
+                return offsets
+
+            # ...and both arms put their own barb at the SAME
+            # fractions of their own length, despite one being five
+            # times the other.
+            for long_pair, short_pair in zip(
+                barb_offsets(long_arm), barb_offsets(short_arm)
+            ):
+
+                self.assertAlmostEqual(long_pair[0], short_pair[0], places=6)
+                self.assertAlmostEqual(long_pair[1], short_pair[1], places=6)
+
+            # The outer barb really does stand off the arm's own axis.
+            self.assertAlmostEqual(barb_offsets(long_arm)[0][0], 0.55, places=6)
+            self.assertAlmostEqual(barb_offsets(long_arm)[0][1], 0.13, places=6)
+
+        finally:
+
+            military_symbology_functions.unregister()
 
 
     def test_simple_end_labelled_lines_use_the_expected_fixed_characters(self):

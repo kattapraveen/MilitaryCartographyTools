@@ -4999,7 +4999,54 @@ tested, not claimed as done here.
   should connect to the midpoint of the line between points 2 and 3")
   disagree here by ~6% of the chord. The maintainer chose the drawing.
 
-  748 tests passing on both QGIS versions. **Table H-XII is now
+  748 tests passing on both QGIS versions.
+
+- **2026-08-12, Search Area/Reconnaissance Area (152200) rebuilt.** The
+  last unreviewed entry in this table. It had been drawing the
+  digitized path as-is - two plain straight arrows - with the module's
+  own docstring openly recording that "the standard's own
+  double-notched arrow shaft decoration is not reproduced". It is now.
+
+  Three anchor points in the order this measure type already expected
+  and the maintainer re-confirmed: **PT2 first, PT1 second, PT3 third**,
+  PT1 being the middle vertex both arms spring from. Each arm runs
+  PT1 -> outer barb corner -> back in towards the axis -> tip, which
+  gives the standard's own barbed/fletched look. The shape constants
+  were measured by projecting the template's own vertices onto each
+  arm's axis (outer corner 0.554 along / 0.131 out; step back 0.481
+  along / 0.035 inside), rounded to 0.55/0.13/0.48/0.035.
+
+  They are fractions of EACH ARM's own length, computed independently -
+  which is what the standard requires ("the length and orientation of
+  the arrows can vary independently", and the maintainer's own
+  reminder), so a short arm and a long one are each correctly
+  proportioned rather than sharing one absolute offset. Covered by a
+  test using arms differing 5x in length.
+
+  Returned as a two-part MultiLineString each ordered PT1 -> tip, so a
+  single LastVertex marker heads both arms OUTWARD; drawn as one
+  PT2 -> PT1 -> PT3 path instead, the head at FirstVertex would point
+  back inwards.
+
+  **The placeholder "A" at the vertex was removed** rather than kept or
+  improved. The standard wants "the tactical symbol indicator...
+  centered over point 1" - a real unit symbol, as its own EXAMPLE shows
+  - and the bare letter was standing in for one. The maintainer's own
+  call: "remove the text 'A', it is supposed to be a military symbol,
+  user can add separately". A wrong glyph is worse than none, and this
+  plugin's own point layers can already place a real unit symbol over
+  the vertex.
+
+  One process note: the first attempt at this edit spliced from the
+  target function all the way to the next module-level constant, which
+  silently deleted `_simple_end_label_line_symbol()` and
+  `_airhead_line_symbol()` along with it. Caught immediately by an
+  ImportError on the very next render, restored from HEAD, and verified
+  by diffing the file's own function list against HEAD before
+  continuing - a reminder to bound a splice by the next `def`, not by
+  the next thing that happens to look like a boundary.
+
+  749 tests passing on both QGIS versions. **Table H-XII is now
   complete** - all ten entries built and reviewed.
 
     739 tests passing on both QGIS versions.

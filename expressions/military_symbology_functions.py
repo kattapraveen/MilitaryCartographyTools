@@ -1514,6 +1514,115 @@ def mct_ambush_back(values, feature=None, parent=None):
     return geometry if back is None else back
 
 
+@qgsfunction(
+    'mct_search_area_arms',
+    group='Military Cartography Tools'
+)
+def mct_search_area_arms(values, feature=None, parent=None):
+
+    """
+    Table H-XII, Search Area/Reconnaissance Area (152200) - the two
+    NOTCHED arms, rebuilt 2026-08-12 from the standard's own template
+    (printed page 444). Until now this measure type drew the digitized
+    path as-is - two plain straight arrows - and the module's own
+    docstring openly recorded the standard's "double-notched arrow shaft
+    decoration is not reproduced". It is reproduced here.
+
+    The user clicks THREE points in the standard's own drawing order -
+    **PT2 first, PT1 second, PT3 third** (the maintainer's own
+    instruction, and what this measure type already expected): PT2/PT3
+    are the two arrowhead tips and PT1, in the middle, is the vertex
+    both arms spring from.
+
+    Each arm runs PT1 -> outer barb corner -> back in towards the axis
+    -> tip, which is what gives the standard's own barbed/fletched
+    look. The three shape constants are fractions of that arm's OWN
+    length, so the two arms stay correct even though the standard lets
+    their "length and orientation ... vary independently". They were
+    measured off the template by projecting its own vertices onto each
+    arm's axis: the outer corner sits 0.554 along and 0.131 out, and the
+    step back returns to 0.481 along and 0.035 INSIDE the axis - rounded
+    here to 0.55/0.13/0.48/0.035.
+
+    Returned as a two-part MultiLineString, each part ordered PT1 ->
+    tip, so a single LastVertex marker line heads both arms outward -
+    the same trick Support by Fire Position's own arrows use. (Drawing
+    it as one PT2 -> PT1 -> PT3 path instead would put the head at
+    FirstVertex pointing back INWARDS, along the line's own outgoing
+    direction.)
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    along_out = float(values[1]) if len(values) > 1 else 0.55
+    outward = float(values[2]) if len(values) > 2 else 0.13
+    along_in = float(values[3]) if len(values) > 3 else 0.48
+    inward = float(values[4]) if len(values) > 4 else 0.035
+
+    line = geometry.constGet()
+
+    if hasattr(line, "geometryN"):
+        line = line.geometryN(0)
+
+    if line.numPoints() < 3:
+        return geometry
+
+    tip_a = QgsPointXY(line.pointN(0))
+    vertex = QgsPointXY(line.pointN(1))
+    tip_b = QgsPointXY(line.pointN(2))
+
+    def arm(tip, other_tip):
+
+        dx = tip.x() - vertex.x()
+        dy = tip.y() - vertex.y()
+
+        length = math.hypot(dx, dy)
+
+        if length == 0:
+            return None
+
+        ux = dx / length
+        uy = dy / length
+
+        # Perpendicular pointing AWAY from the other arm, so both arms
+        # barb outwards however the user placed the two tips.
+        px = -uy
+        py = ux
+
+        if px * (other_tip.x() - vertex.x()) + py * (other_tip.y() - vertex.y()) > 0:
+            px, py = -px, -py
+
+        def point(along_ratio, perp_ratio):
+
+            return QgsPointXY(
+                vertex.x() + ux * length * along_ratio + px * length * perp_ratio,
+                vertex.y() + uy * length * along_ratio + py * length * perp_ratio,
+            )
+
+        return [
+            QgsPointXY(vertex),
+            point(along_out, outward),
+            point(along_in, -inward),
+            QgsPointXY(tip),
+        ]
+
+    arms = [
+        part for part in (arm(tip_a, tip_b), arm(tip_b, tip_a))
+        if part is not None
+    ]
+
+    if not arms:
+        return geometry
+
+    return QgsGeometry.fromMultiPolylineXY(arms)
+
+
 def _support_by_fire_frame(geometry):
 
     """
@@ -1830,6 +1939,7 @@ _FUNCTIONS = [
     mct_support_by_fire_arrows,
     mct_ambush_back,
     mct_ambush_shaft,
+    mct_search_area_arms,
 ]
 
 

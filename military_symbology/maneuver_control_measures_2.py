@@ -34,11 +34,11 @@ boundary a polygon layer could hold: **Support by Fire Position
 only the back line's own endpoints and both arrows are derived from
 them, rather than the standard's own four anchor points; see
 _support_by_fire_position_symbol()) and
-**Search Area/Reconnaissance Area (152200)** (the same "two arrows from
-a shared vertex" construction as Principal Direction of Fire, plus a
-boxed "A" at the vertex - the standard's own double-notched arrow shaft
-decoration is not reproduced, matching this appendix's established
-"recognisable, not exact" tolerance for decorative details). This
+**Search Area/Reconnaissance Area (152200)** (rebuilt 2026-08-12 - its
+two arms now carry the standard's own barbed/double-notched shaft,
+which the first pass had explicitly left out, and the placeholder "A"
+at the vertex is gone; see
+_search_area_reconnaissance_area_symbol()). This
 module organises its own two layers by ACTUAL QGIS GEOMETRY TYPE
 (matching every other H.5.x module in this pass), not by the standard's
 own SIDC field-code grouping, since a QGIS layer can only ever hold one
@@ -538,37 +538,62 @@ def _support_by_fire_position_symbol():
 def _search_area_reconnaissance_area_symbol():
 
     """
-    Table H-XII, code 152200, page 444. Two arrows from a shared vertex
-    (PT1) - the same construction as maneuver_control_measures.py's own
-    Principal Direction of Fire - plus a fixed boxed "A" at the vertex
-    (Field A, via the shared _end_label_layer() at InnerVertices, the
-    same fixed-character marker technique used throughout this
-    appendix). The standard's own double-notched/zigzag arrow shaft
-    decoration is not reproduced - plain arrows only, matching this
-    appendix's "recognisable, not exact" tolerance for decorative
-    details (see module docstring).
+    Table H-XII, code 152200, page 444 - rebuilt 2026-08-12. Until then
+    this drew the digitized path as-is, two plain straight arrows, and
+    the module docstring recorded that the standard's own
+    "double-notched arrow shaft decoration is not reproduced". It is
+    reproduced now, via mct_search_area_arms() - see that function for
+    the barb proportions and how they were measured.
+
+    Three anchor points, in the standard's own drawing order and the
+    order this measure type already expected: **PT2 first, PT1 second,
+    PT3 third** (the maintainer's own instruction). PT2/PT3 are the
+    arrowhead tips; PT1, in the middle, is the vertex both arms spring
+    from.
+
+    Per the standard, "the length and orientation of the arrows can
+    vary independently" - each arm's own barb is placed as a fraction
+    of THAT arm's own length, so two arms of different length and
+    bearing each stay correctly proportioned.
+
+    Nothing is drawn at PT1 itself. The standard calls for "the
+    tactical symbol indicator... centered over point 1" - a real unit
+    symbol, which its own EXAMPLE shows - and an earlier build stood in
+    the bare letter "A" for it. Removed 2026-08-12 at the maintainer's
+    own instruction ("remove the text 'A', it is supposed to be a
+    military symbol, user can add separately"): a wrong glyph is worse
+    than none, and the user can place a real unit symbol from one of
+    this plugin's own point layers over the vertex.
     """
 
-    line_layer = QgsSimpleLineSymbolLayer()
+    symbol = QgsLineSymbol()
 
-    line_layer.setColor(
-        QColor(0, 0, 0)
+    arms_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    arms_generator.setGeometryExpression(
+        "mct_search_area_arms($geometry)"
     )
 
-    line_layer.setWidth(
+    arms_generator.setSymbolType(
+        Qgis.SymbolType.Line
+    )
+
+    arms_symbol = QgsLineSymbol()
+
+    arms_line_layer = arms_symbol.symbolLayer(0)
+
+    arms_line_layer.setWidth(
         0.4
     )
 
     _apply_affiliation_color(
-        line_layer,
+        arms_line_layer,
         [QgsSymbolLayer.Property.StrokeColor]
     )
 
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(
-        0,
-        line_layer
+    arms_line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
     )
 
     arrow_marker = QgsMarkerSymbol.createSimple(
@@ -585,30 +610,30 @@ def _search_area_reconnaissance_area_symbol():
         [QgsSymbolLayer.Property.FillColor, QgsSymbolLayer.Property.StrokeColor]
     )
 
-    for placement in (
-        Qgis.MarkerLinePlacement.FirstVertex,
-        Qgis.MarkerLinePlacement.LastVertex,
-    ):
+    # Both arms arrive as one two-part MultiLineString, each ordered
+    # PT1 -> tip, so a single LastVertex marker line heads both of them
+    # OUTWARD and each picks up its own arm's rotation.
+    arrow_layer = QgsMarkerLineSymbolLayer(True)
 
-        arrow_layer = QgsMarkerLineSymbolLayer(True)
+    arrow_layer.setSubSymbol(
+        arrow_marker
+    )
 
-        arrow_layer.setSubSymbol(
-            arrow_marker.clone()
-        )
+    arrow_layer.setPlacements(
+        Qgis.MarkerLinePlacement.LastVertex
+    )
 
-        arrow_layer.setPlacements(
-            placement
-        )
+    arms_symbol.appendSymbolLayer(
+        arrow_layer
+    )
 
-        symbol.appendSymbolLayer(
-            arrow_layer
-        )
+    arms_generator.setSubSymbol(
+        arms_symbol
+    )
 
-    symbol.appendSymbolLayer(
-        _end_label_layer(
-            Qgis.MarkerLinePlacement.InnerVertices,
-            "A"
-        )
+    symbol.changeSymbolLayer(
+        0,
+        arms_generator
     )
 
     return symbol
@@ -708,7 +733,6 @@ def _airhead_line_symbol():
     )
 
     return symbol
-
 
 _LINE_SYMBOL_BUILDERS = {
     "attack_by_fire_position": _attack_by_fire_position_symbol,
