@@ -5645,6 +5645,48 @@ tested, not claimed as done here.
 
   806 tests passing on both QGIS versions.
 
+- **2026-08-12, AEGIS-only sweep across the whole of Appendix H.** The
+  project's standing rule is that it ships no AEGIS-only symbols -
+  naval combat-system display constructs rather than general-purpose
+  military symbology. That rule had been applied per-table as each
+  mini-phase was built, and applying it table by table is exactly how
+  two got through.
+
+  Prompted by the maintainer spotting "Target - Recorded (AEGIS Only)"
+  in the H-XVII points dropdown. Swept every "(AEGIS only)" marking in
+  the appendix rather than removing just the one reported.
+
+  **Seventeen AEGIS-only codes exist in Appendix H. Two were shipped:**
+
+  - **Airfield (131900, Table H-VI)** - its own CONTROL MEASURE cell
+    reads "Airfield (AEGIS Only)". Shipped since H2, and it even
+    carried a +20% size multiplier from the maintainer's own live
+    testing, so it had been looked at more than once without the
+    marking being noticed. **Not to be confused with Airfield Zone**
+    (Table H-V), a different, non-AEGIS AREA that stays.
+  - **Target-Recorded (240603, Table H-XVII)** - kept deliberately on
+    its first pass, with the recorded reasoning that it "renders a
+    real, correct icon from its own template rather than an AEGIS
+    display construct this project has no model for". That reasoning
+    was a per-symbol judgement standing against a per-project rule; the
+    rule wins.
+
+  **One near-miss worth recording.** The first pass of this sweep
+  grepped sidc.py for the AEGIS code list and reported SIX hits -
+  including cbrn_equipment, computer_system, command_launch_equipment
+  and generator_set at 200400-200700. All four were false positives:
+  **SIDC codes are only unique WITHIN a symbol set**, and those four
+  are Land Equipment, not control measures. Re-scoped to
+  ENTITIES["control_measure"] the real count is two. Deleting on the
+  first result would have removed four correct entries.
+
+  The rule now lives in one test (test_military_symbology_sidc.py's own
+  TestNoAegisOnlySymbols) carrying all seventeen codes, rather than
+  being re-argued per table. Both removals are also pinned by their own
+  modules' tests.
+
+  806 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

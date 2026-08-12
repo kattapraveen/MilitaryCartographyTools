@@ -11,7 +11,11 @@ Military Cartography Tools
 
 from .qgis_test_case import QgisTestCase
 
-from MilitaryCartographyTools.military_symbology.sidc import build_sidc, MODIFIERS
+from MilitaryCartographyTools.military_symbology.sidc import (
+    build_sidc,
+    ENTITIES,
+    MODIFIERS,
+)
 
 
 class TestBuildSidc(QgisTestCase):
@@ -316,3 +320,66 @@ class TestBuildSidc(QgisTestCase):
                     len(codes),
                     f"duplicate code in {symbol_set}/{sector}"
                 )
+
+
+class TestNoAegisOnlySymbols(QgisTestCase):
+
+    """
+    This project ships no AEGIS-only symbols - naval combat-system
+    display constructs, not general-purpose military symbology.
+
+    The rule was applied per-table as each mini-phase was built, which
+    let two slip through: Airfield (131900, Table H-VI) and
+    Target-Recorded (240603, Table H-XVII) were both kept on their own
+    first pass, each with its own local reasoning. A sweep of every
+    "(AEGIS only)" marking across the whole of Appendix H removed both
+    2026-08-12. This test is that sweep's result, so the rule is
+    enforced in one place rather than re-argued per table.
+
+    Codes below are every AEGIS-only entry in Appendix H, read off the
+    standard's own CONTROL MEASURE cells.
+    """
+
+    AEGIS_ONLY_CODES = (
+        "131900",  # H-VI   Airfield
+        "200101",  # H-XIV  Launch Area - Ellipse
+        "200102",  # H-XIV  Launch Area - Rectangle
+        "200201",  # H-XIV  Defended Area - Ellipse
+        "200202",  # H-XIV  Defended Area - Rectangle
+        "200300",  # H-XIV  No Attack (NOTACK) Zone
+        "200400",  # H-XIV  Ship Area of Interest
+        "200401",  # H-XIV  Ship Area of Interest - Ellipse
+        "200402",  # H-XIV  Ship Area of Interest - Rectangle
+        "200500",  # H-XIV  Active Maneuver Area
+        "200600",  # H-XIV  Cued Acquisition Doctrine
+        "200700",  # H-XIV  Radar Search Doctrine
+        "211000",  # H-XIV  Launched Torpedo
+        "211200",  # H-XIV  Acoustic Countermeasure (Decoy)
+        "211300",  # H-XIV  Electronic Countermeasures (ECM) Decoy
+        "240603",  # H-XVII Target-Recorded
+        "240804",  # H-XVII Rectangular Target - Single Target
+    )
+
+    def test_no_aegis_only_code_is_in_the_control_measure_vocabulary(self):
+
+        # Scoped to ENTITIES["control_measure"] deliberately: SIDC codes
+        # are only unique WITHIN a symbol set, so checking the whole of
+        # sidc.py would false-positive on Land Equipment entries that
+        # happen to reuse 200400-200700.
+        shipped = ENTITIES["control_measure"]
+
+        offenders = {
+            entity: code
+            for entity, code in shipped.items()
+            if code in self.AEGIS_ONLY_CODES
+        }
+
+        self.assertEqual(offenders, {})
+
+
+    def test_the_two_that_were_removed_stay_removed(self):
+
+        shipped = ENTITIES["control_measure"]
+
+        self.assertNotIn("airfield", shipped)
+        self.assertNotIn("target_recorded", shipped)

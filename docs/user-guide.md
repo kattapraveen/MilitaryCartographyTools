@@ -757,13 +757,13 @@ Amnesty Point, Checkpoint, Center of Main Effort, Contact/Coordination/
 Decision Point, Distress Call, Entry Control Point, Fly-To Point
 (Sonobuoy/Weapon/Normal), Linkup/Passage Point, Point of Interest (and
 its own Launch Event variant), Rally/Release/Start/Special Point,
-Waypoint, Airfield), then set **Affiliation** and **Status**; the symbol
+Waypoint), then set **Affiliation** and **Status**; the symbol
 is rendered through the same milsymbol library as the unit layers above,
 not hand-built QGIS symbology like the Lines/Areas layers on this same
 page. Give it a **Unique designation** too and it appears wherever that
 specific icon's own layout puts it - below the main text for most of
 these, but centred in the box for some (Contact Point) and to the right
-of the icon's own line for others (Airfield, Waypoint) - milsymbol
+of the icon's own line for others (Waypoint) - milsymbol
 handles the placement per icon, not a fixed rule this plugin applies
 uniformly.
 
@@ -1112,8 +1112,7 @@ example both show it dashed with no solid variant.
 MIL-STD-2525D Appendix H.5.19 (Table H-XVII).
 
 **Points** offers this table's own nine entries — **Point/Single
-Target**, **Nuclear Target**, **Target-Recorded (AEGIS Only)**, **Fire
-Support Station (FSS)**, and the Fires Points family (**Firing**,
+Target**, **Nuclear Target**, **Fire Support Station (FSS)**, and the Fires Points family (**Firing**,
 **Hide**, **Launch**, **Reload** and **Survey Control Point**). These
 were previously on the shared Control Measure Points layer.
 
@@ -1144,6 +1143,15 @@ name).
 fixed compound diamond+cross icon anchored to one point with a
 permanently-upright orientation, the same AEGIS-combat-system-specific
 category already excluded throughout Maritime Control Measures.
+
+**No AEGIS-only symbols anywhere.** Throughout Appendix H the standard
+marks a handful of entries "(AEGIS only)" — naval combat-system display
+constructs rather than general-purpose military symbology. None of them
+are offered by this plugin. Two had slipped in and were removed
+2026-08-12: **Airfield** (Table H-VI's point, not the Airfield *Zone*
+area, which stays) and **Target-Recorded** (Table H-XVII). If you had
+already placed either, the feature keeps its attribute value but no
+longer appears in the dropdown.
 
 ### Target Acquisition Control Measures
 

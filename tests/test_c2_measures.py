@@ -1407,7 +1407,7 @@ class TestCreateC2MeasuresPointsLayer(QgisTestCase):
         self.assertNotIn(">alpha<", svg)
 
 
-    def test_decision_point_airfield_coordinating_point_contact_point_and_center_of_main_effort_render_larger(self):
+    def test_decision_point_coordinating_point_contact_point_and_center_of_main_effort_render_larger(self):
 
         # 2026-08-10, per the project maintainer's own explicit
         # percentages (Decision Point/Airfield +20%; Coordinating Point/
@@ -1423,7 +1423,6 @@ class TestCreateC2MeasuresPointsLayer(QgisTestCase):
 
         cases = [
             ("decision_point", 8.0 * 1.20),
-            ("airfield", 8.0 * 1.20),
             ("center_of_main_effort", 8.0 * 1.15),
             ("coordinating_point", 8.0 * 1.15),
             ("contact_point", 8.0 * 1.15),
@@ -1482,7 +1481,6 @@ class TestCreateC2MeasuresPointsLayer(QgisTestCase):
             ("center_of_main_effort", "center"),
             ("point_of_interest", "center"),
             ("waypoint", "center"),
-            ("airfield", "center"),
         ]
 
         for entity, expected_anchor in cases:

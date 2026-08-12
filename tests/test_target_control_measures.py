@@ -678,21 +678,28 @@ class TestCreateTargetControlMeasuresPointsLayer(QgisTestCase):
         )
 
 
-    def test_covers_the_tables_own_nine_point_codes(self):
+    def test_covers_the_tables_own_point_codes(self):
 
         # Pinned against the standard's own codes, not the dict itself.
         # 240600/250000 are the two parent rows (template "N/A") and are
         # correctly absent.
+        # 240603 Target-Recorded is deliberately absent: marked
+        # "(AEGIS Only)" in its own cell, and this project ships no
+        # AEGIS-only symbols. Removed 2026-08-12 by the sweep that also
+        # took out Airfield (131900).
         self.assertEqual(
             {
                 ENTITIES["control_measure"][entity]
                 for entity in POINT_ENTITY_LABELS
             },
             {
-                "240601", "240602", "240603", "240900",
+                "240601", "240602", "240900",
                 "250100", "250200", "250300", "250400", "250500",
             }
         )
+
+        self.assertNotIn("target_recorded", POINT_ENTITY_LABELS)
+        self.assertNotIn("target_recorded", ENTITIES["control_measure"])
 
 
     def test_fire_support_station_is_offered_and_renders(self):
@@ -815,7 +822,7 @@ class TestCreateTargetControlMeasuresPointsLayer(QgisTestCase):
         self.assertEqual(
             {e for e, a in anchors.items() if a == "center"},
             {
-                "point_target", "nuclear_target", "target_recorded",
+                "point_target", "nuclear_target",
                 "fire_support_station",
             }
         )

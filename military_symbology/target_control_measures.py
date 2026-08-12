@@ -7,7 +7,7 @@ H.5.x logical group in this appendix-by-appendix pass.
 
 **Points: this table's own nine entries, on their own POINTS layer**
 (printed pages 525-536) - Point/Single Target (240601), Nuclear Target
-(240602), Target-Recorded (240603, "AEGIS Only"), Fire Support Station
+(240602), Fire Support Station
 (240900, under the table's own "Naval Gunfire" heading), and the whole
 "Fires Points" sub-section (Firing 250100, Hide 250200, Launch 250300,
 Reload 250400, Survey Control Point 250500). All nine were already in
@@ -27,10 +27,13 @@ point QGIS anchors on. See _POINT_SIZE_MULTIPLIERS and
 _FIRE_SUPPORT_STATION_OFFSET_RATIO; the same asymmetry, measured the
 same way, as airspace_control_measures.py's own Pop-Up Point.
 
-Target-Recorded (240603) is kept despite its "(AEGIS Only)" marking,
-unlike H-XIV's AEGIS entries: it renders a real, correct icon from its
-own template (a rectangle with a centred diamond) rather than an AEGIS
-display construct this project has no model for.
+**Target-Recorded (240603) is deliberately NOT built** - it is marked
+"(AEGIS Only)" in its own CONTROL MEASURE cell, and this project does
+not ship AEGIS-only symbols. It was kept on the first pass, on the
+reasoning that it draws a real icon rather than an AEGIS display
+construct; that reasoning was overturned 2026-08-12 when the standing
+rule was applied consistently across the whole appendix. See
+docs/roadmap.md for the sweep that removed it and Airfield (131900).
 
 **Lines: 3 new measure types**, all sharing the same perpendicular
 end-tick construction confirmed against each one's own EXAMPLE column
@@ -629,17 +632,10 @@ def add_target_control_measures_areas_layer(iface):
 # Fire Support Station specifically drawing too small to spot (see
 # _POINT_SIZE_MULTIPLIERS).
 #
-# Target-Recorded (240603) is marked "(AEGIS Only)" in the table. It is
-# kept rather than curated out like H-XIV's AEGIS entries, because
-# unlike those it renders a real, correct icon from its own template (a
-# rectangle with a centred diamond) rather than an AEGIS display
-# construct this project has no model for - a call already made and
-# recorded when this mini-phase was first built, left standing here.
 POINT_ENTITY_LABELS = {
     # Point Targets
     "point_target": "Point/Single Target",
     "nuclear_target": "Nuclear Target",
-    "target_recorded": "Target - Recorded (AEGIS Only)",
     # Naval Gunfire
     "fire_support_station": "Fire Support Station (FSS)",
     # Fires Points

@@ -912,7 +912,6 @@ POINT_ENTITY_LABELS = {
     "start_point": "Start Point",
     "special_point": "Special Point",
     "waypoint": "Waypoint",
-    "airfield": "Airfield",
 }
 
 # H.5.3's own affiliation rule for POINT control measures is the base
@@ -948,7 +947,8 @@ DEFAULT_POINT_MARKER_SIZE_MM = 8.0
 # has no separate "make the lines bolder" option (checked - no
 # strokeWidth-style option exists in its own source), so the only lever
 # available is the overall marker size, which the project maintainer
-# gave explicit target increases for: Decision Point/Airfield +20%,
+# gave explicit target increases for: Decision Point +20% (Airfield had the same, but was removed
+# 2026-08-12 as AEGIS-only),
 # Coordinating Point/Contact Point +15% each. Center of Main Effort
 # started at +10%, still reported too small/faint, raised to +15% to
 # match the others.
@@ -965,7 +965,6 @@ DEFAULT_POINT_MARKER_SIZE_MM = 8.0
 # +15%, matching Coordinating/Contact Point's own successful fix.
 _POINT_SIZE_MULTIPLIERS = {
     "decision_point": 1.20,
-    "airfield": 1.20,
     "center_of_main_effort": 1.15,
     "coordinating_point": 1.15,
     "contact_point": 1.15,

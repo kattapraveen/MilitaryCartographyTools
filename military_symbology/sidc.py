@@ -901,7 +901,6 @@ ENTITIES = {
         "start_point": "131600",
         "special_point": "131700",
         "waypoint": "131800",
-        "airfield": "131900",
         # Table H-VI (Command and control points) ends here, at 131900 -
         # confirmed 2026-08-10 by reading the actual standard text
         # directly (reference/MIL-STD-2525D.pdf), after the project
@@ -935,7 +934,6 @@ ENTITIES = {
         # Fires
         "point_target": "240601",
         "nuclear_target": "240602",
-        "target_recorded": "240603",
         "fire_support_station": "240900",
         "firing_point": "250100",
         "hide_point": "250200",
