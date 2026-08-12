@@ -22,13 +22,29 @@ separate SIDC code from plain Acoustic, not a status variant, the same
 "fixed dash regardless of status" construction already used for
 offensive_control_measures.py's own Probable Line of Deployment),
 Torpedo ("T"), Electro-Optical Intercept ("O"), Jammer ("J"), and Radio
-Detention Finder ("RDF"). Every variant's own template also shows an
-optional "H" identifier box near one end (e.g. "MSL"/"MCU"/"TENT" for
-Electronic Warfare, "L3-ACT"/"L3-pHELO"/etc. for Acoustic, "PAT-1" for
-Jammer) - dropped here, the same "extra descriptive field box" tolerance
-already applied to this appendix's WIDTH/altitude/DTG fields (H7's
-corridor family) rather than modelling a different fixed vocabulary per
-sub-type for one small label.
+Detention Finder ("RDF").
+
+**All three of this table's own labelling requirements were reworked
+2026-08-12** after the maintainer's own live testing ("all the lines are
+rendered fine, just three issues"), and they are why this module builds
+its own _configure_lines_labeling() instead of calling the shared
+_configure_designation_labeling() the way it used to:
+
+- The abbreviation is **upright at all times** rather than rotated to
+  follow the line - Qgis.LabelPlacement.Horizontal, not .Line. On a
+  right-to-left or steeply descending bearing the old rotated label
+  came out upside-down.
+- It is **masked**, so the line no longer draws straight through the
+  glyph.
+- Every variant's own template also shows an optional "H" identifier
+  box near one end (e.g. "MSL"/"MCU"/"TENT" for Electronic Warfare,
+  "L3-ACT"/"L3-pHELO"/etc. for Acoustic, "PAT-1" for Jammer). That was
+  dropped when this mini-phase was first built - the same "extra
+  descriptive field box" tolerance applied to H7's own WIDTH/altitude/
+  DTG fields - and is now **a "unique_designation" free-text field**,
+  labelled at the line's own end, below-right, also upright. Free text
+  rather than nine fixed per-sub-type vocabularies, which is what made
+  it look not worth modelling the first time round.
 
 **Everything else in Table H-XIV is deliberately out of scope** - this
 table turned out to be overwhelmingly Navy-AEGIS-combat-system-specific
@@ -78,6 +94,7 @@ from qgis.core import (
     QgsLineSymbol,
     QgsProject,
     QgsProperty,
+    QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -91,9 +108,9 @@ from ._control_measure_shared import (
     STATUS_LABELS,
     _STATUS_LINE_STYLE_EXPRESSION,
     _apply_affiliation_color,
+    _build_pal_layer_settings,
     _build_rule_based_renderer,
     _configure_affiliation_field,
-    _configure_designation_labeling,
     _configure_status_field,
     _value_map,
     add_layer_if_absent,
@@ -142,10 +159,43 @@ _LINE_DESIGNATION_LABEL_EXPRESSION = "CASE " + " ".join(
     for measure_type, character in _LINE_LABEL_CHARACTERS.items()
 ) + " ELSE '' END"
 
+# The optional identifier the template shows in a box near the PT2 end
+# ("MSL"/"MCU"/"TENT" for Electronic Warfare, "PAT-1" for Jammer, and
+# similar). Dropped when this mini-phase was first built - see the
+# module docstring's own "extra descriptive field box" note - and added
+# 2026-08-12 on the maintainer's own instruction: "there should be an
+# option for unique designator which will be place at the end - bottom
+# right of the line, also oriented straight". Free text rather than the
+# fixed per-sub-type vocabulary the template's own examples come from,
+# which is why it is one shared field and not nine.
+#
+# upper(...) per H.5.4's "all text labeling shall be in upper case".
+_LINE_UNIQUE_DESIGNATION_LABEL_EXPRESSION = (
+    "upper(coalesce(\"unique_designation\",''))"
+)
+
+# Stable ids so the abbreviation's own label can cut a real gap in the
+# line it sits on, via QGIS's own Selective Masking - the maintainer's
+# own second point on this table, "should be masked so that the line is
+# not cutting through the letter". Both builders need one: masking is
+# configured layer-wide against a LIST of symbol layer ids, so a type
+# whose id is missing would simply keep drawing through its own label.
+_BEARING_LINE_SYMBOL_LAYER_ID = "bearing_line"
+_BEARING_LINE_AMBIGUOUS_SYMBOL_LAYER_ID = "bearing_line_acoustic_ambiguous"
+
+_MASKED_LINE_SYMBOL_LAYER_IDS = [
+    _BEARING_LINE_SYMBOL_LAYER_ID,
+    _BEARING_LINE_AMBIGUOUS_SYMBOL_LAYER_ID,
+]
+
 
 def _bearing_line_symbol():
 
     line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setId(
+        _BEARING_LINE_SYMBOL_LAYER_ID
+    )
 
     line_layer.setColor(
         QColor(0, 0, 0)
@@ -185,6 +235,10 @@ def _bearing_line_acoustic_ambiguous_symbol():
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setId(
+        _BEARING_LINE_AMBIGUOUS_SYMBOL_LAYER_ID
+    )
 
     line_layer.setColor(
         QColor(0, 0, 0)
@@ -226,6 +280,84 @@ _LINE_SYMBOL_BUILDERS = {
 }
 
 
+def _configure_lines_labeling(layer):
+
+    """
+    Two labels per feature, so two QgsRuleBasedLabeling rules - the
+    abbreviation ("B"/"E"/"EW"/...) centred along the line, and the
+    optional unique designation at the line's own end. All three of the
+    maintainer's own 2026-08-12 points on this table land here:
+
+    - **Upright at all times.** Both rules avoid
+      Qgis.LabelPlacement.Line, which rotates its label to follow the
+      feature - the abbreviation uses Horizontal (QGIS's own "along the
+      line, but text stays level" mode) and the designation uses
+      OverPoint against the line's own end vertex.
+    - **Masked**, so the line no longer draws straight through the
+      glyphs. The abbreviation sits ON the line (OnLine flag, the
+      shared default), which is exactly the case Selective Masking
+      exists for.
+    - **Unique designation at the end, bottom right.** OverPoint
+      placement against a label geometry of `end_point($geometry)`,
+      with the BelowRight quadrant hanging the text down-and-right off
+      that vertex. The standard's own template puts its "H" box just
+      ABOVE the PT2 end instead; below-right is the maintainer's own
+      explicit call ("place at the end - bottom right of the line").
+
+    Both rules are given the SAME masked-id list even though only the
+    abbreviation actually sits on a line. Masking is configured per
+    QGIS layer, not per rule, and rules declaring DIFFERENT lists make
+    QGIS log "Different sets of symbol layers are masked by different
+    sources! Only one (arbitrary) set will be retained!" and silently
+    keep just one of them - so they have to agree.
+    """
+
+    abbreviation_rule = QgsRuleBasedLabeling.Rule(
+        _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.Horizontal,
+            _LINE_DESIGNATION_LABEL_EXPRESSION,
+            masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS
+        )
+    )
+
+    designation_rule = QgsRuleBasedLabeling.Rule(
+        _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.OverPoint,
+            _LINE_UNIQUE_DESIGNATION_LABEL_EXPRESSION,
+            masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS,
+            label_geometry_expression="end_point($geometry)",
+            quadrant=Qgis.LabelQuadrantPosition.BelowRight
+        )
+    )
+
+    # Without this the rule still runs for features that left the field
+    # blank, and QGIS reserves the empty label's own space - which
+    # collides with the abbreviation's placement search on short lines.
+    designation_rule.setFilterExpression(
+        "coalesce(\"unique_designation\",'') != ''"
+    )
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    root_rule.appendChild(
+        abbreviation_rule
+    )
+
+    root_rule.appendChild(
+        designation_rule
+    )
+
+    layer.setLabeling(
+        QgsRuleBasedLabeling(root_rule)
+    )
+
+    layer.setLabelsEnabled(
+        True
+    )
+
+
 def create_maritime_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     """
@@ -247,6 +379,7 @@ def create_maritime_control_measures_lines_layer(name=LINES_LAYER_NAME):
             QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),
         ]
     )
@@ -280,11 +413,7 @@ def create_maritime_control_measures_lines_layer(name=LINES_LAYER_NAME):
         _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
     )
 
-    _configure_designation_labeling(
-        layer,
-        Qgis.LabelPlacement.Line,
-        _LINE_DESIGNATION_LABEL_EXPRESSION
-    )
+    _configure_lines_labeling(layer)
 
     return layer
 

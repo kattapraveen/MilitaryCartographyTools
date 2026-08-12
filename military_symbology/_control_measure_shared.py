@@ -578,8 +578,18 @@ def _build_pal_layer_settings(
         settings.repeatDistance = repeat_distance_mm
         settings.repeatDistanceUnit = Qgis.RenderUnit.Millimeters
 
-    if placement == Qgis.LabelPlacement.Line:
+    if placement in (Qgis.LabelPlacement.Line, Qgis.LabelPlacement.Horizontal):
 
+        # Qgis.LabelPlacement.Horizontal joined Line here 2026-08-12,
+        # for Table H-XIV's own Bearing Line family: it is QGIS's own
+        # "place along the line but keep the text upright" mode, and it
+        # honours exactly the same lineSettings() the Line mode does
+        # (anchor, placement flags), so everything below applies to it
+        # unchanged. Line rotates its label to follow the feature;
+        # Horizontal does not, which is the whole reason that family
+        # uses it - "the orientation has to be straight at all times and
+        # not along the line", the maintainer's own words.
+        #
         # QGIS's own default line-placement flags are AboveLine |
         # MapOrientation - the whole (possibly multi-line) label always
         # sits entirely above the line, never straddling it. OnLine

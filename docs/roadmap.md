@@ -5196,6 +5196,62 @@ tested, not claimed as done here.
   768 tests passing on both QGIS versions. **Table H-XIII is now
   complete** - lines, areas and points all built and reviewed.
 
+- **2026-08-12, Table H-XIV (Maritime control measures) reviewed.** The
+  maintainer's own live testing: "all the lines are rendered fine, just
+  three issues" - all three on the Bearing Line family's own labelling,
+  none on its geometry. Fixing them meant this module stops calling the
+  shared _configure_designation_labeling() and builds its own
+  QgsRuleBasedLabeling tree instead, because there are now two
+  separately-placed labels per feature rather than one.
+
+  - **The abbreviation (B/E/EW/A/T/O/J/RDF) is upright at all times**,
+    not rotated to follow the line. Qgis.LabelPlacement.Line rotates
+    its label with the feature, so a bearing digitized right-to-left or
+    steeply descending rendered its own letter upside-down;
+    .Horizontal is QGIS's own "place along the line, keep the text
+    level" mode. Confirmed by rendering deliberately awkward bearings
+    (right-to-left, steep descent, pure horizontal) rather than only
+    the tidy up-and-right case the template happens to draw.
+
+    This also extended _build_pal_layer_settings()'s own line-settings
+    block to fire for .Horizontal as well as .Line - additive, since
+    Horizontal honours exactly the same lineSettings() (anchor,
+    placement flags) and no existing caller uses it.
+
+  - **It masks the line**, so the line no longer draws through the
+    glyph. Both symbol builders needed a stable `.setId()` for this -
+    masking is configured layer-wide against a LIST of ids, so the
+    always-dashed Acoustic (Ambiguous) variant would otherwise have
+    kept drawing through its own "A".
+
+  - **A "unique_designation" free-text field was added**, labelled at
+    the line's own END, below-right, also upright (OverPoint placement
+    against `end_point($geometry)` with the BelowRight quadrant). This
+    is the identifier the template shows in a box near the PT2 end -
+    "MSL"/"MCU"/"TENT" for Electronic Warfare, "L3-ACT" for Acoustic,
+    "PAT-1" for Jammer. It had been dropped when this mini-phase was
+    first built, under the same "extra descriptive field box" tolerance
+    as H7's own WIDTH/altitude/DTG fields, on the reasoning that it
+    would need a different fixed vocabulary per sub-type; one shared
+    free-text field sidesteps that entirely. **Note this deliberately
+    departs from the template, which puts the box just ABOVE the end
+    point** - below-right is the maintainer's own explicit call.
+
+    The rule is filtered to non-empty designations. Without that filter
+    the rule still runs for blank features and QGIS reserves the empty
+    label's own space, which collides with the abbreviation's own
+    placement search on short lines.
+
+  Both rules are given the SAME masked-id list even though only the
+  abbreviation sits on a line, because masking is per QGIS layer rather
+  than per rule - rules declaring different lists make QGIS log
+  "Different sets of symbol layers are masked by different sources!
+  Only one (arbitrary) set will be retained!" and silently keep one.
+  That was already learned on H-XIII's own zone labels; applying it
+  here up front rather than rediscovering it.
+
+  771 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

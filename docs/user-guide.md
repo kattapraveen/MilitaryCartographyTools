@@ -981,6 +981,20 @@ with a fixed abbreviation centred along it: **Bearing Line (B)**,
 status variant), **Torpedo (T)**, **Electro-Optical Intercept (O)**,
 **Jammer (J)**, **Radio Detention Finder (RDF)**.
 
+That abbreviation stays **upright whichever way you draw the line** —
+draw a bearing right-to-left or steeply downhill and the letter still
+reads level rather than upside-down — and it **masks the line**, so the
+line breaks cleanly around it instead of striking through the glyph.
+
+Each line also takes an optional **unique designation**, drawn at the
+line's **end**, below and to the right of the last vertex, also upright.
+This is the identifier the standard's own template shows in a small box
+near the PT.2 end (its examples include "MSL"/"MCU"/"TENT" for Electronic
+Warfare, "L3-ACT" for Acoustic, "PAT-1" for Jammer). It's free text
+rather than a fixed per-type list, so type whatever your own unit uses;
+leave it blank and nothing is drawn. Note the standard puts this box
+just *above* the end point — below-right is a deliberate choice here.
+
 A curated subset of the table's own general-purpose points — **Plan
 Ship**, **Aim Point**, **Defended Asset**, **Drop Point**, **Entry
 Point**, **Air Detonation**, **Ground Zero**, **Impact Point**,
