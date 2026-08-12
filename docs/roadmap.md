@@ -5877,6 +5877,97 @@ tested, not claimed as done here.
 
     829 tests passing on both QGIS versions.
 
+- **H-XIX batch B2 - obstacle zones and the mined-area family**
+  (2026-08-12). EIGHT area measure types, not the ten the batch title
+  guessed: 270500 (Obstacle Effects) and 270700 (Minefields) are
+  PARENT rows whose own template cell reads "N/A". B0's rescope was
+  right and the title was stale.
+
+  New `Obstacle Control Measures (Areas)` layer: Obstacle Belt/Zone/
+  Free Zone/Restricted Zone, Mined Area, Decoy Mined Area, Decoy Mined
+  Area Fenced, and UXO Area.
+
+  **Two new expression functions**, both real geometry rather than
+  styling tricks, following the precedent mct_crenellate_outline() set
+  for Fortified Area (two QgsMarkerLineSymbolLayer attempts there
+  produced a "beaded chain of floating shapes" before a geometry
+  construction fixed it):
+
+  - `mct_serrate_outline($geometry, teeth, outward)` - the zones'
+    sawtooth boundary. Same walk-the-ring cycle as crenellation, and so
+    inherits its hard-won detail: outward direction resolved once per
+    ring from winding order, because the centroid-distance test flips
+    the wrong way in concave stretches.
+  - `mct_decoy_chevron($geometry)` - the dashed inverted-V that is the
+    ONLY thing distinguishing a decoy from a real Mined Area. Map-unit
+    geometry so it scales with the polygon, as the standard's own draw
+    rules require of that block.
+
+  **The maintainer caught a real error mid-build**: the teeth on
+  Obstacle Free Zone and Obstacle Restricted Zone point INWARD, cut as
+  notches out of the shape, where Belt and Zone spike outward. The
+  first pass drew all four outward. Verified against the enlarged
+  template pictures and now pinned by a test that reads the real
+  geometry expressions, so a future edit cannot flip one silently.
+
+  **Four render-caught mistakes**, none visible in code review:
+
+  - The "M" glyphs around the mined-area perimeter were first built as
+    a repeating label with Line placement. Wrong twice over: the labels
+    ROTATE with the boundary where the template draws every M upright,
+    and the count drifts with polygon size where the template shows
+    exactly four. Now four fixed anchors, each snapped onto the real
+    boundary with closest_point() rather than used as a raw bounding-box
+    corner (which sits off the shape for anything non-rectangular).
+  - Mined Area's Fields H and W landed on top of each other and PAL
+    silently dropped one - both expressions evaluated correctly, so
+    only the render showed it. Fixed with yOffset, since `dist` is the
+    AroundPoint radius and is ignored by OverPoint (the same trap B1
+    hit). The sign convention was then confirmed by render too: a
+    POSITIVE yOffset moves the label DOWN here, so Field H, which the
+    template puts above centre, takes a negative one.
+  - Obstacle Restricted Zone's Field T sat unreadably on its own hatch
+    until the hatch layer joined the outline in the mask id list.
+  - The hatch had to fill the SERRATED shape, not the user's polygon,
+    or the teeth sit outside the fill - make_polygon() closes the
+    serrated ring back into an area.
+
+  **A standing test earned its keep.** B2's first pass put its eight
+  area codes into sidc.py's own ENTITIES; test_control_measure_points'
+  own "every entity is offered by SOME dropdown" invariant failed
+  immediately. It was right: ENTITIES is the milsymbol-rendered POINT
+  vocabulary, and every hand-drawn line/area measure type in this
+  appendix carries its code in module-level data instead. The codes
+  moved to AREA_MEASURE_TYPE_CODES.
+
+  **Colour** is the first batch with MIXED defaults - UXO Area black,
+  the rest green - so the `colour` field's default is now the CASE B1's
+  own comment predicted, DERIVED from TABLE_H_XIX_INVENTORY rather than
+  restated. The audit's "OT" (outline green, text black) is implemented
+  as exactly that: the four zones' labels are black while their outline
+  follows the colour field.
+
+  **Deliberately not built, and why:**
+
+  - **Mined Area's Field A.** The standard calls it "graphics ...
+    filled with the type of mine(s)", and mine-type selection is
+    precisely the beyond-the-standard extension the maintainer's audit
+    assigns to batch B3. A placeholder here would only be torn out.
+    Fields H ("S"/"+S") and W (self-destruct time) ARE built - the
+    standard's own Note makes those plain text.
+  - **The "N" field boxes** on Decoy Mined Area, Fenced. Boxed glyphs
+    in the TEMPLATE column are field placeholders, not drawn geometry -
+    confirmed by that entry's own EXAMPLE column, which omits them.
+
+  **One discrepancy raised rather than resolved**: the standard draws
+  Decoy Mined Area, Fenced in BLACK (measured by pixel analysis of the
+  rendered page, not judged by eye - green_px=1 against black_px=4706),
+  while the maintainer's audit leaves it unlisted and so green by their
+  own stated default rule. Built green per the audit, since colour is a
+  per-feature field the user can switch anyway.
+
+    839 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

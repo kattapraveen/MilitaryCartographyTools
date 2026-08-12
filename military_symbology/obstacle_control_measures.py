@@ -139,23 +139,36 @@ from qgis.core import (
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsField,
+    QgsFillSymbol,
+    QgsFontMarkerSymbolLayer,
+    QgsGeometryGeneratorSymbolLayer,
+    QgsLinePatternFillSymbolLayer,
+    QgsLineSymbol,
+    QgsMarkerLineSymbolLayer,
     QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
+    QgsRuleBasedLabeling,
+    QgsSimpleLineSymbolLayer,
     QgsSingleSymbolRenderer,
     QgsSvgMarkerSymbolLayer,
+    QgsSymbol,
     QgsSymbolLayer,
     QgsVectorLayer,
 )
 
-from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtCore import QMetaType, Qt
 
 from qgis.core import Qgis
 
 from ._control_measure_shared import (
     POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
+    _STATUS_LINE_STYLE_EXPRESSION,
     _build_pal_layer_settings,
+    _build_rule_based_renderer,
+    _configure_affiliation_field,
+    _configure_status_field,
     _value_map,
     add_layer_if_absent,
 )
@@ -677,4 +690,732 @@ def add_obstacle_control_measures_points_layer(iface):
         iface,
         POINTS_LAYER_NAME,
         create_obstacle_control_measures_points_layer
+    )
+
+
+# ============================================================
+# Batch B2 - obstacle zones and the mined-area family (Areas)
+# ============================================================
+
+AREAS_LAYER_NAME = "Obstacle Control Measures (Areas)"
+
+# measure_type -> the standard's own code, kept HERE rather than in
+# sidc.py's own ENTITIES.
+#
+# sidc.py's ENTITIES["control_measure"] is the milsymbol-rendered POINT
+# vocabulary only - every hand-drawn line/area measure type in this
+# appendix (Fire Support's own "ffa"/"nfa", C2's Area of Operations,
+# and so on) carries its code in module-level data like this instead.
+# B2's first pass put these eight in ENTITIES and a standing test
+# caught it immediately: that test asserts every entity in ENTITIES is
+# offered by SOME point dropdown, and an area type never can be.
+AREA_MEASURE_TYPE_CODES = {
+    "obstacle_belt": "270100",
+    "obstacle_zone": "270200",
+    "obstacle_free_zone": "270300",
+    "obstacle_restricted_zone": "270400",
+    "mined_area": "270800",
+    "decoy_mined_area": "270900",
+    "decoy_mined_area_fenced": "270901",
+    "uxo_area": "271000",
+}
+
+# The 8 buildable area rows on printed pages 573-574 and 592-593.
+# 270500 (Obstacle Effects) and 270700 (Minefields) are PARENT rows
+# whose own template cell reads "N/A" - they are headings, not
+# symbols, and are excluded here exactly as the inventory has them.
+AREA_MEASURE_TYPE_LABELS = {
+    "obstacle_belt": "Obstacle Belt",
+    "obstacle_zone": "Obstacle Zone",
+    "obstacle_free_zone": "Obstacle Free Zone",
+    "obstacle_restricted_zone": "Obstacle Restricted Zone",
+    "mined_area": "Mined Area",
+    "decoy_mined_area": "Decoy Mined Area",
+    "decoy_mined_area_fenced": "Decoy Mined Area, Fenced",
+    "uxo_area": "Unexploded Explosive Ordnance (UXO) Area",
+}
+
+# The four serrated zones, kept as a named group because three separate
+# things key off exactly this set: the serrated outline, Field T being
+# required, and the audit's own "OT" (outline green, TEXT BLACK) rule.
+_SERRATED_ZONE_TYPES = (
+    "obstacle_belt",
+    "obstacle_zone",
+    "obstacle_free_zone",
+    "obstacle_restricted_zone",
+)
+
+# The mined-area family: a plain boundary that repeats "M" around its
+# own perimeter, rather than a serrated one.
+_MINED_AREA_TYPES = (
+    "mined_area",
+    "decoy_mined_area",
+    "decoy_mined_area_fenced",
+)
+
+# Teeth around the whole perimeter. Matches mct_crenellate_outline()'s
+# own default and the template's own rough tooth density (the Obstacle
+# Belt picture counts ~14 around its boundary).
+_ZONE_TOOTH_COUNT = 14
+
+_AREA_OUTLINE_WIDTH_MM = 0.4
+
+
+def _area_default_colour_expression():
+
+    """
+    B1 could default `colour` to a plain 'green' because every one of
+    its entries was green. B2 is the first batch with MIXED defaults -
+    UXO Area is black where the rest are green - so this is the CASE
+    that B1's own comment said a later batch would need, and it is
+    DERIVED from TABLE_H_XIX_INVENTORY rather than restated, so the
+    audit stays the single source of truth for colour.
+
+    OUTLINE_GREEN_TEXT_BLACK resolves to green here: it describes the
+    OUTLINE, and the black half of it is the LABEL's business (see
+    _AREA_LABEL_COLOR_EXPRESSION).
+    """
+
+    cases = []
+
+    for measure_type, code in AREA_MEASURE_TYPE_CODES.items():
+
+        entry = TABLE_H_XIX_INVENTORY[code]
+
+        colour = BLACK if entry["colour"] == BLACK else GREEN
+
+        cases.append(
+            f"WHEN \"measure_type\" = '{measure_type}' THEN '{colour}'"
+        )
+
+    return "CASE " + " ".join(cases) + f" ELSE '{GREEN}' END"
+
+
+_AREA_OUTLINE_COLOR_EXPRESSION = (
+    f"CASE WHEN \"colour\" = '{BLACK}' THEN color_rgb(0, 0, 0)"
+    " ELSE color_rgb(0, 155, 0) END"
+)
+
+# "OT" in the maintainer's own audit - outline green, text black. So
+# the four zones' labels are black even though their outline is green.
+# Every other area type's label simply follows its own colour field.
+_AREA_LABEL_COLOR_EXPRESSION = (
+    "CASE WHEN \"measure_type\" IN ("
+    + ", ".join(f"'{t}'" for t in _SERRATED_ZONE_TYPES)
+    + ") THEN color_rgb(0, 0, 0)"
+    f" WHEN \"colour\" = '{BLACK}' THEN color_rgb(0, 0, 0)"
+    " ELSE color_rgb(0, 155, 0) END"
+)
+
+
+def _area_outline_layer():
+
+    """
+    The status-driven solid/dashed outline every area here shares
+    (H.5.1.1.3/Table H-I). NOT _control_measure_shared.py's own
+    _status_driven_area_outline_symbol(): that one colours by
+    AFFILIATION, and obstacles colour by the feature's own green/black
+    choice instead (see this module's docstring).
+    """
+
+    outline_layer = QgsSimpleLineSymbolLayer()
+
+    # The id every label rule masks against - see
+    # _MASKED_AREA_SYMBOL_LAYER_ID.
+    outline_layer.setId(_MASKED_AREA_SYMBOL_LAYER_ID)
+
+    outline_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        outline_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    outline_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    return outline_layer
+
+
+def _serrated_outline_layer(outward=True):
+
+    """
+    The four obstacle zones' own sawtooth boundary, as a real geometry
+    construction (mct_serrate_outline) inside a geometry generator -
+    not a QgsMarkerLineSymbolLayer of triangles.
+
+    That choice is not a preference: maneuver_control_measures.py's own
+    Fortified Area went through two marker-line attempts first and both
+    produced a "beaded chain of floating shapes" rather than a
+    continuous silhouette, which is why mct_crenellate_outline() exists.
+    Serration has exactly the same requirement, so it reuses exactly
+    that approach.
+    """
+
+    generator_layer = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator_layer.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator_layer.setGeometryExpression(
+        f"mct_serrate_outline($geometry, {_ZONE_TOOTH_COUNT},"
+        f" {'true' if outward else 'false'})"
+    )
+
+    line_symbol = QgsLineSymbol()
+
+    line_symbol.changeSymbolLayer(0, _area_outline_layer())
+
+    generator_layer.setSubSymbol(line_symbol)
+
+    return generator_layer
+
+
+def _serrated_zone_symbol(hatched=False, outward=True):
+
+    """
+    The four obstacle zones. Two axes of difference, not one:
+
+    - `outward` - Obstacle Belt and Obstacle Zone spike their teeth
+      OUTWARD; Obstacle Free Zone and Obstacle Restricted Zone cut them
+      INWARD, as notches bitten out of the shape. Caught by the project
+      maintainer against the template pictures after the first build
+      drew all four outward.
+    - `hatched` - Obstacle Restricted Zone is the only one of the four
+      the standard fills.
+    """
+
+    symbol = QgsFillSymbol.createSimple({"style": "no"})
+
+    if hatched:
+
+        hatch_layer = QgsLinePatternFillSymbolLayer()
+
+        # Masked as well as the outline: Obstacle Restricted Zone is
+        # the one filled area here, and its Field T sits right on the
+        # hatch. Same reasoning as No Fire Area in
+        # fire_support_coordination_measures.py.
+        hatch_layer.setId(_MASKED_AREA_HATCH_LAYER_ID)
+
+        hatch_layer.setLineAngle(45)
+        hatch_layer.setDistance(2.5)
+
+        # The colour MUST go on the sub-symbol's own line layer, not on
+        # the pattern-fill layer itself, where QGIS silently ignores it.
+        # This exact bug shipped twice before (Weapons Free Zone, then
+        # No Fire Area) - see this project's own roadmap.
+        hatch_line = hatch_layer.subSymbol().symbolLayer(0)
+
+        hatch_line.setWidth(0.25)
+
+        _apply_obstacle_color(
+            hatch_line,
+            [QgsSymbolLayer.Property.StrokeColor],
+            _AREA_OUTLINE_COLOR_EXPRESSION
+        )
+
+        # The hatch has to fill the SERRATED shape, not the user's own
+        # polygon, or the teeth sit outside the fill. make_polygon()
+        # closes the serrated ring back into an area to hatch.
+        hatch_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+        hatch_generator.setSymbolType(QgsSymbol.SymbolType.Fill)
+
+        hatch_generator.setGeometryExpression(
+            "make_polygon(mct_serrate_outline($geometry,"
+            f" {_ZONE_TOOTH_COUNT}, {'true' if outward else 'false'}))"
+        )
+
+        hatch_fill = QgsFillSymbol.createSimple({"style": "no"})
+        hatch_fill.changeSymbolLayer(0, hatch_layer)
+
+        hatch_generator.setSubSymbol(hatch_fill)
+
+        symbol.changeSymbolLayer(0, hatch_generator)
+        symbol.appendSymbolLayer(_serrated_outline_layer(outward))
+
+    else:
+
+        symbol.changeSymbolLayer(0, _serrated_outline_layer(outward))
+
+    return symbol
+
+
+def _plain_area_symbol():
+
+    """
+    Mined Area, both Decoy variants and UXO Area: a plain boundary. The
+    "M" glyphs the mined-area family repeats around that boundary are
+    LABELS, not symbol layers - see _configure_areas_labeling() for why.
+    """
+
+    symbol = QgsFillSymbol.createSimple({"style": "no"})
+
+    symbol.changeSymbolLayer(0, _area_outline_layer())
+
+    return symbol
+
+
+def _decoy_chevron_layer():
+
+    """
+    The dashed inverted-V both Decoy variants draw at their centre -
+    the only thing distinguishing a decoy from a real Mined Area, whose
+    boundary and "M" glyphs are otherwise identical. Real map-unit
+    geometry (see mct_decoy_chevron) so it scales with the polygon, as
+    the standard's own draw rules require of this block.
+    """
+
+    generator_layer = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator_layer.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator_layer.setGeometryExpression("mct_decoy_chevron($geometry)")
+
+    chevron_line = QgsSimpleLineSymbolLayer()
+
+    chevron_line.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    # Dashed in the template regardless of status - this is part of the
+    # decoy's own iconography, not the H.5.1.1.3 present/planned rule,
+    # so it is set outright rather than driven by "status".
+    chevron_line.setPenStyle(Qt.PenStyle.DashLine)
+
+    _apply_obstacle_color(
+        chevron_line,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_symbol = QgsLineSymbol()
+
+    line_symbol.changeSymbolLayer(0, chevron_line)
+
+    generator_layer.setSubSymbol(line_symbol)
+
+    return generator_layer
+
+
+def _fence_marker_layer():
+
+    """
+    The "X" marks repeating around Decoy Mined Area, Fenced - the fence
+    itself. A QgsMarkerLineSymbolLayer is fine here, unlike for the "M"
+    glyphs: the X's do NOT interrupt the boundary in the template (it
+    is dashed and simply runs behind them), so nothing needs masking,
+    and masking is the only reason the M's had to become PAL labels.
+    """
+
+    fence_marker = QgsFontMarkerSymbolLayer("Arial", "X", 2.6)
+
+    _apply_obstacle_color(
+        fence_marker,
+        [QgsSymbolLayer.Property.FillColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    marker_line = QgsMarkerLineSymbolLayer()
+
+    marker_line.setInterval(6.0)
+
+    marker_line.setSubSymbol(QgsMarkerSymbol([fence_marker]))
+
+    return marker_line
+
+
+def _decoy_mined_area_symbol(fenced=False):
+
+    """
+    Decoy Mined Area (270900) and Decoy Mined Area, Fenced (270901).
+    Both carry the chevron; the fenced variant additionally dashes its
+    boundary and repeats "X" fence marks around it.
+    """
+
+    symbol = QgsFillSymbol.createSimple({"style": "no"})
+
+    outline_layer = _area_outline_layer()
+
+    if fenced:
+
+        # The fenced variant's boundary is dashed in the template
+        # whatever its status, so this overrides the status-driven
+        # solid/dashed rule rather than sitting alongside it.
+        outline_layer.setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeStyle,
+            QgsProperty.fromExpression("'dash'")
+        )
+
+    symbol.changeSymbolLayer(0, outline_layer)
+
+    if fenced:
+        symbol.appendSymbolLayer(_fence_marker_layer())
+
+    symbol.appendSymbolLayer(_decoy_chevron_layer())
+
+    return symbol
+
+
+_AREA_SYMBOL_BUILDERS = {
+    "obstacle_belt": _serrated_zone_symbol,
+    "obstacle_zone": _serrated_zone_symbol,
+    "obstacle_free_zone": lambda: _serrated_zone_symbol(outward=False),
+    "obstacle_restricted_zone": lambda: _serrated_zone_symbol(
+        hatched=True, outward=False
+    ),
+    "mined_area": _plain_area_symbol,
+    "decoy_mined_area": _decoy_mined_area_symbol,
+    "decoy_mined_area_fenced": lambda: _decoy_mined_area_symbol(fenced=True),
+    "uxo_area": _plain_area_symbol,
+}
+
+
+# --- Labels -------------------------------------------------------
+
+# Field T. The four zones require it (the maintainer's own audit); the
+# mined-area family and UXO Area do not carry one at all.
+_AREA_DESIGNATION_EXPRESSION = (
+    "upper(coalesce(\"unique_designation\", ''))"
+)
+
+# Fields W/W1, same "dtg_start"/"dtg_end" names and same two-line split
+# already used by c2_measures.py's own Boundary, maneuver_control_
+# measures.py's own action areas and offensive_control_measures.py's
+# own Axis of Advance - not a new naming scheme. Obstacle Free Zone and
+# Obstacle Restricted Zone are the two that draw them (printed pages
+# 573-574); Belt and Zone show Field T alone.
+_AREA_DTG_TYPES = ("obstacle_free_zone", "obstacle_restricted_zone")
+
+_AREA_DTG_EXPRESSION = (
+    "CASE WHEN \"measure_type\" IN ("
+    + ", ".join(f"'{t}'" for t in _AREA_DTG_TYPES)
+    + ") AND \"dtg_start\" IS NOT NULL AND \"dtg_start\" != ''"
+    " AND \"dtg_end\" IS NOT NULL AND \"dtg_end\" != ''"
+    " THEN '\\n' || \"dtg_start\" || ' -\\n' || \"dtg_end\""
+    " ELSE '' END"
+)
+
+# Obstacle Free Zone is the one zone whose template carries a literal
+# word above Field T ("FREE"). A real PAL label CAN hold newlines (the
+# no-multi-line limitation offensive_control_measures.py documents is
+# specific to QgsFontMarkerSymbolLayer, which is not what this is), so
+# the whole stack is one expression rather than stacked marker layers.
+_ZONE_LABEL_EXPRESSION = (
+    "trim("
+    "CASE WHEN \"measure_type\" = 'obstacle_free_zone' THEN 'FREE\\n' ELSE '' END"
+    f" || {_AREA_DESIGNATION_EXPRESSION}"
+    f" || {_AREA_DTG_EXPRESSION}"
+    ")"
+)
+
+# The mined-area family repeats "M" around its own perimeter. These are
+# PAL labels, not a QgsMarkerLineSymbolLayer of "M" glyphs, for one
+# reason: the template breaks the boundary line at every M, and QGIS's
+# Selective Masking is the only tool in this codebase that cuts a hole
+# in a symbol layer - and it works on PAL labels only. A font marker
+# has no QgsTextMaskSettings at all (established in c2_measures.py's own
+# Boundary work, which went through three wrong tools before landing on
+# masking).
+_MINED_AREA_PERIMETER_EXPRESSION = (
+    "CASE WHEN \"measure_type\" IN ("
+    + ", ".join(f"'{t}'" for t in _MINED_AREA_TYPES)
+    + ") THEN 'M' ELSE '' END"
+)
+
+# FOUR fixed anchors rather than a repeating label along the perimeter.
+# The first attempt used Qgis.LabelPlacement.Line with a repeat
+# distance, and a render showed why that is wrong twice over: the
+# labels ROTATE with the boundary (the template draws every M
+# upright), and the count drifts with the polygon's size where the
+# template shows exactly four, one per side.
+#
+# Each anchor is snapped onto the real boundary with closest_point(),
+# not used as a raw bounding-box corner: for anything non-rectangular
+# a bbox point sits off the shape, which would float the M away from
+# the line it is supposed to interrupt.
+_MINED_AREA_M_ANCHORS = (
+    "closest_point(boundary($geometry),"
+    " make_point((x_min($geometry) + x_max($geometry)) / 2, y_max($geometry)))",
+    "closest_point(boundary($geometry),"
+    " make_point((x_min($geometry) + x_max($geometry)) / 2, y_min($geometry)))",
+    "closest_point(boundary($geometry),"
+    " make_point(x_min($geometry), (y_min($geometry) + y_max($geometry)) / 2))",
+    "closest_point(boundary($geometry),"
+    " make_point(x_max($geometry), (y_min($geometry) + y_max($geometry)) / 2))",
+)
+
+# Mined Area's own Fields H and W, per the standard's own Note on
+# printed page 592: H takes "S" (only scatterable mines) or "+S" (a
+# mix), and W takes the self-destruct time for scatterable mines. Both
+# are plain text there.
+#
+# The template's THIRD field, A, is deliberately NOT built here. A is
+# "graphics ... filled with the type of mine(s)", and mine-type
+# selection is exactly the extension the maintainer's audit assigns to
+# batch B3 ("the minefield family is specified beyond the standard").
+# Building a placeholder here would only be torn out by B3.
+_MINED_AREA_FIELD_H_EXPRESSION = (
+    "CASE WHEN \"measure_type\" = 'mined_area'"
+    " THEN upper(coalesce(\"mine_indicator\", '')) ELSE '' END"
+)
+
+_MINED_AREA_FIELD_W_EXPRESSION = (
+    "CASE WHEN \"measure_type\" = 'mined_area'"
+    " THEN upper(coalesce(\"self_destruct_dtg\", '')) ELSE '' END"
+)
+
+# UXO Area draws "UXO" at each END of the shape, not at its centre -
+# left and right, exactly as its template does (printed page 593). Same
+# bounding-box anchor technique as the PAA perimeter labels in
+# fire_support_coordination_measures.py.
+_UXO_ANCHORS = (
+    "make_point(x_min($geometry), (y_min($geometry) + y_max($geometry)) / 2)",
+    "make_point(x_max($geometry), (y_min($geometry) + y_max($geometry)) / 2)",
+)
+
+_UXO_LABEL_EXPRESSION = (
+    "CASE WHEN \"measure_type\" = 'uxo_area' THEN 'UXO' ELSE '' END"
+)
+
+# Every label on this layer masks the same thing: the shared outline.
+# One combined list on EVERY rule, because masking is configured per
+# LAYER, not per rule - rules declaring different lists make QGIS log
+# "Different sets of symbol layers are masked by different sources!"
+# and keep one arbitrarily.
+_MASKED_AREA_SYMBOL_LAYER_ID = "obstacle_area_outline"
+_MASKED_AREA_HATCH_LAYER_ID = "obstacle_area_hatch"
+
+_MASKED_AREA_LAYER_IDS = [
+    _MASKED_AREA_SYMBOL_LAYER_ID,
+    _MASKED_AREA_HATCH_LAYER_ID,
+]
+
+
+def _labelled_rule(layer, expression, filter_expression,
+                   placement=Qgis.LabelPlacement.OverPoint,
+                   y_offset_mm=None, **kwargs):
+
+    """
+    One rule of this layer's labelling tree, with the obstacle colour
+    rule applied.
+
+    NOTE the settings object is held in its own variable before its
+    data-defined properties are touched. _build_pal_layer_settings()
+    returns by value and chaining off it (settings.format().mask()...)
+    lets the temporary's C++ object be collected mid-expression, which
+    segfaults the interpreter - hit repeatedly on this project.
+    """
+
+    settings = _build_pal_layer_settings(
+        layer,
+        placement,
+        expression,
+        masked_symbol_layer_ids=_MASKED_AREA_LAYER_IDS,
+        **kwargs
+    )
+
+    # _build_pal_layer_settings() colours every label by AFFILIATION.
+    # Obstacles follow the feature's own green/black choice instead,
+    # and the four zones' text is black regardless ("OT" in the audit).
+    settings.dataDefinedProperties().setProperty(
+        QgsPalLayerSettings.Property.Color,
+        QgsProperty.fromExpression(_AREA_LABEL_COLOR_EXPRESSION)
+    )
+
+    # Quadrant alone anchors the label AT the point, so Mined Area's
+    # own Field H and Field W landed on top of each other and PAL
+    # dropped one of them (caught by render - both expressions
+    # evaluated fine). This needs yOffset, NOT `dist`: `dist` is the
+    # radius for AroundPoint placement and is ignored by OverPoint.
+    #
+    # Sign convention confirmed BY RENDER, not assumed: a POSITIVE
+    # yOffset moves the label DOWN here, so Field H (which the template
+    # puts above the centre) takes a negative one.
+    if y_offset_mm is not None:
+
+        settings.yOffset = y_offset_mm
+        settings.offsetUnits = Qgis.RenderUnit.Millimeters
+
+    rule = QgsRuleBasedLabeling.Rule(settings)
+
+    rule.setFilterExpression(filter_expression)
+
+    return rule
+
+
+def _configure_areas_labeling(layer):
+
+    """
+    Four different label PLACEMENTS on one layer, which is why this is
+    a rule tree rather than one shared QgsPalLayerSettings:
+
+    - the four zones label once, centred (Field T, plus "FREE" and the
+      W/W1 window where the template shows them);
+    - the mined-area family repeats a masked "M" around its perimeter;
+    - Mined Area adds Field H above and Field W below that centre;
+    - UXO Area labels "UXO" at its left and right extremes instead.
+
+    Every filter is explicit and mutually exclusive - setIsElse(True)
+    does NOT suppress a rule, because each rule gets its own
+    sub-provider and an else-flagged one still labels the rows the
+    other rules matched (double labels).
+    """
+
+    zone_filter = (
+        "\"measure_type\" IN ("
+        + ", ".join(f"'{t}'" for t in _SERRATED_ZONE_TYPES)
+        + ")"
+    )
+
+    mined_filter = (
+        "\"measure_type\" IN ("
+        + ", ".join(f"'{t}'" for t in _MINED_AREA_TYPES)
+        + ")"
+    )
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    root_rule.appendChild(
+        _labelled_rule(layer, _ZONE_LABEL_EXPRESSION, zone_filter)
+    )
+
+    # "M" around the perimeter. Placement Line on a polygon layer
+    # follows the ring; the repeat distance is what makes it repeat
+    # rather than label once.
+    for anchor in _MINED_AREA_M_ANCHORS:
+
+        root_rule.appendChild(
+            _labelled_rule(
+                layer,
+                _MINED_AREA_PERIMETER_EXPRESSION,
+                mined_filter,
+                label_geometry_expression=anchor,
+                quadrant=Qgis.LabelQuadrantPosition.Over,
+            )
+        )
+
+    root_rule.appendChild(
+        _labelled_rule(
+            layer,
+            _MINED_AREA_FIELD_H_EXPRESSION,
+            "\"measure_type\" = 'mined_area'",
+            quadrant=Qgis.LabelQuadrantPosition.Above,
+            y_offset_mm=-4.5,
+        )
+    )
+
+    root_rule.appendChild(
+        _labelled_rule(
+            layer,
+            _MINED_AREA_FIELD_W_EXPRESSION,
+            "\"measure_type\" = 'mined_area'",
+            quadrant=Qgis.LabelQuadrantPosition.Below,
+            y_offset_mm=4.5,
+        )
+    )
+
+    for anchor in _UXO_ANCHORS:
+
+        root_rule.appendChild(
+            _labelled_rule(
+                layer,
+                _UXO_LABEL_EXPRESSION,
+                "\"measure_type\" = 'uxo_area'",
+                label_geometry_expression=anchor,
+                quadrant=Qgis.LabelQuadrantPosition.Over,
+            )
+        )
+
+    layer.setLabeling(QgsRuleBasedLabeling(root_rule))
+
+    layer.setLabelsEnabled(True)
+
+
+def create_obstacle_control_measures_areas_layer(name=AREAS_LAYER_NAME):
+
+    """
+    A fresh, empty polygon layer for Table H-XIX's own 8 area measure
+    types (batch B2) - see AREA_MEASURE_TYPE_LABELS.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"Polygon?crs={crs.authid()}", name, "memory")
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("colour", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("dtg_start", QMetaType.Type.QString),
+            QgsField("dtg_end", QMetaType.Type.QString),
+            QgsField("mine_indicator", QMetaType.Type.QString),
+            QgsField("self_destruct_dtg", QMetaType.Type.QString),
+            QgsField("area_km2", QMetaType.Type.Double),
+            QgsField("perimeter_km", QMetaType.Type.Double),
+        ]
+    )
+
+    layer.updateFields()
+
+    fields = layer.fields()
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("measure_type"),
+        QgsEditorWidgetSetup(
+            "ValueMap", {"map": _value_map(AREA_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("colour"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(COLOUR_LABELS)})
+    )
+
+    # Affiliation plays no part in an obstacle's own colour (see this
+    # module's docstring), but it is still on the schema so an obstacle
+    # can carry a standard identity like every other control measure.
+    # This layer is hand-drawn, not milsymbol-rendered, so the
+    # lines/areas vocabulary - the one WITH "Unspecified (black)" - is
+    # the correct one here, unlike on the Points layer.
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("measure_type"), QgsDefaultValue("'obstacle_belt'")
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("colour"),
+        QgsDefaultValue(_area_default_colour_expression(), True)
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("area_km2"),
+        QgsDefaultValue("mct_area_km2($geometry)", True)
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("perimeter_km"),
+        QgsDefaultValue("mct_perimeter_km($geometry)", True)
+    )
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _AREA_SYMBOL_BUILDERS)
+    )
+
+    _configure_areas_labeling(layer)
+
+    return layer
+
+
+def add_obstacle_control_measures_areas_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        AREAS_LAYER_NAME,
+        create_obstacle_control_measures_areas_layer
     )

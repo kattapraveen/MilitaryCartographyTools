@@ -77,6 +77,7 @@ from .military_symbology.fire_support_coordination_measures import (
     add_fire_support_coordination_measures_areas_layer,
 )
 from .military_symbology.obstacle_control_measures import (
+    add_obstacle_control_measures_areas_layer,
     add_obstacle_control_measures_points_layer,
 )
 from .military_symbology.target_control_measures import (
@@ -1147,12 +1148,14 @@ class MilitaryCartographyTools:
         )
 
         self.obstacle_control_measures_action.setToolTip(
-            "Add an Obstacle Control Measures (Points) layer "
-            "(MIL-STD-2525D Appendix H.5.21, Table H-XIX: mines, booby "
-            "trap, engineer regulating point, tetrahedrons/dragons "
-            "teeth, towers). Obstacles draw green by default, with a "
-            "per-feature switch to black. The table's lines and areas "
-            "are being built in later batches."
+            "Add Obstacle Control Measures (Points) and (Areas) layers "
+            "(MIL-STD-2525D Appendix H.5.21, Table H-XIX). Points: "
+            "mines, booby trap, engineer regulating point, "
+            "tetrahedrons/dragons teeth, towers. Areas: the four "
+            "obstacle zones, the mined-area family and UXO Area. "
+            "Obstacles draw green by default, with a per-feature "
+            "switch to black. The table's lines are being built in "
+            "later batches."
         )
 
         self.obstacle_control_measures_action.triggered.connect(
@@ -2185,19 +2188,23 @@ class MilitaryCartographyTools:
 
     def create_obstacle_control_measures(self):
         """
-        Add an Obstacle Control Measures (Points) layer - Table H-XIX's
-        own protection points (MIL-STD-2525D Appendix H.5.21), ready for
-        digitizing with QGIS's own native point tool.
+        Add the Obstacle Control Measures (Points) and (Areas) layers -
+        Table H-XIX (MIL-STD-2525D Appendix H.5.21), ready for
+        digitizing with QGIS's own native tools.
 
         Obstacles draw GREEN rather than in the affiliation hue every
         other control measure uses, with a per-feature Colour field to
-        switch any one to black. Only the points exist so far; the
-        table's much larger line and area families arrive in later
+        switch any one to black. Points (batch B1) and areas (batch B2)
+        exist so far; the table's large line family arrives in later
         batches - see obstacle_control_measures.py's own docstring for
         the full inventory and batch plan.
         """
 
         add_obstacle_control_measures_points_layer(
+            self.iface
+        )
+
+        add_obstacle_control_measures_areas_layer(
             self.iface
         )
 

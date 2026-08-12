@@ -653,3 +653,284 @@ class TestPointsLayerDefaultsProduceRealSymbols(QgisTestCase):
                             svg,
                             f"{affiliation}/{status}/{entity}/{colour}"
                         )
+
+
+class TestObstacleAreasLayer(QgisTestCase):
+
+    """
+    Batch B2 - Table H-XIX's own 8 area rows. See
+    obstacle_control_measures.py's own B2 section for the construction
+    findings these pin.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_offers_exactly_the_area_entries_b2_owns(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            AREA_MEASURE_TYPE_CODES,
+            AREA_MEASURE_TYPE_LABELS,
+        )
+
+        self.assertEqual(
+            set(AREA_MEASURE_TYPE_CODES),
+            set(AREA_MEASURE_TYPE_LABELS)
+        )
+
+        self.assertEqual(
+            set(AREA_MEASURE_TYPE_CODES.values()),
+            set(inventory_for_batch("B2"))
+        )
+
+
+    def test_excludes_the_two_parent_rows_in_its_own_page_range(self):
+
+        # 270500 (Obstacle Effects) and 270700 (Minefields) are heading
+        # rows whose own template cell reads "N/A" - a code-prefix scope
+        # would drag them in as if they were symbols.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            AREA_MEASURE_TYPE_CODES,
+        )
+
+        built = set(AREA_MEASURE_TYPE_CODES.values())
+
+        for parent_code in ("270500", "270700"):
+
+            self.assertNotIn(parent_code, built)
+
+
+    def test_colour_default_follows_the_audit_per_measure_type(self):
+
+        # B2 is the first batch with MIXED colour defaults, and the
+        # default expression is DERIVED from the inventory rather than
+        # restated - so this checks the derivation, not a copy of it.
+        from MilitaryCartographyTools.military_symbology import (
+            obstacle_control_measures as module,
+        )
+
+        layer = module.create_obstacle_control_measures_areas_layer()
+
+        idx = layer.fields().indexOf("colour")
+
+        expression = QgsExpression(
+            layer.defaultValueDefinition(idx).expression()
+        )
+
+        for measure_type, expected in (
+            ("obstacle_belt", GREEN),
+            ("obstacle_restricted_zone", GREEN),
+            ("mined_area", GREEN),
+            ("uxo_area", BLACK),
+        ):
+
+            with self.subTest(measure_type=measure_type):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("measure_type", measure_type)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                self.assertEqual(expression.evaluate(context), expected)
+
+
+    def test_every_measure_type_has_its_own_renderer_rule(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            AREA_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_areas_layer,
+        )
+
+        layer = create_obstacle_control_measures_areas_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        self.assertEqual(labels, set(AREA_MEASURE_TYPE_LABELS))
+
+
+    def test_only_the_two_carved_zones_serrate_inward(self):
+
+        # The maintainer's own catch against the template pictures:
+        # Belt and Zone spike outward, Free Zone and Restricted Zone
+        # cut their teeth inward. Read off the real geometry
+        # expressions so a future edit cannot flip one silently.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_areas_layer,
+        )
+
+        layer = create_obstacle_control_measures_areas_layer()
+
+        inward = set()
+
+        for rule in layer.renderer().rootRule().children():
+
+            for index in range(rule.symbol().symbolLayerCount()):
+
+                symbol_layer = rule.symbol().symbolLayer(index)
+
+                expression = getattr(
+                    symbol_layer, "geometryExpression", lambda: ""
+                )()
+
+                if "mct_serrate_outline" in expression and "false" in expression:
+                    inward.add(rule.label())
+
+        self.assertEqual(
+            inward,
+            {"obstacle_free_zone", "obstacle_restricted_zone"}
+        )
+
+
+    def test_areas_layer_is_created_and_added(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            AREAS_LAYER_NAME,
+            add_obstacle_control_measures_areas_layer,
+        )
+
+        iface = FakeIface()
+
+        layer = add_obstacle_control_measures_areas_layer(iface)
+
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(AREAS_LAYER_NAME)),
+            1
+        )
+
+
+class TestSerratedOutline(QgisTestCase):
+
+    """
+    The sawtooth construction behind the four obstacle zones, tested on
+    plain point lists - the same way _crenellated_ring_points() is,
+    and for the same reason: the geometry is the part that can be wrong
+    without any test noticing.
+    """
+
+    def _square(self):
+
+        from qgis.core import QgsPointXY
+
+        return [
+            QgsPointXY(0, 0),
+            QgsPointXY(10, 0),
+            QgsPointXY(10, 10),
+            QgsPointXY(0, 10),
+        ]
+
+
+    def test_emits_one_apex_per_tooth(self):
+
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _serrated_ring_points,
+        )
+
+        points = _serrated_ring_points(self._square(), 8)
+
+        # start + (ground, apex, tooth_end) per tooth
+        self.assertEqual(len(points), 1 + 8 * 3)
+
+
+    def test_apexes_sit_exactly_one_step_off_the_ring(self):
+
+        from qgis.core import QgsGeometry
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _serrated_ring_points,
+        )
+
+        square = self._square()
+
+        ring = QgsGeometry.fromPolylineXY(square + [square[0]])
+
+        step = ring.length() / (8 * 2)
+
+        offsets = {
+            round(ring.distance(QgsGeometry.fromPointXY(point)), 6)
+            for point in _serrated_ring_points(square, 8)
+        }
+
+        self.assertEqual(offsets, {0.0, round(step, 6)})
+
+
+    def test_teeth_point_outward_or_inward_on_request(self):
+
+        from qgis.core import QgsGeometry
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _serrated_ring_points,
+        )
+
+        square = self._square()
+
+        polygon = QgsGeometry.fromPolygonXY([square + [square[0]]])
+
+        ring = QgsGeometry.fromPolylineXY(square + [square[0]])
+
+        def apexes(outward):
+
+            return [
+                point
+                for point in _serrated_ring_points(square, 8, outward)
+                if ring.distance(QgsGeometry.fromPointXY(point)) > 1e-9
+            ]
+
+        for point in apexes(True):
+
+            self.assertFalse(
+                polygon.contains(QgsGeometry.fromPointXY(point))
+            )
+
+        for point in apexes(False):
+
+            self.assertTrue(
+                polygon.contains(QgsGeometry.fromPointXY(point))
+            )
+
+
+    def test_direction_is_independent_of_ring_winding(self):
+
+        # Winding order is not normalised anywhere in this project, and
+        # a hand-digitized polygon can arrive either way round - so the
+        # outward test must not depend on it.
+        from qgis.core import QgsGeometry
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _serrated_ring_points,
+        )
+
+        square = self._square()
+        reversed_square = list(reversed(square))
+
+        for ring_points in (square, reversed_square):
+
+            polygon = QgsGeometry.fromPolygonXY(
+                [ring_points + [ring_points[0]]]
+            )
+
+            ring = QgsGeometry.fromPolylineXY(
+                ring_points + [ring_points[0]]
+            )
+
+            for point in _serrated_ring_points(ring_points, 8):
+
+                if ring.distance(QgsGeometry.fromPointXY(point)) > 1e-9:
+
+                    self.assertFalse(
+                        polygon.contains(QgsGeometry.fromPointXY(point))
+                    )

@@ -440,6 +440,214 @@ def mct_crenellate_outline(values, feature=None, parent=None):
     return QgsGeometry.fromPolylineXY(crenellated_points)
 
 
+def _serrated_ring_points(ring_points, tooth_count, outward=True):
+
+    """
+    The sawtooth counterpart to _crenellated_ring_points() above, and
+    deliberately the same walk-the-ring construction: Table H-XIX's own
+    four obstacle zones (Obstacle Belt/Zone/Free Zone/Restricted Zone,
+    270100-270400) draw a SERRATED boundary where Fortified Area draws
+    a castellated one. Read off the standard's own template pictures
+    (printed pages 573-574) at high magnification rather than from its
+    text layer, which is badly OCR-mangled throughout this table.
+
+    The tooth cycle is identical - a flat "ground" segment alternating
+    with a tooth - so this shares crenellation's own hard-won details:
+    outward direction resolved ONCE per ring from its winding order (a
+    shoelace signed-area test), because the centroid-distance test that
+    was tried first flips the wrong way in concave stretches.
+
+    The one real difference is the tooth itself. Crenellation emits TWO
+    offset corners, giving a square wave; serration emits ONE apex at
+    the tooth's own midpoint, giving a triangle. Measured off the
+    enlarged template: the apex rises about one tooth-base above the
+    boundary, so the offset is `step`, exactly as crenellation offsets
+    its corners - the two differ in shape, not in scale.
+
+    `outward` picks which way the teeth point, and the four zones are
+    NOT all the same: Obstacle Belt and Obstacle Zone spike outward,
+    while Obstacle Free Zone and Obstacle Restricted Zone cut their
+    teeth INWARD as notches bitten out of the shape. Caught by the
+    project maintainer against the template pictures - the first build
+    drew all four outward.
+    """
+
+    points = list(ring_points)
+
+    if points[0] != points[-1]:
+        points.append(points[0])
+
+    ring_geometry = QgsGeometry.fromPolylineXY(points)
+    perimeter = ring_geometry.length()
+
+    if perimeter <= 0:
+        return points
+
+    tooth_count = max(4, int(tooth_count))
+    step = perimeter / (tooth_count * 2)
+
+    signed_area = 0.0
+
+    for i in range(len(points) - 1):
+        signed_area += (
+            points[i].x() * points[i + 1].y()
+            - points[i + 1].x() * points[i].y()
+        )
+
+    is_counterclockwise = signed_area > 0
+
+    def interpolate(distance):
+
+        point = ring_geometry.interpolate(distance % perimeter).asPoint()
+
+        return QgsPointXY(point.x(), point.y())
+
+    samples = [
+        interpolate(k * step)
+        for k in range(tooth_count * 2 + 1)
+    ]
+
+    output = [samples[0]]
+
+    for k in range(0, tooth_count * 2, 2):
+
+        ground_end = samples[k + 1]
+        tooth_end = samples[k + 2]
+
+        # The flat stretch between two teeth.
+        output.append(ground_end)
+
+        dx = tooth_end.x() - ground_end.x()
+        dy = tooth_end.y() - ground_end.y()
+        length = math.hypot(dx, dy)
+
+        if length == 0:
+            output.append(tooth_end)
+            continue
+
+        dx, dy = dx / length, dy / length
+
+        # For a counterclockwise ring, the outward normal is (dy, -dx);
+        # for clockwise, the opposite. Same test as crenellation.
+        if is_counterclockwise:
+            perp_x, perp_y = dy, -dx
+        else:
+            perp_x, perp_y = -dy, dx
+
+        if not outward:
+            perp_x, perp_y = -perp_x, -perp_y
+
+        apex = QgsPointXY(
+            (ground_end.x() + tooth_end.x()) / 2.0 + perp_x * step,
+            (ground_end.y() + tooth_end.y()) / 2.0 + perp_y * step,
+        )
+
+        output.append(apex)
+        output.append(tooth_end)
+
+    return output
+
+
+@qgsfunction(
+    'mct_decoy_chevron',
+    group='Military Cartography Tools'
+)
+def mct_decoy_chevron(values, feature=None, parent=None):
+
+    """
+    The dashed inverted-V drawn inside Table H-XIX's own Decoy Mined
+    Area and Decoy Mined Area, Fenced (270900/270901, printed pages
+    592-593) - the mark that distinguishes a decoy from a real Mined
+    Area, which is otherwise the identical boundary-plus-"M" symbol.
+
+    Returned as real map-unit geometry for a geometry generator rather
+    than drawn as a fixed-size marker, because the standard's own draw
+    rules make this block "moveable and scalable as a block within the
+    area" - it has to grow with the polygon, not sit at a fixed
+    millimetre size.
+
+    Proportions measured off the enlarged template rather than guessed:
+    the apex sits about 0.185 of the shape's height above centre, the
+    two arms end about 0.20 below it and about 0.24 of its width to
+    either side.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    box = geometry.boundingBox()
+
+    centre_x = (box.xMinimum() + box.xMaximum()) / 2.0
+    centre_y = (box.yMinimum() + box.yMaximum()) / 2.0
+
+    half_span = box.width() * 0.24
+    apex_rise = box.height() * 0.185
+    arm_drop = box.height() * 0.20
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            QgsPointXY(centre_x - half_span, centre_y - arm_drop),
+            QgsPointXY(centre_x, centre_y + apex_rise),
+            QgsPointXY(centre_x + half_span, centre_y - arm_drop),
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_serrate_outline',
+    group='Military Cartography Tools'
+)
+def mct_serrate_outline(values, feature=None, parent=None):
+
+    """
+    A polygon's own exterior ring, redrawn as a continuous SERRATED
+    (sawtooth) outline - see _serrated_ring_points() for the algorithm.
+    Used as mct_serrate_outline($geometry, 14) inside a
+    QgsGeometryGeneratorSymbolLayer's own geometry expression (see
+    obstacle_control_measures.py's own obstacle-zone symbols).
+
+    Second argument: teeth around the whole perimeter, default 14.
+    Third argument: whether the teeth point OUTWARD, default true -
+    pass false for the two zones whose teeth bite inward (Obstacle Free
+    Zone and Obstacle Restricted Zone).
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+    tooth_count = int(values[1]) if len(values) > 1 else 14
+    outward = bool(values[2]) if len(values) > 2 else True
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    polygon = geometry.constGet()
+
+    if hasattr(polygon, "geometryN"):
+        polygon = polygon.geometryN(0)
+
+    exterior_ring = polygon.exteriorRing()
+
+    if exterior_ring is None:
+        return geometry
+
+    ring_points = [
+        QgsPointXY(exterior_ring.pointN(i))
+        for i in range(exterior_ring.numPoints())
+    ]
+
+    return QgsGeometry.fromPolylineXY(
+        _serrated_ring_points(ring_points, tooth_count, outward)
+    )
+
+
+
 def _azimuth_radians(start, end):
 
     """
@@ -2020,6 +2228,8 @@ _FUNCTIONS = [
     mct_perimeter_km,
     mct_length_km,
     mct_crenellate_outline,
+    mct_serrate_outline,
+    mct_decoy_chevron,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,
     mct_axis_of_advance_outer_chevron,
