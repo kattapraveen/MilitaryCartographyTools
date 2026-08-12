@@ -6419,6 +6419,37 @@ tested, not claimed as done here.
 
     882 tests passing on both QGIS versions.
 
+- **Abatis and the antitank wall, corrected again** (2026-08-12). Both
+  needed further passes, for the same underlying reason: a symbol drawn
+  ON a line is not the same as a symbol that IS the line.
+
+  **Abatis** is a KINK, not a marker: "the base of triangle touching
+  the line should be clear... not a full triangle". A marker riding the
+  line leaves the straight line running underneath it, which closes the
+  triangle - exactly what the previous attempt did. It is now real
+  geometry (mct_abatis_line), inserting a triangular detour into the
+  line near its start, so the base is genuinely open.
+
+  **The antitank wall** went through three readings before landing:
+  separate notches below a line, then Vs hanging off a line, then
+  finally "--v--v--v--", one continuous path that runs flat, dips into
+  a V and comes back up, the line joining the EDGES of the Vs. Built as
+  a tile whose flats sit at its own vertical centre, so consecutive
+  tiles leave one V side length of flat between dips - the spacing the
+  maintainer specified.
+
+  **Two rendering artifacts the maintainer caught**, both invisible in
+  code and neither reachable by reading the standard:
+
+  - Glyphs painted OVER the straight line nibble a hairline out of it
+    at each glyph's own box edge. The glyph series is now drawn
+    beneath the lines; everything here is one colour, so the order is
+    otherwise invisible.
+  - Tiling glyphs butted at exactly one glyph width still leave a
+    hairline at every join. They now overlap by a sliver.
+
+    883 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
