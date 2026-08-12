@@ -5,6 +5,7 @@ Military symbology expression functions
 for Military Cartography Tools
 """
 
+import base64
 import math
 
 from qgis.core import (
@@ -546,6 +547,45 @@ def _serrated_ring_points(ring_points, tooth_count, outward=True):
         output.append(tooth_end)
 
     return output
+
+
+@qgsfunction(
+    'mct_decoy_chevron_svg',
+    group='Military Cartography Tools'
+)
+def mct_decoy_chevron_svg(values, feature=None, parent=None):
+
+    """
+    The decoy chevron as an inline "base64:<...>" SVG path, for the
+    FIXED-SIZE case - Dummy Minefield (270705), where the chevron sits
+    above a static box on a single anchor point.
+
+    mct_decoy_chevron() cannot serve here: it returns map-unit geometry
+    sized from a polygon, and a minefield point has no polygon and must
+    not change size with the zoom.
+
+    QGIS's own marker shapes have no symmetric open V. ArrowHead was
+    tried first and renders as a diagonal arrow, not a chevron (caught
+    by render), and a Triangle would close the bottom edge the template
+    leaves open. Drawing the two strokes directly is exact, and reuses
+    the same base64 inline-SVG path format the milsymbol pipeline
+    already feeds to QgsSvgMarkerSymbolLayer.
+    """
+
+    colour = str(values[0]) if values and values[0] else "rgb(0,155,0)"
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"'
+        ' width="100" height="60">'
+        '<path d="M 4,54 L 50,8 L 96,54" fill="none"'
+        f' stroke="{colour}" stroke-width="6"'
+        ' stroke-dasharray="13,9" stroke-linecap="butt"/>'
+        '</svg>'
+    )
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
 
 
 @qgsfunction(
@@ -2230,6 +2270,7 @@ _FUNCTIONS = [
     mct_crenellate_outline,
     mct_serrate_outline,
     mct_decoy_chevron,
+    mct_decoy_chevron_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,
     mct_axis_of_advance_outer_chevron,

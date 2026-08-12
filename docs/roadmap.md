@@ -5968,6 +5968,88 @@ tested, not claimed as done here.
 
     839 tests passing on both QGIS versions.
 
+- **H-XIX batch B3 - mine types and the minefield family**
+  (2026-08-12). The maintainer opened this one by pointing out that B2
+  had shipped Mined Area without its Field A: "the user needs to be
+  given a choice of which types of mines are in the area". They then
+  asked whether to fix it immediately or fold it into B3, and how to
+  model it.
+
+  **Modelled as a FIELD, not as extra measure types.** The alternative
+  the maintainer offered was one measure type per combination ("mined
+  area - anti-personnel", "mined area - anti-tank", ...). Rejected for
+  three reasons: it does not remove the hard part (the combined variant
+  still has to alternate glyphs on a line either way); measure_type
+  maps 1:1 onto the standard's own code and a test pins it, so four
+  Mined Area variants would all claim 270800; and minefield STATE is a
+  separate axis, so splitting by type as well gives ~15-20 entries for
+  one family - the "otherwise the list is too long" problem the
+  maintainer already raised on Table H-XIV.
+
+  **The glyphs are batch B1's own icons.** Antipersonnel Mine (280200),
+  Antitank Mine (280300) and Unspecified Mine (280600) are exactly the
+  three the standard's own examples draw inside the A field, so nothing
+  new was drawn - the fill renders the same milsymbol SVGs through
+  mct_sidc_svg. Pinned by a test, so losing one from B1's vocabulary
+  fails loudly instead of silently rendering the unknown icon.
+
+  **Two glyph rules, per the maintainer**: an AREA shows just one
+  symbol of each selected type, while anything drawing more than one
+  ALTERNATES. So Mined Area's A field draws one glyph (two side by side
+  when combined), and the minefield box draws three, alternating
+  antipersonnel/antitank when combined.
+
+  **New Minefields layer** - five codes over four measure types.
+  Completed (270701) and Planned (270702) are ONE type split by
+  `status`, since their templates differ only by a solid versus dashed
+  box, which is what H.5.1.1.3's own present/planned rule already
+  drives everywhere else; the audit asked for exactly that fold. Known
+  Enemy and Suspected stay separate - "suspected" is not the same claim
+  as "planned".
+
+  Its own layer rather than more entries on B1's Points layer: those
+  are single milsymbol icons behind one SVG marker, while these are
+  hand-built composites needing a rule-based renderer and their own
+  fields.
+
+  **QgsEllipseSymbolLayer for the box**, not QgsSimpleMarkerSymbolLayer:
+  the box is wider than it is tall (~2.3:1 off the template) and a
+  simple marker has only one `size`. The ellipse layer takes an
+  independent width and height in millimetres, which is also what
+  "Size/Shape: Static" needs - a fixed screen size, not one derived
+  from anchor points. Verified to behave identically on 3.44 and 4.2
+  before being relied on.
+
+  **Render caught the chevron.** Dummy Minefield's decoy mark was first
+  built with Qgis.MarkerShape.ArrowHead, which draws a diagonal arrow
+  rather than a symmetric open V; a Triangle would have closed the
+  bottom edge the template leaves open. QGIS has no open-V marker
+  shape, so mct_decoy_chevron_svg() now returns the two strokes as an
+  inline "base64:" SVG - the same path format the milsymbol pipeline
+  already feeds to QgsSvgMarkerSymbolLayer. Note this is the FIXED-SIZE
+  case; mct_decoy_chevron() still serves the polygon case, where the
+  mark has to scale with the shape.
+
+  **A deliberate departure from the audit, raised rather than taken
+  silently**: it asked for Dummy Minefield Dynamic (270706) and Dynamic
+  Depiction (270707) to merge into one area. They are built as TWO,
+  because the dashed chevron is the only thing that says "this is a
+  decoy" - a claim about the ground, not a styling detail, and merging
+  would conflate a fake minefield with a real one. Flagged for the
+  maintainer to overrule.
+
+  Both dynamic areas scatter their mines with
+  QgsRandomMarkerFillSymbolLayer at a FIXED count and a fixed seed, so
+  the symbol reads the same at any zoom and does not reshuffle on every
+  repaint.
+
+  A standing test again did its job: the B2 areas test failed the
+  moment the two dynamic minefield areas joined that layer, and was
+  tightened to assert the real union (B2 plus those two) rather than
+  loosened to a subset.
+
+    848 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

@@ -679,8 +679,13 @@ class TestObstacleAreasLayer(QgisTestCase):
         super().tearDown()
 
 
-    def test_offers_exactly_the_area_entries_b2_owns(self):
+    def test_offers_exactly_the_area_entries_b2_and_b3_own(self):
 
+        # The Areas layer spans two batches: all of B2, plus the two
+        # minefield codes B3 draws as freeform areas rather than as the
+        # static box its other five use (270706/270707). Asserted as
+        # that union rather than loosened to a subset, so an area
+        # arriving on this layer from nowhere still fails.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             AREA_MEASURE_TYPE_CODES,
             AREA_MEASURE_TYPE_LABELS,
@@ -691,9 +696,15 @@ class TestObstacleAreasLayer(QgisTestCase):
             set(AREA_MEASURE_TYPE_LABELS)
         )
 
+        dynamic_minefield_codes = {"270706", "270707"}
+
+        self.assertTrue(
+            dynamic_minefield_codes.issubset(set(inventory_for_batch("B3")))
+        )
+
         self.assertEqual(
             set(AREA_MEASURE_TYPE_CODES.values()),
-            set(inventory_for_batch("B2"))
+            set(inventory_for_batch("B2")) | dynamic_minefield_codes
         )
 
 
@@ -934,3 +945,298 @@ class TestSerratedOutline(QgisTestCase):
                     self.assertFalse(
                         polygon.contains(QgsGeometry.fromPointXY(point))
                     )
+
+
+class TestMineTypes(QgisTestCase):
+
+    """
+    Batch B3's mine-type mechanism, shared by Mined Area's own Field A
+    and by the whole minefield family - see the module's own B3 section
+    for why this is a FIELD rather than extra measure types.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_every_mine_type_maps_to_a_b1_point_entity(self):
+
+        # The glyphs are batch B1's own icons, not new artwork - and
+        # they are the three the standard's own examples draw in the A
+        # field. If B1's vocabulary ever loses one, this fails rather
+        # than silently rendering milsymbol's unknown icon.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            MINE_TYPE_LABELS,
+            POINT_ENTITY_LABELS,
+            _MINE_TYPE_ENTITIES,
+            _MINE_TYPE_SEQUENCE,
+        )
+
+        self.assertEqual(set(_MINE_TYPE_SEQUENCE), set(MINE_TYPE_LABELS))
+
+        for entity in _MINE_TYPE_ENTITIES.values():
+
+            self.assertIn(entity, POINT_ENTITY_LABELS)
+
+        for sequence in _MINE_TYPE_SEQUENCE.values():
+
+            for member in sequence:
+
+                self.assertIn(member, _MINE_TYPE_ENTITIES)
+
+
+    def test_only_the_combined_type_draws_two_glyphs(self):
+
+        # The maintainer's rule for areas: "just one symbol each of the
+        # selected mines is adequate".
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _MINE_TYPE_SEQUENCE,
+        )
+
+        for mine_type, sequence in _MINE_TYPE_SEQUENCE.items():
+
+            with self.subTest(mine_type=mine_type):
+
+                expected = 2 if mine_type == "antipersonnel_antitank" else 1
+
+                self.assertEqual(len(sequence), expected)
+
+
+    def test_default_mine_type_is_a_real_option(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            DEFAULT_MINE_TYPE,
+            MINE_TYPE_LABELS,
+        )
+
+        self.assertIn(DEFAULT_MINE_TYPE, MINE_TYPE_LABELS)
+
+
+    def test_mined_area_glyph_resolves_to_a_real_icon(self):
+
+        import base64
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            MINE_TYPE_LABELS,
+            create_obstacle_control_measures_areas_layer,
+        )
+
+        layer = create_obstacle_control_measures_areas_layer()
+
+        expression = QgsExpression(
+            _mine_glyph_expression_for(layer, "mined_area")
+        )
+
+        for mine_type in MINE_TYPE_LABELS:
+
+            with self.subTest(mine_type=mine_type):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("measure_type", "mined_area")
+                feature.setAttribute("affiliation", "friend")
+                feature.setAttribute("colour", GREEN)
+                feature.setAttribute("mine_type", mine_type)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                path = expression.evaluate(context)
+
+                self.assertTrue(path.startswith("base64:"), path)
+
+                svg = base64.b64decode(
+                    path[len("base64:"):]
+                ).decode("utf-8")
+
+                # Not merely "a path came back" - milsymbol's unknown
+                # icon is a well-formed base64 path too.
+                self.assertNotIn("94.8206,78.1372", svg)
+
+
+def _mine_glyph_expression_for(layer, measure_type):
+
+    """The A field's first glyph expression, read off the real symbol."""
+
+    for rule in layer.renderer().rootRule().children():
+
+        if rule.label() != measure_type:
+            continue
+
+        symbol = rule.symbol()
+
+        for index in range(symbol.symbolLayerCount()):
+
+            sub_symbol = symbol.symbolLayer(index).subSymbol()
+
+            if sub_symbol is None:
+                continue
+
+            for sub_index in range(sub_symbol.symbolLayerCount()):
+
+                properties = sub_symbol.symbolLayer(
+                    sub_index
+                ).dataDefinedProperties()
+
+                if properties.isActive(QgsSymbolLayer.Property.Name):
+
+                    return properties.property(
+                        QgsSymbolLayer.Property.Name
+                    ).expressionString()
+
+    raise AssertionError(f"no mine glyph found for {measure_type}")
+
+
+class TestMinefieldsLayer(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_covers_every_minefield_code_in_the_table(self):
+
+        # Five codes over four measure types: Completed and Planned are
+        # ONE type split by `status`, per the maintainer's audit.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            MINEFIELD_MEASURE_TYPE_CODES,
+            MINEFIELD_MEASURE_TYPE_LABELS,
+        )
+
+        self.assertEqual(
+            set(MINEFIELD_MEASURE_TYPE_CODES),
+            set(MINEFIELD_MEASURE_TYPE_LABELS)
+        )
+
+        covered = {
+            code
+            for codes in MINEFIELD_MEASURE_TYPE_CODES.values()
+            for code in codes
+        }
+
+        self.assertEqual(
+            covered,
+            {"270701", "270702", "270703", "270704", "270705"}
+        )
+
+        self.assertEqual(
+            MINEFIELD_MEASURE_TYPE_CODES["minefield"],
+            ("270701", "270702")
+        )
+
+
+    def test_the_whole_b3_batch_is_built_across_the_two_layers(self):
+
+        # B3's own inventory slice, split between the Minefields layer
+        # (the static boxes) and the Areas layer (the two dynamic ones).
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            AREA_MEASURE_TYPE_CODES,
+            MINEFIELD_MEASURE_TYPE_CODES,
+        )
+
+        built = {
+            code
+            for codes in MINEFIELD_MEASURE_TYPE_CODES.values()
+            for code in codes
+        } | set(AREA_MEASURE_TYPE_CODES.values())
+
+        self.assertTrue(
+            set(inventory_for_batch("B3")).issubset(built),
+            set(inventory_for_batch("B3")) - built
+        )
+
+
+    def test_affiliation_vocabulary_is_the_points_one(self):
+
+        # The box is hand-built, but the mine glyphs inside it are real
+        # milsymbol icons, so `affiliation` DOES reach build_sidc().
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_minefields_layer,
+        )
+        from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
+
+        layer = create_obstacle_control_measures_minefields_layer()
+
+        idx = layer.fields().indexOf("affiliation")
+
+        offered = layer.editorWidgetSetup(idx).config().get("map", {})
+
+        if isinstance(offered, list):
+            stored = [v for entry in offered for v in entry.values()]
+        else:
+            stored = list(offered.values())
+
+        for value in stored:
+
+            self.assertIn(value, AFFILIATIONS)
+
+
+    def test_combined_mine_type_alternates_along_the_box(self):
+
+        # "in case of line features - alternating mines is a must" -
+        # the box's three glyphs alternate rather than repeating.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _MINE_TYPE_ENTITIES,
+            _minefield_glyph_sidc_expression,
+        )
+
+        antipersonnel = _MINE_TYPE_ENTITIES["antipersonnel"]
+        antitank = _MINE_TYPE_ENTITIES["antitank"]
+
+        first = _minefield_glyph_sidc_expression(0)
+        second = _minefield_glyph_sidc_expression(1)
+        third = _minefield_glyph_sidc_expression(2)
+
+        for expression, expected in (
+            (first, antipersonnel),
+            (second, antitank),
+            (third, antipersonnel),
+        ):
+
+            combined_clause = (
+                "WHEN \"mine_type\" = 'antipersonnel_antitank'"
+                f" THEN '{expected}'"
+            )
+
+            self.assertIn(combined_clause, expression)
+
+
+    def test_minefields_layer_is_created_and_added(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            MINEFIELDS_LAYER_NAME,
+            add_obstacle_control_measures_minefields_layer,
+        )
+
+        iface = FakeIface()
+
+        self.assertIsNotNone(
+            add_obstacle_control_measures_minefields_layer(iface)
+        )
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(MINEFIELDS_LAYER_NAME)),
+            1
+        )

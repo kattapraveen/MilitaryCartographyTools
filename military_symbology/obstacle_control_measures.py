@@ -136,7 +136,9 @@ Military Cartography Tools
 """
 
 from qgis.core import (
+    QgsCentroidFillSymbolLayer,
     QgsDefaultValue,
+    QgsEllipseSymbolLayer,
     QgsEditorWidgetSetup,
     QgsField,
     QgsFillSymbol,
@@ -145,9 +147,11 @@ from qgis.core import (
     QgsLinePatternFillSymbolLayer,
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
+    QgsSimpleMarkerSymbolLayer,
     QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
+    QgsRandomMarkerFillSymbolLayer,
     QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
     QgsSingleSymbolRenderer,
@@ -157,7 +161,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
-from qgis.PyQt.QtCore import QMetaType, Qt
+from qgis.PyQt.QtCore import QMetaType, QPointF, Qt
+from qgis.PyQt.QtGui import QColor
 
 from qgis.core import Qgis
 
@@ -718,6 +723,8 @@ AREA_MEASURE_TYPE_CODES = {
     "decoy_mined_area": "270900",
     "decoy_mined_area_fenced": "270901",
     "uxo_area": "271000",
+    "minefield_dynamic": "270707",
+    "minefield_dynamic_dummy": "270706",
 }
 
 # The 8 buildable area rows on printed pages 573-574 and 592-593.
@@ -733,6 +740,8 @@ AREA_MEASURE_TYPE_LABELS = {
     "decoy_mined_area": "Decoy Mined Area",
     "decoy_mined_area_fenced": "Decoy Mined Area, Fenced",
     "uxo_area": "Unexploded Explosive Ordnance (UXO) Area",
+    "minefield_dynamic": "Minefield - Dynamic Depiction",
+    "minefield_dynamic_dummy": "Minefield - Dummy, Dynamic",
 }
 
 # The four serrated zones, kept as a named group because three separate
@@ -943,17 +952,39 @@ def _serrated_zone_symbol(hatched=False, outward=True):
     return symbol
 
 
-def _plain_area_symbol():
+def _plain_area_symbol(mine_glyphs=False):
 
     """
     Mined Area, both Decoy variants and UXO Area: a plain boundary. The
     "M" glyphs the mined-area family repeats around that boundary are
     LABELS, not symbol layers - see _configure_areas_labeling() for why.
+
+    `mine_glyphs` adds Mined Area's own Field A (batch B3): the
+    standard fills it with "the type of mine(s) contained in the
+    minefield". Per the maintainer, an AREA shows just one glyph of
+    each selected type - the alternating treatment is for line
+    features - so a combined field draws two side by side and every
+    other type draws one, centred.
     """
 
     symbol = QgsFillSymbol.createSimple({"style": "no"})
 
     symbol.changeSymbolLayer(0, _area_outline_layer())
+
+    if mine_glyphs:
+
+        glyph_symbol = QgsMarkerSymbol(_mine_glyph_marker_layers())
+
+        centroid_layer = QgsCentroidFillSymbolLayer()
+
+        # pointOnSurface, not the true centroid: a concave or
+        # crescent-shaped minefield puts its centroid outside itself,
+        # which would float the A field off the symbol entirely.
+        centroid_layer.setPointOnSurface(True)
+
+        centroid_layer.setSubSymbol(glyph_symbol)
+
+        symbol.appendSymbolLayer(centroid_layer)
 
     return symbol
 
@@ -1057,6 +1088,84 @@ def _decoy_mined_area_symbol(fenced=False):
     return symbol
 
 
+_DYNAMIC_MINEFIELD_TYPES = ("minefield_dynamic", "minefield_dynamic_dummy")
+
+# How many mine glyphs scatter across a dynamic minefield. Fixed count
+# rather than density-based so the symbol reads the same at any zoom,
+# and a fixed seed so it does not reshuffle on every repaint.
+_DYNAMIC_MINE_COUNT = 7
+_DYNAMIC_MINE_SEED = 20250812
+
+
+def _dynamic_minefield_symbol(dummy=False):
+
+    """
+    Dynamic Depiction (270707) and Dummy Minefield, Dynamic (270706) -
+    the two minefields drawn as freeform areas rather than a static
+    box, so their mines scatter across the shape instead of sitting in
+    a row.
+
+    Kept as TWO measure types, deliberately departing from the
+    maintainer's own audit, which asked for them to merge into one.
+    Merging would conflate a DUMMY minefield with a real one: the
+    dashed chevron is the only thing that says "this is a decoy", and
+    that is a claim about the ground, not a styling detail. Raised for
+    the maintainer to overrule if they still want the merge.
+    """
+
+    symbol = QgsFillSymbol.createSimple({"style": "no"})
+
+    symbol.changeSymbolLayer(0, _area_outline_layer())
+
+    scatter = QgsRandomMarkerFillSymbolLayer()
+
+    scatter.setPointCount(_DYNAMIC_MINE_COUNT)
+    scatter.setSeed(_DYNAMIC_MINE_SEED)
+    scatter.setClipPoints(True)
+
+    # One glyph slot only: a scattered field mixes the two types across
+    # the area rather than pairing them, so slot 0's own alternation is
+    # not what is wanted here - each scattered glyph is the field's
+    # primary type.
+    scatter.setSubSymbol(QgsMarkerSymbol(_mine_glyph_marker_layers(slots=1)))
+
+    symbol.appendSymbolLayer(scatter)
+
+    if dummy:
+
+        chevron_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+        chevron_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+        # ABOVE the shape, not inside it - the template puts Dummy
+        # Minefield's chevron clear of the boundary, unlike Decoy Mined
+        # Area, which centres it.
+        chevron_generator.setGeometryExpression(
+            "translate(mct_decoy_chevron($geometry), 0,"
+            " (y_max($geometry) - y_min($geometry)) * 0.82)"
+        )
+
+        chevron_line = QgsSimpleLineSymbolLayer()
+
+        chevron_line.setWidth(_AREA_OUTLINE_WIDTH_MM)
+        chevron_line.setPenStyle(Qt.PenStyle.DashLine)
+
+        _apply_obstacle_color(
+            chevron_line,
+            [QgsSymbolLayer.Property.StrokeColor],
+            _AREA_OUTLINE_COLOR_EXPRESSION
+        )
+
+        chevron_symbol = QgsLineSymbol()
+        chevron_symbol.changeSymbolLayer(0, chevron_line)
+
+        chevron_generator.setSubSymbol(chevron_symbol)
+
+        symbol.appendSymbolLayer(chevron_generator)
+
+    return symbol
+
+
 _AREA_SYMBOL_BUILDERS = {
     "obstacle_belt": _serrated_zone_symbol,
     "obstacle_zone": _serrated_zone_symbol,
@@ -1064,10 +1173,12 @@ _AREA_SYMBOL_BUILDERS = {
     "obstacle_restricted_zone": lambda: _serrated_zone_symbol(
         hatched=True, outward=False
     ),
-    "mined_area": _plain_area_symbol,
+    "mined_area": lambda: _plain_area_symbol(mine_glyphs=True),
     "decoy_mined_area": _decoy_mined_area_symbol,
     "decoy_mined_area_fenced": lambda: _decoy_mined_area_symbol(fenced=True),
     "uxo_area": _plain_area_symbol,
+    "minefield_dynamic": _dynamic_minefield_symbol,
+    "minefield_dynamic_dummy": lambda: _dynamic_minefield_symbol(dummy=True),
 }
 
 
@@ -1352,6 +1463,7 @@ def create_obstacle_control_measures_areas_layer(name=AREAS_LAYER_NAME):
             QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("dtg_start", QMetaType.Type.QString),
             QgsField("dtg_end", QMetaType.Type.QString),
+            QgsField("mine_type", QMetaType.Type.QString),
             QgsField("mine_indicator", QMetaType.Type.QString),
             QgsField("self_destruct_dtg", QMetaType.Type.QString),
             QgsField("area_km2", QMetaType.Type.Double),
@@ -1375,6 +1487,11 @@ def create_obstacle_control_measures_areas_layer(name=AREAS_LAYER_NAME):
         QgsEditorWidgetSetup("ValueMap", {"map": _value_map(COLOUR_LABELS)})
     )
 
+    layer.setEditorWidgetSetup(
+        fields.indexOf("mine_type"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(MINE_TYPE_LABELS)})
+    )
+
     # Affiliation plays no part in an obstacle's own colour (see this
     # module's docstring), but it is still on the schema so an obstacle
     # can carry a standard identity like every other control measure.
@@ -1391,6 +1508,11 @@ def create_obstacle_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     layer.setDefaultValueDefinition(
         fields.indexOf("colour"),
         QgsDefaultValue(_area_default_colour_expression(), True)
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("mine_type"),
+        QgsDefaultValue(f"'{DEFAULT_MINE_TYPE}'")
     )
 
     layer.setDefaultValueDefinition(
@@ -1418,4 +1540,548 @@ def add_obstacle_control_measures_areas_layer(iface):
         iface,
         AREAS_LAYER_NAME,
         create_obstacle_control_measures_areas_layer
+    )
+
+
+# ============================================================
+# Batch B3 - mine types, and the minefield family
+# ============================================================
+
+# The mine-type choice the maintainer's own audit adds on top of the
+# standard. The standard itself says only that the A field is
+# "graphics ... filled with the type of mine(s) contained in the
+# minefield (see mine types listed in this appendix)" - it never
+# enumerates a picker. This is that picker.
+#
+# Modelled as a FIELD rather than as extra measure types, deliberately.
+# The alternative considered (and rejected with the maintainer) was one
+# measure type per combination - "mined area - antipersonnel", "mined
+# area - antitank", and so on. Three reasons it lost:
+#
+#  1. It does not remove the hard part. The combined variant still has
+#     to alternate two glyphs along a line either way.
+#  2. measure_type maps 1:1 onto the standard's own code and a test
+#     pins that. Four Mined Area variants would all claim 270800.
+#  3. Minefield STATE (completed/enemy/suspected/dummy) is a separate
+#     axis, so splitting by type too gives ~15-20 dropdown entries for
+#     one family - the "otherwise the list is too long" problem the
+#     maintainer already raised on Table H-XIV.
+MINE_TYPE_LABELS = {
+    "antipersonnel": "Anti-personnel",
+    "antitank": "Anti-tank",
+    "unknown": "Unknown",
+    "antipersonnel_antitank": "Anti-personnel and anti-tank",
+}
+
+DEFAULT_MINE_TYPE = "unknown"
+
+# Each mine type's own glyph, reusing batch B1's OWN point entities
+# rather than drawing anything new - and these are exactly the three
+# icons the standard's own examples show inside the A field (the filled
+# circle with horns, the plain filled circle, and the open circle).
+_MINE_TYPE_ENTITIES = {
+    "antipersonnel": "antipersonnel_mine",
+    "antitank": "antitank_mine",
+    "unknown": "unspecified_mine",
+}
+
+# A combined field shows one of each. The maintainer's rule for how
+# many to draw differs by geometry: "in case of areas, just one symbol
+# each of the selected mines is adequate, in case of line features -
+# alternating mines is a must."
+_MINE_TYPE_SEQUENCE = {
+    "antipersonnel": ("antipersonnel",),
+    "antitank": ("antitank",),
+    "unknown": ("unknown",),
+    "antipersonnel_antitank": ("antipersonnel", "antitank"),
+}
+
+
+def _mine_glyph_sidc_expression(slot):
+
+    """
+    The SIDC for the glyph in position `slot` (0-based) of the A field.
+
+    Returns an empty string when this mine type has no glyph for that
+    slot - a single-type field leaves slot 1 empty - which the caller
+    turns into a zero-size marker rather than a broken symbol.
+    """
+
+    cases = []
+
+    for mine_type, sequence in _MINE_TYPE_SEQUENCE.items():
+
+        if slot >= len(sequence):
+            continue
+
+        entity = _MINE_TYPE_ENTITIES[sequence[slot]]
+
+        cases.append(
+            f"WHEN \"mine_type\" = '{mine_type}' THEN '{entity}'"
+        )
+
+    entity_expression = "CASE " + " ".join(cases) + " ELSE '' END"
+
+    return (
+        "CASE WHEN (" + entity_expression + ") = '' THEN ''"
+        " ELSE mct_sidc_svg(mct_build_sidc("
+        "\"affiliation\", " + entity_expression + ","
+        " 'control_measure', 'unspecified', 'present', false),"
+        " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ") END"
+    )
+
+
+def _mine_glyph_present_expression(slot):
+
+    """1 when this mine type fills glyph slot `slot`, else 0."""
+
+    filled = [
+        mine_type
+        for mine_type, sequence in _MINE_TYPE_SEQUENCE.items()
+        if slot < len(sequence)
+    ]
+
+    return (
+        "CASE WHEN \"mine_type\" IN ("
+        + ", ".join(f"'{t}'" for t in filled)
+        + ") THEN 1 ELSE 0 END"
+    )
+
+
+_MINE_GLYPH_SIZE_MM = 5.0
+
+# Half the gap between the two glyphs of a combined field. A
+# single-glyph field centres instead, so the offset collapses to 0.
+_MINE_GLYPH_SPREAD_MM = 3.2
+
+
+def _mine_glyph_offset_expression(slot):
+
+    """
+    Slot 0 sits left of centre and slot 1 right of centre when BOTH are
+    drawn; a single glyph centres. Data-defined rather than fixed,
+    because the same symbol serves both cases.
+    """
+
+    combined = [
+        mine_type
+        for mine_type, sequence in _MINE_TYPE_SEQUENCE.items()
+        if len(sequence) > 1
+    ]
+
+    sign = -1 if slot == 0 else 1
+
+    return (
+        "CASE WHEN \"mine_type\" IN ("
+        + ", ".join(f"'{t}'" for t in combined)
+        + f") THEN {sign * _MINE_GLYPH_SPREAD_MM} ELSE 0 END"
+    )
+
+
+def _mine_glyph_marker_layers(slots=2):
+
+    """
+    The A field: `slots` milsymbol glyphs, each driven by the feature's
+    own mine_type.
+
+    Every slot is always present as a symbol layer; an unused one is
+    given size 0 rather than being omitted, because a symbol's layers
+    are fixed at build time while mine_type varies per feature.
+    """
+
+    layers = []
+
+    for slot in range(slots):
+
+        marker = QgsSvgMarkerSymbolLayer("")
+
+        marker.setSize(_MINE_GLYPH_SIZE_MM)
+
+        marker.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Name,
+            QgsProperty.fromExpression(_mine_glyph_sidc_expression(slot))
+        )
+
+        marker.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Size,
+            QgsProperty.fromExpression(
+                f"{_mine_glyph_present_expression(slot)}"
+                f" * {_MINE_GLYPH_SIZE_MM}"
+            )
+        )
+
+        marker.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Offset,
+            QgsProperty.fromExpression(
+                f"format('%1,0', {_mine_glyph_offset_expression(slot)})"
+            )
+        )
+
+        layers.append(marker)
+
+    return layers
+
+
+MINEFIELDS_LAYER_NAME = "Obstacle Control Measures (Minefields)"
+
+# Four measure types for the table's own five minefield point codes.
+#
+# Completed (270701) and Planned (270702) are ONE type here, split by
+# the `status` field: their templates are identical apart from a solid
+# versus dashed box, which is exactly what H.5.1.1.3's own present/
+# planned rule already drives everywhere else in this appendix. The
+# maintainer's audit asked for precisely this fold ("Planned Minefield
+# folds into Completed as a dashed variant").
+#
+# Known Enemy (270703) and Suspected/Templated (270704) stay separate
+# rather than folding the same way - also the audit's own call. They
+# differ by more than line style in practice, and "suspected" is not
+# the same claim as "planned".
+MINEFIELD_MEASURE_TYPE_LABELS = {
+    "minefield": "Minefield (Completed / Planned)",
+    "minefield_known_enemy": "Minefield - Known Enemy",
+    "minefield_suspected": "Minefield - Suspected or Templated Enemy",
+    "minefield_dummy": "Minefield - Dummy",
+}
+
+MINEFIELD_MEASURE_TYPE_CODES = {
+    "minefield": ("270701", "270702"),
+    "minefield_known_enemy": ("270703",),
+    "minefield_suspected": ("270704",),
+    "minefield_dummy": ("270705",),
+}
+
+# The two enemy variants label "ENY" at each side of the box - Field N
+# in the template, which the standard's own EXAMPLE column fills in as
+# "ENY" (unlike the "N" boxes on Decoy Mined Area, Fenced, which its
+# example leaves empty; those stay unbuilt for that reason).
+_MINEFIELD_ENEMY_TYPES = ("minefield_known_enemy", "minefield_suspected")
+
+# Always dashed regardless of status - "suspected" is the claim the
+# dashes encode here, and Dummy/Known Enemy are drawn solid.
+_MINEFIELD_ALWAYS_DASHED = ("minefield_suspected",)
+
+_MINEFIELD_BOX_WIDTH_MM = 15.0
+_MINEFIELD_BOX_HEIGHT_MM = 6.5
+
+# Three glyphs in a row inside the box, as every one of the standard's
+# own minefield examples draws it.
+_MINEFIELD_GLYPH_SLOTS = 3
+_MINEFIELD_GLYPH_PITCH_MM = 4.4
+
+
+def _minefield_glyph_sidc_expression(slot):
+
+    """
+    The glyph in box position `slot`. A single-type field repeats the
+    same glyph three times, matching the standard's own examples; a
+    combined field ALTERNATES - the maintainer's rule that alternating
+    "is a must" wherever more than one glyph is drawn.
+    """
+
+    alternating = "antipersonnel" if slot % 2 == 0 else "antitank"
+
+    cases = [
+        f"WHEN \"mine_type\" = 'antipersonnel_antitank'"
+        f" THEN '{_MINE_TYPE_ENTITIES[alternating]}'"
+    ]
+
+    for mine_type, entity in _MINE_TYPE_ENTITIES.items():
+
+        cases.append(f"WHEN \"mine_type\" = '{mine_type}' THEN '{entity}'")
+
+    entity_expression = "CASE " + " ".join(cases) + " ELSE '' END"
+
+    return (
+        "CASE WHEN (" + entity_expression + ") = '' THEN ''"
+        " ELSE mct_sidc_svg(mct_build_sidc("
+        "\"affiliation\", " + entity_expression + ","
+        " 'control_measure', 'unspecified', 'present', false),"
+        " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ") END"
+    )
+
+
+def _minefield_box_layer():
+
+    """
+    The fixed-size box every minefield point draws.
+
+    QgsEllipseSymbolLayer, not QgsSimpleMarkerSymbolLayer: the box is
+    WIDER than it is tall (measured off the template at roughly 2.3:1)
+    and a simple marker only has one `size`. The ellipse layer takes an
+    independent width and height in millimetres, which is also what
+    "Size/Shape: Static" requires - a fixed screen size, not one
+    derived from anchor points. Confirmed to behave identically on
+    QGIS 3.44 and 4.2.
+    """
+
+    box_layer = QgsEllipseSymbolLayer()
+
+    box_layer.setShape(QgsEllipseSymbolLayer.Shape.Rectangle)
+
+    box_layer.setSymbolWidth(_MINEFIELD_BOX_WIDTH_MM)
+    box_layer.setSymbolHeight(_MINEFIELD_BOX_HEIGHT_MM)
+
+    box_layer.setFillColor(QColor(0, 0, 0, 0))
+    box_layer.setStrokeWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        box_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    always_dashed = " OR ".join(
+        f"\"measure_type\" = '{t}'" for t in _MINEFIELD_ALWAYS_DASHED
+    )
+
+    box_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(
+            f"CASE WHEN {always_dashed} THEN 'dash'"
+            f" ELSE {_STATUS_LINE_STYLE_EXPRESSION} END"
+        )
+    )
+
+    return box_layer
+
+
+def _minefield_symbol(dummy=False):
+
+    """
+    A minefield point: the box, three mine glyphs inside it, and - for
+    Dummy Minefield - a dashed chevron above, the same decoy mark the
+    Decoy Mined Area carries.
+    """
+
+    layers = [_minefield_box_layer()]
+
+    first = -_MINEFIELD_GLYPH_PITCH_MM
+
+    for slot in range(_MINEFIELD_GLYPH_SLOTS):
+
+        marker = QgsSvgMarkerSymbolLayer("")
+
+        marker.setSize(_MINE_GLYPH_SIZE_MM)
+
+        marker.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Name,
+            QgsProperty.fromExpression(_minefield_glyph_sidc_expression(slot))
+        )
+
+        marker.setOffset(
+            QPointF(first + slot * _MINEFIELD_GLYPH_PITCH_MM, 0.0)
+        )
+
+        marker.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+        layers.append(marker)
+
+    if dummy:
+
+        # An inline SVG, not a QGIS marker shape: none of them is a
+        # symmetric open V. ArrowHead was tried first and rendered as a
+        # diagonal arrow (caught by render); a Triangle would close the
+        # bottom edge the template leaves open. See
+        # mct_decoy_chevron_svg().
+        chevron = QgsSvgMarkerSymbolLayer("")
+
+        chevron.setSize(_MINEFIELD_BOX_WIDTH_MM * 0.78)
+
+        chevron.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Name,
+            QgsProperty.fromExpression(
+                f"mct_decoy_chevron_svg({_POINT_MONO_COLOR_EXPRESSION})"
+            )
+        )
+
+        # The SVG's viewBox is 100x60, so at width W its own height is
+        # 0.6W - half of that, plus half the box, puts it clear above.
+        chevron_width = _MINEFIELD_BOX_WIDTH_MM * 0.78
+
+        chevron.setOffset(
+            QPointF(
+                0.0,
+                -(_MINEFIELD_BOX_HEIGHT_MM * 0.5 + chevron_width * 0.30 + 1.0)
+            )
+        )
+
+        chevron.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+        layers.append(chevron)
+
+    return QgsMarkerSymbol(layers)
+
+
+_MINEFIELD_SYMBOL_BUILDERS = {
+    "minefield": _minefield_symbol,
+    "minefield_known_enemy": _minefield_symbol,
+    "minefield_suspected": _minefield_symbol,
+    "minefield_dummy": lambda: _minefield_symbol(dummy=True),
+}
+
+
+_MINEFIELD_FIELD_H_EXPRESSION = "upper(coalesce(\"mine_indicator\", ''))"
+
+_MINEFIELD_FIELD_W_EXPRESSION = "upper(coalesce(\"self_destruct_dtg\", ''))"
+
+_MINEFIELD_ENY_EXPRESSION = (
+    "CASE WHEN \"measure_type\" IN ("
+    + ", ".join(f"'{t}'" for t in _MINEFIELD_ENEMY_TYPES)
+    + ") THEN 'ENY' ELSE '' END"
+)
+
+
+def _configure_minefields_labeling(layer):
+
+    """
+    Field H above the box, Field W below it, and "ENY" at each side for
+    the two enemy variants.
+
+    Offsets are in millimetres and sized off the box, because the box
+    is a fixed screen-size symbol - a map-unit offset would drift
+    across the symbol as the user zooms.
+    """
+
+    half_height = _MINEFIELD_BOX_HEIGHT_MM * 0.5
+    half_width = _MINEFIELD_BOX_WIDTH_MM * 0.5
+
+    rules = (
+        (_MINEFIELD_FIELD_H_EXPRESSION, Qgis.LabelQuadrantPosition.Above,
+         0.0, -(half_height + 1.6)),
+        (_MINEFIELD_FIELD_W_EXPRESSION, Qgis.LabelQuadrantPosition.Below,
+         0.0, half_height + 1.6),
+        (_MINEFIELD_ENY_EXPRESSION, Qgis.LabelQuadrantPosition.Left,
+         -(half_width + 1.2), 0.0),
+        (_MINEFIELD_ENY_EXPRESSION, Qgis.LabelQuadrantPosition.Right,
+         half_width + 1.2, 0.0),
+    )
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    for expression, quadrant, x_offset, y_offset in rules:
+
+        settings = _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.OverPoint,
+            expression,
+            quadrant=quadrant
+        )
+
+        settings.xOffset = x_offset
+        settings.yOffset = y_offset
+        settings.offsetUnits = Qgis.RenderUnit.Millimeters
+
+        settings.dataDefinedProperties().setProperty(
+            QgsPalLayerSettings.Property.Color,
+            QgsProperty.fromExpression(_AREA_OUTLINE_COLOR_EXPRESSION)
+        )
+
+        root_rule.appendChild(QgsRuleBasedLabeling.Rule(settings))
+
+    layer.setLabeling(QgsRuleBasedLabeling(root_rule))
+
+    layer.setLabelsEnabled(True)
+
+
+def create_obstacle_control_measures_minefields_layer(
+    name=MINEFIELDS_LAYER_NAME
+):
+
+    """
+    Table H-XIX's own minefield POINTS (batch B3) - five codes over
+    four measure types, each a fixed-size box of mine glyphs placed on
+    one anchor point.
+
+    Their own layer rather than more entries on the B1 Points layer:
+    those are single milsymbol icons behind one SVG marker, while these
+    are hand-built composites (a box, three glyphs and sometimes a
+    chevron) needing a rule-based renderer and their own fields.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"Point?crs={crs.authid()}", name, "memory")
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("colour", QMetaType.Type.QString),
+            QgsField("mine_type", QMetaType.Type.QString),
+            QgsField("mine_indicator", QMetaType.Type.QString),
+            QgsField("self_destruct_dtg", QMetaType.Type.QString),
+        ]
+    )
+
+    layer.updateFields()
+
+    fields = layer.fields()
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("measure_type"),
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(MINEFIELD_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("mine_type"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(MINE_TYPE_LABELS)})
+    )
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("colour"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(COLOUR_LABELS)})
+    )
+
+    # Hand-built, not milsymbol-rendered, so `affiliation` never reaches
+    # build_sidc() for the BOX - but it does for the mine glyphs inside
+    # it, which are real milsymbol icons. So this layer needs the POINTS
+    # affiliation vocabulary, not the lines/areas one.
+    layer.setEditorWidgetSetup(
+        fields.indexOf("affiliation"),
+        QgsEditorWidgetSetup(
+            "ValueMap", {"map": _value_map(POINT_AFFILIATION_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("status"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(STATUS_LABELS)})
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("measure_type"), QgsDefaultValue("'minefield'")
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("affiliation"), QgsDefaultValue("'friend'")
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("status"), QgsDefaultValue("'present'")
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("colour"), QgsDefaultValue(f"'{GREEN}'")
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("mine_type"), QgsDefaultValue(f"'{DEFAULT_MINE_TYPE}'")
+    )
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _MINEFIELD_SYMBOL_BUILDERS)
+    )
+
+    _configure_minefields_labeling(layer)
+
+    return layer
+
+
+def add_obstacle_control_measures_minefields_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        MINEFIELDS_LAYER_NAME,
+        create_obstacle_control_measures_minefields_layer
     )

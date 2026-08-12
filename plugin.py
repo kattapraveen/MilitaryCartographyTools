@@ -78,6 +78,7 @@ from .military_symbology.fire_support_coordination_measures import (
 )
 from .military_symbology.obstacle_control_measures import (
     add_obstacle_control_measures_areas_layer,
+    add_obstacle_control_measures_minefields_layer,
     add_obstacle_control_measures_points_layer,
 )
 from .military_symbology.target_control_measures import (
@@ -1153,6 +1154,9 @@ class MilitaryCartographyTools:
             "mines, booby trap, engineer regulating point, "
             "tetrahedrons/dragons teeth, towers. Areas: the four "
             "obstacle zones, the mined-area family and UXO Area. "
+            "Minefields: the table's own five minefield codes, each a "
+            "fixed-size box of mine glyphs, with an Anti-personnel / "
+            "Anti-tank / Unknown / combined mine-type choice. "
             "Obstacles draw green by default, with a per-feature "
             "switch to black. The table's lines are being built in "
             "later batches."
@@ -2205,6 +2209,10 @@ class MilitaryCartographyTools:
         )
 
         add_obstacle_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_obstacle_control_measures_minefields_layer(
             self.iface
         )
 
