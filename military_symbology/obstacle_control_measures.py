@@ -153,11 +153,8 @@ from qgis.PyQt.QtCore import QMetaType
 from qgis.core import Qgis
 
 from ._control_measure_shared import (
-    AFFILIATION_LABELS,
     STATUS_LABELS,
     _build_pal_layer_settings,
-    _configure_affiliation_field,
-    _configure_status_field,
     _value_map,
     add_layer_if_absent,
 )
@@ -478,12 +475,51 @@ _POINTS_SIDC_EXPRESSION = (
 
 _POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
 
+# NOT _control_measure_shared.py's own AFFILIATION_LABELS, and NOT its
+# _configure_affiliation_field() - both of which this layer originally
+# reused, which is the whole of the "every obstacle point renders as
+# unknown" bug (2026-08-12, caught by the maintainer's own live smoke
+# test).
+#
+# That shared pair is built for the hand-drawn LINES and AREAS layers,
+# where `affiliation` only ever picks a Qt colour. For them
+# "unspecified" is a genuine fifth value meaning "draw it black", and
+# DEFAULT_AFFILIATION is exactly that. But a POINTS layer feeds
+# `affiliation` into build_sidc(), and SIDC digit 4 has only the four
+# real standard identities - "unspecified" is not one of them. So every
+# point digitized without touching the dropdown got the shared default,
+# build_sidc() raised KeyError, mct_build_sidc() returned the error
+# MESSAGE as if it were a SIDC, and milsymbol drew its own unknown-icon
+# fallback (an inverted "?") for all 13 entities alike. The green was
+# real - monoColor is applied regardless of whether the icon resolved -
+# which is what made the failure look like a colouring quirk rather
+# than a broken SIDC.
+#
+# Same four-value dict and same 'friend' default as every other Points
+# layer in this pass (c2_measures, defensive_control_measures,
+# offensive_control_measures).
+_POINT_AFFILIATION_LABELS = {
+    "friend": "Friend",
+    "hostile": "Hostile",
+    "neutral": "Neutral",
+    "unknown": "Unknown",
+}
+
+# Affiliation has no VISIBLE effect on this particular layer - monoColor
+# repaints the whole icon green or black per the feature's own `colour`
+# field - but it still has to be a valid SIDC value, because it decides
+# whether there is an icon to repaint at all.
+
+_POINT_STATUS_LABELS = dict(STATUS_LABELS)
+
 
 def _configure_points_attribute_form(layer):
 
     fields = layer.fields()
 
+    affiliation_idx = fields.indexOf("affiliation")
     entity_idx = fields.indexOf("entity")
+    status_idx = fields.indexOf("status")
     colour_idx = fields.indexOf("colour")
 
     layer.setEditorWidgetSetup(
@@ -496,8 +532,21 @@ def _configure_points_attribute_form(layer):
         QgsEditorWidgetSetup("ValueMap", {"map": _value_map(COLOUR_LABELS)})
     )
 
-    _configure_affiliation_field(layer)
-    _configure_status_field(layer)
+    layer.setEditorWidgetSetup(
+        affiliation_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(_POINT_AFFILIATION_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        status_idx,
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(_POINT_STATUS_LABELS)})
+    )
+
+    layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
+    layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
     layer.setDefaultValueDefinition(
         entity_idx, QgsDefaultValue("'antipersonnel_mine'")

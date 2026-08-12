@@ -5757,6 +5757,71 @@ tested, not claimed as done here.
 
     739 tests passing on both QGIS versions.
 
+- **H-XIX B1 follow-up: every obstacle point rendered as "unknown"**
+  (2026-08-12) - caught by the maintainer's own live smoke test
+  immediately after B1 landed, and NOT caught by a green 821-test
+  suite. Worth recording in full, because the way it hid is more
+  reusable than the one-line fix.
+
+  **The bug.** The new Points layer configured its `affiliation` field
+  with `_control_measure_shared.py`'s own `_configure_affiliation_field()`,
+  reusing what every LINES and AREAS layer in this appendix uses. For
+  those layers that is right: `affiliation` there only ever picks a Qt
+  colour, so the shared vocabulary carries a deliberate fifth value,
+  "Unspecified (black)", and `DEFAULT_AFFILIATION` is exactly that. But
+  a POINTS layer feeds the same field into `build_sidc()`, and SIDC
+  digit 4 has only the four real standard identities. So every point
+  digitized without touching that dropdown - which is every point in a
+  smoke test - produced an invalid SIDC.
+
+  **Why it looked like a symbol bug rather than a field bug.**
+  `mct_build_sidc()` catches KeyError and returns the error MESSAGE as
+  its result. That string flows on to `mct_sidc_svg()` as if it were a
+  SIDC, milsymbol fails to resolve it, and falls back to its own
+  unknown icon (an inverted "?"). Every one of the 13 entities drew the
+  identical glyph, in the correct green - because `monoColor` is
+  applied whether or not the icon resolved. The result reads as "the
+  icons are broken", and points investigation at milsymbol, the
+  vendored build, the SIDC codes and the QGIS version - all of which
+  were fine. Probing the codes directly (all 13 valid, both QGIS
+  versions, all 104 affiliation x status combinations) is what ruled
+  the symbol pipeline out and turned attention to the layer's own
+  defaults.
+
+  **Why the tests passed.** The B1 render test asserted that the
+  data-defined path `startswith("base64:")`, and set `affiliation` to
+  "friend" by hand. Both halves were wrong: hardcoding the value meant
+  the layer's own default was never exercised by anything, and a
+  base64 path is exactly what the unknown-icon fallback also produces.
+  The assertion could not distinguish "rendered the right symbol" from
+  "rendered milsymbol's placeholder".
+
+  **The fix**, matching what `c2_measures.py`,
+  `defensive_control_measures.py` and `offensive_control_measures.py`
+  already do: the Points layer gets its own four-value
+  `_POINT_AFFILIATION_LABELS` and its own 'friend' default, instead of
+  the lines/areas helper.
+
+  **The tests that would have caught it**, now added: they build a
+  feature from the layer's OWN configured defaults rather than
+  restating them, decode the base64 payload and assert milsymbol's
+  unknown-icon path is absent - across the layer's defaults, every
+  entity, and the full sweep of what the attribute form actually
+  offers (affiliation x status x entity x colour). Verified by
+  reverting the fix: 15 of them fail, and pass again with it restored.
+
+  Also found, NOT changed: `airspace_control_measures.py`,
+  `maritime_control_measures.py` and `target_control_measures.py` build
+  their own point affiliation dropdown as `dict(AFFILIATION_LABELS)`,
+  so all three still OFFER "Unspecified (black)" on a milsymbol-
+  rendered layer. Their defaults are 'friend', so they work as shipped
+  and nothing regressed - but choosing that one menu entry produces the
+  same unknown icon. Left alone rather than folded into this fix: all
+  three are maintainer-confirmed tables, and the standing rule is one
+  symbol at a time. Raised for a decision.
+
+    821 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

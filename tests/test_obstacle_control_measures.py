@@ -468,3 +468,188 @@ class TestObstaclePointsLayer(QgisTestCase):
 
         self.assertEqual(label_for("engineer_regulating_point"), "")
         self.assertEqual(label_for("antipersonnel_mine"), "")
+
+
+# milsymbol's own unknown-icon fallback is an inverted "?" - this is a
+# stable fragment of the path it draws for it. Present in the rendered
+# SVG iff milsymbol could not resolve the SIDC it was handed.
+#
+# Needed because a "does it render?" assertion on the base64 PATH alone
+# cannot see this failure: mct_build_sidc() returns its KeyError MESSAGE
+# as a string when a component is invalid, mct_sidc_svg() hands that to
+# milsymbol, milsymbol falls back to the unknown icon, and the result is
+# still a perfectly well-formed `base64:` path. That is exactly how the
+# 2026-08-12 "every obstacle point renders as unknown" bug got past a
+# green test suite - see _POINT_AFFILIATION_LABELS' own comment.
+_MILSYMBOL_UNKNOWN_ICON_MARK = "94.8206,78.1372"
+
+
+def _decoded_icon_svg(layer, feature):
+
+    """The actual SVG a feature renders to, decoded from its base64 path."""
+
+    import base64
+
+    svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+    context = layer.createExpressionContext()
+    context.setFeature(feature)
+
+    path, ok = svg_layer.dataDefinedProperties().valueAsString(
+        QgsSymbolLayer.Property.Name, context, ""
+    )
+
+    assert ok and path.startswith("base64:"), path
+
+    return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+
+class TestPointsLayerDefaultsProduceRealSymbols(QgisTestCase):
+
+    """
+    Guards the failure the maintainer's own live smoke test caught on
+    2026-08-12: every point placed on this layer drew milsymbol's
+    unknown icon, because the layer reused the LINES/AREAS affiliation
+    helper, whose default ("unspecified") is deliberately not a SIDC
+    standard identity at all.
+
+    The lesson generalises past that one field, so these tests drive the
+    layer's OWN configured defaults rather than restating them - a
+    future default that is not in the SIDC vocabulary fails here without
+    anyone having to remember to update the test.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _feature_from_layer_defaults(self, layer):
+
+        feature = QgsFeature(layer.fields())
+
+        context = layer.createExpressionContext()
+
+        for field in layer.fields():
+
+            idx = layer.fields().indexOf(field.name())
+
+            expression = layer.defaultValueDefinition(idx).expression()
+
+            if not expression:
+                continue
+
+            feature.setAttribute(
+                field.name(), QgsExpression(expression).evaluate(context)
+            )
+
+        return feature
+
+
+    def test_affiliation_default_is_a_real_sidc_standard_identity(self):
+
+        from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        idx = layer.fields().indexOf("affiliation")
+
+        default = QgsExpression(
+            layer.defaultValueDefinition(idx).expression()
+        ).evaluate(layer.createExpressionContext())
+
+        self.assertIn(default, AFFILIATIONS)
+
+
+    def test_the_affiliation_dropdown_offers_only_valid_identities(self):
+
+        # "Unspecified (black)" is a real, useful fifth value for the
+        # hand-drawn lines/areas layers, where affiliation only picks a
+        # Qt colour. It cannot appear on a milsymbol-rendered POINTS
+        # layer, where the same field becomes SIDC digit 4.
+        from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
+        from MilitaryCartographyTools.military_symbology import (
+            obstacle_control_measures,
+        )
+
+        for affiliation in obstacle_control_measures._POINT_AFFILIATION_LABELS:
+
+            with self.subTest(affiliation=affiliation):
+
+                self.assertIn(affiliation, AFFILIATIONS)
+
+
+    def test_a_feature_built_from_the_layers_defaults_renders_a_real_icon(self):
+
+        # The exact path a freshly digitized point takes: touch no
+        # dropdown, let every field take the layer's own default.
+        layer = create_obstacle_control_measures_points_layer()
+
+        feature = self._feature_from_layer_defaults(layer)
+
+        svg = _decoded_icon_svg(layer, feature)
+
+        self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
+
+
+    def test_no_entity_renders_as_the_unknown_icon(self):
+
+        # The stronger form of
+        # test_every_entity_resolves_to_a_real_rendered_symbol, which
+        # only checked that SOME base64 path came back.
+        layer = create_obstacle_control_measures_points_layer()
+
+        for entity in POINT_ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                feature = self._feature_from_layer_defaults(layer)
+                feature.setAttribute("entity", entity)
+
+                svg = _decoded_icon_svg(layer, feature)
+
+                self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
+
+
+    def test_every_offered_dropdown_combination_renders_a_real_icon(self):
+
+        # Full sweep of what the attribute form actually lets a user
+        # pick - the smoke test the maintainer ran by hand, automated.
+        from MilitaryCartographyTools.military_symbology import (
+            obstacle_control_measures,
+        )
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        for affiliation in obstacle_control_measures._POINT_AFFILIATION_LABELS:
+
+            for status in obstacle_control_measures._POINT_STATUS_LABELS:
+
+                for entity in POINT_ENTITY_LABELS:
+
+                    for colour in (GREEN, BLACK):
+
+                        feature = QgsFeature(layer.fields())
+                        feature.setAttribute("affiliation", affiliation)
+                        feature.setAttribute("entity", entity)
+                        feature.setAttribute("status", status)
+                        feature.setAttribute("colour", colour)
+
+                        svg = _decoded_icon_svg(layer, feature)
+
+                        self.assertNotIn(
+                            _MILSYMBOL_UNKNOWN_ICON_MARK,
+                            svg,
+                            f"{affiliation}/{status}/{entity}/{colour}"
+                        )
