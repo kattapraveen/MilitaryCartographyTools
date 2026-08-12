@@ -5526,6 +5526,69 @@ tested, not claimed as done here.
 
   798 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XIX (Obstacles) batch B0 - audit only.** The
+  largest table in this appendix pass (75 code rows, printed pages
+  573-603), so it is being built in batches (tasks #39-#46). B0 builds
+  no symbols: it produces the inventory every later batch reads from,
+  as checkable data in obstacle_control_measures.py's own
+  TABLE_H_XIX_INVENTORY rather than as prose.
+
+  **Starting assumptions that turned out wrong**, all caught by reading
+  template pictures rather than the PDF's text layer (which is badly
+  OCR-mangled here - "Obstacle Fl'ee Zone", "Une Cluste1·"):
+
+  - **Obstacles are not in c2_measures.py at all.** Six point entries
+    sit on the shared control_measure_points.py layer; every line and
+    area in the table is unbuilt, and there was no obstacle module.
+  - **The table ends at printed 603, not 602.** An early boundary scan
+    said 602 because the regex matched "H-XIX" as "H-XX"; the
+    maintainer's own 573-603 was right, and 603 carries Raft Site
+    (290800), the last row.
+  - **Most of the minefield family are POINTS, not areas** - 270701-
+    270705 each say "requires one anchor point... Size/Shape: Static".
+    Only 270706/270707 are freeform areas. B3 was rescoped.
+  - **The obstacle zones are not a plain outline** - Obstacle Belt/
+    Zone/Free Zone/Restricted Zone all draw a SERRATED boundary, and
+    Restricted adds a hatch on top. Mined Area and its decoy variants
+    repeat "M" glyphs around the perimeter rather than carrying a
+    centred label. B2 was rescoped; neither can reuse
+    _status_driven_area_outline_symbol() unchanged.
+  - **Overhead Wire (282003) is a LINE despite its 28xxxx code**, the
+    single exception to the table's own Points/Lines prefix split.
+    Moved from B1 to B7.
+  - **The PDF text layer misnames 271500.** It renders as "~~ry",
+    reading as Ferry; it is Ford Easy. Ferry is 290700, a different
+    symbol on a different page. Pinned by a test.
+
+  **Two rules that govern every later batch:**
+
+  - **The code prefix does not identify the table.** 28xxxx/29xxxx are
+    shared with H-XX (shelters, fort) and H-XXI (CBRN events).
+    Anything scoped by prefix rather than page range silently pulls two
+    other tables in - pinned by a test naming each intruder.
+  - **Obstacles draw GREEN, not in the affiliation hue** - the
+    maintainer's own note, and directly visible in the table's EXAMPLE
+    column. A documented departure from H.5.3 and from every other
+    H.5.x group here, so it gets its own _apply_obstacle_color() rather
+    than quietly reusing _apply_affiliation_color(). The green is a
+    default the caller can override, because the maintainer has flagged
+    exceptions to be named per batch. B1 is where this first collides
+    with the rendering pipeline: its points come through milsymbol,
+    which owns their colour.
+
+  The inventory is verified against the standard both ways - the test's
+  expected code list is written out literally rather than derived from
+  the inventory under test, so it checks the inventory AGAINST the
+  table rather than against itself. That is the failure mode that let
+  H-XVIII's Terminally Guided Munition Footprint hide behind a
+  self-agreeing `len(...) == 11` the day before.
+
+  No layers and no plugin menu entry yet - deliberately, rather than
+  shipping three empty layers into the UI. They arrive with B1, the
+  first batch with symbols to place.
+
+  804 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---
