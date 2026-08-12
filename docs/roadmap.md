@@ -5589,6 +5589,62 @@ tested, not claimed as done here.
 
   804 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XIX B0 reconciled against the maintainer's own
+  independent audit.** They audited the table in parallel; the two
+  passes were compared entry by entry.
+
+  **Both arrived at the same 65 buildable entries from 75 code rows** -
+  no additions, no omissions either way. That agreement, reached
+  independently, is the strongest evidence either inventory is
+  complete.
+
+  **Two corrections went against B0**, both confirmed against the
+  templates before accepting:
+
+  - **Abatis (280100) is a LINE, not a point.** Its own draw rules say
+    "requires at least two anchor points... to define the line", and it
+    draws as a toothed line. B0 classified it from the "Protection
+    Points" heading above it - which is precisely the trap B0's own
+    docstring warns about, walked into on the same page it was written.
+    Moved from B1 to B4.
+  - **290400 is "Mine Cluster", not "Line Cluster".** B0 took the name
+    from the PDF's mangled "Une Cluste1" and resolved it to "Line". A
+    name read from OCR rather than from a picture - the same class of
+    error as 271500/"Ford Easy", which B0 did catch.
+
+  **The audit also supplied per-entry colour and Field T requirements**,
+  now carried in the inventory and pinned by tests. Eight entries draw
+  black rather than green (the three Obstacle Bypass variants, Bridge
+  or Gap, UXO Area, Antitank Ditch Reinforced, Antitank Wall, Lane);
+  five draw a green outline with black text (the four obstacle zones
+  and Obstacle Line); everything else defaults to green. Nine entries
+  require Field T.
+
+  **A new architectural requirement**: the user must be able to switch
+  any obstacle to black. That makes colour a per-FEATURE choice, not a
+  per-measure-type constant, so the layers need a colour field
+  defaulting to each type's own value - settled before B1 builds the
+  first layer.
+
+  **The minefield family is specified beyond the standard.** The audit
+  calls for a mine-type choice per minefield (antipersonnel/antitank/
+  unspecified/combination, alternating when combined), Completed
+  Minefield accepting either a symbol or a digitized line closed into a
+  filled rectangle, Planned folding in as a dashed variant, Known Enemy
+  adding masked "ENY" at its edges, and the two dynamic entries merging
+  into one area with randomly scattered mines. None of that is in
+  MIL-STD-2525D - it is a deliberate extension, recorded as such, and
+  B3 owns it.
+
+  **Three open questions recorded rather than guessed**, in the module
+  docstring: whether Mine Cluster (290400) and Trip Wire (290500) are
+  meant as single-click symbols despite their templates requiring two
+  and three anchor points; four code typos in the audit read as
+  intended rather than literally (270501, 280300, 271000, 270704); and
+  the reading of "OT" as outline-green/text-black.
+
+  806 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

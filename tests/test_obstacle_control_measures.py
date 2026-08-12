@@ -15,7 +15,10 @@ from .qgis_test_case import QgisTestCase
 
 from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
     AREA,
+    BLACK,
+    GREEN,
     LINE,
+    OUTLINE_GREEN_TEXT_BLACK,
     PARENT,
     POINT,
     TABLE_H_XIX_INVENTORY,
@@ -91,14 +94,18 @@ class TestTableHXIXInventory(QgisTestCase):
 
     def test_every_entry_has_a_usable_geometry_class(self):
 
-        for code, (name, geometry, batch, verified) in TABLE_H_XIX_INVENTORY.items():
+        for code, entry in TABLE_H_XIX_INVENTORY.items():
 
             with self.subTest(code=code):
 
-                self.assertIn(geometry, (AREA, LINE, POINT, PARENT))
-                self.assertTrue(name)
-                self.assertTrue(batch)
-                self.assertIsInstance(verified, bool)
+                self.assertIn(entry["geometry"], (AREA, LINE, POINT, PARENT))
+                self.assertTrue(entry["name"])
+                self.assertTrue(entry["batch"])
+                self.assertIsInstance(entry["verified"], bool)
+                self.assertIn(
+                    entry["colour"], (GREEN, BLACK, OUTLINE_GREEN_TEXT_BLACK)
+                )
+                self.assertIsInstance(entry["field_t"], bool)
 
 
     def test_parent_rows_are_excluded_from_buildable_work(self):
@@ -107,7 +114,7 @@ class TestTableHXIXInventory(QgisTestCase):
         # draw. Ten of the 75.
         parents = {
             code for code, entry in TABLE_H_XIX_INVENTORY.items()
-            if entry[1] == PARENT
+            if entry["geometry"] == PARENT
         }
 
         self.assertEqual(
@@ -130,7 +137,7 @@ class TestTableHXIXInventory(QgisTestCase):
 
         for entry in buildable_inventory().values():
 
-            self.assertNotEqual(entry[1], PARENT)
+            self.assertNotEqual(entry["geometry"], PARENT)
 
 
     def test_every_buildable_entry_is_owned_by_exactly_one_batch(self):
@@ -159,18 +166,88 @@ class TestTableHXIXInventory(QgisTestCase):
         # point... Size/Shape: Static"), not polygons.
         for code in ("270701", "270702", "270703", "270704", "270705"):
 
-            self.assertEqual(TABLE_H_XIX_INVENTORY[code][1], POINT)
+            self.assertEqual(TABLE_H_XIX_INVENTORY[code]["geometry"], POINT)
 
         # Only these two of the family are freeform areas.
         for code in ("270706", "270707"):
 
-            self.assertEqual(TABLE_H_XIX_INVENTORY[code][1], AREA)
+            self.assertEqual(TABLE_H_XIX_INVENTORY[code]["geometry"], AREA)
 
         # The one 28xxxx code that is a line, not a point.
-        self.assertEqual(TABLE_H_XIX_INVENTORY["282003"][1], LINE)
-        self.assertEqual(TABLE_H_XIX_INVENTORY["282003"][0], "Overhead Wire")
+        self.assertEqual(TABLE_H_XIX_INVENTORY["282003"]["geometry"], LINE)
+        self.assertEqual(TABLE_H_XIX_INVENTORY["282003"]["name"], "Overhead Wire")
+
+        # Abatis sits under the "Protection Points" heading but is a
+        # LINE - "requires at least two anchor points... to define the
+        # line". B0 classified it by that heading and got it wrong; the
+        # maintainer's own audit caught it.
+        self.assertEqual(TABLE_H_XIX_INVENTORY["280100"]["geometry"], LINE)
+
+        # 290400 is Mine Cluster. B0 read the PDF's "Une Cluste1" as
+        # "Line Cluster" - a name taken from mangled OCR.
+        self.assertEqual(TABLE_H_XIX_INVENTORY["290400"]["name"], "Mine Cluster")
 
         # The PDF text layer renders 271500 as "~~ry", which reads as
         # Ferry. It is Ford Easy; Ferry is 290700.
-        self.assertEqual(TABLE_H_XIX_INVENTORY["271500"][0], "Ford Easy")
-        self.assertEqual(TABLE_H_XIX_INVENTORY["290700"][0], "Ferry")
+        self.assertEqual(TABLE_H_XIX_INVENTORY["271500"]["name"], "Ford Easy")
+        self.assertEqual(TABLE_H_XIX_INVENTORY["290700"]["name"], "Ferry")
+
+
+    def test_colour_follows_the_maintainers_audit(self):
+
+        # The table-wide default is green; these are the entries the
+        # 2026-08-12 audit named as exceptions. Pinned by name because
+        # a wrong colour here is invisible in a headless test and only
+        # shows up on a printed map.
+        black = {
+            code for code, entry in TABLE_H_XIX_INVENTORY.items()
+            if entry["colour"] == BLACK
+        }
+
+        self.assertEqual(
+            black,
+            {
+                "270601",  # Obstacle Bypass Easy
+                "270602",  # Obstacle Bypass Difficult
+                "270603",  # Obstacle Bypass Impossible
+                "271100",  # Bridge or Gap
+                "271000",  # UXO Area
+                "290203",  # Antitank Ditch Reinforced with Antitank Mines
+                "290204",  # Antitank Wall
+                "290600",  # Lane
+            }
+        )
+
+        # "OT" in the audit's own shorthand - outline green, text black.
+        outline_green = {
+            code for code, entry in TABLE_H_XIX_INVENTORY.items()
+            if entry["colour"] == OUTLINE_GREEN_TEXT_BLACK
+        }
+
+        self.assertEqual(
+            outline_green,
+            {"270100", "270200", "270300", "270400", "290100"}
+        )
+
+
+    def test_field_t_follows_the_maintainers_audit(self):
+
+        required = {
+            code for code, entry in TABLE_H_XIX_INVENTORY.items()
+            if entry["field_t"]
+        }
+
+        self.assertEqual(
+            required,
+            {
+                "270100",  # Obstacle Belt
+                "270200",  # Obstacle Zone
+                "270300",  # Obstacle Free Zone
+                "270400",  # Obstacle Restricted Zone
+                "271100",  # Bridge or Gap
+                "290100",  # Obstacle Line
+                "280800",  # Engineer Regulating Point
+                "282001",  # Tower, Low
+                "282002",  # Tower, High
+            }
+        )

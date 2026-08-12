@@ -48,10 +48,10 @@ are exceptions and will name them per batch - so the helper takes the
 green as a default that a caller can override, rather than hard-coding
 it everywhere.
 
-**Three geometry findings that contradicted the initial batch plan**,
-all from reading template pictures rather than the PDF's text layer
-(which is badly OCR-mangled throughout this table - "Obstacle Fl'ee
-Zone", "Cnters and Blown Bridges", "Une Cluste1·"):
+**Findings that contradicted the initial batch plan**, all from
+reading template pictures rather than the PDF's text layer (which is
+badly OCR-mangled throughout this table - "Obstacle Fl'ee Zone",
+"Cnters and Blown Bridges", "Une Cluste1"):
 
 - **The obstacle zones are not a plain outline.** Obstacle Belt/Zone/
   Free Zone/Restricted Zone all draw a SERRATED (sawtooth) boundary,
@@ -65,6 +65,63 @@ Zone", "Cnters and Blown Bridges", "Une Cluste1·"):
 - **Mined Area and its decoy variants label their own PERIMETER** with
   repeating "M" glyphs, so they need a marker line on the boundary, not
   a plain outline plus a centred label.
+- **Abatis (280100) is a LINE, not a point** - caught by the
+  maintainer's own audit and confirmed against its template ("requires
+  at least two anchor points... to define the line", drawn as a toothed
+  line). B0 had it as a point purely because it sits under the
+  "Protection Points" heading - the exact trap finding 2 above warns
+  about, walked into on the first pass. Moved to B4, where the toothed-
+  line technique already belongs.
+- **290400 is "Mine Cluster", not "Line Cluster"** - also the
+  maintainer's catch. B0 read the PDF's own "Une Cluste1" as "Line";
+  it is "Mine". A name taken from mangled OCR rather than a picture.
+
+**Reconciled 2026-08-12 against the maintainer's own independent
+audit.** Both passes arrived at the SAME 65 buildable entries from 75
+code rows - the strongest evidence either is complete. That audit also
+supplied per-entry COLOUR and Field T requirements, both now carried in
+the inventory.
+
+**Colour rules from that audit**, over and above the green default:
+
+- **BLACK**: the three Obstacle Bypass variants, Bridge or Gap, UXO
+  Area, Antitank Ditch Reinforced with Antitank Mines, Antitank Wall,
+  and Lane.
+- **Outline green with BLACK text** ("OT" in the audit's own
+  shorthand): the four obstacle zones and Obstacle Line.
+- Everything else defaults to green.
+- **The user must be able to switch any obstacle to black.** That is a
+  per-feature choice, so the layers need a colour field defaulting to
+  each measure type's own value above - not a hard-coded symbol colour.
+  Settle before B1 builds the first layer.
+
+**OPEN QUESTIONS for the maintainer**, recorded rather than guessed:
+
+1. **Mine Cluster (290400) and Trip Wire (290500)** are listed in the
+   audit as "symbol/point", but their own templates require TWO and
+   THREE anchor points respectively ("points 1 and 2 define the corners
+   of the symbol"). They are held here as LINEs on that basis - fixed
+   glyphs whose size and orientation come from clicked points. If the
+   intent was a single-click fixed-size symbol instead, B4 changes.
+2. **Four code typos in the audit**, read as intended rather than
+   literally: Block "2700501" -> 270501; Antitank Mine "280202" ->
+   280300 (280202 does not exist); UXO Area "2701000" -> 271000;
+   Suspected/Templated Enemy Minefield "270702" -> 270704 (270702 is
+   Planned Minefield, listed separately in the same audit).
+3. **"OT"** is read as "outline green, text black", from the audit's
+   own "outline green, text black (OT - for this)".
+
+**The minefield family is specified beyond the standard.** The audit
+calls for each minefield to offer a MINE TYPE choice (antipersonnel /
+antitank / unspecified / combination, placed alternately when
+combined), and for Completed Minefield to accept either a single symbol
+or a digitized line closed into an irregular rectangle and filled with
+mine glyphs. Planned Minefield folds into Completed as a dashed
+variant; Known Enemy adds masked "ENY" at the edges; Suspected keeps
+its own entry with a dashed perimeter; Dummy Minefield Dynamic and
+Dynamic Depiction merge into one area whose mines scatter randomly.
+None of that is in the standard - it is a deliberate extension, and B3
+owns it.
 
 Military Cartography Tools
 """
@@ -104,11 +161,23 @@ def _apply_obstacle_color(symbol_layer, properties,
         )
 
 
-# Geometry classes used below.
+# Geometry classes.
 AREA = "area"
 LINE = "line"
 POINT = "point"
 PARENT = "parent"          # a heading row; template column reads "N/A"
+
+# Colour. The table-wide default is green (see module docstring).
+# OUTLINE_GREEN_TEXT_BLACK is the maintainer's own "OT" shorthand from
+# the 2026-08-12 audit: the drawn outline green, the label black. Every
+# entry the audit left unstated falls back to GREEN.
+GREEN = "green"
+BLACK = "black"
+OUTLINE_GREEN_TEXT_BLACK = "outline-green-text-black"
+
+# Whether the entry's own template shows a Field T box.
+FIELD_T = True
+NO_FIELD_T = False
 
 # Which batch (task #40-#46) owns each entry - see docs/roadmap.md.
 B1_POINTS = "B1"
@@ -125,107 +194,152 @@ B7_CROSSINGS = "B7"
 CONFIRMED = True
 ASSUMED = False
 
-# code -> (name, geometry, batch, verified)
+
+def _e(name, geometry, batch, verified=ASSUMED,
+       colour=GREEN, field_t=NO_FIELD_T):
+
+    return {
+        "name": name,
+        "geometry": geometry,
+        "batch": batch,
+        "verified": verified,
+        "colour": colour,
+        "field_t": field_t,
+    }
+
+
+# The full Table H-XIX inventory, reconciled 2026-08-12 against the
+# project maintainer's own independent audit. Where the two disagreed,
+# the entry was re-read from its own template picture and the outcome
+# is recorded in the comment beside it.
 #
-# Names come from the template pictures where the PDF's text layer is
-# mangled. Two the text layer got outright wrong, worth flagging since
-# a later reader would otherwise trust them: 271500 is "Ford Easy", not
-# "Ferry" (the OCR renders it "~~ry"), and 290700 is the actual Ferry.
+# Both audits independently arrived at the SAME 65 buildable entries out
+# of 75 code rows, which is the strongest evidence either is complete.
 TABLE_H_XIX_INVENTORY = {
-    # -- Obstacle zones (serrated boundary; Restricted adds a hatch) --
-    "270100": ("Obstacle Belt", AREA, B2_ZONES, CONFIRMED),
-    "270200": ("Obstacle Zone", AREA, B2_ZONES, CONFIRMED),
-    "270300": ("Obstacle Free Zone", AREA, B2_ZONES, CONFIRMED),
-    "270400": ("Obstacle Restricted Zone", AREA, B2_ZONES, CONFIRMED),
-    # -- Obstacle effects --
-    "270500": ("Obstacle Effects", PARENT, B5_EFFECTS, CONFIRMED),
-    "270501": ("Block", LINE, B5_EFFECTS, CONFIRMED),
-    "270502": ("Disrupt", LINE, B5_EFFECTS, CONFIRMED),
-    "270503": ("Fix", LINE, B5_EFFECTS, ASSUMED),
-    "270504": ("Turn", LINE, B5_EFFECTS, ASSUMED),
-    # -- Obstacle bypass --
-    "270600": ("Obstacle Bypass", PARENT, B6_ROADBLOCKS, ASSUMED),
-    "270601": ("Obstacle Bypass Easy", LINE, B6_ROADBLOCKS, CONFIRMED),
-    "270602": ("Obstacle Bypass Difficult", LINE, B6_ROADBLOCKS, CONFIRMED),
-    "270603": ("Obstacle Bypass Impossible", LINE, B6_ROADBLOCKS, CONFIRMED),
-    # -- Minefields (mostly fixed-size POINTS, not areas) --
-    "270700": ("Minefield", PARENT, B3_MINEFIELDS, ASSUMED),
-    "270701": ("Completed Minefield", POINT, B3_MINEFIELDS, CONFIRMED),
-    "270702": ("Planned Minefield", POINT, B3_MINEFIELDS, CONFIRMED),
-    "270703": ("Known Enemy Minefield", POINT, B3_MINEFIELDS, CONFIRMED),
-    "270704": ("Suspected or Templated Enemy Minefield", POINT,
-               B3_MINEFIELDS, CONFIRMED),
-    "270705": ("Dummy Minefield", POINT, B3_MINEFIELDS, CONFIRMED),
-    "270706": ("Dummy Minefield, Dynamic", AREA, B3_MINEFIELDS, CONFIRMED),
-    "270707": ("Dynamic Depiction", AREA, B3_MINEFIELDS, CONFIRMED),
-    # -- Mined areas (repeating "M" glyphs around the perimeter) --
-    "270800": ("Mined Area", AREA, B2_ZONES, CONFIRMED),
-    "270900": ("Decoy Mined Area", AREA, B2_ZONES, CONFIRMED),
-    "270901": ("Decoy Mined Area, Fenced", AREA, B2_ZONES, CONFIRMED),
-    "271000": ("Unexploded Explosive Ordnance (UXO) Area", AREA,
-               B2_ZONES, CONFIRMED),
+    # -- Obstacle zones: serrated boundary, Field T, outline green /
+    #    text black. Restricted Zone additionally masks its label.
+    "270100": _e("Obstacle Belt", AREA, B2_ZONES, CONFIRMED,
+                 OUTLINE_GREEN_TEXT_BLACK, FIELD_T),
+    "270200": _e("Obstacle Zone", AREA, B2_ZONES, CONFIRMED,
+                 OUTLINE_GREEN_TEXT_BLACK, FIELD_T),
+    "270300": _e("Obstacle Free Zone", AREA, B2_ZONES, CONFIRMED,
+                 OUTLINE_GREEN_TEXT_BLACK, FIELD_T),
+    "270400": _e("Obstacle Restricted Zone", AREA, B2_ZONES, CONFIRMED,
+                 OUTLINE_GREEN_TEXT_BLACK, FIELD_T),
+    # -- Obstacle effects: symbol only, size set by the user, green.
+    "270500": _e("Obstacle Effects", PARENT, B5_EFFECTS, CONFIRMED),
+    "270501": _e("Block", LINE, B5_EFFECTS, CONFIRMED, GREEN),
+    "270502": _e("Disrupt", LINE, B5_EFFECTS, CONFIRMED, GREEN),
+    "270503": _e("Fix", LINE, B5_EFFECTS, ASSUMED, GREEN),
+    "270504": _e("Turn", LINE, B5_EFFECTS, ASSUMED, GREEN),
+    # -- Obstacle bypass: symbol only, size set by the user, BLACK.
+    "270600": _e("Obstacle Bypass", PARENT, B6_ROADBLOCKS),
+    "270601": _e("Obstacle Bypass Easy", LINE, B6_ROADBLOCKS, CONFIRMED, BLACK),
+    "270602": _e("Obstacle Bypass Difficult", LINE, B6_ROADBLOCKS,
+                 CONFIRMED, BLACK),
+    "270603": _e("Obstacle Bypass Impossible", LINE, B6_ROADBLOCKS,
+                 CONFIRMED, BLACK),
+    # -- Minefields. See the module docstring's own minefield note for
+    #    the mine-type selection the maintainer specified; the geometry
+    #    here is what the STANDARD draws, which the build deliberately
+    #    extends.
+    "270700": _e("Minefield", PARENT, B3_MINEFIELDS),
+    "270701": _e("Completed Minefield", POINT, B3_MINEFIELDS, CONFIRMED, GREEN),
+    "270702": _e("Planned Minefield", POINT, B3_MINEFIELDS, CONFIRMED, GREEN),
+    "270703": _e("Known Enemy Minefield", POINT, B3_MINEFIELDS,
+                 CONFIRMED, GREEN),
+    "270704": _e("Suspected or Templated Enemy Minefield", POINT,
+                 B3_MINEFIELDS, CONFIRMED, GREEN),
+    "270705": _e("Dummy Minefield", POINT, B3_MINEFIELDS, CONFIRMED, GREEN),
+    "270706": _e("Dummy Minefield, Dynamic", AREA, B3_MINEFIELDS,
+                 CONFIRMED, GREEN),
+    "270707": _e("Dynamic Depiction", AREA, B3_MINEFIELDS, CONFIRMED, GREEN),
+    # -- Mined areas: "M" glyphs repeat around the perimeter.
+    "270800": _e("Mined Area", AREA, B2_ZONES, CONFIRMED, GREEN),
+    "270900": _e("Decoy Mined Area", AREA, B2_ZONES, CONFIRMED, GREEN),
+    "270901": _e("Decoy Mined Area, Fenced", AREA, B2_ZONES, CONFIRMED, GREEN),
+    "271000": _e("Unexploded Explosive Ordnance (UXO) Area", AREA,
+                 B2_ZONES, CONFIRMED, BLACK),
     # -- Gaps, roadblocks, craters --
-    "271100": ("Bridge or Gap", LINE, B6_ROADBLOCKS, CONFIRMED),
-    "271200": ("Roadblocks, Craters and Blown Bridges", PARENT,
-               B6_ROADBLOCKS, CONFIRMED),
-    "271201": ("Planned", LINE, B6_ROADBLOCKS, CONFIRMED),
-    "271202": ("Explosives, State of Readiness 1 (Safe)", LINE,
-               B6_ROADBLOCKS, CONFIRMED),
-    "271203": ("Explosives, State of Readiness 2 (Armed)", LINE,
-               B6_ROADBLOCKS, ASSUMED),
-    "271204": ("Roadblock Complete (Executed)", LINE, B6_ROADBLOCKS, ASSUMED),
-    # -- Water crossing sites --
-    "271300": ("Assault Crossing", LINE, B7_CROSSINGS, CONFIRMED),
-    "271400": ("Bridge", LINE, B7_CROSSINGS, CONFIRMED),
-    "271500": ("Ford Easy", LINE, B7_CROSSINGS, CONFIRMED),
-    "271600": ("Ford Difficult", LINE, B7_CROSSINGS, CONFIRMED),
+    "271100": _e("Bridge or Gap", LINE, B6_ROADBLOCKS, CONFIRMED,
+                 BLACK, FIELD_T),
+    "271200": _e("Roadblocks, Craters and Blown Bridges", PARENT,
+                 B6_ROADBLOCKS, CONFIRMED),
+    "271201": _e("Planned Roadblock", LINE, B6_ROADBLOCKS, CONFIRMED, GREEN),
+    "271202": _e("Roadblock, Explosives State of Readiness 1 (Safe)", LINE,
+                 B6_ROADBLOCKS, CONFIRMED, GREEN),
+    "271203": _e("Roadblock, Explosives State of Readiness 2 (Passable)",
+                 LINE, B6_ROADBLOCKS, ASSUMED, GREEN),
+    "271204": _e("Roadblock Complete (Executed)", LINE, B6_ROADBLOCKS,
+                 ASSUMED, GREEN),
+    # -- Water crossing sites. The maintainer's audit notes Bridge is
+    #    the same construction as Assault Crossing and could share one
+    #    builder - a scope call for B7, not folded here, since they
+    #    remain two distinct SIDCs.
+    "271300": _e("Assault Crossing", LINE, B7_CROSSINGS, CONFIRMED),
+    "271400": _e("Bridge", LINE, B7_CROSSINGS, CONFIRMED),
+    "271500": _e("Ford Easy", LINE, B7_CROSSINGS, CONFIRMED),
+    "271600": _e("Ford Difficult", LINE, B7_CROSSINGS, CONFIRMED),
     # -- Protection points --
-    "280000": ("Protection Points", PARENT, B1_POINTS, CONFIRMED),
-    "280100": ("Abatis", POINT, B1_POINTS, CONFIRMED),
-    "280200": ("Antipersonnel Mine", POINT, B1_POINTS, CONFIRMED),
-    "280201": ("Antipersonnel Mine with Directional Effects", POINT,
-               B1_POINTS, ASSUMED),
-    "280300": ("Antitank Mine", POINT, B1_POINTS, ASSUMED),
-    "280400": ("Antitank Mine with Anti-handling Device", POINT,
-               B1_POINTS, ASSUMED),
-    "280500": ("Wide Area Antitank Mine", POINT, B1_POINTS, ASSUMED),
-    "280600": ("Unspecified Mine", POINT, B1_POINTS, ASSUMED),
-    "280700": ("Booby Trap", POINT, B1_POINTS, ASSUMED),
-    "280800": ("Engineer Regulating Point", POINT, B1_POINTS, ASSUMED),
-    "281900": ("Tetrahedrons, Dragons Teeth and Other Similar Obstacles",
-               PARENT, B1_POINTS, CONFIRMED),
-    "281901": ("Fixed and Prefabricated", POINT, B1_POINTS, ASSUMED),
-    "281902": ("Movable", POINT, B1_POINTS, ASSUMED),
-    "281903": ("Movable and Prefabricated", POINT, B1_POINTS, ASSUMED),
-    "282000": ("Vertical Obstructions", PARENT, B1_POINTS, CONFIRMED),
-    "282001": ("Tower, Low", POINT, B1_POINTS, ASSUMED),
-    "282002": ("Tower, High", POINT, B1_POINTS, ASSUMED),
-    # The one 28xxxx code that is NOT a point - see module docstring.
-    "282003": ("Overhead Wire", LINE, B7_CROSSINGS, CONFIRMED),
+    "280000": _e("Protection Points", PARENT, B1_POINTS, CONFIRMED),
+    # Abatis is a LINE, not a point - the maintainer's audit caught this
+    # and the template confirms it ("requires at least two anchor
+    # points... to define the line", drawn as a toothed line). B0 had it
+    # as a point purely because it sits under the "Protection Points"
+    # heading, which is the exact trap the module docstring warns about.
+    "280100": _e("Abatis", LINE, B4_WIRE, CONFIRMED, GREEN),
+    "280200": _e("Antipersonnel Mine", POINT, B1_POINTS, CONFIRMED),
+    "280201": _e("Antipersonnel Mine with Directional Effects", POINT,
+                 B1_POINTS),
+    "280300": _e("Antitank Mine", POINT, B1_POINTS),
+    "280400": _e("Antitank Mine with Anti-handling Device", POINT, B1_POINTS),
+    "280500": _e("Wide Area Antitank Mine", POINT, B1_POINTS),
+    "280600": _e("Unspecified Mine", POINT, B1_POINTS),
+    "280700": _e("Booby Trap", POINT, B1_POINTS),
+    "280800": _e("Engineer Regulating Point", POINT, B1_POINTS,
+                 ASSUMED, GREEN, FIELD_T),
+    "281900": _e("Tetrahedrons, Dragons Teeth and Other Similar Obstacles",
+                 PARENT, B1_POINTS, CONFIRMED),
+    "281901": _e("Fixed and Prefabricated", POINT, B1_POINTS),
+    "281902": _e("Movable", POINT, B1_POINTS),
+    "281903": _e("Movable and Prefabricated", POINT, B1_POINTS),
+    "282000": _e("Vertical Obstructions", PARENT, B1_POINTS, CONFIRMED),
+    "282001": _e("Tower, Low", POINT, B1_POINTS, ASSUMED, GREEN, FIELD_T),
+    "282002": _e("Tower, High", POINT, B1_POINTS, ASSUMED, GREEN, FIELD_T),
+    # Symbol + line together, kept on the Lines layer overall.
+    "282003": _e("Overhead Wire", LINE, B7_CROSSINGS, CONFIRMED),
     # -- Protection lines --
-    "290000": ("Protection Lines", PARENT, B4_WIRE, CONFIRMED),
-    "290100": ("Obstacle Line", LINE, B4_WIRE, ASSUMED),
-    "290200": ("Antitank Obstacles", PARENT, B4_WIRE, ASSUMED),
-    "290201": ("Antitank Ditch - Under Construction", LINE, B4_WIRE, ASSUMED),
-    "290202": ("Antitank Ditch - Completed", LINE, B4_WIRE, ASSUMED),
-    "290203": ("Antitank Ditch Reinforced with Antitank Mines", LINE,
-               B4_WIRE, ASSUMED),
-    "290204": ("Antitank Wall", LINE, B4_WIRE, ASSUMED),
-    "290300": ("Wire Obstacles", PARENT, B4_WIRE, ASSUMED),
-    "290301": ("Unspecified", LINE, B4_WIRE, ASSUMED),
-    "290302": ("Single Fence", LINE, B4_WIRE, ASSUMED),
-    "290303": ("Double Fence", LINE, B4_WIRE, ASSUMED),
-    "290304": ("Double Apron Fence", LINE, B4_WIRE, ASSUMED),
-    "290305": ("Low Wire Fence", LINE, B4_WIRE, ASSUMED),
-    "290306": ("High Wire Fence", LINE, B4_WIRE, ASSUMED),
-    "290307": ("Single Concertina", LINE, B4_WIRE, ASSUMED),
-    "290308": ("Double Strand Concertina", LINE, B4_WIRE, ASSUMED),
-    "290309": ("Triple Strand Concertina", LINE, B4_WIRE, ASSUMED),
-    "290400": ("Line Cluster", LINE, B7_CROSSINGS, ASSUMED),
-    "290500": ("Trip Wire", LINE, B7_CROSSINGS, ASSUMED),
-    "290600": ("Lane", LINE, B7_CROSSINGS, ASSUMED),
-    "290700": ("Ferry", LINE, B7_CROSSINGS, ASSUMED),
-    "290800": ("Raft Site", LINE, B7_CROSSINGS, CONFIRMED),
+    "290000": _e("Protection Lines", PARENT, B4_WIRE, CONFIRMED),
+    "290100": _e("Obstacle Line", LINE, B4_WIRE, ASSUMED,
+                 OUTLINE_GREEN_TEXT_BLACK, FIELD_T),
+    "290200": _e("Antitank Obstacles", PARENT, B4_WIRE),
+    "290201": _e("Antitank Ditch - Under Construction", LINE, B4_WIRE,
+                 ASSUMED, GREEN),
+    "290202": _e("Antitank Ditch - Completed", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290203": _e("Antitank Ditch Reinforced with Antitank Mines", LINE,
+                 B4_WIRE, ASSUMED, BLACK),
+    "290204": _e("Antitank Wall", LINE, B4_WIRE, ASSUMED, BLACK),
+    "290300": _e("Wire Obstacles", PARENT, B4_WIRE),
+    "290301": _e("Unspecified Wire Obstacle", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290302": _e("Single Fence", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290303": _e("Double Fence", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290304": _e("Double Apron Fence", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290305": _e("Low Wire Fence", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290306": _e("High Wire Fence", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290307": _e("Single Concertina", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290308": _e("Double Strand Concertina", LINE, B4_WIRE, ASSUMED, GREEN),
+    "290309": _e("Triple Strand Concertina", LINE, B4_WIRE, ASSUMED, GREEN),
+    # "Mine Cluster", not "Line Cluster" - the maintainer's audit caught
+    # the name; B0 had misread the PDF's "Une Cluste1·" as Line. Its own
+    # template needs TWO anchor points ("points 1 and 2 define the
+    # corners of the symbol"), so it is digitized as a line even though
+    # it draws as one fixed glyph - see OPEN QUESTIONS in the docstring.
+    "290400": _e("Mine Cluster", LINE, B4_WIRE, CONFIRMED, GREEN),
+    # Three anchor points per its own template, so likewise a line.
+    "290500": _e("Trip Wire", LINE, B4_WIRE, CONFIRMED, GREEN),
+    "290600": _e("Lane", LINE, B7_CROSSINGS, ASSUMED, BLACK),
+    "290700": _e("Ferry", LINE, B7_CROSSINGS),
+    "290800": _e("Raft Site", LINE, B7_CROSSINGS, CONFIRMED),
 }
 
 
@@ -239,7 +353,7 @@ def inventory_for_batch(batch):
     return {
         code: entry
         for code, entry in TABLE_H_XIX_INVENTORY.items()
-        if entry[2] == batch and entry[1] != PARENT
+        if entry["batch"] == batch and entry["geometry"] != PARENT
     }
 
 
@@ -248,5 +362,5 @@ def buildable_inventory():
     return {
         code: entry
         for code, entry in TABLE_H_XIX_INVENTORY.items()
-        if entry[1] != PARENT
+        if entry["geometry"] != PARENT
     }
