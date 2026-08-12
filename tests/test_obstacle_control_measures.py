@@ -11,6 +11,8 @@ is what every later batch reads from - see that module's own docstring.
 Military Cartography Tools
 """
 
+import math
+
 from .qgis_test_case import QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
@@ -2174,7 +2176,7 @@ class TestWireObstacles(QgisTestCase):
         self.assertEqual(
             set(_WIRE_SPECS) | {
                 "abatis", "antitank_ditch_reinforced", "mine_cluster",
-                "trip_wire"
+                "trip_wire", "block", "turn",
             },
             set(LINE_MEASURE_TYPE_LABELS)
         )
@@ -3145,3 +3147,352 @@ class TestTripWireObstacle(QgisTestCase):
         )
         self.assertFalse(path.isEmpty())
         self.assertEqual(len(path.asMultiPolyline()), 3)
+
+
+class TestBlockObstacleEffect(QgisTestCase):
+
+    """
+    Block (270501) - the standard's own draw rules are fully specified
+    here (page 575): PT1-PT2 crossbar, PT3 sets the stem's own length
+    via its perpendicular distance to the PT1-PT2 line.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _parts(self, pt1, pt2, pt3):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        wkt = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(*pt1), QgsPointXY(*pt2), QgsPointXY(*pt3)]
+        ).asWkt()
+
+        expression = QgsExpression(
+            "mct_block_geometry(geom_from_wkt('{}'))".format(wkt)
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.wkbType().name, "MultiLineString")
+
+        return result.asMultiPolyline()
+
+
+    def test_too_few_vertices_returns_the_geometry_unchanged(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        two_point = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 0), QgsPointXY(0, 10)]
+        )
+
+        expression = QgsExpression(
+            "mct_block_geometry(geom_from_wkt('{}'))".format(
+                two_point.asWkt()
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.asWkt(), two_point.asWkt())
+
+
+    def test_crossbar_is_pt1_to_pt2_unmodified(self):
+
+        crossbar, _stem = self._parts((0, 10), (0, -10), (15, 0))
+
+        self.assertAlmostEqual(crossbar[0].x(), 0)
+        self.assertAlmostEqual(crossbar[0].y(), 10)
+        self.assertAlmostEqual(crossbar[1].x(), 0)
+        self.assertAlmostEqual(crossbar[1].y(), -10)
+
+
+    def test_stem_runs_from_the_crossbars_own_midpoint(self):
+
+        _crossbar, stem = self._parts((0, 10), (0, -10), (15, 0))
+
+        self.assertAlmostEqual(stem[0].x(), 0)
+        self.assertAlmostEqual(stem[0].y(), 0)
+
+
+    def test_stem_length_is_pt3s_perpendicular_distance(self):
+
+        # PT3 clicked exactly perpendicular here, so its own distance
+        # to the line IS its own x offset.
+        _crossbar, stem = self._parts((0, 10), (0, -10), (15, 0))
+
+        self.assertAlmostEqual(stem[1].x(), 15, places=6)
+        self.assertAlmostEqual(stem[1].y(), 0, places=6)
+
+
+    def test_off_axis_pt3_still_uses_perpendicular_distance(self):
+
+        # PT3 well above the crossbar's own top - the stem's length
+        # must still be the PERPENDICULAR distance to the infinite
+        # PT1-PT2 line, not the raw distance to PT3 itself.
+        _crossbar, stem = self._parts((0, 10), (0, -10), (15, 25))
+
+        self.assertAlmostEqual(stem[1].x(), 15, places=6)
+        self.assertAlmostEqual(stem[1].y(), 0, places=6)
+
+
+    def test_pt3_on_the_line_collapses_the_stem_rather_than_guessing(self):
+
+        crossbar, stem = self._parts((0, 10), (0, -10), (0, 3))
+
+        self.assertEqual(len(stem), 1)
+        self.assertAlmostEqual(stem[0].x(), 0)
+        self.assertAlmostEqual(stem[0].y(), 0)
+
+
+    def test_block_is_offered_on_the_lines_layer(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        self.assertEqual(LINE_MEASURE_TYPE_CODES["block"], "270501")
+        self.assertEqual(LINE_MEASURE_TYPE_LABELS["block"], "Block")
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        self.assertIn("block", labels)
+
+
+    def test_block_symbol_follows_present_planned_status(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _block_symbol,
+        )
+
+        symbol = _block_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 1)
+
+        inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
+
+        self.assertTrue(
+            inner_line.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.StrokeStyle
+            )
+        )
+
+
+class TestTurnObstacleEffect(QgisTestCase):
+
+    """
+    Turn (270504) - fully specified by the standard's own text (page
+    578): PT1-PT2 connected by a true 90 degree circular arc, PT3
+    picking which side it bulges toward.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _arc(self, pt1, pt2, pt3, segments=None):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        wkt = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(*pt1), QgsPointXY(*pt2), QgsPointXY(*pt3)]
+        ).asWkt()
+
+        arguments = "geom_from_wkt('{}')".format(wkt)
+
+        if segments is not None:
+            arguments += ", {}".format(segments)
+
+        expression = QgsExpression(f"mct_turn_arc({arguments})")
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_too_few_vertices_returns_the_geometry_unchanged(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        two_point = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 0), QgsPointXY(10, 0)]
+        )
+
+        expression = QgsExpression(
+            "mct_turn_arc(geom_from_wkt('{}'))".format(two_point.asWkt())
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.asWkt(), two_point.asWkt())
+
+
+    def test_arc_starts_at_pt1_and_ends_at_pt2(self):
+
+        arc = self._arc((0, 0), (10, 0), (5, 5))
+
+        vertices = arc.asPolyline()
+
+        self.assertAlmostEqual(vertices[0].x(), 0, places=6)
+        self.assertAlmostEqual(vertices[0].y(), 0, places=6)
+        self.assertAlmostEqual(vertices[-1].x(), 10, places=6)
+        self.assertAlmostEqual(vertices[-1].y(), 0, places=6)
+
+
+    def test_apex_height_matches_the_worked_90_degree_relation(self):
+
+        # Hand-derived: chord d=10 -> radius r = d/sqrt(2) = 7.0711,
+        # setback h = d/2 = 5, apex height = r - h = 2.0711.
+        arc = self._arc((0, 0), (10, 0), (5, 5))
+
+        vertices = arc.asPolyline()
+
+        apex = vertices[len(vertices) // 2]
+
+        self.assertAlmostEqual(apex.x(), 5, places=3)
+        self.assertAlmostEqual(apex.y(), 10 / math.sqrt(2) - 5, places=3)
+
+
+    def test_pt3_below_the_chord_bulges_the_arc_downward(self):
+
+        arc = self._arc((0, 0), (10, 0), (5, -5))
+
+        vertices = arc.asPolyline()
+
+        apex = vertices[len(vertices) // 2]
+
+        self.assertLess(apex.y(), 0)
+
+
+    def test_pt3_exactly_on_the_chord_does_not_error(self):
+
+        # Degenerate side selection - must resolve to SOME arc rather
+        # than raising, even though the "side" is undefined.
+        arc = self._arc((0, 0), (10, 0), (5, 0))
+
+        self.assertFalse(arc.isEmpty())
+
+
+    def test_turn_is_offered_on_the_lines_layer(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        self.assertEqual(LINE_MEASURE_TYPE_CODES["turn"], "270504")
+        self.assertEqual(LINE_MEASURE_TYPE_LABELS["turn"], "Turn")
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        self.assertIn("turn", labels)
+
+
+    def test_turn_symbol_has_a_generated_arc_and_an_arrowhead_marker(self):
+
+        from qgis.core import (
+            Qgis, QgsGeometryGeneratorSymbolLayer, QgsMarkerLineSymbolLayer
+        )
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _turn_symbol,
+        )
+
+        symbol = _turn_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        for index in (0, 1):
+
+            with self.subTest(symbol_layer=index):
+
+                self.assertIsInstance(
+                    symbol.symbolLayer(index), QgsGeometryGeneratorSymbolLayer
+                )
+                self.assertIn(
+                    "mct_turn_arc($geometry)",
+                    symbol.symbolLayer(index).geometryExpression()
+                )
+
+        # The arrowhead's own marker line lives INSIDE the second
+        # generator's subSymbol, not as a sibling layer - it must
+        # follow the arc's own last point, not the feature's raw
+        # geometry (see _turn_symbol's own comment on why).
+        chevron_marker_line = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
+
+        self.assertIsInstance(chevron_marker_line, QgsMarkerLineSymbolLayer)
+
+        self.assertEqual(
+            chevron_marker_line.placements(),
+            Qgis.MarkerLinePlacement.LastVertex
+        )
+
+
+    def test_turn_symbol_follows_present_planned_status(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _turn_symbol,
+        )
+
+        symbol = _turn_symbol()
+
+        inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
+
+        self.assertTrue(
+            inner_line.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.StrokeStyle
+            )
+        )

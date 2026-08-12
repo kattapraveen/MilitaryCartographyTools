@@ -148,6 +148,7 @@ from qgis.core import (
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
     QgsSimpleMarkerSymbolLayer,
+    QgsSimpleMarkerSymbolLayerBase,
     QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
@@ -2695,6 +2696,160 @@ def _trip_wire_symbol():
     return symbol
 
 
+# B5 - obstacle effects (270501-270504). Table H-XIX's own hardest
+# batch: Block and Turn are fully specified by the standard's own
+# draw-rules TEXT (mct_block_geometry/mct_turn_arc, both verified by
+# hand-worked examples before being trusted - see their own
+# docstrings); Disrupt and Fix are not - their own draw rules give no
+# numeric ratio for the short arrows/zigzag, only one picture, so they
+# wait for the maintainer's own read rather than a guessed one (the
+# same call this project has made before on fiddly shapes, and it has
+# been faster every time).
+#
+# NEITHER "disrupt" NOR "fix" may ever reuse a measure_type key from
+# Table H-XXIV (Mission Tasks, H21, not yet built) even though that
+# table has its own same-named entries - they are DIFFERENT SIDCs on a
+# different table, and conflating them is the exact bug the maintainer
+# found and fixed in the old stage-based pass (see this module's own
+# batch-B0 audit notes). Checked now, empty: nothing in this codebase
+# defines "disrupt"/"fix"/"block"/"turn" outside this module today.
+def _block_symbol():
+
+    """
+    Block (270501) - a "T": crossbar PT1-PT2, stem from the crossbar's
+    own midpoint out to PT3's own perpendicular distance
+    (mct_block_geometry). No "always dashed" note in the standard's own
+    draw rules, so ordinary present/planned styling.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression("mct_block_geometry($geometry)")
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, line_layer)
+
+    generator.setSubSymbol(inner)
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, generator)
+
+    return symbol
+
+
+def _turn_symbol():
+
+    """
+    Turn (270504) - a 90 degree arc from PT1 (rear) to PT2 (arrowhead
+    tip), PT3 picking the bulge side (mct_turn_arc). The arrowhead
+    itself reuses the plain UNFILLED-chevron-at-LastVertex technique
+    already established for Direction of Attack
+    (offensive_control_measures.py's own _direction_of_attack_symbol) -
+    QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead, transparent fill,
+    stroke-only, rotated with the line's own local end direction. No
+    "always dashed" note here either - ordinary present/planned line.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression("mct_turn_arc($geometry)")
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, line_layer)
+
+    generator.setSubSymbol(inner)
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, generator)
+
+    chevron_marker = QgsMarkerSymbol()
+
+    chevron_layer = QgsSimpleMarkerSymbolLayer(
+        QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
+        6
+    )
+
+    chevron_layer.setColor(QColor(0, 0, 0, 0))
+
+    chevron_layer.setStrokeWidth(_AREA_OUTLINE_WIDTH_MM * 1.5)
+
+    _apply_obstacle_color(
+        chevron_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    chevron_marker.changeSymbolLayer(0, chevron_layer)
+
+    chevron_line_layer = QgsMarkerLineSymbolLayer(True)
+
+    chevron_line_layer.setSubSymbol(chevron_marker)
+
+    chevron_line_layer.setPlacements(Qgis.MarkerLinePlacement.LastVertex)
+
+    # The chevron must sit on the ARC's own last point (PT2, the tip),
+    # not the feature's raw, undrawn 3-vertex geometry (PT1, PT2, PT3)
+    # - LastVertex on that would land the arrowhead at PT3 instead, the
+    # side-selector point, nowhere near the arc at all. Every symbol
+    # layer evaluates against the feature's OWN geometry independently
+    # unless it is itself wrapped in a generator, so this one needs its
+    # own, even though it draws the identical arc the line layer above
+    # already generated.
+    chevron_inner = QgsLineSymbol()
+
+    chevron_inner.changeSymbolLayer(0, chevron_line_layer)
+
+    chevron_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    chevron_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    chevron_generator.setGeometryExpression("mct_turn_arc($geometry)")
+
+    chevron_generator.setSubSymbol(chevron_inner)
+
+    symbol.appendSymbolLayer(chevron_generator)
+
+    return symbol
+
+
 # Antitank Ditch Reinforced with Antitank Mines: "a line with filled
 # triangles pointing downward, the triangles alternating with anti-tank
 # mine" - the maintainer's own description. Two interleaved series, so
@@ -2941,15 +3096,33 @@ TRIP_WIRE_MEASURE_TYPE_CODES = {
     "trip_wire": "290500",
 }
 
+# B5 - obstacle effects. Only Block and Turn so far; Disrupt (270502)
+# and Fix (270503) wait for the maintainer's own read of their own
+# short-arrow/zigzag proportions (see the module comment above
+# _block_symbol for why) and are deliberately absent rather than
+# guessed, the same policy this layer has followed since B4's own
+# STILL TO BUILD notes.
+B5_EFFECTS_MEASURE_TYPE_LABELS = {
+    "block": "Block",
+    "turn": "Turn",
+}
+
+B5_EFFECTS_MEASURE_TYPE_CODES = {
+    "block": "270501",
+    "turn": "270504",
+}
+
 LINE_MEASURE_TYPE_LABELS = dict(WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TOOTHED_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(MINE_CLUSTER_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TRIP_WIRE_MEASURE_TYPE_LABELS)
+LINE_MEASURE_TYPE_LABELS.update(B5_EFFECTS_MEASURE_TYPE_LABELS)
 
 LINE_MEASURE_TYPE_CODES = dict(WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TOOTHED_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(MINE_CLUSTER_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TRIP_WIRE_MEASURE_TYPE_CODES)
+LINE_MEASURE_TYPE_CODES.update(B5_EFFECTS_MEASURE_TYPE_CODES)
 
 _LINE_SYMBOL_BUILDERS = {
     measure_type: (
@@ -2957,7 +3130,8 @@ _LINE_SYMBOL_BUILDERS = {
     )
     for measure_type in LINE_MEASURE_TYPE_LABELS
     if measure_type not in (
-        "abatis", "antitank_ditch_reinforced", "mine_cluster", "trip_wire"
+        "abatis", "antitank_ditch_reinforced", "mine_cluster", "trip_wire",
+        "block", "turn",
     )
 }
 
@@ -2967,6 +3141,8 @@ _LINE_SYMBOL_BUILDERS["antitank_ditch_reinforced"] = (
 )
 _LINE_SYMBOL_BUILDERS["mine_cluster"] = _mine_cluster_symbol
 _LINE_SYMBOL_BUILDERS["trip_wire"] = _trip_wire_symbol
+_LINE_SYMBOL_BUILDERS["block"] = _block_symbol
+_LINE_SYMBOL_BUILDERS["turn"] = _turn_symbol
 
 
 def _line_default_colour_expression():
@@ -3016,7 +3192,9 @@ def _configure_lines_labeling(layer):
 def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     """
-    Table H-XIX's own line obstacles (batch B4, all 17 built).
+    Table H-XIX's own line obstacles - batch B4 (all 17 built) plus
+    batch B5's obstacle effects, joining this same layer as they land
+    (Block and Turn so far; Disrupt and Fix pending).
     """
 
     crs = QgsProject.instance().crs()

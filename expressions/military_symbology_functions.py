@@ -1036,6 +1036,196 @@ def mct_trip_wire_geometry(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_block_geometry',
+    group='Military Cartography Tools'
+)
+def mct_block_geometry(values, feature=None, parent=None):
+
+    """
+    Table H-XIX's own Block (270501, printed page 575) - a "T": the
+    crossbar is PT1-PT2 ("points 1 and 2 define the endpoints of the
+    symbol's vertical line"), the stem runs from the crossbar's own
+    MIDPOINT out to a length set by PT3 ("the length of the horizontal
+    line is determined by plotting point 3 on a plane extending
+    perpendicularly from the midpoint of the vertical line") - the
+    PERPENDICULAR distance from PT3 to the infinite line through
+    PT1-PT2, the same projection already used in mct_trip_wire_geometry
+    and mct_block_geometry's own sibling functions, general enough that
+    PT3 need not be clicked exactly perpendicular.
+
+    Three anchor points, reinterpreted from the feature's own digitized
+    vertices rather than drawn as the raw PT1-PT2-PT3 polyline.
+
+    Returned as a MultiLineString: the crossbar (PT1 to PT2, straight)
+    and the stem (midpoint to tip) as two separate parts, since they
+    only share the crossbar's own midpoint, not an end-to-end path.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1 = QgsPointXY(vertices[0])
+    pt2 = QgsPointXY(vertices[1])
+    pt3 = QgsPointXY(vertices[2])
+
+    dx = pt2.x() - pt1.x()
+    dy = pt2.y() - pt1.y()
+
+    span = math.hypot(dx, dy)
+
+    if span == 0:
+        return geometry
+
+    ux, uy = dx / span, dy / span
+
+    to_pt3_x = pt3.x() - pt1.x()
+    to_pt3_y = pt3.y() - pt1.y()
+
+    along = to_pt3_x * ux + to_pt3_y * uy
+
+    foot_x = pt1.x() + along * ux
+    foot_y = pt1.y() + along * uy
+
+    perp_x = pt3.x() - foot_x
+    perp_y = pt3.y() - foot_y
+
+    length = math.hypot(perp_x, perp_y)
+
+    midpoint = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0,
+        (pt1.y() + pt2.y()) / 2.0,
+    )
+
+    if length == 0:
+        # PT3 sits ON the PT1-PT2 line - no direction for the stem, so
+        # it collapses to a point at the midpoint rather than guessing.
+        return QgsGeometry.fromMultiPolylineXY([[pt1, pt2], [midpoint]])
+
+    nx, ny = perp_x / length, perp_y / length
+
+    tip = QgsPointXY(
+        midpoint.x() + length * nx,
+        midpoint.y() + length * ny,
+    )
+
+    return QgsGeometry.fromMultiPolylineXY(
+        [[pt1, pt2], [midpoint, tip]]
+    )
+
+
+@qgsfunction(
+    'mct_turn_arc',
+    group='Military Cartography Tools'
+)
+def mct_turn_arc(values, feature=None, parent=None):
+
+    """
+    Table H-XIX's own Turn (270504, printed page 578): "points 1 and 2
+    are connected by a 90 degree arc. Point 3 indicates on which side
+    of the line the arc is placed." Point 1 is the rear (no arrowhead),
+    point 2 the arrowhead's own tip - the arrowhead itself is drawn by
+    the caller (see _turn_symbol), this returns only the arc's own
+    path.
+
+    Geometry, not guesswork: a chord of length d subtending a 90 degree
+    arc has radius r = d / sqrt(2) and its centre sits h = d/2 from the
+    chord's own midpoint, on the side AWAY from the bulge (standard
+    circular-segment relations, sin(45)=cos(45)=sqrt(2)/2 so both
+    reduce to the same d/sqrt(2)/d/2 pair). PT3 only picks which of the
+    two possible sides that is - the same "distance from a line, signed
+    by a third point" idea mct_trip_wire_geometry and mct_block_geometry
+    both use, just resolved to a side rather than a length here.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    segments = int(values[1]) if len(values) > 1 else 12
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1 = QgsPointXY(vertices[0])
+    pt2 = QgsPointXY(vertices[1])
+    pt3 = QgsPointXY(vertices[2])
+
+    dx = pt2.x() - pt1.x()
+    dy = pt2.y() - pt1.y()
+
+    chord = math.hypot(dx, dy)
+
+    if chord == 0:
+        return geometry
+
+    mid_x = (pt1.x() + pt2.x()) / 2.0
+    mid_y = (pt1.y() + pt2.y()) / 2.0
+
+    # One perpendicular to the chord, then flipped (if needed) to point
+    # toward PT3's own side - the side the arc must bulge toward.
+    px, py = -dy / chord, dx / chord
+
+    to_pt3_x = pt3.x() - mid_x
+    to_pt3_y = pt3.y() - mid_y
+
+    if (to_pt3_x * px + to_pt3_y * py) < 0:
+        px, py = -px, -py
+
+    radius = chord / math.sqrt(2.0)
+    setback = chord / 2.0
+
+    center_x = mid_x - setback * px
+    center_y = mid_y - setback * py
+
+    v1x, v1y = pt1.x() - center_x, pt1.y() - center_y
+    v2x, v2y = pt2.x() - center_x, pt2.y() - center_y
+
+    angle1 = math.atan2(v1y, v1x)
+    angle2 = math.atan2(v2y, v2x)
+
+    delta = angle2 - angle1
+
+    # Normalised to (-pi, pi] so the interpolation below always sweeps
+    # the SHORT way round - the 90 degree arc this construction built,
+    # not the 270 degree long way.
+    while delta <= -math.pi:
+        delta += 2.0 * math.pi
+    while delta > math.pi:
+        delta -= 2.0 * math.pi
+
+    points = []
+
+    for index in range(segments + 1):
+
+        angle = angle1 + delta * (index / segments)
+
+        points.append(
+            QgsPointXY(
+                center_x + radius * math.cos(angle),
+                center_y + radius * math.sin(angle),
+            )
+        )
+
+    return QgsGeometry.fromPolylineXY(points)
+
+
+@qgsfunction(
     'mct_scatter_points',
     group='Military Cartography Tools'
 )
@@ -2894,6 +3084,8 @@ _FUNCTIONS = [
     mct_abatis_line,
     mct_mine_cluster_arc,
     mct_trip_wire_geometry,
+    mct_block_geometry,
+    mct_turn_arc,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,

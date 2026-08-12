@@ -6682,6 +6682,64 @@ tested, not claimed as done here.
   910 tests passing on both QGIS versions (rewritten in place, not
   grown).
 
+- **B5 started: Block and Turn built** (2026-08-13), the two of Table
+  H-XIX's own four obstacle effects (270501-270504) whose draw rules
+  are fully specified in the standard's own text rather than only
+  shown in a picture - so they were built directly rather than run past
+  the maintainer first, the same triage this appendix has used since
+  H0 (build what the text settles, ask about what only the picture
+  shows).
+
+  **Block (270501)**: a "T" - crossbar PT1-PT2, stem from the
+  crossbar's own midpoint out to a length set by PT3's perpendicular
+  distance to the PT1-PT2 line (`mct_block_geometry`), the same
+  projection technique already used for Trip Wire and Mine Cluster.
+
+  **Turn (270504)**: PT1 (rear) to PT2 (arrowhead tip) connected by a
+  TRUE 90 degree circular arc, PT3 picking which side it bulges toward
+  (`mct_turn_arc`) - radius = chord/sqrt(2), centre set back chord/2
+  from the midpoint, both derived from the standard circular-segment
+  relations for a 90 degree included angle and checked against a
+  hand-worked example before being trusted. The arrowhead reuses the
+  plain-unfilled-chevron-at-LastVertex technique Direction of Attack
+  already established (offensive_control_measures.py).
+
+  **A real bug, caught by the render, not the tests**: the first cut
+  appended the chevron's own marker-line layer as a sibling of the
+  arc's geometry-generator layer, so it evaluated LastVertex against
+  the feature's own RAW 3-vertex geometry (PT1, PT2, PT3) instead of
+  the generated arc - the arrowhead landed at PT3, the side-selector
+  point, nowhere near the arc at all. Every symbol layer evaluates
+  against the feature's own geometry independently unless it is
+  itself wrapped in a generator; the fix wraps the chevron in its own
+  `mct_turn_arc($geometry)` generator too, so it follows the same arc
+  the line layer draws. The unit tests as originally written could not
+  have caught this - they checked the marker line's own placement
+  setting, not what geometry it actually saw - so a render-and-compare
+  step is still load-bearing even with a green suite.
+
+  Also checked, and clean: nothing in this codebase already uses
+  "disrupt"/"fix"/"block"/"turn" as a measure_type - the old stage-
+  based pass's Disrupt/Fix mission-task conflation bug (see this
+  batch's own comment in the source) has nothing left to collide with
+  here.
+
+  **Disrupt (270502) and Fix (270503) are deliberately NOT built yet.**
+  Both templates show a fixed-proportion shape (Disrupt: a vertical
+  spine with three perpendicular arrows, the top one longest, tip = PT3;
+  Fix: a zigzag lightning-bolt from PT2 to an arrowhead at PT1) but
+  neither draw-rules TEXT gives a numeric ratio for it - only one
+  picture each. Measured off the template by pixel anyway (Disrupt's
+  three arrow lengths came out roughly 257:145:77 px, an inexact ratio
+  that reads as measurement noise off a scanned page rather than a
+  clean intended fraction; Fix's zigzag os roughly flat-22%/zigzag-50%/
+  flat+arrow-28% of its own total length) - but given this appendix's
+  own repeated lesson that the maintainer's own description beats
+  inferring a fiddly shape from a picture, these numbers are being
+  held for confirmation rather than built silently.
+
+  926 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
