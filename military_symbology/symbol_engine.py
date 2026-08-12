@@ -23,6 +23,7 @@ Military Cartography Tools
 import base64
 import json
 import os
+import re
 
 try:
     from PyQt5.QtQml import QJSEngine
@@ -117,7 +118,34 @@ def render_symbol_svg(sidc, options=None):
     return svg
 
 
-def render_symbol_base64_path(sidc, options=None):
+_STROKE_WIDTH_PATTERN = re.compile(r'stroke-width="([\d.]+)"')
+
+
+def scale_svg_stroke_width(svg, factor):
+
+    """
+    Multiplies every stroke-width in `svg` by `factor`.
+
+    Done here rather than through milsymbol's own `strokeWidth` option,
+    which does NOT do this: probed directly, that option only widens
+    the generated viewBox (108 -> 110.8) while every path keeps its
+    original stroke-width="3". Passing it would therefore make an icon
+    render SMALLER at a fixed marker size, and no thicker - the opposite
+    of what it looks like it does.
+    """
+
+    if not factor or factor == 1:
+        return svg
+
+    return _STROKE_WIDTH_PATTERN.sub(
+        lambda match: 'stroke-width="{:g}"'.format(
+            float(match.group(1)) * factor
+        ),
+        svg
+    )
+
+
+def render_symbol_base64_path(sidc, options=None, stroke_scale=None):
 
     """
     "base64:<...>" for sidc - the exact path string format
@@ -125,9 +153,16 @@ def render_symbol_base64_path(sidc, options=None):
     content (confirmed live: QgsSvgCache.svgAsImage() returns a valid
     non-null image for this format), so a rendered symbol never needs to
     touch disk as a temp file.
+
+    `stroke_scale` thickens (or thins) every stroke in the rendered
+    symbol - see scale_svg_stroke_width() for why this cannot be left
+    to milsymbol.
     """
 
-    svg = render_symbol_svg(sidc, options)
+    svg = scale_svg_stroke_width(
+        render_symbol_svg(sidc, options),
+        stroke_scale
+    )
 
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 

@@ -1240,3 +1240,259 @@ class TestMinefieldsLayer(QgisTestCase):
             len(QgsProject.instance().mapLayersByName(MINEFIELDS_LAYER_NAME)),
             1
         )
+
+
+class TestB1SmokeTestFollowUps(QgisTestCase):
+
+    """
+    The four adjustments the maintainer asked for after smoke-testing
+    B1 and B2 (2026-08-12), pinned so a later edit cannot quietly undo
+    them.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _rendered_svg(self, layer, entity):
+
+        import base64
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", entity)
+        feature.setAttribute("status", "present")
+        feature.setAttribute("colour", GREEN)
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name, context, ""
+        )
+
+        self.assertTrue(ok)
+
+        return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+
+    def _rendered_size(self, layer, entity):
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("entity", entity)
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        size, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context, 0.0
+        )
+
+        self.assertTrue(ok)
+
+        return size
+
+
+    def test_named_entities_render_a_thicker_stroke(self):
+
+        import re
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            POINT_ENTITY_LABELS,
+            _THICKER_STROKE_ENTITIES,
+            _THICKER_STROKE_FACTOR,
+            create_obstacle_control_measures_points_layer,
+        )
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        for entity in POINT_ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                svg = self._rendered_svg(layer, entity)
+
+                widths = {
+                    float(width)
+                    for width in re.findall(r'stroke-width="([\d.]+)"', svg)
+                }
+
+                if entity in _THICKER_STROKE_ENTITIES:
+
+                    # milsymbol's own base stroke for these icons is 3.
+                    self.assertIn(3.0 * _THICKER_STROKE_FACTOR, widths)
+
+                else:
+
+                    self.assertNotIn(3.0 * _THICKER_STROKE_FACTOR, widths)
+
+
+    def test_directional_mine_is_scaled_to_match_its_plain_sibling(self):
+
+        # QGIS sizes an SVG marker by WIDTH, so the wider viewBox has to
+        # be compensated for the CIRCLE to come out the same size. The
+        # ratio is asserted against the real rendered viewBoxes rather
+        # than against the hardcoded constant, so it stays true if
+        # milsymbol's own artwork changes.
+        import re
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_points_layer,
+        )
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        def view_box_width(entity):
+
+            svg = self._rendered_svg(layer, entity)
+
+            return float(
+                re.search(r'viewBox="[^"]*?([\d.]+) [\d.]+"', svg).group(1)
+            )
+
+        plain_width = view_box_width("antipersonnel_mine")
+        directional_width = view_box_width("antipersonnel_mine_directional")
+
+        self.assertGreater(directional_width, plain_width)
+
+        expected_ratio = directional_width / plain_width
+
+        actual_ratio = (
+            self._rendered_size(layer, "antipersonnel_mine_directional")
+            / self._rendered_size(layer, "antipersonnel_mine")
+        )
+
+        self.assertAlmostEqual(actual_ratio, expected_ratio, places=6)
+
+
+    def test_towers_render_30_percent_larger(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_points_layer,
+        )
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        baseline = self._rendered_size(layer, "antipersonnel_mine")
+
+        for entity in ("tower_low", "tower_high"):
+
+            with self.subTest(entity=entity):
+
+                self.assertAlmostEqual(
+                    self._rendered_size(layer, entity) / baseline,
+                    1.3,
+                    places=6
+                )
+
+
+    def test_mine_indicator_offers_only_the_standards_own_values(self):
+
+        # Field H is not free text: the standard's own Note gives it
+        # exactly "S" and "+S" (or nothing at all).
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            MINE_INDICATOR_LABELS,
+        )
+
+        self.assertEqual(set(MINE_INDICATOR_LABELS), {"", "S", "+S"})
+
+
+    def test_mine_indicator_is_a_dropdown_on_both_layers(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_areas_layer,
+            create_obstacle_control_measures_minefields_layer,
+        )
+
+        for factory in (
+            create_obstacle_control_measures_areas_layer,
+            create_obstacle_control_measures_minefields_layer,
+        ):
+
+            layer = factory()
+
+            index = layer.fields().indexOf("mine_indicator")
+
+            with self.subTest(layer=layer.name()):
+
+                self.assertEqual(
+                    layer.editorWidgetSetup(index).type(),
+                    "ValueMap"
+                )
+
+                # And it names itself, which is what the maintainer's
+                # "what is this field for?" actually needed.
+                self.assertIn("Field H", layer.fields().at(index).alias())
+
+
+    def test_tower_designation_sits_at_the_top_of_the_glyph(self):
+
+        # "the number in towers should be aligned with the top not
+        # center of glyph" - a NEGATIVE yOffset is what raises a label
+        # here, and it is derived from the tower's own drawn height so
+        # it tracks the size multiplier rather than drifting off it.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _POINTS_DEFAULT_MARKER_SIZE_MM,
+            _POINT_SIZE_MULTIPLIERS,
+            create_obstacle_control_measures_points_layer,
+        )
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        settings = layer.labeling().settings()
+
+        self.assertLess(settings.yOffset, 0)
+
+        tower_height = (
+            _POINTS_DEFAULT_MARKER_SIZE_MM
+            * _POINT_SIZE_MULTIPLIERS["tower_low"]
+            * (98.0 / 108.0)
+        )
+
+        self.assertAlmostEqual(
+            settings.yOffset, -tower_height * 0.38, places=6
+        )
+
+class TestScaleSvgStrokeWidth(QgisTestCase):
+
+    def test_multiplies_every_stroke_width(self):
+
+        from MilitaryCartographyTools.military_symbology.symbol_engine import (
+            scale_svg_stroke_width,
+        )
+
+        svg = '<path stroke-width="3"/><path stroke-width="8"/>'
+
+        self.assertEqual(
+            scale_svg_stroke_width(svg, 1.8),
+            '<path stroke-width="5.4"/><path stroke-width="14.4"/>'
+        )
+
+
+    def test_a_factor_of_one_or_none_leaves_the_svg_untouched(self):
+
+        from MilitaryCartographyTools.military_symbology.symbol_engine import (
+            scale_svg_stroke_width,
+        )
+
+        svg = '<path stroke-width="3"/>'
+
+        self.assertEqual(scale_svg_stroke_width(svg, 1), svg)
+        self.assertEqual(scale_svg_stroke_width(svg, None), svg)
+

@@ -6050,6 +6050,56 @@ tested, not claimed as done here.
 
     848 tests passing on both QGIS versions.
 
+- **B1/B2 smoke-test follow-ups** (2026-08-12) - five items from the
+  maintainer's own live QGIS pass.
+
+  **"What is the mine indicator field supposed to be filled with?"** -
+  Field H, and the answer is that it should never have been a free-text
+  box. The standard's own Note gives it exactly two values: "S" when
+  only scatterable mines are present, "+S" for a mix (with the
+  self-destruct time then going in Field W). It is now a ValueMap
+  offering those two and nothing else, on both the Areas and Minefields
+  layers, and all three mine fields carry aliases naming the standard's
+  own field letter ("Mine type (Field A)", "Scatterable mines (Field
+  H)", "Self-destruct time (Field W)") so the form explains itself
+  rather than needing the table open alongside.
+
+  **Towers +30%, designation pulled in and raised.** The label offset
+  was 0.62 of the marker width; the maintainer asked for 60% closer, so
+  it is 40% of that. They then followed up that it should sit level
+  with the TOP of the glyph rather than its middle - both Tower icons
+  have a 108x98 viewBox, so the raise is derived from the drawn height
+  (width * 98/108) rather than typed as a millimetre constant, and
+  tracks the size multiplier instead of drifting off it. Note a
+  NEGATIVE yOffset is what raises a label, confirmed by render; the
+  sign reads backwards.
+
+  **Antipersonnel Mine with Directional Effects** - "the circle has
+  become too small". Measured rather than eyeballed: its viewBox is 148
+  wide against its plain sibling's 108, because the directional arrow
+  hangs outside the circle, and QGIS sizes an SVG marker by WIDTH. So
+  the artwork drew at 73% scale. 148/108 restores it. Third time this
+  exact trap has appeared (Pop-Up Point, Fire Support Station), and the
+  test asserts the ratio against the REAL rendered viewBoxes rather
+  than the constant, so it survives milsymbol changing its artwork.
+
+  **Stroke thickness +80%** on the five outline icons the maintainer
+  named. Worth recording how NOT to do this: milsymbol has its own
+  `strokeWidth` option, and it does not do what it looks like. Probed
+  directly - it only widens the generated viewBox (108 -> 110.8) while
+  every path keeps stroke-width="3", so passing it would render the
+  icon SMALLER at a fixed marker size and no thicker. The scaling is
+  therefore done on the rendered SVG in symbol_engine, and mct_sidc_svg
+  gained an optional fifth argument (additive, default off, no existing
+  caller affected) exactly as it did for monoColor.
+
+  Fixed and Prefabricated Obstacle is included because the maintainer
+  listed it, but it is a FILLED triangle rather than an outline, so the
+  change is barely visible there by construction - noted rather than
+  silently dropped.
+
+    856 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

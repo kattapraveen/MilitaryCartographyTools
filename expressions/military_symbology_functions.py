@@ -139,6 +139,7 @@ def mct_sidc_svg(values, feature=None, parent=None):
     # AND fill across the whole icon, so it needs no post-processing of
     # the returned SVG.
     mono_color = str(values[3]) if len(values) > 3 and values[3] else None
+    stroke_scale = float(values[4]) if len(values) > 4 and values[4] else None
 
     options = {}
 
@@ -148,7 +149,9 @@ def mct_sidc_svg(values, feature=None, parent=None):
     if mono_color:
         options["monoColor"] = mono_color
 
-    return render_symbol_base64_path(sidc, options or None)
+    return render_symbol_base64_path(
+        sidc, options or None, stroke_scale
+    )
 
 
 # ============================================================

@@ -482,17 +482,68 @@ _POINT_MONO_COLOR_EXPRESSION = (
     f" ELSE '{_OBSTACLE_GREEN_RGB}' END"
 )
 
+# Icons whose stroke the maintainer asked to thicken after smoke-
+# testing B1: "the lines are too faint, can we increase the thickness
+# of lines by 80%?". Scoped to the ones they named rather than applied
+# across the layer - the filled icons (the mines proper) already read
+# clearly and would only get muddier.
+#
+# NOTE Fixed and Prefabricated Obstacle is a FILLED triangle, not an
+# outline like the other four; it is included because the maintainer
+# listed it, but the change is barely visible there by construction.
+_THICKER_STROKE_ENTITIES = (
+    "booby_trap",
+    "unspecified_mine",
+    "obstacle_fixed_prefabricated",
+    "obstacle_movable",
+    "obstacle_movable_prefabricated",
+)
+
+_THICKER_STROKE_FACTOR = 1.8
+
+_POINT_STROKE_SCALE_EXPRESSION = (
+    "CASE WHEN \"entity\" IN ("
+    + ", ".join(f"'{e}'" for e in _THICKER_STROKE_ENTITIES)
+    + f") THEN {_THICKER_STROKE_FACTOR} ELSE 1 END"
+)
+
 _POINTS_SIDC_EXPRESSION = (
     "mct_sidc_svg(mct_build_sidc("
     "\"affiliation\",\"entity\",'control_measure','unspecified',"
     "\"status\",false),"
     "upper(coalesce(\"unique_designation\",'')),"
     "'uniqueDesignation',"
-    + _POINT_MONO_COLOR_EXPRESSION +
+    + _POINT_MONO_COLOR_EXPRESSION + ","
+    + _POINT_STROKE_SCALE_EXPRESSION +
     ")"
 )
 
 _POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
+
+# QGIS reads an SVG marker's size as its WIDTH, so an icon with a wider
+# viewBox draws its own artwork smaller at the same marker size. Both
+# entries here are measured off the real rendered SVG, not guessed -
+# the same technique that fixed Pop-Up Point and Fire Support Station.
+#
+# Antipersonnel Mine with Directional Effects carries an arrow outside
+# its circle, giving it a 148-wide viewBox where its plain sibling has
+# 108 - which is exactly the maintainer's report that "the circle has
+# become too small, can we match it with the size of circle of
+# antipersonnel mine". 148/108 restores the circle to the same drawn
+# size.
+#
+# The Towers are a plain +30% at the maintainer's request.
+_POINT_SIZE_MULTIPLIERS = {
+    "antipersonnel_mine_directional": 148.0 / 108.0,
+    "tower_low": 1.3,
+    "tower_high": 1.3,
+}
+
+_POINT_SIZE_EXPRESSION = "CASE " + " ".join(
+    f"WHEN \"entity\" = '{entity}'"
+    f" THEN {_POINTS_DEFAULT_MARKER_SIZE_MM * multiplier}"
+    for entity, multiplier in _POINT_SIZE_MULTIPLIERS.items()
+) + f" ELSE {_POINTS_DEFAULT_MARKER_SIZE_MM} END"
 
 # NOT _control_measure_shared.py's own AFFILIATION_LABELS, and NOT its
 # _configure_affiliation_field() - both of which this layer originally
@@ -584,6 +635,11 @@ def _build_points_renderer():
     svg_layer.setSize(_POINTS_DEFAULT_MARKER_SIZE_MM)
 
     svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Size,
+        QgsProperty.fromExpression(_POINT_SIZE_EXPRESSION)
+    )
+
+    svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
         QgsProperty.fromExpression(_POINTS_SIDC_EXPRESSION)
     )
@@ -648,7 +704,30 @@ def _configure_points_labeling(layer):
     # marker (caught by render). NOTE this needs xOffset, not dist -
     # `dist` is the radius for AroundPoint placement and is ignored by
     # OverPoint, which is why setting it moved nothing.
-    settings.xOffset = _POINTS_DEFAULT_MARKER_SIZE_MM * 0.62
+    # 0.62 of the marker width cleared the glyph, but the maintainer
+    # found the gap too wide in live testing and asked to "reduce
+    # distance closer to tower by 60%" - so 40% of what it was.
+    settings.xOffset = _POINTS_DEFAULT_MARKER_SIZE_MM * 0.62 * 0.4
+
+    # Raised to sit level with the TOP of the tower rather than its
+    # middle - the maintainer's own follow-up, "the number in towers
+    # should be aligned with the top not center of glyph".
+    #
+    # Derived from the tower's own drawn height rather than typed as a
+    # millimetre constant, so it tracks the +30% size change above and
+    # any later one: QGIS sizes the marker by WIDTH, and both Tower
+    # icons have a 108x98 viewBox, so the drawn height is width*98/108.
+    # A NEGATIVE yOffset moves a label up here (confirmed by render,
+    # not assumed - the sign is the opposite of what it reads like).
+    tower_size_mm = (
+        _POINTS_DEFAULT_MARKER_SIZE_MM
+        * _POINT_SIZE_MULTIPLIERS["tower_low"]
+    )
+
+    tower_height_mm = tower_size_mm * (98.0 / 108.0)
+
+    settings.yOffset = -tower_height_mm * 0.38
+
     settings.offsetUnits = Qgis.RenderUnit.Millimeters
 
     layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
@@ -1443,6 +1522,28 @@ def _configure_areas_labeling(layer):
     layer.setLabelsEnabled(True)
 
 
+def _set_mine_field_aliases(layer):
+
+    """
+    Names the three mine fields after the standard's own field letters,
+    so the attribute form says what each one is without the user having
+    to cross-reference the table.
+    """
+
+    aliases = {
+        "mine_type": "Mine type (Field A)",
+        "mine_indicator": "Scatterable mines (Field H)",
+        "self_destruct_dtg": "Self-destruct time (Field W)",
+    }
+
+    for name, alias in aliases.items():
+
+        index = layer.fields().indexOf(name)
+
+        if index >= 0:
+            layer.setFieldAlias(index, alias)
+
+
 def create_obstacle_control_measures_areas_layer(name=AREAS_LAYER_NAME):
 
     """
@@ -1491,6 +1592,15 @@ def create_obstacle_control_measures_areas_layer(name=AREAS_LAYER_NAME):
         fields.indexOf("mine_type"),
         QgsEditorWidgetSetup("ValueMap", {"map": _value_map(MINE_TYPE_LABELS)})
     )
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("mine_indicator"),
+        QgsEditorWidgetSetup(
+            "ValueMap", {"map": _value_map(MINE_INDICATOR_LABELS)}
+        )
+    )
+
+    _set_mine_field_aliases(layer)
 
     # Affiliation plays no part in an obstacle's own colour (see this
     # module's docstring), but it is still on the schema so an obstacle
@@ -1566,6 +1676,23 @@ def add_obstacle_control_measures_areas_layer(iface):
 #     axis, so splitting by type too gives ~15-20 dropdown entries for
 #     one family - the "otherwise the list is too long" problem the
 #     maintainer already raised on Table H-XIV.
+# Field H, and NOT free text - the standard's own Note on printed page
+# 592 gives it exactly two possible values: "If only scatterable mines
+# are within the minefield, the H field will be filled with an 'S'; a
+# '+S' will be used if there is a mix of scatterable and other mines as
+# appropriate and a self-destruct time will be posted in the W field
+# for the scatterable mines."
+#
+# It was a free-text box until the maintainer smoke-tested B2 and asked
+# what it was for - which is the answer that a two-value vocabulary
+# should never have been typed by hand. Now a dropdown, so the field
+# states its own meaning at the point of use.
+MINE_INDICATOR_LABELS = {
+    "": "(none - no scatterable mines)",
+    "S": "S - scatterable mines only",
+    "+S": "+S - scatterable mixed with other mines",
+}
+
 MINE_TYPE_LABELS = {
     "antipersonnel": "Anti-personnel",
     "antitank": "Anti-tank",
@@ -2052,6 +2179,15 @@ def create_obstacle_control_measures_minefields_layer(
         fields.indexOf("status"),
         QgsEditorWidgetSetup("ValueMap", {"map": _value_map(STATUS_LABELS)})
     )
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("mine_indicator"),
+        QgsEditorWidgetSetup(
+            "ValueMap", {"map": _value_map(MINE_INDICATOR_LABELS)}
+        )
+    )
+
+    _set_mine_field_aliases(layer)
 
     layer.setDefaultValueDefinition(
         fields.indexOf("measure_type"), QgsDefaultValue("'minefield'")
