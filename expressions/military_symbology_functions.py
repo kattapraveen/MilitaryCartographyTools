@@ -584,12 +584,19 @@ _WIRE_GLYPH_GEOMETRY = {
     # ON the line (y=100) and it points away from it.
     "ditch_tooth": (100, ["M 0,100 L 100,100 L 50,6 Z"], False),
     "ditch_tooth_filled": (100, ["M 0,100 L 100,100 L 50,6 Z"], True),
-    # Antitank Wall: a tile of the SERRATED profile - flat, up to an
-    # apex, down, flat - so that laying these end to end (gap 0) makes
-    # one continuous sawtooth line, the same look as the obstacle
-    # zones' own serrated boundary. The maintainer's own comparison.
-    "wall_sawtooth": (100, ["M 0,100 L 18,100 L 50,14 L 82,100 L 100,100"],
-                      False),
+    # Antitank Wall: "--v--v--v--", one CONTINUOUS path that runs
+    # flat, dips into a V and comes back up. The line joins the edges
+    # of the Vs; it does not run past them, and the Vs do not hang off
+    # it - the maintainer's own correction, twice over.
+    #
+    # Laid out so tiles join seamlessly at gap 0: the V is equilateral
+    # with side 50, and each tile carries half the flat at either end,
+    # so consecutive tiles leave exactly one side length (50) of flat
+    # between Vs - the spacing the maintainer specified.
+    #
+    # The flats sit at the box's VERTICAL CENTRE, so the glyph needs no
+    # offset: centred on the line, its flats land on the geometry.
+    "wall_vee": (100, ["M 0,50 L 25,50 L 50,93.3 L 75,50 L 100,50"], False),
     # Abatis: a single hump on an otherwise straight line, its legs
     # meeting the line - "_^____", in the maintainer's own notation.
     # Placed once near the start, NOT repeated.
@@ -666,6 +673,93 @@ def mct_wire_glyph_svg(values, feature=None, parent=None):
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
     return "base64:" + encoded
+
+
+@qgsfunction(
+    'mct_abatis_line',
+    group='Military Cartography Tools'
+)
+def mct_abatis_line(values, feature=None, parent=None):
+
+    """
+    Table H-XIX's own Abatis (280100): the line with a single triangular
+    KINK near its start - "_^____", in the maintainer's own notation.
+
+    Built as real geometry rather than a marker riding the line,
+    because the hump must INTERRUPT the line: "the base of triangle
+    touching the line should be clear, so it is like a kink in the
+    beginning of line, not a full triangle". A marker drawn on top
+    still leaves the straight line running underneath it, closing the
+    triangle - which is exactly what the first attempt did.
+
+    `at` is where the kink sits along the line and `size` how big it
+    is, both as fractions of the line's own length, so the symbol
+    scales with the feature.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    at = float(values[1]) if len(values) > 1 else 0.10
+    size = float(values[2]) if len(values) > 2 else 0.06
+
+    length = geometry.length()
+
+    if length <= 0:
+        return geometry
+
+    half_width = length * size * 0.5
+    height = length * size
+
+    centre = length * at
+
+    start_distance = max(0.0, centre - half_width)
+    end_distance = min(length, centre + half_width)
+
+    def at_distance(distance):
+
+        point = geometry.interpolate(distance).asPoint()
+
+        return QgsPointXY(point.x(), point.y())
+
+    foot_in = at_distance(start_distance)
+    foot_out = at_distance(end_distance)
+
+    # Apex perpendicular to the line at the kink's own midpoint.
+    dx = foot_out.x() - foot_in.x()
+    dy = foot_out.y() - foot_in.y()
+
+    span = math.hypot(dx, dy)
+
+    if span == 0:
+        return geometry
+
+    apex = QgsPointXY(
+        (foot_in.x() + foot_out.x()) / 2.0 - dy / span * height,
+        (foot_in.y() + foot_out.y()) / 2.0 + dx / span * height,
+    )
+
+    points = [at_distance(0.0), foot_in, apex, foot_out]
+
+    # The rest of the original line, kept vertex for vertex so a
+    # multi-segment abatis still follows what was digitized.
+    vertices = geometry.asPolyline()
+
+    for vertex in vertices:
+
+        if geometry.lineLocatePoint(
+            QgsGeometry.fromPointXY(vertex)
+        ) > end_distance:
+            points.append(vertex)
+
+    points.append(at_distance(length))
+
+    return QgsGeometry.fromPolylineXY(points)
 
 
 @qgsfunction(
@@ -2524,6 +2618,7 @@ _FUNCTIONS = [
     mct_decoy_chevron,
     mct_decoy_chevron_svg,
     mct_scatter_points,
+    mct_abatis_line,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,

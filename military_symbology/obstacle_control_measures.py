@@ -2443,9 +2443,10 @@ _WIRE_SPECS = {
     # standing off a drawn line, which is a different symbol.
     "antitank_ditch_under_construction": _WireSpec("ditch_tooth", 0.0, ()),
     "antitank_ditch_completed": _WireSpec("ditch_tooth_filled", 0.0, ()),
-    # Likewise the wall tiles a serrated profile into one continuous
-    # sawtooth, rather than dropping separate notches below a line.
-    "antitank_wall": _WireSpec("wall_sawtooth", 0.0, ()),
+    # The wall IS its line: a continuous "--v--v--" profile tiled at
+    # gap 0, so no separate line layer. See the glyph's own comment for
+    # how the tile keeps one side length of flat between Vs.
+    "antitank_wall": _WireSpec("wall_vee", 0.0, ()),
 }
 
 # The width (and height) of a single cross or oval.
@@ -2467,6 +2468,10 @@ _WIRE_GLYPH_WIDTH_MULTIPLIERS = {"double_cross": 2 + _WIRE_PAIR_GAP}
 # How much of each end of the line the glyphs leave clear.
 _WIRE_END_TRIM = 0.04
 
+# How far tiling glyphs overlap their neighbour, to close the hairline
+# a butt join leaves.
+_WIRE_TILE_OVERLAP_MM = 0.12
+
 # Every gap in _WIRE_SPECS is multiplied by this before it is drawn -
 # the maintainer asked to "reduce the gap between the Xs and 0s across
 # the board by 40%" after seeing them rendered.
@@ -2485,13 +2490,24 @@ _WIRE_GAP_SCALE = 0.6
 # for the rest - "_^____" in the maintainer's own notation, with the
 # hump's legs meeting the line. So it gets its own builder rather than
 # a _WireSpec.
-_ABATIS_HUMP_SIZE_MM = 4.0
-
-# How far along the line the hump sits. "Just after PT1".
-_ABATIS_HUMP_OFFSET_MM = 5.0
+# Where the kink sits along the line, and how big it is - both as
+# fractions of the line's own length, so the symbol scales with the
+# feature.
+_ABATIS_KINK_AT = 0.10
+_ABATIS_KINK_SIZE = 0.06
 
 
 def _abatis_symbol():
+
+    """
+    Abatis (280100) - a single triangular KINK near the start of the
+    line, then straight for the rest.
+
+    The kink is real geometry (mct_abatis_line), not a marker riding
+    the line: a marker leaves the straight line running underneath it,
+    which closes the triangle. The maintainer's own correction - "it is
+    like a kink in the beginning of line, not a full triangle".
+    """
 
     line_layer = QgsSimpleLineSymbolLayer()
 
@@ -2508,42 +2524,24 @@ def _abatis_symbol():
         QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
     )
 
-    hump = QgsSvgMarkerSymbolLayer("")
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
 
-    hump.setSize(_ABATIS_HUMP_SIZE_MM)
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
 
-    # Raised half its height so the hump's legs MEET the line rather
-    # than crossing it - "the lines of ^ touching the horizontal".
-    hump.setOffset(QPointF(0.0, -_ABATIS_HUMP_SIZE_MM * 0.5))
-
-    hump.setOffsetUnit(Qgis.RenderUnit.Millimeters)
-
-    hump.setDataDefinedProperty(
-        QgsSymbolLayer.Property.Name,
-        QgsProperty.fromExpression(
-            "mct_wire_glyph_svg('abatis_hump', "
-            + _POINT_MONO_COLOR_EXPRESSION + ")"
-        )
+    generator.setGeometryExpression(
+        f"mct_abatis_line($geometry, {_ABATIS_KINK_AT},"
+        f" {_ABATIS_KINK_SIZE})"
     )
 
-    marker_line = QgsMarkerLineSymbolLayer()
+    inner = QgsLineSymbol()
 
-    # FirstVertex, not Interval: exactly one hump per feature however
-    # long the line is. offsetAlongLine then slides it clear of the
-    # anchor point itself.
-    marker_line.setPlacement(Qgis.MarkerLinePlacement.FirstVertex)
+    inner.changeSymbolLayer(0, line_layer)
 
-    marker_line.setOffsetAlongLine(_ABATIS_HUMP_OFFSET_MM)
-
-    marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
-
-    marker_line.setSubSymbol(QgsMarkerSymbol([hump]))
+    generator.setSubSymbol(inner)
 
     symbol = QgsLineSymbol()
 
-    symbol.changeSymbolLayer(0, line_layer)
-
-    symbol.appendSymbolLayer(marker_line)
+    symbol.changeSymbolLayer(0, generator)
 
     return symbol
 
@@ -2617,6 +2615,15 @@ def _wire_obstacle_symbol(measure_type):
         + spec.gap * _WIRE_GAP_SCALE * _WIRE_GLYPH_SIZE_MM
     )
 
+    if spec.gap == 0:
+        # The tiling obstacles (both ditches, the antitank wall) butt
+        # their glyphs edge to edge to form one continuous profile.
+        # Placed at exactly one glyph width apart they leave a hairline
+        # gap at every join - antialiasing at the marker's own box edge
+        # - which the maintainer saw as "a slight gap in the line
+        # halfway between each triangle". A sliver of overlap closes it.
+        interval_mm -= _WIRE_TILE_OVERLAP_MM
+
     marker_line.setInterval(interval_mm)
 
     marker_line.setIntervalUnit(Qgis.RenderUnit.Millimeters)
@@ -2654,13 +2661,20 @@ def _wire_obstacle_symbol(measure_type):
     trimmed.setSubSymbol(glyph_line_symbol)
 
     if first:
-        # Unspecified Wire Obstacle draws no line at all, so the glyph
-        # series IS the symbol rather than an addition to it - and with
-        # no line to overhang them, it keeps the full geometry.
+        # Unspecified Wire Obstacle and the two ditches draw no line at
+        # all, so the glyph series IS the symbol rather than an
+        # addition to it - and with no line to overhang them, it keeps
+        # the full geometry.
         trimmed.setGeometryExpression("$geometry")
         symbol.changeSymbolLayer(0, trimmed)
     else:
-        symbol.appendSymbolLayer(trimmed)
+        # The glyphs go UNDERNEATH the straight lines, not on top.
+        # Painted over them, each glyph's own transparent box nibbles a
+        # hairline out of the line where its edge falls - visible as
+        # "a slight gap in the line halfway between each triangle" on
+        # the antitank wall, which the maintainer spotted. Everything
+        # here is one colour, so the order is invisible otherwise.
+        symbol.insertSymbolLayer(0, trimmed)
 
     return symbol
 

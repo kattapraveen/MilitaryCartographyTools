@@ -2252,6 +2252,35 @@ class TestWireObstacles(QgisTestCase):
         )
 
 
+    def test_the_tiling_obstacles_overlap_to_avoid_hairline_joins(self):
+
+        # Both ditches and the antitank wall butt their glyphs edge to
+        # edge to form one continuous profile. At exactly one glyph
+        # width apart they leave a visible hairline at every join.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_GLYPH_SIZE_MM,
+            _WIRE_SPECS,
+            _WIRE_TILE_OVERLAP_MM,
+        )
+
+        self.assertGreater(_WIRE_TILE_OVERLAP_MM, 0)
+
+        tiling = {
+            name for name, spec in _WIRE_SPECS.items() if spec.gap == 0
+        }
+
+        self.assertEqual(
+            tiling,
+            {
+                "antitank_ditch_under_construction",
+                "antitank_ditch_completed",
+                "antitank_wall",
+            }
+        )
+
+        self.assertLess(_WIRE_TILE_OVERLAP_MM, _WIRE_GLYPH_SIZE_MM * 0.25)
+
+
     def test_the_paired_glyph_is_drawn_wide_enough_to_stay_square(self):
 
         # QGIS sizes an SVG marker by WIDTH, and double_cross holds two
@@ -2348,6 +2377,7 @@ class TestWireObstacles(QgisTestCase):
             _WIRE_GLYPH_SIZE_MM,
             _WIRE_GLYPH_WIDTH_MULTIPLIERS,
             _WIRE_SPECS,
+            _WIRE_TILE_OVERLAP_MM,
             create_obstacle_control_measures_lines_layer,
         )
 
@@ -2392,6 +2422,12 @@ class TestWireObstacles(QgisTestCase):
                 _WIRE_GLYPH_SIZE_MM * width_multiplier
                 + spec.gap * _WIRE_GAP_SCALE * _WIRE_GLYPH_SIZE_MM
             )
+
+            if spec.gap == 0:
+                # Tiling glyphs overlap a sliver to close the hairline
+                # a butt join leaves - see
+                # test_the_tiling_obstacles_overlap_to_avoid_hairline_joins.
+                expected -= _WIRE_TILE_OVERLAP_MM
 
             with self.subTest(measure_type=rule.label()):
 
