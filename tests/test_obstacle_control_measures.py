@@ -2855,10 +2855,11 @@ class TestMineClusterObstacle(QgisTestCase):
 class TestTripWireObstacle(QgisTestCase):
 
     """
-    Trip Wire (290500) - three anchor points reinterpreted into a
-    horizontal segment, a vertical segment and a 90 degree arc, read
-    directly off the standard's own template/draw-rules text (printed
-    page 598) rather than off any earlier paraphrase.
+    Trip Wire (290500) - rebuilt 2026-08-13 from the maintainer's own
+    dictated construction (their exact words are quoted in
+    mct_trip_wire_geometry's own docstring), replacing an earlier
+    3-anchor-point reading of the standard's own template picture.
+    Two anchor points now: PT1, PT2.
     """
 
     def setUp(self):
@@ -2877,12 +2878,12 @@ class TestTripWireObstacle(QgisTestCase):
         super().tearDown()
 
 
-    def _path(self, pt1, pt2, pt3, segments=None):
+    def _parts(self, pt1, pt2, segments=None):
 
         from qgis.core import QgsGeometry, QgsPointXY
 
         wkt = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(*pt1), QgsPointXY(*pt2), QgsPointXY(*pt3)]
+            [QgsPointXY(*pt1), QgsPointXY(*pt2)]
         ).asWkt()
 
         arguments = "geom_from_wkt('{}')".format(wkt)
@@ -2898,20 +2899,20 @@ class TestTripWireObstacle(QgisTestCase):
             expression.hasEvalError(), expression.evalErrorString()
         )
 
-        return result
+        self.assertEqual(result.wkbType().name, "MultiLineString")
+
+        return result.asMultiPolyline()
 
 
     def test_too_few_vertices_returns_the_geometry_unchanged(self):
 
         from qgis.core import QgsGeometry, QgsPointXY
 
-        two_point = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(0, 0), QgsPointXY(0, -10)]
-        )
+        one_point = QgsGeometry.fromPolylineXY([QgsPointXY(0, 0)])
 
         expression = QgsExpression(
             "mct_trip_wire_geometry(geom_from_wkt('{}'))".format(
-                two_point.asWkt()
+                one_point.asWkt()
             )
         )
 
@@ -2921,96 +2922,131 @@ class TestTripWireObstacle(QgisTestCase):
             expression.hasEvalError(), expression.evalErrorString()
         )
 
-        self.assertEqual(result.asWkt(), two_point.asWkt())
+        self.assertEqual(result.asWkt(), one_point.asWkt())
 
 
-    def test_path_starts_pt3_then_pt1_then_pt2(self):
+    def test_returns_three_parts_main_line_and_two_crossbars(self):
 
-        # "Points 1 and 2 define the vertical straight line portion";
-        # "Point 3 defines an end of the horizontal line" - the OTHER
-        # end being PT1, the only anchor left. The raw digitized
-        # geometry connects PT1->PT2->PT3 (click order); this function
-        # must reinterpret it, not just re-emit it.
-        path = self._path((0, 0), (0, -10), (5, 0))
+        parts = self._parts((0, 0), (10, 0))
 
-        vertices = path.asPolyline()
-
-        self.assertAlmostEqual(vertices[0].x(), 5)
-        self.assertAlmostEqual(vertices[0].y(), 0)
-
-        self.assertAlmostEqual(vertices[1].x(), 0)
-        self.assertAlmostEqual(vertices[1].y(), 0)
-
-        self.assertAlmostEqual(vertices[2].x(), 0)
-        self.assertAlmostEqual(vertices[2].y(), -10)
+        self.assertEqual(len(parts), 3)
 
 
-    def test_arc_radius_is_the_perpendicular_distance_to_pt3(self):
+    def test_main_line_starts_at_pt1_and_the_arc_ends_the_path(self):
 
-        # PT3 level with PT1 (the template's own axis-aligned example):
-        # radius is simply the horizontal offset, 5.
-        path = self._path((0, 0), (0, -10), (5, 0))
+        parts = self._parts((0, 0), (10, 0))
 
-        vertices = path.asPolyline()
+        main_line_and_arc = parts[0]
 
-        arc = vertices[2:]
+        self.assertAlmostEqual(main_line_and_arc[0].x(), 0)
+        self.assertAlmostEqual(main_line_and_arc[0].y(), 0)
 
-        # The arc's own end point is exactly one radius from PT2,
-        # diagonally - see the module's own worked derivation:
-        # centre = PT2 - r*n, end = PT2 + r*(u - n).
-        end = arc[-1]
-
-        self.assertAlmostEqual(end.x(), -5, places=6)
-        self.assertAlmostEqual(end.y(), -15, places=6)
+        # PT2 itself is the arc's own start point, so it must appear on
+        # the path exactly where the straight run ends.
+        self.assertAlmostEqual(main_line_and_arc[1].x(), 10)
+        self.assertAlmostEqual(main_line_and_arc[1].y(), 0)
 
 
-    def test_arc_curls_away_from_pt3_not_toward_it(self):
+    def test_arc_ends_a_quarter_turn_anticlockwise_at_one_fifth_radius(self):
 
-        # PT3 is to the right (+x) of the vertical line; the hook must
-        # curl LEFT (-x), matching the template picture - not toward
-        # PT3's own side.
-        path = self._path((0, 0), (0, -10), (5, 0))
+        # The maintainer's own numbers: radius = PT1-PT2 distance / 5,
+        # 90 degrees anticlockwise, starting tangent to the main line's
+        # own direction of travel. Verified against the module's own
+        # hand-derived worked example (PT1=(0,0), PT2=(10,0) ->
+        # centre=(10,2), end=(12,2)), not just "some plausible curve".
+        parts = self._parts((0, 0), (10, 0))
 
-        vertices = path.asPolyline()
+        main_line_and_arc = parts[0]
 
-        arc_midpoint = vertices[2 + len(vertices[2:]) // 2]
+        end = main_line_and_arc[-1]
 
-        self.assertLess(arc_midpoint.x(), 0)
-
-
-    def test_perpendicular_distance_used_for_an_off_axis_pt3(self):
-
-        # PT3 need not be exactly level with PT1 - the radius is the
-        # PERPENDICULAR distance to the infinite PT1-PT2 line, not the
-        # straight-line distance to PT1.
-        path = self._path((0, 0), (0, -10), (5, -3))
-
-        vertices = path.asPolyline()
-
-        # The "horizontal" segment now runs PT3 -> PT1, i.e. not
-        # horizontal at all - confirms this isn't hard-coded to an
-        # axis-aligned reading.
-        self.assertAlmostEqual(vertices[0].x(), 5)
-        self.assertAlmostEqual(vertices[0].y(), -3)
-
-        end = vertices[-1]
-
-        # Perpendicular distance from (5, -3) to the vertical line
-        # x=0 is still exactly 5, regardless of the y offset.
-        self.assertAlmostEqual(end.x(), -5, places=6)
-        self.assertAlmostEqual(end.y(), -15, places=6)
+        self.assertAlmostEqual(end.x(), 12, places=6)
+        self.assertAlmostEqual(end.y(), 2, places=6)
 
 
-    def test_pt3_on_the_line_collapses_the_arc_rather_than_guessing(self):
+    def test_crossbar_near_pt1_sits_at_one_seventh_symmetric_half_length(self):
 
-        path = self._path((0, 0), (0, -10), (0, -4))
+        # "both the horizontal lines are on one side of the line
+        # connecting pt1 and 2, they should be on both sides" - each
+        # crossbar now runs the dictated length to EACH side of the
+        # main line, not just one.
+        parts = self._parts((0, 0), (14, 0))
 
-        vertices = path.asPolyline()
+        crossbar = parts[1]
 
-        self.assertEqual(len(vertices), 3)
+        # 1/7 of 14 = 2, the base point on the main line.
+        self.assertAlmostEqual((crossbar[0].x() + crossbar[1].x()) / 2, 2)
+        self.assertAlmostEqual((crossbar[0].y() + crossbar[1].y()) / 2, 0)
 
-        self.assertAlmostEqual(vertices[-1].x(), 0)
-        self.assertAlmostEqual(vertices[-1].y(), -10)
+        # Perpendicular, length 0.5 * 14 = 7 to EACH side.
+        ys = sorted(point.y() for point in crossbar)
+
+        self.assertAlmostEqual(ys[0], -7, places=6)
+        self.assertAlmostEqual(ys[1], 7, places=6)
+
+        for point in crossbar:
+            self.assertAlmostEqual(point.x(), 2, places=6)
+
+
+    def test_crossbar_at_midpoint_has_one_point_two_times_length_each_side(self):
+
+        parts = self._parts((0, 0), (10, 0))
+
+        crossbar = parts[2]
+
+        self.assertAlmostEqual((crossbar[0].x() + crossbar[1].x()) / 2, 5)
+        self.assertAlmostEqual((crossbar[0].y() + crossbar[1].y()) / 2, 0)
+
+        # Perpendicular, length 1.2 * 10 = 12 to EACH side.
+        ys = sorted(point.y() for point in crossbar)
+
+        self.assertAlmostEqual(ys[0], -12, places=6)
+        self.assertAlmostEqual(ys[1], 12, places=6)
+
+
+    def test_only_the_arc_is_one_sided_not_the_crossbars(self):
+
+        # The maintainer's own correction named "both the horizontal
+        # lines" specifically - the arc was left as-is, still on one
+        # side (the main line's own left, standard CCW sense).
+        parts = self._parts((0, 0), (10, 0))
+
+        main_line_and_arc, crossbar_1, crossbar_2 = parts
+
+        self.assertTrue(all(point.y() >= 0 for point in main_line_and_arc))
+
+        for crossbar in (crossbar_1, crossbar_2):
+
+            ys = [point.y() for point in crossbar]
+
+            self.assertLess(min(ys), 0)
+            self.assertGreater(max(ys), 0)
+
+
+    def test_construction_rotates_with_the_main_lines_own_direction(self):
+
+        # Not hard-coded to a horizontal PT1-PT2 - a vertical line's
+        # crossbars/arc must rotate right along with it.
+        parts = self._parts((0, 0), (0, 10))
+
+        main_line_and_arc, crossbar_1, crossbar_2 = parts
+
+        end = main_line_and_arc[-1]
+
+        # Centre = PT2 + r*n where n = u rotated 90 CCW; u=(0,1) here,
+        # n=(-1,0). radius=2. end = PT2 + r*(n+u) = (0,10)+2*(-1,1)
+        # = (-2,12).
+        self.assertAlmostEqual(end.x(), -2, places=6)
+        self.assertAlmostEqual(end.y(), 12, places=6)
+
+        # Crossbar at the midpoint should now run along +/-x, not +/-y.
+        xs = sorted(point.x() for point in crossbar_2)
+
+        self.assertAlmostEqual(xs[0], -12, places=6)
+        self.assertAlmostEqual(xs[1], 12, places=6)
+
+        for point in crossbar_2:
+            self.assertAlmostEqual(point.y(), 5, places=6)
 
 
     def test_trip_wire_is_offered_on_the_lines_layer(self):
@@ -3089,7 +3125,7 @@ class TestTripWireObstacle(QgisTestCase):
 
         feature.setGeometry(
             QgsGeometry.fromPolylineXY(
-                [QgsPointXY(0, 0), QgsPointXY(0, -10), QgsPointXY(5, 0)]
+                [QgsPointXY(0, 0), QgsPointXY(10, 0)]
             )
         )
 
@@ -3108,4 +3144,4 @@ class TestTripWireObstacle(QgisTestCase):
             expression.hasEvalError(), expression.evalErrorString()
         )
         self.assertFalse(path.isEmpty())
-        self.assertGreaterEqual(len(path.asPolyline()), 3)
+        self.assertEqual(len(path.asMultiPolyline()), 3)

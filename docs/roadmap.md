@@ -6638,6 +6638,50 @@ tested, not claimed as done here.
   rewritten in place for the new construction rather than grown, so the
   total is unchanged from Trip Wire's own entry above.
 
+- **Trip Wire rebuilt from the maintainer's own dictated construction**
+  (2026-08-13), replacing the template-picture reading entirely.
+  Reviewing that render, the maintainer gave the construction directly
+  instead of correcting the reading: "user clicks PT1 and PT2 - draw a
+  line connecting PT1 and 2, now at 1/7 pt from PT1, draw a line 90 deg
+  to the line between PT1 and PT2, length 0.5 of the distance between
+  PT1 and PT2, now at midway point, draw another line 90 deg or
+  perpendicular to the line between PT1 and PT2, length 1.2 times the
+  distance between PT1 and PT2, finally at PT2, draw an arc of 90 deg
+  anticlockwise, radius 1/5 of the distance between PT1 and PT2."
+
+  Two anchor points now, not three - PT3 is gone entirely. Built as a
+  MultiLineString: the main PT1-PT2 line fused with the arc (they share
+  PT2), plus the two perpendicular crossbars as their own separate
+  parts. The arc's centre is derived, not guessed: for a start tangent
+  u (continuing PT1->PT2's own direction) and an ANTICLOCKWISE sweep,
+  the centre is PT2 offset by one radius along n = u rotated 90 degrees
+  CCW - verified by a hand-worked example (PT1=(0,0), PT2=(10,0) ->
+  centre=(10,2), end=(12,2)) before it went in the docstring, and
+  cross-checked again by direct expression evaluation.
+
+  Neither crossbar's own side nor which screen direction
+  "anticlockwise" reads as was pinned down beyond the dictated wording
+  - built consistently on one side (the main line's own left, standard
+  CCW convention) so the whole symbol reads as one coherent shape. That
+  is the one thing flagged for the maintainer's own review, per their
+  own "will give further instructions if required."
+
+  910 tests passing on both QGIS versions.
+
+- **Trip Wire's crossbars made symmetric** (2026-08-13). The maintainer
+  reviewed the render and corrected the one thing flagged for their own
+  review, though not the side of the arc: "both the horizontal lines
+  are on one side of the line connecting pt1 and 2, they should be on
+  both sides." Each crossbar now extends the dictated length to BOTH
+  perpendicular directions from its own base point on the main line,
+  rather than one - the crossbar's own total span is now twice the
+  stated multiplier (e.g. the midpoint crossbar reaches 1.2x the
+  PT1-PT2 distance on each side, 2.4x total). The arc is untouched -
+  the correction named "both the horizontal lines" specifically.
+
+  910 tests passing on both QGIS versions (rewritten in place, not
+  grown).
+
 ---
 
 ## Suggested near-term order

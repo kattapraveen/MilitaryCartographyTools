@@ -882,45 +882,53 @@ def mct_mine_cluster_arc(values, feature=None, parent=None):
 def mct_trip_wire_geometry(values, feature=None, parent=None):
 
     """
-    Table H-XIX's own Trip Wire (290500, printed page 598) - the one
-    the maintainer flagged in advance as "slightly complex, we will
-    figure it out when it comes to that". Read directly off the
-    standard's own template/draw-rules text.
+    Table H-XIX's own Trip Wire (290500). Rebuilt 2026-08-13 to the
+    maintainer's own dictated construction, replacing an earlier
+    reading of the standard's own template picture (which used three
+    clicked anchor points, not two) after the maintainer reviewed that
+    render and gave the exact steps instead:
 
-    Three clicked anchor points, taken from the feature's own digitized
-    vertices in order (NOT the raw PT1-PT2-PT3 polyline the digitizing
-    tool connects them into - like mct_abatis_line and
-    mct_mine_cluster_arc, this reinterprets the anchor POSITIONS rather
-    than drawing the raw segments between them):
+    "user clicks PT1 and PT2 - draw a line connecting PT1 and 2, now at
+    1/7 pt from PT1, draw a line 90 deg to the line between PT1 and
+    PT2, length 0.5 of the distance between PT1 and PT2, now at midway
+    point, draw another line 90 deg or perpendicular to the line
+    between PT1 and PT2, length 1.2 times the distance between PT1 and
+    PT2, finally at PT2, draw an arc of 90 deg anticlockwise, radius
+    1/5 of the distance between PT1 and PT2"
 
-    - PT1, PT2: "Points 1 and 2 define the vertical straight line
-      portion of the symbol." Drawn as a plain straight segment.
-    - PT3: "defines an end of the horizontal line" - the OTHER end is
-      PT1 itself (the only anchor left once PT2 is spent on the arc),
-      giving a right-angle "horizontal" segment off the TOP of the
-      vertical one, matching the template picture (the short segment
-      sits right at PT1, not partway down). "Horizontal" only in the
-      template's own axis-aligned example; here it is whatever
-      direction PT3 was actually clicked in.
-    - The template's own longer, unlabelled line running further down
-      and past the vertical line is the same convention already caught
-      once in this appendix (Light Line, H2): an EXAMPLE-column
-      explanatory addition - here it links to a mine glyph the picture
-      uses to show the trip wire's PURPOSE - not part of the control
-      measure's own geometry, and not drawn here.
+    Only two anchor points now (PT1, PT2), taken from the feature's own
+    digitized vertices - everything else is derived from them:
 
-    "The distance between the line connecting points 1 and 2 and point
-    3 is the radius of the 90 degree arc at the bottom of the symbol" -
-    the PERPENDICULAR distance from PT3 to the infinite line through
-    PT1-PT2, general enough to keep working even if PT3 is not clicked
-    exactly perpendicular to PT1-PT2. The arc starts at PT2 tangent to
-    the PT1->PT2 direction (continuing the vertical line's own way of
-    travel) and curves 90 degrees to end tangent AWAY from PT3's own
-    side - the hook in the template curls opposite the horizontal
-    segment, not underneath it.
+    - The main line, PT1 to PT2, drawn as-is.
+    - A crossbar at 1/7 of the way from PT1 to PT2, perpendicular to
+      the main line, running 0.5x the PT1-PT2 distance to EACH side of
+      it - corrected 2026-08-13 from an initial one-sided build: "both
+      the horizontal lines are on one side of the line connecting pt1
+      and 2, they should be on both sides". The dictated length is
+      kept as the length of each side, so the crossbar's own total
+      span is twice the stated multiplier.
+    - A second crossbar at the midpoint, same symmetric treatment,
+      1.2x the PT1-PT2 distance to each side.
+    - A 90 degree arc at PT2, anticlockwise, radius 0.2x (1/5) the
+      PT1-PT2 distance, starting tangent to the main line's own
+      direction of travel (continuing past PT2) and sweeping
+      anticlockwise from there - standard mathematical sense
+      (increasing angle, toward the main line's own left side, in a
+      Y-up plane, which is how a digitized map's own coordinates read).
+      Not corrected to be symmetric - the maintainer's own "both the
+      horizontal lines" named the crossbars specifically, not the arc.
 
-    Returned as ONE connected polyline (PT3 -> PT1 -> PT2 -> arc),
-    since every segment genuinely shares an endpoint with the next.
+    Which side "anticlockwise" reads as on screen was not pinned down
+    beyond the dictated wording - the arc is built on the main line's
+    own left by the standard right-hand/CCW convention, a placement
+    call rather than a measurement, exactly the kind of thing the
+    maintainer said they would give further correction on after seeing
+    a render.
+
+    Returned as a MultiLineString: the main line fused with the arc
+    (they share PT2, so it is one continuous path), plus the two
+    crossbars as their own separate parts, since neither crossbar
+    shares an endpoint with anything else it is drawn against.
     """
 
     if len(values) < 1:
@@ -935,66 +943,83 @@ def mct_trip_wire_geometry(values, feature=None, parent=None):
 
     vertices = geometry.asPolyline()
 
-    if len(vertices) < 3:
+    if len(vertices) < 2:
         return geometry
 
     pt1 = QgsPointXY(vertices[0])
     pt2 = QgsPointXY(vertices[1])
-    pt3 = QgsPointXY(vertices[2])
 
     dx = pt2.x() - pt1.x()
     dy = pt2.y() - pt1.y()
 
-    span = math.hypot(dx, dy)
+    length = math.hypot(dx, dy)
 
-    if span == 0:
+    if length == 0:
         return geometry
 
-    # u: unit vector along PT1->PT2, the direction the arc continues
-    # travelling in as it leaves PT2.
-    ux, uy = dx / span, dy / span
+    # u: unit vector along PT1->PT2. n: u rotated 90 degrees
+    # anticlockwise (standard maths sense, Y-up) - the one consistent
+    # side every perpendicular element in this symbol is built on.
+    ux, uy = dx / length, dy / length
+    nx, ny = -uy, ux
 
-    # Perpendicular distance from PT3 to the infinite line through
-    # PT1-PT2, via the standard vector projection - not just
-    # |PT3.x - PT1.x|, so an off-axis PT3 still resolves sensibly.
-    to_pt3_x = pt3.x() - pt1.x()
-    to_pt3_y = pt3.y() - pt1.y()
+    def point_along(fraction):
 
-    along = to_pt3_x * ux + to_pt3_y * uy
+        return QgsPointXY(
+            pt1.x() + fraction * dx,
+            pt1.y() + fraction * dy,
+        )
 
-    foot_x = pt1.x() + along * ux
-    foot_y = pt1.y() + along * uy
+    def crossbar(fraction, length_multiplier):
 
-    perp_x = pt3.x() - foot_x
-    perp_y = pt3.y() - foot_y
+        # Symmetric about the base point - "both the horizontal lines
+        # are on one side of the line connecting pt1 and 2, they should
+        # be on both sides", the maintainer's own correction to an
+        # initial one-sided build. The dictated length is kept as the
+        # length of EACH side, so the arm on the +n side and the arm on
+        # the -n side both run the full length_multiplier x length.
+        base = point_along(fraction)
 
-    radius = math.hypot(perp_x, perp_y)
+        arm = length * length_multiplier
 
-    if radius == 0:
-        # PT3 sits ON the PT1-PT2 line - no side to curl toward, so the
-        # arc collapses to a point at PT2 rather than guessing a side.
-        return QgsGeometry.fromPolylineXY([pt3, pt1, pt2])
+        near = QgsPointXY(
+            base.x() - arm * nx,
+            base.y() - arm * ny,
+        )
 
-    # n: unit vector from the PT1-PT2 line TOWARD PT3. The arc curls in
-    # the OPPOSITE direction (-n), away from the horizontal segment,
-    # matching the template's own hook.
-    nx, ny = perp_x / radius, perp_y / radius
+        far = QgsPointXY(
+            base.x() + arm * nx,
+            base.y() + arm * ny,
+        )
 
-    center_x = pt2.x() - radius * nx
-    center_y = pt2.y() - radius * ny
+        return [near, far]
+
+    crossbar_near_pt1 = crossbar(1.0 / 7.0, 0.5)
+    crossbar_midpoint = crossbar(0.5, 1.2)
+
+    radius = length * (1.0 / 5.0)
+
+    # Centre of the arc's own circle: PT2 offset by one radius along n
+    # (u rotated 90 CCW). Derived, not guessed - the only centre for
+    # which a point starting at PT2, moving with tangent u, and
+    # sweeping ANTICLOCKWISE (standard maths sense: increasing angle)
+    # is consistent. The vector from centre back to PT2 is then -n;
+    # rotating THAT vector anticlockwise by the sweep angle traces the
+    # arc, ending with vector +u from the centre (tangent there is n -
+    # a quarter-turn CCW from the starting tangent u, as it should be).
+    center_x = pt2.x() + radius * nx
+    center_y = pt2.y() + radius * ny
+
+    start_x, start_y = -nx, -ny
 
     arc_points = []
 
     for index in range(segments + 1):
 
-        # Sweeps from the radius vector pointing along +n (PT2's own
-        # position relative to the centre) to +u (continuing PT1->PT2's
-        # own direction) - a quarter turn, derived rather than assumed,
-        # since n and u are perpendicular by construction.
         t = (index / segments) * (math.pi / 2.0)
 
-        dir_x = nx * math.cos(t) + ux * math.sin(t)
-        dir_y = ny * math.cos(t) + uy * math.sin(t)
+        dir_x = start_x * math.cos(t) - start_y * math.sin(t)
+        dir_y = start_x * math.sin(t) + start_y * math.cos(t)
 
         arc_points.append(
             QgsPointXY(
@@ -1003,7 +1028,11 @@ def mct_trip_wire_geometry(values, feature=None, parent=None):
             )
         )
 
-    return QgsGeometry.fromPolylineXY([pt3, pt1, pt2] + arc_points[1:])
+    main_line_and_arc = [pt1] + arc_points
+
+    return QgsGeometry.fromMultiPolylineXY(
+        [main_line_and_arc, crossbar_near_pt1, crossbar_midpoint]
+    )
 
 
 @qgsfunction(
