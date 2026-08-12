@@ -131,7 +131,8 @@ _ENTITY_LABELS = {
     # POINT_ENTITY_LABELS, defensive_control_measures.py's own
     # POINT_ENTITY_LABELS, offensive_control_measures.py's own
     # POINT_ENTITY_LABELS, airspace_control_measures.py's own
-    # POINT_ENTITY_LABELS, and maritime_control_measures.py's own
+    # POINT_ENTITY_LABELS, maritime_control_measures.py's own
+    # POINT_ENTITY_LABELS, and target_control_measures.py's own
     # POINT_ENTITY_LABELS respectively - at the project maintainer's own
     # request (2026-08-10, and again 2026-08-12 for the airspace family:
     # "all symbols related to points, I think they are in control
@@ -142,16 +143,6 @@ _ENTITY_LABELS = {
     # here - the underlying sidc.py entities are untouched, so any
     # already-digitized feature keeps rendering fine regardless of which
     # layer's dropdown offers them.
-    # Fires
-    "point_target": "Point/Single Target",
-    "nuclear_target": "Nuclear Target",
-    "target_recorded": "Target - Recorded",
-    "fire_support_station": "Fire Support Station",
-    "firing_point": "Firing Point",
-    "hide_point": "Hide Point",
-    "launch_point": "Launch Point",
-    "reload_point": "Reload Point",
-    "survey_control_point": "Survey Control Point",
     # Protection (obstacles, mines, shelters, CBRN events)
     "abatis": "Abatis",
     "antipersonnel_mine": "Antipersonnel Mine",
@@ -242,10 +233,11 @@ def _configure_attribute_form(layer):
     # empty-string one mct_build_sidc() would reject. The default entity
     # has had to move twice as groups split off to their own layers -
     # "checkpoint" until Table H-VI left (2026-08-10), then
-    # "distressed_vessel" until Table H-XIV left (2026-08-12). See
+    # "distressed_vessel" until Table H-XIV left, then "point_target"
+    # until Table H-XVII left (both 2026-08-12). See
     # _ENTITY_LABELS' own comment.
     layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
-    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'point_target'"))
+    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'abatis'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
 

@@ -34,6 +34,9 @@ from MilitaryCartographyTools.military_symbology.airspace_control_measures impor
 from MilitaryCartographyTools.military_symbology.maritime_control_measures import (
     POINT_ENTITY_LABELS as _MARITIME_POINT_ENTITY_LABELS,
 )
+from MilitaryCartographyTools.military_symbology.target_control_measures import (
+    POINT_ENTITY_LABELS as _TARGET_POINT_ENTITY_LABELS,
+)
 from MilitaryCartographyTools.military_symbology.c2_measures import (
     POINT_ENTITY_LABELS as _C2_POINT_ENTITY_LABELS,
 )
@@ -105,6 +108,7 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
             set(control_measure_points._ENTITY_LABELS)
             | set(_AIRSPACE_POINT_ENTITY_LABELS)
             | set(_MARITIME_POINT_ENTITY_LABELS)
+            | set(_TARGET_POINT_ENTITY_LABELS)
             | set(_C2_POINT_ENTITY_LABELS)
             | set(_DEFENSIVE_POINT_ENTITY_LABELS)
             | set(_OFFENSIVE_POINT_ENTITY_LABELS),

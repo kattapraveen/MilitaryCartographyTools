@@ -662,8 +662,9 @@ H.5.x group that hasn't had its own point types split out into a
 dedicated layer yet - as of 2026-08-12 that's everything except Table
 H-VI (now on C2 Measures), Table H-IX (now on Defensive Control
 Measures), Table H-XI's Point of Departure (now on Offensive Control
-Measures), Table H-XIII (now on Airspace Control Measures) and Table
-H-XIV (now on Maritime Control Measures).
+Measures), Table H-XIII (now on Airspace Control Measures), Table
+H-XIV (now on Maritime Control Measures) and Table H-XVII (now on
+Target Control Measures).
 
 **Drawing a Boundary**: use QGIS's own native line editing tools (toggle
 editing, **Add Line Feature**) to digitize the line between two units,
@@ -1108,22 +1109,32 @@ example both show it dashed with no solid variant.
 
 ### Target Control Measures
 
-MIL-STD-2525D Appendix H.5.19 (Table H-XVII). Most of this table's own
-point vocabulary — Point/Single Target, Nuclear Target, Target-Recorded
-(AEGIS Only), Fire Support Station, and the whole Field Artillery point
-family (Firing/Hide/Launch/Reload/Survey Control Point) — was already
-on the **Control Measure Points** layer from an earlier pass.
+MIL-STD-2525D Appendix H.5.19 (Table H-XVII).
+
+**Points** offers this table's own nine entries — **Point/Single
+Target**, **Nuclear Target**, **Target-Recorded (AEGIS Only)**, **Fire
+Support Station (FSS)**, and the Fires Points family (**Firing**,
+**Hide**, **Launch**, **Reload** and **Survey Control Point**). These
+were previously on the shared Control Measure Points layer.
+
+Note that the five Fires Points draw *above* where you click — their
+anchor is the tip of the cone at the bottom, not the centre.
 
 **Lines** offers 3 types, each with a perpendicular tick at both ends:
-**Linear Target** (a bare designation, no fixed abbreviation),
-**Linear Smoke Target** (a fixed "SMOKE" second line under an optional
-name), **Final Protective Fire (FPF)** (a fixed centred label).
+**Linear Target**, **Linear Smoke Target** (a fixed "SMOKE" below the
+line) and **Final Protective Fire (FPF)** (a fixed "FPF" below the
+line). All three take an optional **unique designation**: Linear Target
+draws it above the line, and the other two draw it above the line with
+their fixed word below, so the pair straddles it. Leave the designation
+blank and the fixed word still sits below the line rather than on it.
 
 **Areas** offers 5 types: **Area Target** and **Series or Group of
 Targets** (both a bare name with no fixed prefix — for Series or Group
 of Targets, place the individual target features it groups as their
 own separate point/line/area features; only the boundary + name is
-drawn here), **Smoke** (a fixed "SMOKE" label plus an optional name —
+drawn here, and that name sits **on the top of the boundary** with the
+line masked around it, as the standard draws it), **Smoke** (a fixed
+"SMOKE" label plus an optional name —
 present/planned folds onto the usual Status field here, unlike this
 appendix's other fixed-dash constructions), **Bomb Area** (a fixed
 "BOMB" label, no name), **Fire Support Area (FSA)** (prefix + optional
@@ -1174,11 +1185,12 @@ in the attribute form:
   the actual SVG output): friendly/neutral/unknown draw in black, hostile
   draws in red.
 - **Entity** — which point control measure this is (e.g. "Ammunition
-  Supply Point", "Casualty Collection Point", "Antitank Mine"). 44 of
+  Supply Point", "Casualty Collection Point", "Antitank Mine"). 35 of
   the standard's ~260 point control measures are available here — Table
   H-VI's own command/control points, Table H-IX's own Observation Post
-  family, Table H-XIII's own 26-entry airspace vocabulary and Table
-  H-XIV's own 105-entry maritime vocabulary have each moved to their own
+  family, Table H-XIII's own 26-entry airspace vocabulary, Table
+  H-XIV's own 105-entry maritime vocabulary and Table H-XVII's own
+  9-entry target/fires vocabulary have each moved to their own
   dedicated layers (see above); the granular per-nation supply-class
   variants aren't currently
   included.

@@ -5424,6 +5424,67 @@ tested, not claimed as done here.
 
   787 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XVII (Targets).** Points relocated, plus three
+  line-label fixes and one area-label fix from the maintainer's own
+  live testing. All confirmed against the table's own templates
+  (printed pages 525-536), not just the report.
+
+  - **The nine point entries moved to their own POINTS layer**, the
+    same per-table convention every other H.5.x group now follows.
+    sidc.py's entities are untouched.
+
+    **"Fire support station symbol is missing, 240900" turned out not
+    to be missing.** The entity, its code and its rendering were all
+    already correct - verified by probe before changing anything. Two
+    things made it easy to overlook, and both are now fixed: it was one
+    line in a flat ~44-entry shared dropdown, and its own "FSS" text
+    sits OUTSIDE the X glyph, widening milsymbol's viewBox to 158
+    against its siblings' 108. QGIS reads a marker's size as its WIDTH,
+    so the X drew at about two-thirds their scale, and the X's own
+    centre (x=100, measured off the rendered path) sat 25 viewBox units
+    left of the point QGIS anchors on. Both corrected - the identical
+    asymmetry as H7's Pop-Up Point, measured the same way rather than
+    assumed from the earlier case.
+
+  - **Linear Target's designation moved ABOVE the line.** Its label is
+    a single line, and the shared OnLine default centres a single line
+    ON the line, striking it through.
+
+  - **A blank designation now stays a blank LINE** on Linear Smoke
+    Target and Final Protective Fire. Both draw a two-line label that
+    straddles the line - designation above, "SMOKE"/"FPF" below - which
+    is exactly what OnLine gives on a two-line label. Drop the empty
+    first line and the label collapses to ONE line, which OnLine then
+    centres on the line and strikes through: the maintainer's own
+    report, and their own suggested fix ("maybe default to a ' ' fixed
+    blank space?"), which is what this does via
+    nullif(...,'')/coalesce.
+
+  - **Final Protective Fire gained a unique designation**, which it had
+    never had - it was a bare fixed "FPF". Same terms as Smoke, per the
+    maintainer, and confirmed by its own example ("QC1968" above the
+    line, "FPF" below).
+
+  - **Series or Group of Targets labels ON its own boundary**, at the
+    top, with the outline masked - "the unique designator should be on
+    the perimeter with suitable mask so that line does not overlap the
+    text", and what all four of its own examples draw. It is the only
+    area in this table whose label isn't centred inside the shape.
+
+    **The default mask buffer was not enough.** QGIS's text mask is
+    GLYPH-shaped, not a box, so at the 1.2mm default the boundary line
+    still showed through the enclosed counter of a round letter - an
+    "OWL" label had the line visible inside its own "O". Caught by
+    render (the mask looked correct everywhere else); widened to 2.4mm,
+    which closes those counters. Worth remembering for any future label
+    masked against a line it sits directly on.
+
+  Both layers moved from QgsVectorLayerSimpleLabeling to
+  QgsRuleBasedLabeling, since their measure types no longer share one
+  placement.
+
+  797 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

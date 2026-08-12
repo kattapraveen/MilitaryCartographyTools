@@ -78,6 +78,7 @@ from .military_symbology.fire_support_coordination_measures import (
 )
 from .military_symbology.target_control_measures import (
     add_target_control_measures_lines_layer,
+    add_target_control_measures_points_layer,
     add_target_control_measures_areas_layer,
 )
 from .military_symbology.target_acquisition_control_measures import (
@@ -2136,10 +2137,10 @@ class MilitaryCartographyTools:
         Linear Smoke Target, Final Protective Fire; areas: Area Target,
         Series or Group of Targets, Smoke, Bomb Area, Fire Support Area
         - MIL-STD-2525D Appendix H.5.19, Table H-XVII), ready for
-        digitizing with QGIS's own native editing tools. Most of this
-        table's own point vocabulary (Point/Single/Nuclear/Recorded
-        Target, Fire Support Station, Firing/Hide/Launch/Reload/Survey
-        Control Point) was already on the Control Measure Points layer.
+        digitizing with QGIS's own native editing tools, plus a Points
+        layer carrying this table's own nine point entries
+        (Point/Single/Nuclear/Recorded Target, Fire Support Station,
+        Firing/Hide/Launch/Reload/Survey Control Point).
         """
 
         add_target_control_measures_lines_layer(
@@ -2147,6 +2148,10 @@ class MilitaryCartographyTools:
         )
 
         add_target_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_target_control_measures_points_layer(
             self.iface
         )
 

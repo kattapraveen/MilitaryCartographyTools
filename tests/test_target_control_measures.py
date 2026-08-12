@@ -32,11 +32,19 @@ from MilitaryCartographyTools.military_symbology.target_control_measures import 
     AREA_MEASURE_TYPE_LABELS,
     LINES_LAYER_NAME,
     LINE_MEASURE_TYPE_LABELS,
+    POINTS_LAYER_NAME,
+    POINT_ENTITY_LABELS,
     add_target_control_measures_areas_layer,
     add_target_control_measures_lines_layer,
+    add_target_control_measures_points_layer,
     create_target_control_measures_areas_layer,
     create_target_control_measures_lines_layer,
+    create_target_control_measures_points_layer,
 )
+from MilitaryCartographyTools.military_symbology.control_measure_points import (
+    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
+)
+from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
@@ -80,6 +88,29 @@ class TestCreateTargetControlMeasuresLinesLayer(QgisTestCase):
         QgsProject.instance().setCrs(WGS84)
 
 
+    def _label_rules(self, layer):
+
+        """
+        Both layers moved from QgsVectorLayerSimpleLabeling to
+        QgsRuleBasedLabeling 2026-08-12, when their measure types
+        stopped sharing one placement - so there is no single
+        layer.labeling().settings() any more. Two rules each, in the
+        order appended.
+
+        NOTE settings() returns BY VALUE - hold it rather than
+        chaining, or the temporary's C++ object can be collected
+        mid-expression and segfault the interpreter.
+        """
+
+        root = layer.labeling().rootRule()
+
+        children = root.children()
+
+        self.assertEqual(len(children), 2)
+
+        return children
+
+
     def _evaluate_label(self, layer, measure_type, **attrs):
 
         feature = QgsFeature(layer.fields())
@@ -89,7 +120,7 @@ class TestCreateTargetControlMeasuresLinesLayer(QgisTestCase):
 
             feature.setAttribute(key, value)
 
-        settings = layer.labeling().settings()
+        settings = self._label_rules(layer)[0].settings()
 
         expression = QgsExpression(settings.fieldName)
         context = layer.createExpressionContext()
@@ -190,19 +221,100 @@ class TestCreateTargetControlMeasuresLinesLayer(QgisTestCase):
             "VB1910\nSMOKE"
         )
 
+        # A blank designation stays a blank LINE rather than
+        # collapsing the label to one line - see below.
         self.assertEqual(
             self._evaluate_label(layer, "linear_smoke_target"),
-            "SMOKE"
+            " \nSMOKE"
         )
 
 
-    def test_final_protective_fire_label_is_fixed(self):
+    def test_final_protective_fire_carries_a_designation_like_smoke(self):
 
+        # 2026-08-12: FPF had no designation at all - it was a bare
+        # fixed "FPF". The maintainer asked for one, "same rules as
+        # smoke target", which its own example confirms ("QC1968" above
+        # the line, "FPF" below).
         layer = create_target_control_measures_lines_layer()
 
         self.assertEqual(
+            self._evaluate_label(
+                layer, "final_protective_fire", unique_designation="qc1968"
+            ),
+            "QC1968\nFPF"
+        )
+
+        self.assertEqual(
             self._evaluate_label(layer, "final_protective_fire"),
-            "FPF"
+            " \nFPF"
+        )
+
+
+    def test_a_blank_designation_stays_a_blank_line(self):
+
+        # The maintainer's own report on Linear Smoke Target: "in case
+        # user does not provide any unique designation, the render
+        # overlaps the lines, so maybe default to a ' ' fixed blank
+        # space?". Both straddling types draw a two-line label whose
+        # first line sits above the line and second below - the OnLine
+        # placement flag centres the whole block on the line. Drop the
+        # empty first line and the label collapses to ONE line, which
+        # OnLine then centres ON the line, striking it through. Keeping
+        # a single space preserves the two-line shape.
+        layer = create_target_control_measures_lines_layer()
+
+        for measure_type, fixed in (
+            ("linear_smoke_target", "SMOKE"),
+            ("final_protective_fire", "FPF"),
+        ):
+
+            with self.subTest(measure_type=measure_type):
+
+                for designation in (None, ""):
+
+                    label = self._evaluate_label(
+                        layer, measure_type, unique_designation=designation
+                    )
+
+                    self.assertEqual(label, f" \n{fixed}")
+                    self.assertEqual(len(label.split("\n")), 2)
+
+
+    def test_linear_target_sits_above_the_line_others_straddle_it(self):
+
+        # "Linear target - unique designation should be above the line
+        # not on it". Its label is a SINGLE line, and the shared OnLine
+        # default centres a single line ON the line - so it needs
+        # AboveLine. The other two straddle deliberately (designation
+        # above, SMOKE/FPF below), so they keep OnLine.
+        layer = create_target_control_measures_lines_layer()
+
+        above_rule, straddling_rule = self._label_rules(layer)
+
+        self.assertEqual(
+            above_rule.filterExpression(),
+            '"measure_type" = \'linear_target\''
+        )
+
+        above_settings = above_rule.settings()
+
+        self.assertEqual(above_settings.placement, Qgis.LabelPlacement.Line)
+        self.assertEqual(
+            above_settings.lineSettings().placementFlags(),
+            Qgis.LabelLinePlacementFlag.AboveLine
+        )
+
+        self.assertEqual(
+            straddling_rule.filterExpression(),
+            '"measure_type" = \'linear_smoke_target\''
+            ' OR "measure_type" = \'final_protective_fire\''
+        )
+
+        straddling_settings = straddling_rule.settings()
+
+        self.assertEqual(
+            straddling_settings.lineSettings().placementFlags(),
+            Qgis.LabelLinePlacementFlag.OnLine
         )
 
 
@@ -277,6 +389,29 @@ class TestCreateTargetControlMeasuresAreasLayer(QgisTestCase):
         QgsProject.instance().setCrs(WGS84)
 
 
+    def _label_rules(self, layer):
+
+        """
+        Both layers moved from QgsVectorLayerSimpleLabeling to
+        QgsRuleBasedLabeling 2026-08-12, when their measure types
+        stopped sharing one placement - so there is no single
+        layer.labeling().settings() any more. Two rules each, in the
+        order appended.
+
+        NOTE settings() returns BY VALUE - hold it rather than
+        chaining, or the temporary's C++ object can be collected
+        mid-expression and segfault the interpreter.
+        """
+
+        root = layer.labeling().rootRule()
+
+        children = root.children()
+
+        self.assertEqual(len(children), 2)
+
+        return children
+
+
     def _evaluate_label(self, layer, measure_type, **attrs):
 
         feature = QgsFeature(layer.fields())
@@ -286,7 +421,7 @@ class TestCreateTargetControlMeasuresAreasLayer(QgisTestCase):
 
             feature.setAttribute(key, value)
 
-        settings = layer.labeling().settings()
+        settings = self._label_rules(layer)[0].settings()
 
         expression = QgsExpression(settings.fieldName)
         context = layer.createExpressionContext()
@@ -510,3 +645,224 @@ class TestAddTargetControlMeasuresLayers(QgisTestCase):
         names = [child.name() for child in root.children()]
 
         self.assertEqual(names[0], LINES_LAYER_NAME)
+
+
+class TestCreateTargetControlMeasuresPointsLayer(QgisTestCase):
+
+    """
+    Table H-XVII's own nine point entries, moved here 2026-08-12 out of
+    the shared control_measure_points.py layer.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+
+    def test_has_the_expected_fields(self):
+
+        layer = create_target_control_measures_points_layer()
+
+        self.assertEqual(
+            [field.name() for field in layer.fields()],
+            ["affiliation", "entity", "status", "unique_designation"]
+        )
+
+
+    def test_covers_the_tables_own_nine_point_codes(self):
+
+        # Pinned against the standard's own codes, not the dict itself.
+        # 240600/250000 are the two parent rows (template "N/A") and are
+        # correctly absent.
+        self.assertEqual(
+            {
+                ENTITIES["control_measure"][entity]
+                for entity in POINT_ENTITY_LABELS
+            },
+            {
+                "240601", "240602", "240603", "240900",
+                "250100", "250200", "250300", "250400", "250500",
+            }
+        )
+
+
+    def test_fire_support_station_is_offered_and_renders(self):
+
+        # Reported as "missing". It was neither missing from sidc.py nor
+        # broken - it was hard to find in a flat ~44-entry shared
+        # dropdown and drew small (see the size test below). Pinned
+        # explicitly so a future curation pass can't quietly drop it.
+        self.assertIn("fire_support_station", POINT_ENTITY_LABELS)
+
+        self.assertEqual(
+            ENTITIES["control_measure"]["fire_support_station"], "240900"
+        )
+
+        layer = create_target_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", "fire_support_station")
+        feature.setAttribute("status", "present")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name, context, ""
+        )
+
+        self.assertTrue(ok)
+        self.assertTrue(path.startswith("base64:"))
+
+
+    def test_fire_support_station_is_resized_and_re_anchored_on_its_x(self):
+
+        # Its "FSS" text sits OUTSIDE the X, to the right, so the
+        # viewBox is 158 wide where its siblings' are 108 - and QGIS
+        # reads a marker's size as its WIDTH, so the X drew at about
+        # two-thirds their scale. The same asymmetry also puts the X's
+        # own centre (x=100, measured off the rendered path) 25 units
+        # left of the viewBox centre QGIS anchors on, hence the offset.
+        layer = create_target_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        sizes = {}
+        offsets = {}
+
+        for entity in POINT_ENTITY_LABELS:
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("entity", entity)
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            size, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+                QgsSymbolLayer.Property.Size, context, 0.0
+            )
+            self.assertTrue(ok)
+            sizes[entity] = size
+
+            offset, ok = svg_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Offset, context, ""
+            )
+            self.assertTrue(ok)
+            offsets[entity] = offset
+
+        self.assertAlmostEqual(
+            sizes.pop("fire_support_station"), 8.0 * 158.0 / 108.0, places=4
+        )
+        self.assertEqual(set(sizes.values()), {8.0})
+
+        fss_x, fss_y = offsets.pop("fire_support_station").split(",")
+
+        self.assertAlmostEqual(
+            float(fss_x), 8.0 * (158.0 / 108.0) * (25.0 / 158.0), places=3
+        )
+        self.assertEqual(float(fss_y), 0.0)
+
+        self.assertEqual(set(offsets.values()), {"0,0"})
+
+
+    def test_only_the_box_and_cone_points_anchor_at_their_tip(self):
+
+        # Firing/Hide/Launch/Reload/Survey Control Point share the
+        # box+cone construction whose anchor is the tip at the bottom
+        # (viewBox 56 -64 88 168, identical to Point of Departure's).
+        # The four target/station icons are centred.
+        layer = create_target_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        anchors = {}
+
+        for entity in POINT_ENTITY_LABELS:
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("entity", entity)
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            value, ok = svg_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.VerticalAnchor, context, ""
+            )
+
+            self.assertTrue(ok)
+            anchors[entity] = value
+
+        self.assertEqual(
+            {e for e, a in anchors.items() if a == "bottom"},
+            {
+                "firing_point", "hide_point", "launch_point",
+                "reload_point", "survey_control_point",
+            }
+        )
+
+        self.assertEqual(
+            {e for e, a in anchors.items() if a == "center"},
+            {
+                "point_target", "nuclear_target", "target_recorded",
+                "fire_support_station",
+            }
+        )
+
+
+    def test_every_entity_resolves_to_a_real_rendered_symbol(self):
+
+        layer = create_target_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        for entity in POINT_ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("affiliation", "friend")
+                feature.setAttribute("entity", entity)
+                feature.setAttribute("status", "present")
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                path, ok = svg_layer.dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.Name, context, ""
+                )
+
+                self.assertTrue(ok)
+                self.assertTrue(path.startswith("base64:"))
+
+
+    def test_the_target_family_left_the_shared_points_layer(self):
+
+        self.assertEqual(
+            set(POINT_ENTITY_LABELS)
+            & set(_CONTROL_MEASURE_POINT_ENTITY_LABELS),
+            set()
+        )
+
+
+    def test_points_layer_is_created_and_added(self):
+
+        layer = add_target_control_measures_points_layer(FakeIface())
+
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)),
+            1
+        )
