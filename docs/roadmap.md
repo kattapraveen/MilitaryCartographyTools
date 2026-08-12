@@ -6387,6 +6387,38 @@ tested, not claimed as done here.
 
     882 tests passing on both QGIS versions.
 
+- **All four toothed obstacles corrected** (2026-08-12), from the
+  maintainer's smoke test. Every one of the four was wrong, and in the
+  same way: the first build assumed each was "a line with teeth on it"
+  when three of them ARE their own line, and the fourth is not
+  repeating at all.
+
+  - **Abatis** is a SINGLE hump just after the first anchor point and
+    then straight line - "_^____", with the hump's legs meeting the
+    horizontal. Not a repeating glyph, so it now has its own builder
+    rather than a `_WireSpec`, using FirstVertex placement so there is
+    exactly one hump however long the line is.
+  - **Both antitank ditches** are a line BUILT OF triangles, bases
+    touching end to end, with no separate straight line drawn. So the
+    gap is 0 (the glyphs tile) and there are no line layers.
+  - **The antitank wall** tiles a serrated profile into one continuous
+    sawtooth - the maintainer's own comparison to the obstacle zones'
+    serrated boundary - rather than dropping separate notches below a
+    line.
+
+  All four also needed their glyph raised half its height, so the edge
+  that IS the line (the triangles' bases, the sawtooth's flats, the
+  hump's legs) sits on the digitized geometry instead of running
+  through the glyph's middle.
+
+  Three tests needed correcting with them, and one is worth noting: it
+  asserted "only Unspecified Wire Obstacle draws no line", which was
+  true and is now wrong for a second reason - the ditches and wall draw
+  no separate line either, because they are their line. The test now
+  names both reasons rather than just widening the set.
+
+    882 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

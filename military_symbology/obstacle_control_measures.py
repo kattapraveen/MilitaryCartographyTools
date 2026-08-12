@@ -2436,10 +2436,16 @@ _WIRE_SPECS = {
     # follow the line, so which side they point to follows the order
     # the anchor points were digitized in - exactly what the standard's
     # own Orientation rule says.
-    "abatis": _WireSpec("abatis_tooth", 1.2, (0,)),
-    "antitank_ditch_under_construction": _WireSpec("ditch_tooth", 1.0, (0,)),
-    "antitank_ditch_completed": _WireSpec("ditch_tooth_filled", 1.0, (0,)),
-    "antitank_wall": _WireSpec("wall_notch", 1.0, (0,)),
+    # The ditches are a LINE BUILT OF TRIANGLES - bases touching end to
+    # end, with no separate straight line drawn at all. So the gap is 0
+    # (the triangles tile) and there are no line layers. The
+    # maintainer's own correction; the first build drew spaced teeth
+    # standing off a drawn line, which is a different symbol.
+    "antitank_ditch_under_construction": _WireSpec("ditch_tooth", 0.0, ()),
+    "antitank_ditch_completed": _WireSpec("ditch_tooth_filled", 0.0, ()),
+    # Likewise the wall tiles a serrated profile into one continuous
+    # sawtooth, rather than dropping separate notches below a line.
+    "antitank_wall": _WireSpec("wall_sawtooth", 0.0, ()),
 }
 
 # The width (and height) of a single cross or oval.
@@ -2472,6 +2478,74 @@ _WIRE_END_TRIM = 0.04
 # 0.5 spacing WITHIN a Double Fence pair is not scaled - that one was
 # specified as an explicit figure and is baked into the paired glyph.
 _WIRE_GAP_SCALE = 0.6
+
+
+# Abatis is the one line obstacle here that is NOT a repeating glyph:
+# a single hump just after the first anchor point, then straight line
+# for the rest - "_^____" in the maintainer's own notation, with the
+# hump's legs meeting the line. So it gets its own builder rather than
+# a _WireSpec.
+_ABATIS_HUMP_SIZE_MM = 4.0
+
+# How far along the line the hump sits. "Just after PT1".
+_ABATIS_HUMP_OFFSET_MM = 5.0
+
+
+def _abatis_symbol():
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    hump = QgsSvgMarkerSymbolLayer("")
+
+    hump.setSize(_ABATIS_HUMP_SIZE_MM)
+
+    # Raised half its height so the hump's legs MEET the line rather
+    # than crossing it - "the lines of ^ touching the horizontal".
+    hump.setOffset(QPointF(0.0, -_ABATIS_HUMP_SIZE_MM * 0.5))
+
+    hump.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+    hump.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_wire_glyph_svg('abatis_hump', "
+            + _POINT_MONO_COLOR_EXPRESSION + ")"
+        )
+    )
+
+    marker_line = QgsMarkerLineSymbolLayer()
+
+    # FirstVertex, not Interval: exactly one hump per feature however
+    # long the line is. offsetAlongLine then slides it clear of the
+    # anchor point itself.
+    marker_line.setPlacement(Qgis.MarkerLinePlacement.FirstVertex)
+
+    marker_line.setOffsetAlongLine(_ABATIS_HUMP_OFFSET_MM)
+
+    marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
+
+    marker_line.setSubSymbol(QgsMarkerSymbol([hump]))
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, line_layer)
+
+    symbol.appendSymbolLayer(marker_line)
+
+    return symbol
 
 
 def _wire_obstacle_symbol(measure_type):
@@ -2619,7 +2693,10 @@ _LINE_SYMBOL_BUILDERS = {
         lambda measure_type=measure_type: _wire_obstacle_symbol(measure_type)
     )
     for measure_type in LINE_MEASURE_TYPE_LABELS
+    if measure_type != "abatis"
 }
+
+_LINE_SYMBOL_BUILDERS["abatis"] = _abatis_symbol
 
 
 def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):

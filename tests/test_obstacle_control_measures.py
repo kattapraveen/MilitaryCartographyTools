@@ -2171,7 +2171,9 @@ class TestWireObstacles(QgisTestCase):
             LINE_MEASURE_TYPE_LABELS,
         )
 
-        self.assertEqual(set(_WIRE_SPECS), set(LINE_MEASURE_TYPE_LABELS))
+        self.assertEqual(
+            set(_WIRE_SPECS) | {"abatis"}, set(LINE_MEASURE_TYPE_LABELS)
+        )
 
         signatures = {}
 
@@ -2225,8 +2227,12 @@ class TestWireObstacles(QgisTestCase):
         )
 
 
-    def test_only_the_unspecified_obstacle_draws_no_line(self):
+    def test_which_obstacles_draw_no_straight_line(self):
 
+        # Three kinds have no separate line layer, for two different
+        # reasons: Unspecified Wire Obstacle has no line at all in the
+        # standard, while the two ditches and the wall ARE their line -
+        # the triangles' bases and the sawtooth's flats form it.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _WIRE_SPECS,
         )
@@ -2235,7 +2241,15 @@ class TestWireObstacles(QgisTestCase):
             name for name, spec in _WIRE_SPECS.items() if not spec.lines
         }
 
-        self.assertEqual(without_lines, {"unspecified_wire_obstacle"})
+        self.assertEqual(
+            without_lines,
+            {
+                "unspecified_wire_obstacle",
+                "antitank_ditch_under_construction",
+                "antitank_ditch_completed",
+                "antitank_wall",
+            }
+        )
 
 
     def test_the_paired_glyph_is_drawn_wide_enough_to_stay_square(self):
@@ -2307,6 +2321,9 @@ class TestWireObstacles(QgisTestCase):
 
             trimmed = [e for e in expressions if "line_substring" in e]
 
+            if rule.label() not in _WIRE_SPECS:
+                continue
+
             with self.subTest(measure_type=rule.label()):
 
                 if _WIRE_SPECS[rule.label()].lines:
@@ -2339,6 +2356,11 @@ class TestWireObstacles(QgisTestCase):
         layer = create_obstacle_control_measures_lines_layer()
 
         for rule in layer.renderer().rootRule().children():
+
+            # Abatis has no _WireSpec - it is a single hump, not a
+            # repeating glyph.
+            if rule.label() not in _WIRE_SPECS:
+                continue
 
             spec = _WIRE_SPECS[rule.label()]
 
@@ -2398,9 +2420,16 @@ class TestWireObstacles(QgisTestCase):
 
         for measure_type in TOOTHED_MEASURE_TYPE_LABELS:
 
-            self.assertIn(measure_type, _WIRE_SPECS)
-
             self.assertIn(measure_type, LINE_MEASURE_TYPE_CODES)
+
+            # Abatis is the exception: a SINGLE hump just after the
+            # first anchor point, then straight line - not a repeating
+            # glyph at all, so it has its own builder rather than a
+            # _WireSpec. The maintainer's own correction.
+            if measure_type == "abatis":
+                self.assertNotIn(measure_type, _WIRE_SPECS)
+            else:
+                self.assertIn(measure_type, _WIRE_SPECS)
 
         self.assertEqual(
             set(TOOTHED_MEASURE_TYPE_CODES.values()),
@@ -2424,3 +2453,10 @@ class TestWireObstacles(QgisTestCase):
 
         self.assertEqual(under.glyph, "ditch_tooth")
         self.assertEqual(completed.glyph, "ditch_tooth_filled")
+
+        # Both TILE - the triangles' bases are the line, so there is no
+        # separate line layer and no gap between them. The maintainer's
+        # own correction; the first build drew spaced teeth standing
+        # off a drawn line, which is a different symbol entirely.
+        self.assertEqual(under.gap, 0.0)
+        self.assertEqual(under.lines, ())

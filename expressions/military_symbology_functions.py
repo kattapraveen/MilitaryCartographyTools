@@ -584,13 +584,16 @@ _WIRE_GLYPH_GEOMETRY = {
     # ON the line (y=100) and it points away from it.
     "ditch_tooth": (100, ["M 0,100 L 100,100 L 50,6 Z"], False),
     "ditch_tooth_filled": (100, ["M 0,100 L 100,100 L 50,6 Z"], True),
-    # Antitank Wall: a V-notch dropped below the line rather than a
-    # tooth raised above it.
-    "wall_notch": (100, ["M 0,0 L 50,92 L 100,0"], False),
-    # Abatis: felled trees across a route - a tooth with a stem, drawn
-    # as a chevron on a short stalk.
-    "abatis_tooth": (100, ["M 6,96 L 50,20 L 94,96", "M 50,20 L 50,100"],
-                     False),
+    # Antitank Wall: a tile of the SERRATED profile - flat, up to an
+    # apex, down, flat - so that laying these end to end (gap 0) makes
+    # one continuous sawtooth line, the same look as the obstacle
+    # zones' own serrated boundary. The maintainer's own comparison.
+    "wall_sawtooth": (100, ["M 0,100 L 18,100 L 50,14 L 82,100 L 100,100"],
+                      False),
+    # Abatis: a single hump on an otherwise straight line, its legs
+    # meeting the line - "_^____", in the maintainer's own notation.
+    # Placed once near the start, NOT repeated.
+    "abatis_hump": (100, ["M 4,100 L 50,12 L 96,100"], False),
 }
 
 _CROSS_PATHS = _WIRE_GLYPH_GEOMETRY["cross"][1]
