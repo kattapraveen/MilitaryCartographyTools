@@ -6134,6 +6134,48 @@ tested, not claimed as done here.
 
     859 tests passing on both QGIS versions.
 
+- **The unknown-glyph bug, third occurrence** (2026-08-12). The
+  maintainer's B2 smoke test: "when inserting the mined area with the
+  mines, the glyphs are broken", and the same on Dynamic Depiction.
+
+  Same defect class as B1's, in a new place. Both symbols live on the
+  AREAS layer, whose `affiliation` correctly defaults to "unspecified"
+  - that is the lines/areas vocabulary, and right for a hand-drawn
+  outline, where the fifth value means "draw it black". But B3 then
+  fed that same field into the mine glyphs' SIDC, build_sidc() raised,
+  mct_build_sidc() returned the KeyError message as if it were a SIDC,
+  and milsymbol drew its unknown-icon fallback for every mine.
+
+  **Fixed by removing the dependency, not by changing the vocabulary.**
+  That layer genuinely needs the fifth value for its outline. The
+  glyphs simply stop reading `affiliation` and use a fixed standard
+  identity instead - nothing is lost, because monoColor repaints these
+  icons from the `colour` field regardless and an unframed
+  control-measure icon takes no other cue from its standard identity.
+  The affiliation was never visible on them in the first place.
+
+  **The test that should have caught it made the identical mistake the
+  B1 test did**: it built its feature with affiliation="friend"
+  hardcoded, so the layer's own default was never exercised. Rewritten
+  to drive the layer's defaults.
+
+  **A new cross-layer guard** now renders every milsymbol-bearing
+  symbol on the Areas and Minefields layers FROM THEIR OWN DEFAULTS,
+  walks into sub-symbols (the glyphs hide inside a centroid fill and a
+  random-marker fill), decodes each base64 payload and asserts the
+  unknown-icon path is absent - across every measure type, every mine
+  type, and every affiliation the form offers. Verified by reverting
+  the fix: 17 failures.
+
+  The generalisable lesson, now recorded in that test's own docstring:
+  the risk is not "affiliation" specifically, it is any field that is
+  legitimate for a layer's hand-built symbology while being invalid as
+  SIDC input - and the only way to see it is to render from the
+  layer's own defaults, because a broken SIDC still yields a perfectly
+  well-formed base64 path.
+
+    862 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

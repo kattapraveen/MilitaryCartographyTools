@@ -1724,6 +1724,26 @@ _MINE_TYPE_SEQUENCE = {
 }
 
 
+# The mine glyphs are built with a FIXED standard identity, not the
+# feature's own `affiliation`.
+#
+# This is the fix for "the glyphs are broken i.e. ?" on Mined Area and
+# Dynamic Depiction (2026-08-12). Both live on the AREAS layer, whose
+# affiliation field correctly defaults to "unspecified" - that is the
+# lines/areas vocabulary, and right for a hand-drawn outline, where the
+# fifth value means "draw it black". But it is NOT a SIDC standard
+# identity, so feeding it to build_sidc() raised, mct_build_sidc()
+# returned the KeyError message as if it were a SIDC, and milsymbol
+# drew its unknown-icon fallback for every glyph.
+#
+# Rather than change that layer's affiliation vocabulary (it needs the
+# fifth value) the glyphs simply stop depending on it. Nothing is lost:
+# monoColor repaints these icons green or black from the `colour` field
+# regardless, and an unframed control-measure icon takes no other cue
+# from its standard identity - so the affiliation was never visible
+# here in the first place.
+_MINE_GLYPH_AFFILIATION = "friend"
+
 def _mine_glyph_sidc_expression(slot):
 
     """
@@ -1758,7 +1778,7 @@ def _mine_glyph_sidc_expression(slot):
     return (
         "CASE WHEN (" + entity_expression + ") = '' THEN ''"
         " ELSE mct_sidc_svg(mct_build_sidc("
-        "\"affiliation\", " + entity_expression + ","
+        f" '{_MINE_GLYPH_AFFILIATION}', " + entity_expression + ","
         " 'control_measure', 'unspecified', 'present', false),"
         " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ","
         f" {_THICKER_STROKE_FACTOR}) END"
@@ -1938,7 +1958,7 @@ def _minefield_glyph_sidc_expression(slot):
     return (
         "CASE WHEN (" + entity_expression + ") = '' THEN ''"
         " ELSE mct_sidc_svg(mct_build_sidc("
-        "\"affiliation\", " + entity_expression + ","
+        f" '{_MINE_GLYPH_AFFILIATION}', " + entity_expression + ","
         " 'control_measure', 'unspecified', 'present', false),"
         " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ","
         f" {_THICKER_STROKE_FACTOR}) END"

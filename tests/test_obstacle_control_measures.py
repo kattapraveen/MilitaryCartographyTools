@@ -1043,10 +1043,31 @@ class TestMineTypes(QgisTestCase):
 
             with self.subTest(mine_type=mine_type):
 
+                # Built from the layer's OWN defaults, then only the
+                # mine type varied. Hardcoding affiliation="friend"
+                # here is what let the glyphs ship broken: the Areas
+                # layer defaults it to "unspecified", which is not a
+                # SIDC standard identity, so every glyph rendered as
+                # milsymbol's unknown icon in real use while this test
+                # stayed green. Same mistake, and same shape, as the
+                # original B1 points bug.
                 feature = QgsFeature(layer.fields())
+
+                context = layer.createExpressionContext()
+
+                for field in layer.fields():
+
+                    default = layer.defaultValueDefinition(
+                        layer.fields().indexOf(field.name())
+                    ).expression()
+
+                    if default:
+                        feature.setAttribute(
+                            field.name(),
+                            QgsExpression(default).evaluate(context)
+                        )
+
                 feature.setAttribute("measure_type", "mined_area")
-                feature.setAttribute("affiliation", "friend")
-                feature.setAttribute("colour", GREEN)
                 feature.setAttribute("mine_type", mine_type)
 
                 context = layer.createExpressionContext()
@@ -1608,3 +1629,203 @@ class TestScaleSvgStrokeWidth(QgisTestCase):
         self.assertEqual(scale_svg_stroke_width(svg, 1), svg)
         self.assertEqual(scale_svg_stroke_width(svg, None), svg)
 
+
+
+class TestEveryMilsymbolGlyphOnHandBuiltLayers(QgisTestCase):
+
+    """
+    Cross-layer guard for the defect that shipped twice: a layer whose
+    hand-built symbology EMBEDS milsymbol glyphs, where some field
+    feeding build_sidc() carries a value that is legitimate for the
+    hand-built part but not a SIDC value.
+
+    First time it was the Points layer's affiliation default (B1).
+    Second time it was the same field on the AREAS layer, which
+    correctly defaults to "unspecified" for its own outline and then
+    passed that straight into the mine glyphs' SIDC - so Mined Area and
+    Dynamic Depiction drew "?" for every mine.
+
+    The lesson is not "check affiliation". It is that these layers must
+    be rendered FROM THEIR OWN DEFAULTS and the result inspected, since
+    a broken SIDC still yields a perfectly well-formed base64 path.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _feature_from_defaults(self, layer, **overrides):
+
+        feature = QgsFeature(layer.fields())
+
+        context = layer.createExpressionContext()
+
+        for field in layer.fields():
+
+            default = layer.defaultValueDefinition(
+                layer.fields().indexOf(field.name())
+            ).expression()
+
+            if default:
+                feature.setAttribute(
+                    field.name(), QgsExpression(default).evaluate(context)
+                )
+
+        for name, value in overrides.items():
+            feature.setAttribute(name, value)
+
+        return feature
+
+
+    def _glyph_paths(self, layer, feature):
+
+        """Every data-defined SVG path any symbol layer resolves to."""
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        renderer = layer.renderer()
+
+        symbols = [
+            rule.symbol() for rule in renderer.rootRule().children()
+        ]
+
+        paths = []
+
+        def walk(symbol):
+
+            for index in range(symbol.symbolLayerCount()):
+
+                symbol_layer = symbol.symbolLayer(index)
+
+                properties = symbol_layer.dataDefinedProperties()
+
+                if properties.isActive(QgsSymbolLayer.Property.Name):
+
+                    value, ok = properties.valueAsString(
+                        QgsSymbolLayer.Property.Name, context, ""
+                    )
+
+                    if ok and value.startswith("base64:"):
+                        paths.append(value)
+
+                sub_symbol = symbol_layer.subSymbol()
+
+                if sub_symbol is not None:
+                    walk(sub_symbol)
+
+        for symbol in symbols:
+            walk(symbol)
+
+        return paths
+
+
+    def _assert_no_unknown_glyph(self, layer, feature, label):
+
+        import base64
+
+        paths = self._glyph_paths(layer, feature)
+
+        self.assertTrue(paths, f"{label}: no milsymbol glyph resolved at all")
+
+        for path in paths:
+
+            svg = base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+            self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg, label)
+
+
+    def test_areas_layer_mine_glyphs_survive_its_own_defaults(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            MINE_TYPE_LABELS,
+            create_obstacle_control_measures_areas_layer,
+        )
+
+        layer = create_obstacle_control_measures_areas_layer()
+
+        for measure_type in (
+            "mined_area", "minefield_dynamic", "minefield_dynamic_dummy"
+        ):
+
+            for mine_type in MINE_TYPE_LABELS:
+
+                with self.subTest(measure_type=measure_type,
+                                  mine_type=mine_type):
+
+                    feature = self._feature_from_defaults(
+                        layer,
+                        measure_type=measure_type,
+                        mine_type=mine_type,
+                    )
+
+                    self._assert_no_unknown_glyph(
+                        layer, feature, f"{measure_type}/{mine_type}"
+                    )
+
+
+    def test_minefields_layer_glyphs_survive_its_own_defaults(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            MINEFIELD_MEASURE_TYPE_LABELS,
+            MINE_TYPE_LABELS,
+            create_obstacle_control_measures_minefields_layer,
+        )
+
+        layer = create_obstacle_control_measures_minefields_layer()
+
+        for measure_type in MINEFIELD_MEASURE_TYPE_LABELS:
+
+            for mine_type in MINE_TYPE_LABELS:
+
+                with self.subTest(measure_type=measure_type,
+                                  mine_type=mine_type):
+
+                    feature = self._feature_from_defaults(
+                        layer,
+                        measure_type=measure_type,
+                        mine_type=mine_type,
+                    )
+
+                    self._assert_no_unknown_glyph(
+                        layer, feature, f"{measure_type}/{mine_type}"
+                    )
+
+
+    def test_glyphs_survive_every_affiliation_the_form_offers(self):
+
+        # The Areas layer legitimately offers "unspecified" - it is the
+        # lines/areas vocabulary and its outline needs the fifth value.
+        # The glyphs must be immune to it, not merely lucky.
+        from MilitaryCartographyTools.military_symbology._control_measure_shared import (
+            AFFILIATION_LABELS,
+        )
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_areas_layer,
+        )
+
+        layer = create_obstacle_control_measures_areas_layer()
+
+        for affiliation in AFFILIATION_LABELS:
+
+            with self.subTest(affiliation=affiliation):
+
+                feature = self._feature_from_defaults(
+                    layer,
+                    measure_type="mined_area",
+                    affiliation=affiliation,
+                )
+
+                self._assert_no_unknown_glyph(layer, feature, affiliation)
