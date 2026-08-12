@@ -151,7 +151,6 @@ from qgis.core import (
     QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
-    QgsRandomMarkerFillSymbolLayer,
     QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
     QgsSingleSymbolRenderer,
@@ -1169,11 +1168,16 @@ def _decoy_mined_area_symbol(fenced=False):
 
 _DYNAMIC_MINEFIELD_TYPES = ("minefield_dynamic", "minefield_dynamic_dummy")
 
-# How many mine glyphs scatter across a dynamic minefield. Fixed count
-# rather than density-based so the symbol reads the same at any zoom,
-# and a fixed seed so it does not reshuffle on every repaint.
+# How many mine glyphs scatter across a dynamic minefield, and how they
+# are kept apart. Both distances are fractions of the shape's own size
+# (see mct_scatter_points), so one setting reads the same on a small
+# minefield and a large one.
+#
+# The count is an upper bound, not a promise: a long thin sliver takes
+# fewer mines rather than being crammed or left empty.
 _DYNAMIC_MINE_COUNT = 7
-_DYNAMIC_MINE_SEED = 20250812
+_DYNAMIC_MINE_GAP_FRACTION = 0.26
+_DYNAMIC_MINE_INSET_FRACTION = 0.14
 
 
 def _dynamic_minefield_symbol(dummy=False):
@@ -1196,19 +1200,47 @@ def _dynamic_minefield_symbol(dummy=False):
 
     symbol.changeSymbolLayer(0, _area_outline_layer())
 
-    scatter = QgsRandomMarkerFillSymbolLayer()
+    # NOT QgsRandomMarkerFillSymbolLayer, which this used first. That
+    # layer clips the POINTS to the polygon, so a glyph centred near
+    # the edge still hangs over the boundary, and it has no minimum
+    # separation, so glyphs collide - "should not touch the perimeter,
+    # should not touch each other" (the maintainer, on seeing it).
+    # mct_scatter_points() does both, and is seeded per feature so the
+    # arrangement does not crawl on every pan and zoom.
+    # TWO passes over the SAME placement, taking alternate points, so a
+    # combined anti-personnel/anti-tank field mixes both glyphs across
+    # the area. A single pass drew only the primary type, which breaks
+    # the maintainer's own rule that anything drawing more than one
+    # glyph alternates. _minefield_glyph_sidc_expression() already has
+    # exactly the right semantics: it alternates by slot for a combined
+    # type and repeats the same glyph for a single one, so a
+    # single-type field still fills both passes.
+    for remainder in (0, 1):
 
-    scatter.setPointCount(_DYNAMIC_MINE_COUNT)
-    scatter.setSeed(_DYNAMIC_MINE_SEED)
-    scatter.setClipPoints(True)
+        scatter = QgsGeometryGeneratorSymbolLayer.create({})
 
-    # One glyph slot only: a scattered field mixes the two types across
-    # the area rather than pairing them, so slot 0's own alternation is
-    # not what is wanted here - each scattered glyph is the field's
-    # primary type.
-    scatter.setSubSymbol(QgsMarkerSymbol(_mine_glyph_marker_layers(slots=1)))
+        scatter.setSymbolType(QgsSymbol.SymbolType.Marker)
 
-    symbol.appendSymbolLayer(scatter)
+        scatter.setGeometryExpression(
+            f"mct_scatter_points($geometry, {_DYNAMIC_MINE_COUNT},"
+            f" {_DYNAMIC_MINE_GAP_FRACTION},"
+            f" {_DYNAMIC_MINE_INSET_FRACTION}, 2, {remainder})"
+        )
+
+        glyph = QgsSvgMarkerSymbolLayer("")
+
+        glyph.setSize(_MINE_GLYPH_SIZE_MM)
+
+        glyph.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Name,
+            QgsProperty.fromExpression(
+                _minefield_glyph_sidc_expression(remainder)
+            )
+        )
+
+        scatter.setSubSymbol(QgsMarkerSymbol([glyph]))
+
+        symbol.appendSymbolLayer(scatter)
 
     if dummy:
 

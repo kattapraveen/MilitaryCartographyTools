@@ -1829,3 +1829,182 @@ class TestEveryMilsymbolGlyphOnHandBuiltLayers(QgisTestCase):
                 )
 
                 self._assert_no_unknown_glyph(layer, feature, affiliation)
+
+
+class TestScatterPoints(QgisTestCase):
+
+    """
+    mct_scatter_points() - the mine placement for dynamic minefields,
+    replacing QgsRandomMarkerFillSymbolLayer after the maintainer's
+    "should not touch the perimeter, should not touch each other".
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _polygon(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        corners = [
+            QgsPointXY(0, 0),
+            QgsPointXY(100, 0),
+            QgsPointXY(100, 70),
+            QgsPointXY(0, 70),
+        ]
+
+        return QgsGeometry.fromPolygonXY([corners + [corners[0]]])
+
+
+    def _scatter(self, geometry, count=7, gap=0.26, inset=0.14,
+                 modulus=1, remainder=0):
+
+        # Evaluated through QgsExpression rather than called directly:
+        # @qgsfunction replaces the Python function with a
+        # QgsPyExpressionFunction, which is not callable.
+        expression = QgsExpression(
+            "mct_scatter_points(geom_from_wkt('{}'), {}, {}, {}, {}, {})".format(
+                geometry.asWkt(), count, gap, inset, modulus, remainder
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_points_stay_clear_of_the_perimeter(self):
+
+        import math
+
+        from qgis.core import QgsGeometry
+
+        polygon = self._polygon()
+
+        boundary = QgsGeometry.fromPolylineXY(polygon.asPolygon()[0])
+
+        inset = 0.14 * math.sqrt(polygon.area())
+
+        for point in self._scatter(polygon).asMultiPoint():
+
+            self.assertGreaterEqual(
+                boundary.distance(QgsGeometry.fromPointXY(point)),
+                inset * 0.9
+            )
+
+
+    def test_points_stay_clear_of_each_other(self):
+
+        import math
+
+        polygon = self._polygon()
+
+        minimum_gap = 0.26 * math.sqrt(polygon.area())
+
+        points = self._scatter(polygon).asMultiPoint()
+
+        for first in range(len(points)):
+
+            for second in range(first + 1, len(points)):
+
+                self.assertGreaterEqual(
+                    points[first].distance(points[second]),
+                    minimum_gap
+                )
+
+
+    def test_the_same_shape_always_scatters_the_same_way(self):
+
+        # QGIS re-evaluates this on every pan and zoom; an unseeded
+        # scatter would crawl across the screen.
+        polygon = self._polygon()
+
+        first = self._scatter(polygon).asWkt()
+        second = self._scatter(polygon).asWkt()
+
+        self.assertEqual(first, second)
+
+
+    def test_different_shapes_scatter_differently(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        other = [
+            QgsPointXY(500, 500),
+            QgsPointXY(600, 500),
+            QgsPointXY(600, 570),
+            QgsPointXY(500, 570),
+        ]
+
+        shifted = QgsGeometry.fromPolygonXY([other + [other[0]]])
+
+        self.assertNotEqual(
+            self._scatter(self._polygon()).asWkt(),
+            self._scatter(shifted).asWkt()
+        )
+
+
+    def test_the_two_alternating_passes_partition_one_placement(self):
+
+        # The combined mine type draws the SAME scatter twice, taking
+        # alternate points - so the two halves are disjoint and, taken
+        # together, are exactly the single-pass placement. Two
+        # independent scatters could not guarantee they missed each
+        # other.
+        polygon = self._polygon()
+
+        whole = [
+            point.asWkt()
+            for point in self._scatter(polygon).asMultiPoint()
+        ]
+
+        evens = [
+            point.asWkt()
+            for point in self._scatter(
+                polygon, modulus=2, remainder=0
+            ).asMultiPoint()
+        ]
+
+        odds = [
+            point.asWkt()
+            for point in self._scatter(
+                polygon, modulus=2, remainder=1
+            ).asMultiPoint()
+        ]
+
+        self.assertEqual(set(evens) & set(odds), set())
+
+        self.assertEqual(sorted(evens + odds), sorted(whole))
+
+
+    def test_a_sliver_gets_fewer_mines_rather_than_no_symbol(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        sliver = [
+            QgsPointXY(0, 0),
+            QgsPointXY(200, 0),
+            QgsPointXY(200, 2),
+            QgsPointXY(0, 2),
+        ]
+
+        geometry = QgsGeometry.fromPolygonXY([sliver + [sliver[0]]])
+
+        result = self._scatter(geometry)
+
+        self.assertFalse(result.isEmpty())

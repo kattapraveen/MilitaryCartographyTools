@@ -7,6 +7,7 @@ for Military Cartography Tools
 
 import base64
 import math
+import random
 
 from qgis.core import (
     QgsDistanceArea,
@@ -550,6 +551,131 @@ def _serrated_ring_points(ring_points, tooth_count, outward=True):
         output.append(tooth_end)
 
     return output
+
+
+@qgsfunction(
+    'mct_scatter_points',
+    group='Military Cartography Tools'
+)
+def mct_scatter_points(values, feature=None, parent=None):
+
+    """
+    Up to `count` points scattered inside a polygon, held clear of its
+    own boundary AND of each other - the mine positions for Table
+    H-XIX's own dynamic minefields.
+
+    QgsRandomMarkerFillSymbolLayer was used first and is not good
+    enough here: it clips the POINTS to the polygon, so a marker
+    centred near the edge still hangs over the boundary, and it has no
+    notion of minimum separation, so glyphs collide. The project
+    maintainer's own report - "should not touch the perimeter, should
+    not touch each other".
+
+    Both distances are fractions of the shape's own size (sqrt of its
+    area) rather than absolute map units, so one setting reads the same
+    on a small minefield and a large one.
+
+    Placement is seeded dart-throwing: sample, keep a point only if it
+    clears the inset boundary and every point already kept, give up
+    after a bounded number of attempts and return however many fitted.
+    A long thin sliver simply gets fewer mines rather than no symbol at
+    all.
+
+    The seed is derived from the geometry's own centroid, so each
+    feature gets its own arrangement while any one feature stays stable
+    across repaints - QGIS re-evaluates this on every pan and zoom, and
+    an unseeded scatter would crawl.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    count = int(values[1]) if len(values) > 1 else 7
+    gap_fraction = float(values[2]) if len(values) > 2 else 0.26
+    inset_fraction = float(values[3]) if len(values) > 3 else 0.14
+
+    # Optional 5th/6th arguments return only every `modulus`-th placed
+    # point starting at `remainder`. That is how a scattered field
+    # alternates two mine types: the caller draws the same scatter
+    # twice, taking (2, 0) with one glyph and (2, 1) with the other.
+    # Splitting the SAME placement keeps both halves clear of each
+    # other, which two independent scatters could not guarantee.
+    modulus = int(values[4]) if len(values) > 4 else 1
+    remainder = int(values[5]) if len(values) > 5 else 0
+
+    area = geometry.area()
+
+    if area <= 0:
+        return QgsGeometry()
+
+    scale = math.sqrt(area)
+
+    inset = geometry.buffer(-inset_fraction * scale, 12)
+
+    # A shape too thin to inset keeps its own outline as the limit
+    # rather than vanishing.
+    if inset is None or inset.isEmpty():
+        inset = geometry
+
+    minimum_gap = gap_fraction * scale
+
+    box = inset.boundingBox()
+
+    centroid = geometry.centroid().asPoint()
+
+    # A STRING seed, not a tuple - random.Random accepts only
+    # None/int/float/str/bytes, and a tuple raises TypeError, which
+    # QgsExpression swallows into a null result (so the mines simply
+    # vanished rather than erroring visibly).
+    generator = random.Random(
+        "{:.6f},{:.6f},{}".format(centroid.x(), centroid.y(), count)
+    )
+
+    placed = []
+
+    for _ in range(count * 220):
+
+        if len(placed) >= count:
+            break
+
+        x = generator.uniform(box.xMinimum(), box.xMaximum())
+        y = generator.uniform(box.yMinimum(), box.yMaximum())
+
+        candidate = QgsPointXY(x, y)
+
+        if not inset.contains(QgsGeometry.fromPointXY(candidate)):
+            continue
+
+        if any(
+            candidate.distance(existing) < minimum_gap
+            for existing in placed
+        ):
+            continue
+
+        placed.append(candidate)
+
+    if not placed:
+        return QgsGeometry.fromPointXY(
+            inset.pointOnSurface().asPoint()
+        )
+
+    if modulus > 1:
+
+        placed = [
+            point
+            for index, point in enumerate(placed)
+            if index % modulus == remainder
+        ]
+
+        if not placed:
+            return QgsGeometry()
+
+    return QgsGeometry.fromMultiPointXY(placed)
 
 
 @qgsfunction(
@@ -2274,6 +2400,7 @@ _FUNCTIONS = [
     mct_serrate_outline,
     mct_decoy_chevron,
     mct_decoy_chevron_svg,
+    mct_scatter_points,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,
     mct_axis_of_advance_outer_chevron,

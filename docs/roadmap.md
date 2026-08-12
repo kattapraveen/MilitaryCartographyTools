@@ -6176,6 +6176,47 @@ tested, not claimed as done here.
 
     862 tests passing on both QGIS versions.
 
+- **Presentable mine scatter** (2026-08-12) - "these scattered mines,
+  they don't look good, should not touch the perimeter, should not
+  touch each other".
+
+  QgsRandomMarkerFillSymbolLayer cannot do either. It clips the POINTS
+  to the polygon, so a glyph centred near the edge still hangs over the
+  boundary, and it has no notion of minimum separation at all. Replaced
+  with mct_scatter_points(): seeded dart-throwing that holds each point
+  clear of an inset boundary and of every point already placed, giving
+  up after a bounded number of attempts so a long thin sliver takes
+  fewer mines rather than being crammed or left empty.
+
+  Both distances are fractions of the shape's own size (sqrt of area)
+  rather than absolute map units, so one setting reads the same on a
+  small minefield and a large one. The seed comes from the geometry's
+  own centroid, so each feature gets its own arrangement while any one
+  feature stays stable - QGIS re-evaluates this on every pan and zoom,
+  and an unseeded scatter would visibly crawl.
+
+  **A bug found while fixing it**: a combined anti-personnel/anti-tank
+  dynamic minefield was drawing only the primary glyph, which breaks
+  the maintainer's own rule that anything drawing more than one glyph
+  alternates. The scatter now runs twice over the SAME placement,
+  taking alternate points via new modulus/remainder arguments - so the
+  two halves are disjoint by construction, which two independent
+  scatters could not guarantee. _minefield_glyph_sidc_expression()
+  already had the right semantics for both passes: alternating for a
+  combined type, repeating for a single one.
+
+  **The mines vanished entirely on the first attempt** and the render
+  showed it: random.Random accepts only None/int/float/str/bytes, and
+  the tuple seed raised a TypeError that QgsExpression swallowed into a
+  null result - a silent empty geometry rather than a visible error.
+  Seeded with a formatted string now.
+
+  Note the new tests evaluate the function through QgsExpression rather
+  than calling it: @qgsfunction replaces the Python function with a
+  QgsPyExpressionFunction, which is not callable.
+
+    868 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
