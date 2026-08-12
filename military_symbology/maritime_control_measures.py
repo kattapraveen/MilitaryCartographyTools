@@ -46,42 +46,61 @@ _configure_designation_labeling() the way it used to:
   rather than nine fixed per-sub-type vocabularies, which is what made
   it look not worth modelling the first time round.
 
-**Everything else in Table H-XIV is deliberately out of scope** - this
-table turned out to be overwhelmingly Navy-AEGIS-combat-system-specific
-or anti-submarine-warfare/sonar-specific, not general-purpose maritime
-control measures:
+**Points: the FULL vocabulary of printed pages 474-501 (105 entries),
+on this module's own POINTS layer.** They started as an 18-entry curated
+subset on the shared control_measure_points.py layer, with the sonobuoy
+and anti-submarine-warfare fix/contact families deliberately left out as
+"more Navy/ASW-specific". The maintainer reversed that 2026-08-12,
+having read the table's own pages directly, and moved the whole family
+here at the same time - so Sonobuoys (17) and Sub-Surface Warfare (17)
+are now built in full. sidc.py's own entities are untouched by the move,
+so anything already digitized keeps rendering.
 
-- **The whole "(AEGIS only)" family of fixed-graphic overlay
-  constructs** - Launch Area (200101/200102, Ellipse/Rectangle), Defended
-  Area (200201/200202), No Attack (NOTACK) Zone (200300), Ship Area of
-  Interest (200400 grid-heatmap/200401 Ellipse/200402 Rectangle), Active
-  Maneuver Area (200500), Cued Acquisition Doctrine (200600), Radar
-  Search Doctrine (200700). Confirmed by reading every one of their own
-  template pictures: these are AEGIS naval combat system display
-  overlays with specific fixed colours/fills/orientations (not this
-  project's usual freeform-polygon or simple-line model), a genuinely
-  different, narrow display category this project doesn't otherwise
-  build toward.
-- **The entire anti-submarine-warfare/sonar-contact-point family**
-  (roughly codes 211000-213399: Launched Torpedo, Acoustic Countermeasure
-  (Decoy), Electronic Countermeasures (ECM) Decoy, BT Buoy Drop, Reported
-  Bottomed Sub, Moving Haven, Acoustic/Electromagnetic/MAD Fix, and
-  similar) and **the entire Sonobuoys sub-section** (codes 213500+:
-  Sonobuoy, Ambient Noise Sonobuoy, ATAC, Barra, and further sonobuoy
-  sub-types) - the same "more Navy/anti-submarine-warfare-specific ones
-  (sonobuoy types and similar)" category this project's own
-  control_measure_points.py docstring already documents as curated out
-  of the base ENTITIES["control_measure"] vocabulary; this mini-phase
-  applies that same standing curation decision rather than reversing it.
-- A curated subset of the remaining, genuinely general-purpose maritime
-  points (Plan Ship, Aim Point, Defended Asset, Drop Point, Entry Point,
-  Air Detonation, Ground Zero, Impact Point, Predicted Impact Point,
-  Missile Detection Point, Brief Contact, Datum Lost Contact,
-  Navigational Reference Point) WAS added, directly to sidc.py's
-  ENTITIES["control_measure"] and control_measure_points.py's own
-  _ENTITY_LABELS - the same "point control measures belong to the
-  shared, milsymbol-rendered Control Measure Points layer" precedent as
-  every other H-subphase's own point vocabulary.
+They are grouped by **the table's own sub-headings** - General,
+Sub-Surface Warfare, Search, Sonobuoys, Reference Points, Subsurface
+Stations, Surface Stations, Routes, Emergency, Hazard, Sea Subsurface
+Returns - which is both how the dropdown reads and a real "group" field
+on the layer. See POINT_ENTITY_LABELS for why the group is a label
+prefix plus an auto-derived field rather than a genuine cascading
+dropdown (short version: the only QGIS mechanism that truly filters one
+field by another is the ValueRelation cascade this project already
+retired for a confirmed native-crash risk).
+
+**Five codes in the 474-501 range are deliberately NOT built**, each for
+its own reason:
+
+- **210000** is the table's own parent row - its template column reads
+  "N/A". There is no symbol to draw, and milsymbol has no icon for it.
+- **211000 (Launched Torpedo), 211200 (Acoustic Countermeasure
+  (Decoy)) and 211300 (Electronic Countermeasures (ECM) Decoy)** are
+  each marked "(AEGIS only)" in their own CONTROL MEASURE cell, the
+  same AEGIS category excluded wholesale below. The maintainer's own
+  instruction on this pass was to ignore AEGIS.
+- **217300 (Position and Intended Movement (PIM) Route)** is broken in
+  milsymbol itself: its own source maps the code to
+  `icn["TP.ROUTE POINT R"]` - the SAME icon as 217500, Point R Route -
+  under a literal `##### FIX TODO #######` comment. Rendering it would
+  silently draw the wrong symbol, which this project treats as worse
+  than drawing none (the same call already made for Search Area's own
+  placeholder glyph).
+- **218400 (Navigational)** is not a point at all: its own draw rules
+  say "This symbol requires two anchor points. Points 1 and 2 define
+  the corner points of the symbol" - a two-vertex hooked line, which is
+  why milsymbol has no point icon for it either. It belongs on the
+  Lines layer as a hand-built construction; not built yet.
+
+**The whole "(AEGIS only)" family of fixed-graphic overlay constructs
+remains out of scope** (printed pages 467-473, which the maintainer
+confirmed can be skipped in full) - Launch Area (200101/200102, Ellipse/
+Rectangle), Defended Area (200201/200202), No Attack (NOTACK) Zone
+(200300), Ship Area of Interest (200400 grid-heatmap/200401 Ellipse/
+200402 Rectangle), Active Maneuver Area (200500), Cued Acquisition
+Doctrine (200600), Radar Search Doctrine (200700). Confirmed by reading
+every one of their own template pictures: these are AEGIS naval combat
+system display overlays with specific fixed colours/fills/orientations
+(not this project's usual freeform-polygon or simple-line model), a
+genuinely different, narrow display category this project doesn't
+otherwise build toward.
 
 Military Cartography Tools
 """
@@ -93,9 +112,12 @@ from qgis.core import (
     QgsField,
     QgsLineSymbol,
     QgsProject,
+    QgsMarkerSymbol,
     QgsProperty,
     QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
+    QgsSingleSymbolRenderer,
+    QgsSvgMarkerSymbolLayer,
     QgsSymbolLayer,
     QgsVectorLayer,
 )
@@ -118,14 +140,20 @@ from ._control_measure_shared import (
 
 
 LINES_LAYER_NAME = "Maritime Control Measures (Lines)"
+POINTS_LAYER_NAME = "Maritime Control Measures (Points)"
 
 __all__ = [
     "LINES_LAYER_NAME",
+    "POINTS_LAYER_NAME",
     "LINE_MEASURE_TYPE_LABELS",
+    "POINT_ENTITY_LABELS",
+    "POINT_GROUP_LABELS",
     "AFFILIATION_LABELS",
     "STATUS_LABELS",
     "create_maritime_control_measures_lines_layer",
+    "create_maritime_control_measures_points_layer",
     "add_maritime_control_measures_lines_layer",
+    "add_maritime_control_measures_points_layer",
 ]
 
 # Table H-XIV, codes 220100-220108 - see module docstring for the much
@@ -424,4 +452,336 @@ def add_maritime_control_measures_lines_layer(iface):
         iface,
         LINES_LAYER_NAME,
         create_maritime_control_measures_lines_layer
+    )
+
+
+# --------------------------------------------------------------------
+# Points (Table H-XIV's own point vocabulary, printed pages 474-501) -
+# milsymbol-rendered icons, not hand-built symbology. See this module's
+# own docstring for the move out of control_measure_points.py, for the
+# full-vocabulary decision, and for the five codes deliberately left
+# out.
+# --------------------------------------------------------------------
+
+# The table's OWN sub-headings, in its own order. "General" is this
+# module's name for the table's first, unheaded block (210100-211100,
+# everything before the "Sub-Surface Warfare" rule) - the standard runs
+# those rows straight on from the section's own parent entry without a
+# heading of their own.
+POINT_GROUP_LABELS = {
+    "general": "General",
+    "sub_surface_warfare": "Sub-Surface Warfare",
+    "search": "Search",
+    "sonobuoys": "Sonobuoys",
+    "reference_points": "Reference Points",
+    "subsurface_stations": "Subsurface Stations",
+    "surface_stations": "Surface Stations",
+    "routes": "Routes",
+    "emergency": "Emergency",
+    "hazard": "Hazard",
+    "sea_subsurface_returns": "Sea Subsurface Returns",
+}
+
+# entity -> (group, name within that group). 105 entries, the full
+# vocabulary of pages 474-501.
+_POINT_ENTITIES = {
+    # General
+    "plan_ship": ("general", "Plan Ship"),
+    "aim_point": ("general", "Aim Point"),
+    "defended_asset": ("general", "Defended Asset"),
+    "drop_point": ("general", "Drop Point"),
+    "entry_point": ("general", "Entry Point"),
+    "air_detonation": ("general", "Air Detonation"),
+    "ground_zero": ("general", "Ground Zero"),
+    "impact_point": ("general", "Impact Point"),
+    "predicted_impact_point": ("general", "Predicted Impact Point"),
+    "missile_detection_point": ("general", "Missile Detection Point"),
+    # Sub-Surface Warfare
+    "brief_contact": ("sub_surface_warfare", "Brief Contact"),
+    "datum_lost_contact": ("sub_surface_warfare", "Datum Lost Contact"),
+    "bt_buoy_drop": ("sub_surface_warfare", "BT Buoy Drop"),
+    "reported_bottomed_sub": ("sub_surface_warfare", "Reported Bottomed Sub"),
+    "moving_haven": ("sub_surface_warfare", "Moving Haven"),
+    "screen_center": ("sub_surface_warfare", "Screen Center"),
+    "lost_contact": ("sub_surface_warfare", "Lost Contact"),
+    "sinker": ("sub_surface_warfare", "Sinker"),
+    "trial_track": ("sub_surface_warfare", "Trial Track"),
+    "acoustic_fix": ("sub_surface_warfare", "Acoustic Fix"),
+    "electromagnetic_fix": ("sub_surface_warfare", "Electromagnetic Fix"),
+    "electromagnetic_magnetic_anomaly_detection": ("sub_surface_warfare", "Electromagnetic - Magnetic Anomaly Detection (MAD)"),
+    "optical_fix": ("sub_surface_warfare", "Optical Fix"),
+    "formation": ("sub_surface_warfare", "Formation"),
+    "harbor": ("sub_surface_warfare", "Harbor"),
+    "harbor_entrance_point": ("sub_surface_warfare", "Harbor Entrance Point"),
+    "harbor_entrance_point_a": ("sub_surface_warfare", "Harbor Entrance Point A"),
+    "harbor_entrance_point_q": ("sub_surface_warfare", "Harbor Entrance Point Q"),
+    "harbor_entrance_point_x": ("sub_surface_warfare", "Harbor Entrance Point X"),
+    "harbor_entrance_point_y": ("sub_surface_warfare", "Harbor Entrance Point Y"),
+    # Search
+    "dip_position": ("search", "Dip Position"),
+    "search": ("search", "Search"),
+    "search_area": ("search", "Search Area"),
+    "search_center": ("search", "Search Center"),
+    "navigational_reference_point": ("search", "Navigational Reference Point"),
+    # Sonobuoys
+    "sonobuoy": ("sonobuoys", "Sonobuoy"),
+    "ambient_noise_sonobuoy": ("sonobuoys", "Ambient Noise Sonobuoy"),
+    "air_transportable_communication_sonobuoy": ("sonobuoys", "Air Transportable Communication Sonobuoy"),
+    "barra_sonobuoy": ("sonobuoys", "Barra Sonobuoy"),
+    "bathythermograph_transmitting_sonobuoy": ("sonobuoys", "Bathythermograph Transmitting Sonobuoy"),
+    "command_active_multi_beam_sonobuoy": ("sonobuoys", "Command Active Multi-Beam (CAMBS) Sonobuoy"),
+    "command_active_sonobuoy_system": ("sonobuoys", "Command Active Sonobuoy System (CASS)"),
+    "directional_frequency_analysis_and_recording_sonobuoy": ("sonobuoys", "Directional Frequency Analysis and Recording (DIFAR) Sonobuoy"),
+    "directional_command_active_sonobuoy_system": ("sonobuoys", "Directional Command Active Sonobuoy System (DICASS)"),
+    "expendable_reliable_acoustic_path_sonobuoy": ("sonobuoys", "Expendable Reliable Acoustic Path Sonobuoy (ERAPS)"),
+    "expired_sonobuoy": ("sonobuoys", "Expired Sonobuoy"),
+    "kingpin_sonobuoy": ("sonobuoys", "Kingpin Sonobuoy"),
+    "low_frequency_analysis_and_recording_sonobuoy": ("sonobuoys", "Low Frequency Analysis and Recording (LOFAR) Sonobuoy"),
+    "pattern_center_sonobuoy": ("sonobuoys", "Pattern Center Sonobuoy"),
+    "range_only_sonobuoy": ("sonobuoys", "Range Only Sonobuoy"),
+    "vertical_line_array_directional_frequency_analysis_and_recording_sonobuoy": ("sonobuoys", "Vertical Line Array Directional Frequency Analysis and Recording (DIFAR) Sonobuoy"),
+    # Reference Points
+    "reference_point": ("reference_points", "Reference Point"),
+    "special_point": ("reference_points", "Special Point"),
+    "navigational_reference_point_reference": ("reference_points", "Navigational Reference Point"),
+    "data_link_reference_point": ("reference_points", "Data Link Reference Point"),
+    "vital_area_center": ("reference_points", "Vital Area Center"),
+    "corridor_tab_point": ("reference_points", "Corridor Tab Point"),
+    "enemy_point": ("reference_points", "Enemy Point"),
+    "marshall_point": ("reference_points", "Marshall Point"),
+    "position_and_intended_movement": ("reference_points", "Position and Intended Movement (PIM)"),
+    "pre_landfall_waypoint": ("reference_points", "Pre-Landfall Waypoint"),
+    "estimated_position": ("reference_points", "Estimated Position (EP)"),
+    "waypoint": ("reference_points", "Waypoint"),
+    # Subsurface Stations
+    "general_sea_subsurface_station": ("subsurface_stations", "General Sea Subsurface Station"),
+    "submarine_sea_subsurface_station": ("subsurface_stations", "Submarine Sea Subsurface Station"),
+    "submarine_antisubmarine_warfare_sea_subsurface_station": ("subsurface_stations", "Submarine Antisubmarine Warfare Sea Subsurface Station"),
+    "unmanned_underwater_vehicle_sea_subsurface_station": ("subsurface_stations", "Unmanned Underwater Vehicle Sea Subsurface Station"),
+    "antisubmarine_warfare_unmanned_underwater_vehicle_sea_subsurface_station": ("subsurface_stations", "Antisubmarine Warfare (ASW) Unmanned Underwater Vehicle Sea Subsurface Station"),
+    "mine_warfare_unmanned_underwater_vehicle_sea_subsurface_station": ("subsurface_stations", "Mine Warfare Unmanned Underwater Vehicle Sea Subsurface Station"),
+    "sea_surface_warfare_unmanned_underwater_vehicle_subsurface_station": ("subsurface_stations", "Sea Surface Warfare Unmanned Underwater Vehicle Subsurface Station"),
+    # Surface Stations
+    "general_sea_surface_station": ("surface_stations", "General Sea Surface Station"),
+    "antisubmarine_warfare_sea_surface_station": ("surface_stations", "Antisubmarine Warfare (ASW) Sea Surface Station"),
+    "mine_warfare_sea_surface_station": ("surface_stations", "Mine Warfare Sea Surface Station"),
+    "non_combatant_sea_surface_station": ("surface_stations", "Non-Combatant Sea Surface Station"),
+    "picket_sea_surface_station": ("surface_stations", "Picket Sea Surface Station"),
+    "rendezvous_sea_surface_station": ("surface_stations", "Rendezvous Sea Surface Station"),
+    "replenishment_at_sea_surface_station": ("surface_stations", "Replenishment at Sea Surface Station"),
+    "rescue_sea_surface_station": ("surface_stations", "Rescue Sea Surface Station"),
+    "surface_warfare_sea_surface_station": ("surface_stations", "Surface Warfare Sea Surface Station"),
+    "unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Unmanned Underwater Vehicle Sea Surface Station"),
+    "antisubmarine_warfare_unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Antisubmarine Warfare (ASW) Unmanned Underwater Vehicle Sea Surface Station"),
+    "mine_warfare_unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Mine Warfare Unmanned Underwater Vehicle Sea Surface Station"),
+    "remote_multi_mission_vehicle_mine_warfare_unmanned_underwater_sea_surface_station": ("surface_stations", "Remote Multi-Mission Vehicle Mine Warfare Unmanned Underwater Sea Surface Station"),
+    "surface_warfare_mine_warfare_unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Surface Warfare Mine Warfare Unmanned Underwater Vehicle Sea Surface Station"),
+    "shore_control_station": ("surface_stations", "Shore Control Station"),
+    # Routes
+    "general_route": ("routes", "General Route"),
+    "diversion_route": ("routes", "Diversion Route"),
+    "picket_route": ("routes", "Picket Route"),
+    "point_r_route": ("routes", "Point R Route"),
+    "rendezvous_route": ("routes", "Rendezvous Route"),
+    "waypoint_route": ("routes", "Waypoint Route"),
+    "clutter_stationary_or_cease_reporting": ("routes", "Clutter, Stationary or Cease Reporting"),
+    "tentative_or_provisional_track": ("routes", "Tentative or Provisional Track"),
+    # Emergency
+    "distressed_vessel": ("emergency", "Distressed Vessel"),
+    "downed_aircraft": ("emergency", "Downed/Ditched Aircraft"),
+    "person_in_water_bailout": ("emergency", "Person in Water/Bailout"),
+    # Hazard
+    "iceberg": ("hazard", "Iceberg"),
+    "oil_rig": ("hazard", "Oil Rig"),
+    "sea_mine_like_contact": ("hazard", "Sea Mine-Like Contact"),
+    # Sea Subsurface Returns
+    "bottom_return_non_mine_mine_like_bottom_object": ("sea_subsurface_returns", "Bottom Return - Non-Mine, Mine-Like Bottom Object (NOMBO)"),
+    "bottom_return_installation_manmade": ("sea_subsurface_returns", "Bottom Return - Installation/Manmade"),
+    "marine_life": ("sea_subsurface_returns", "Marine Life"),
+    "sea_anomaly": ("sea_subsurface_returns", "Sea Anomaly (Wake, Current, Knuckle)"),
+    "bottom_return_non_milco_wreck_dangerous": ("sea_subsurface_returns", "Bottom Return - Non-MILCO, Wreck, Dangerous"),
+    "bottom_return_non_milco_wreck_non_dangerous": ("sea_subsurface_returns", "Bottom Return - Non-MILCO, Wreck, Non Dangerous"),
+}
+
+# **Why the group is a label PREFIX rather than a real cascading
+# dropdown.** 105 entries is far too many for one flat list - the
+# maintainer's own words, "can we make them into sub menu, otherwise
+# the list is too long". QGIS's attribute form has no nested dropdown;
+# the only mechanism that genuinely filters one field by another is a
+# ValueRelation cascade, which is EXACTLY what this project retired
+# from unit_layer.py after a confirmed native-crash risk (see sidc.py's
+# own ENTITIES["subsurface"] comment, which names that cascade as the
+# likely root cause of the Subsurface bug that prompted splitting the
+# per-appendix layers in the first place). Reintroducing it here would
+# be re-adding a known hazard to get a nicer menu.
+#
+# So the group is carried two ways instead, neither of them new
+# machinery: every entity's own label is prefixed with its group, so
+# one alphabetical dropdown still clusters by group and answers to
+# type-ahead ("Routes" jumps straight to the eight route entries); and
+# a real "group" FIELD is filled in automatically from the chosen
+# entity (see _POINT_GROUP_EXPRESSION), so the groups are also there
+# for filtering, selecting and styling in the attribute table rather
+# than being purely cosmetic text. Presented as a choice to the
+# maintainer with the crash-risk tradeoff stated, and this is the
+# option they picked.
+POINT_ENTITY_LABELS = {
+    entity: f"{POINT_GROUP_LABELS[group]} - {name}"
+    for entity, (group, name) in _POINT_ENTITIES.items()
+}
+
+# Auto-derived, never typed: the group is a property OF the entity, so
+# letting it be edited independently could only ever make it disagree
+# with the symbol actually drawn. applyOnUpdate=True so changing the
+# entity re-derives it rather than leaving the first choice behind.
+_POINT_GROUP_EXPRESSION = "CASE " + " ".join(
+    f"WHEN \"entity\" = '{entity}' THEN '{group}'"
+    for entity, (group, _name) in _POINT_ENTITIES.items()
+) + " ELSE '' END"
+
+_POINT_AFFILIATION_LABELS = dict(AFFILIATION_LABELS)
+
+_POINT_STATUS_LABELS = dict(STATUS_LABELS)
+
+_POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
+
+# Plain `uniqueDesignation`, matching every other Points layer in this
+# appendix-by-appendix pass. Not individually verified per icon across
+# all 105 - c2_measures.py's own _POINT_TEXT_SLOT_OVERRIDES records
+# that milsymbol's slot naming is NOT consistent between icons, so some
+# of these will place their designation somewhere other than their own
+# template shows. Passing a slot an icon doesn't define is a harmless
+# no-op, so nothing breaks; it is a known gap to close if reported,
+# exactly as control_measure_points.py already documents for its own
+# vocabulary. upper(...) per H.5.4; coalesce(...,'') because QGIS
+# short-circuits the whole call to NULL on any NULL argument, which
+# would blank the icon rather than just its text.
+_POINTS_SIDC_EXPRESSION = (
+    "mct_sidc_svg(mct_build_sidc("
+    "\"affiliation\",\"entity\",'control_measure','unspecified',"
+    "\"status\",false),"
+    "upper(coalesce(\"unique_designation\",'')),"
+    "'uniqueDesignation'"
+    ")"
+)
+
+
+def _configure_points_attribute_form(layer):
+
+    fields = layer.fields()
+
+    affiliation_idx = fields.indexOf("affiliation")
+    entity_idx = fields.indexOf("entity")
+    status_idx = fields.indexOf("status")
+    group_idx = fields.indexOf("group")
+
+    layer.setEditorWidgetSetup(
+        affiliation_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(_POINT_AFFILIATION_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        entity_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(POINT_ENTITY_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        status_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(_POINT_STATUS_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        group_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(POINT_GROUP_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
+    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'plan_ship'"))
+    layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
+
+    layer.setDefaultValueDefinition(
+        group_idx,
+        QgsDefaultValue(_POINT_GROUP_EXPRESSION, True)
+    )
+
+
+def _build_points_renderer():
+
+    symbol = QgsMarkerSymbol()
+
+    svg_layer = QgsSvgMarkerSymbolLayer("")
+
+    svg_layer.setSize(
+        _POINTS_DEFAULT_MARKER_SIZE_MM
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(_POINTS_SIDC_EXPRESSION)
+    )
+
+    symbol.changeSymbolLayer(
+        0,
+        svg_layer
+    )
+
+    return QgsSingleSymbolRenderer(symbol)
+
+
+def create_maritime_control_measures_points_layer(name=POINTS_LAYER_NAME):
+
+    """
+    A fresh, empty point layer for Table H-XIV's own point vocabulary -
+    all 105 usable entries from printed pages 474-501, grouped by the
+    table's own sub-headings. See this module's own docstring for what
+    is deliberately left out and why.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(
+        f"Point?crs={crs.authid()}",
+        name,
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("group", QMetaType.Type.QString),
+            QgsField("entity", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+        ]
+    )
+
+    layer.updateFields()
+
+    _configure_points_attribute_form(layer)
+
+    layer.setRenderer(
+        _build_points_renderer()
+    )
+
+    return layer
+
+
+def add_maritime_control_measures_points_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        POINTS_LAYER_NAME,
+        create_maritime_control_measures_points_layer
     )

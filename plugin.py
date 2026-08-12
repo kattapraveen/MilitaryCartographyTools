@@ -67,6 +67,7 @@ from .military_symbology.airspace_control_measures import (
 )
 from .military_symbology.maritime_control_measures import (
     add_maritime_control_measures_lines_layer,
+    add_maritime_control_measures_points_layer,
 )
 from .military_symbology.deception_control_measures import (
     add_deception_control_measures_lines_layer,
@@ -1060,10 +1061,13 @@ class MilitaryCartographyTools:
         )
 
         self.maritime_control_measures_action.setToolTip(
-            "Add a Maritime Control Measures (Lines) layer (MIL-STD-2525D "
-            "Appendix H.5.16, Table H-XIV: the Bearing Line family - "
-            "Bearing/Electronic/Electronic Warfare/Acoustic/Torpedo/"
-            "Electro-Optical Intercept/Jammer/RDF)"
+            "Add Maritime Control Measures layers (MIL-STD-2525D "
+            "Appendix H.5.16, Table H-XIV - lines: the Bearing Line "
+            "family, Bearing/Electronic/Electronic Warfare/Acoustic/"
+            "Torpedo/Electro-Optical Intercept/Jammer/RDF; points: the "
+            "full vocabulary grouped by the table's own headings - "
+            "Surface and Subsurface Stations, Routes, Reference Points, "
+            "Sonobuoys, Search, Emergency, Hazard and the rest)"
         )
 
         self.maritime_control_measures_action.triggered.connect(
@@ -2070,17 +2074,22 @@ class MilitaryCartographyTools:
         family - Bearing, Electronic, Electronic Warfare, Acoustic (and
         its Ambiguous variant), Torpedo, Electro-Optical Intercept,
         Jammer, Radio Detention Finder - MIL-STD-2525D Appendix H.5.16,
-        Table H-XIV), ready for digitizing with QGIS's own native
-        editing tools. Table H-XIV has no Areas section. A curated
-        subset of its own general-purpose point vocabulary (Plan Ship,
-        Aim Point, Defended Asset, and similar) lives on the "Control
-        Measure Points" layer instead - see maritime_control_measures.
-        py's own docstring for what's deliberately out of scope (the
-        AEGIS-combat-system-specific and anti-submarine-warfare/
-        sonobuoy-specific families).
+        Table H-XIV), plus a Points layer carrying the table's own
+        full 105-entry point vocabulary (printed pages 474-501,
+        grouped by the table's own sub-headings - Surface/Subsurface
+        Stations, Routes, Sonobuoys, Hazard, and the rest), ready for
+        digitizing with QGIS's own native editing tools. Table H-XIV
+        has no Areas section. See maritime_control_measures.py's own
+        docstring for the five codes deliberately left out and for the
+        AEGIS-combat-system-specific family that stays out of scope
+        entirely.
         """
 
         add_maritime_control_measures_lines_layer(
+            self.iface
+        )
+
+        add_maritime_control_measures_points_layer(
             self.iface
         )
 

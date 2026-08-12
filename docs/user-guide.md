@@ -662,7 +662,8 @@ H.5.x group that hasn't had its own point types split out into a
 dedicated layer yet - as of 2026-08-12 that's everything except Table
 H-VI (now on C2 Measures), Table H-IX (now on Defensive Control
 Measures), Table H-XI's Point of Departure (now on Offensive Control
-Measures) and Table H-XIII (now on Airspace Control Measures).
+Measures), Table H-XIII (now on Airspace Control Measures) and Table
+H-XIV (now on Maritime Control Measures).
 
 **Drawing a Boundary**: use QGIS's own native line editing tools (toggle
 editing, **Add Line Feature**) to digitize the line between two units,
@@ -995,24 +996,43 @@ rather than a fixed per-type list, so type whatever your own unit uses;
 leave it blank and nothing is drawn. Note the standard puts this box
 just *above* the end point — below-right is a deliberate choice here.
 
-A curated subset of the table's own general-purpose points — **Plan
-Ship**, **Aim Point**, **Defended Asset**, **Drop Point**, **Entry
-Point**, **Air Detonation**, **Ground Zero**, **Impact Point**,
-**Predicted Impact Point**, **Missile Detection Point**, **Brief
-Contact**, **Datum Lost Contact**, **Navigational Reference Point** —
-was added to the **Control Measure Points** layer below.
+**Points** carries the table's whole point vocabulary — all 105 usable
+symbols from printed pages 474–501. Because that is far too many for one
+flat list, every entry is **prefixed with the group it belongs to in the
+standard's own table**, so the dropdown clusters by group and answers to
+type-ahead: type "Routes" and you land on the eight route entries. The
+groups are **General**, **Sub-Surface Warfare**, **Search**,
+**Sonobuoys**, **Reference Points**, **Subsurface Stations**, **Surface
+Stations**, **Routes**, **Emergency**, **Hazard**, and **Sea Subsurface
+Returns**.
+
+There is also a real **Group** field on the layer, but you never fill it
+in — it derives itself from whichever entity you pick, and re-derives if
+you change it. It's there so you can filter, select and style by group in
+the attribute table, not as a second thing to keep in sync.
+
+(QGIS's attribute form has no genuinely nested dropdown. The one
+mechanism that would filter the entity list down to a chosen group is a
+cascading value-relation, which this plugin removed years back after it
+proved able to crash QGIS outright — so the prefix-plus-derived-field
+approach is used instead.)
+
+**Five codes on pages 474–501 are deliberately not offered**: the
+table's own "Maritime Control Points" parent row (its template column
+reads "N/A" — there is no symbol); **Launched Torpedo**, **Acoustic
+Countermeasure (Decoy)** and **ECM Decoy**, each marked "(AEGIS only)";
+**Position and Intended Movement (PIM) Route**, because the underlying
+symbol library maps it to the wrong picture (it draws Point R Route) and
+a wrong symbol is worse than none; and **Navigational** (218400), which
+is not a point at all but a two-click hooked line — it belongs on a
+Lines layer and isn't built yet.
 
 **Deliberately not built**: the whole "(AEGIS only)" family of fixed-
-graphic overlay constructs (Launch Area, Defended Area, No Attack Zone,
-Ship Area of Interest, Active Maneuver Area, Cued Acquisition Doctrine,
-Radar Search Doctrine — AEGIS naval combat system display overlays with
-specific fixed colours/fills, a genuinely different display category
-this plugin doesn't otherwise build toward), and the entire anti-
-submarine-warfare/sonar-contact-point and Sonobuoys families (Launched
-Torpedo, ECM Decoy, BT Buoy Drop, Reported Bottomed Sub, Sonobuoy and
-its sub-types, and similar) — the same "more Navy/anti-submarine-
-warfare-specific ones" category already excluded from the base Control
-Measure Points vocabulary.
+graphic overlay constructs on pages 467–473 (Launch Area, Defended Area,
+No Attack Zone, Ship Area of Interest, Active Maneuver Area, Cued
+Acquisition Doctrine, Radar Search Doctrine — AEGIS naval combat system
+display overlays with specific fixed colours/fills, a genuinely different
+display category this plugin doesn't otherwise build toward).
 
 ### Deception Control Measures
 
@@ -1129,13 +1149,13 @@ in the attribute form:
   the actual SVG output): friendly/neutral/unknown draw in black, hostile
   draws in red.
 - **Entity** — which point control measure this is (e.g. "Ammunition
-  Supply Point", "Casualty Collection Point", "Iceberg"). 62 of the
-  standard's ~260 point control measures are available here — Table
+  Supply Point", "Casualty Collection Point", "Antitank Mine"). 44 of
+  the standard's ~260 point control measures are available here — Table
   H-VI's own command/control points, Table H-IX's own Observation Post
-  family and Table H-XIII's own 26-entry airspace vocabulary have each
-  moved to their own dedicated layers (see above); the more Navy/
-  anti-submarine-warfare-specific ones (sonobuoy types and similar) and
-  the granular per-nation supply-class variants aren't currently
+  family, Table H-XIII's own 26-entry airspace vocabulary and Table
+  H-XIV's own 105-entry maritime vocabulary have each moved to their own
+  dedicated layers (see above); the granular per-nation supply-class
+  variants aren't currently
   included.
 - **Status** — Present or Planned.
 

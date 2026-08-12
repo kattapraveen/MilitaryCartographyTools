@@ -1025,14 +1025,30 @@ ENTITIES = {
         "orbit_figure_eight": "182300",
         "orbit_race_track": "182400",
         "orbit_random_closed": "182500",
-        # Maritime control points (Table H-XIV/H.5.16, Mini-Phase H8/H9,
-        # 2026-08-09) - confirmed present in milsymbol.js under each of
-        # these exact numeric codes. This is a heavily curated subset -
-        # see maritime_control_measures.py's own docstring for the much
-        # larger AEGIS-combat-system-specific and anti-submarine-
-        # warfare/sonobuoy-specific families deliberately left out,
-        # matching this dict's own pre-existing curation note above
-        # ("the more Navy/anti-submarine-warfare-specific ones").
+        # Maritime control points (Table H-XIV/H.5.16, Mini-Phase H8/H9)
+        # - printed pages 474-501, the FULL point vocabulary, expanded
+        # 2026-08-12 from the 18-entry curated subset this started as.
+        #
+        # That original curation deliberately left out the sonobuoy and
+        # anti-submarine-warfare fix/contact families as "more Navy/ASW-
+        # specific", matching this dict's own standing note further up.
+        # The project maintainer reversed that decision when moving the
+        # whole family onto its own layer, having gone through the
+        # table's own pages directly - so Sonobuoys (17 entries) and
+        # Sub-Surface Warfare (17) are now built in full alongside the
+        # rest. Grouped below by the table's OWN sub-headings, in its
+        # own code order, which is also how the layer's dropdown reads.
+        #
+        # Confirmed present in milsymbol.js under each of these exact
+        # numeric codes by direct probe. Four codes in the 474-501 range
+        # are deliberately NOT here - see maritime_control_measures.py's
+        # own docstring for the full reasoning on each: 210000 (the
+        # table's own parent row, template "N/A", nothing to draw),
+        # 211000/211200/211300 (marked "(AEGIS only)"), 217300
+        # (milsymbol maps it to the WRONG icon and flags it TODO in its
+        # own source) and 218400 (a TWO-anchor-point line symbol, not a
+        # point at all).
+        # General
         "plan_ship": "210100",
         "aim_point": "210200",
         "defended_asset": "210300",
@@ -1043,9 +1059,111 @@ ENTITIES = {
         "impact_point": "210800",
         "predicted_impact_point": "210900",
         "missile_detection_point": "211100",
+        # Sub-Surface Warfare
         "brief_contact": "211400",
         "datum_lost_contact": "211500",
+        "bt_buoy_drop": "211600",
+        "reported_bottomed_sub": "211700",
+        "moving_haven": "211800",
+        "screen_center": "211900",
+        "lost_contact": "212000",
+        "sinker": "212100",
+        "trial_track": "212200",
+        "acoustic_fix": "212300",
+        "electromagnetic_fix": "212400",
+        "electromagnetic_magnetic_anomaly_detection": "212500",
+        "optical_fix": "212600",
+        "formation": "212700",
+        "harbor": "212800",
+        "harbor_entrance_point": "212900",
+        "harbor_entrance_point_a": "212901",
+        "harbor_entrance_point_q": "212902",
+        "harbor_entrance_point_x": "212903",
+        "harbor_entrance_point_y": "212904",
+        # Search
+        "dip_position": "213000",
+        "search": "213100",
+        "search_area": "213200",
+        "search_center": "213300",
         "navigational_reference_point": "213400",
+        # Sonobuoys
+        "sonobuoy": "213500",
+        "ambient_noise_sonobuoy": "213501",
+        "air_transportable_communication_sonobuoy": "213502",
+        "barra_sonobuoy": "213503",
+        "bathythermograph_transmitting_sonobuoy": "213504",
+        "command_active_multi_beam_sonobuoy": "213505",
+        "command_active_sonobuoy_system": "213506",
+        "directional_frequency_analysis_and_recording_sonobuoy": "213507",
+        "directional_command_active_sonobuoy_system": "213508",
+        "expendable_reliable_acoustic_path_sonobuoy": "213509",
+        "expired_sonobuoy": "213510",
+        "kingpin_sonobuoy": "213511",
+        "low_frequency_analysis_and_recording_sonobuoy": "213512",
+        "pattern_center_sonobuoy": "213513",
+        "range_only_sonobuoy": "213514",
+        "vertical_line_array_directional_frequency_analysis_and_recording_sonobuoy": "213515",
+        # Reference Points
+        "reference_point": "213600",
+        "special_point": "213700",
+        "navigational_reference_point_reference": "213800",
+        "data_link_reference_point": "213900",
+        "vital_area_center": "214100",
+        "corridor_tab_point": "214200",
+        "enemy_point": "214300",
+        "marshall_point": "214400",
+        "position_and_intended_movement": "214500",
+        "pre_landfall_waypoint": "214600",
+        "estimated_position": "214700",
+        "waypoint": "214800",
+        # Subsurface Stations
+        "general_sea_subsurface_station": "214900",
+        "submarine_sea_subsurface_station": "215000",
+        "submarine_antisubmarine_warfare_sea_subsurface_station": "215100",
+        "unmanned_underwater_vehicle_sea_subsurface_station": "215200",
+        "antisubmarine_warfare_unmanned_underwater_vehicle_sea_subsurface_station": "215300",
+        "mine_warfare_unmanned_underwater_vehicle_sea_subsurface_station": "215400",
+        "sea_surface_warfare_unmanned_underwater_vehicle_subsurface_station": "215500",
+        # Surface Stations
+        "general_sea_surface_station": "215600",
+        "antisubmarine_warfare_sea_surface_station": "215700",
+        "mine_warfare_sea_surface_station": "215800",
+        "non_combatant_sea_surface_station": "215900",
+        "picket_sea_surface_station": "216000",
+        "rendezvous_sea_surface_station": "216100",
+        "replenishment_at_sea_surface_station": "216200",
+        "rescue_sea_surface_station": "216300",
+        "surface_warfare_sea_surface_station": "216400",
+        "unmanned_underwater_vehicle_sea_surface_station": "216500",
+        "antisubmarine_warfare_unmanned_underwater_vehicle_sea_surface_station": "216600",
+        "mine_warfare_unmanned_underwater_vehicle_sea_surface_station": "216700",
+        "remote_multi_mission_vehicle_mine_warfare_unmanned_underwater_sea_surface_station": "216800",
+        "surface_warfare_mine_warfare_unmanned_underwater_vehicle_sea_surface_station": "216900",
+        "shore_control_station": "217000",
+        # Routes
+        "general_route": "217100",
+        "diversion_route": "217200",
+        "picket_route": "217400",
+        "point_r_route": "217500",
+        "rendezvous_route": "217600",
+        "waypoint_route": "217700",
+        "clutter_stationary_or_cease_reporting": "217800",
+        "tentative_or_provisional_track": "217900",
+        # Emergency
+        "distressed_vessel": "218000",
+        "downed_aircraft": "218100",
+        "person_in_water_bailout": "218200",
+        # Hazard
+        "iceberg": "218300",
+        "oil_rig": "218500",
+        "sea_mine_like_contact": "218600",
+        # Sea Subsurface Returns
+        "bottom_return_non_mine_mine_like_bottom_object": "218700",
+        "bottom_return_installation_manmade": "218800",
+        "marine_life": "218900",
+        "sea_anomaly": "219000",
+        "bottom_return_non_milco_wreck_dangerous": "219100",
+        "bottom_return_non_milco_wreck_non_dangerous": "219200",
     },
     # Real codes from milsymbol-3.0.4's own src/numbersidc/sidc/space.js
     # (symbolSet == "05") - cross-checked directly against the standard's

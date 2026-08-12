@@ -93,7 +93,7 @@ DEFAULT_MARKER_SIZE_MM = 8.0
 # milsymbol.js's OTHER slot, `uniqueDesignation1`, to land where the
 # standard's own template shows it - see that module's own
 # _POINT_SIDC_EXPRESSION comment for the full finding. This layer's own
-# ~88 entities haven't been individually checked against that same
+# remaining entities haven't been individually checked against that same
 # per-icon distinction yet (Table H-VI's 22 were, since that's what
 # prompted the finding) - every entity here still only ever uses
 # `uniqueDesignation`, which will be in the wrong position for whichever
@@ -130,7 +130,8 @@ _ENTITY_LABELS = {
     # their own dedicated layers - c2_measures.py's own
     # POINT_ENTITY_LABELS, defensive_control_measures.py's own
     # POINT_ENTITY_LABELS, offensive_control_measures.py's own
-    # POINT_ENTITY_LABELS, and airspace_control_measures.py's own
+    # POINT_ENTITY_LABELS, airspace_control_measures.py's own
+    # POINT_ENTITY_LABELS, and maritime_control_measures.py's own
     # POINT_ENTITY_LABELS respectively - at the project maintainer's own
     # request (2026-08-10, and again 2026-08-12 for the airspace family:
     # "all symbols related to points, I think they are in control
@@ -141,12 +142,6 @@ _ENTITY_LABELS = {
     # here - the underlying sidc.py entities are untouched, so any
     # already-digitized feature keeps rendering fine regardless of which
     # layer's dropdown offers them.
-    # Maritime hazards / reference points
-    "distressed_vessel": "Distressed Vessel",
-    "downed_aircraft": "Downed/Ditched Aircraft",
-    "iceberg": "Iceberg",
-    "oil_rig": "Oil Rig",
-    "sea_mine_like_contact": "Sea Mine-Like Contact",
     # Fires
     "point_target": "Point/Single Target",
     "nuclear_target": "Nuclear Target",
@@ -195,23 +190,6 @@ _ENTITY_LABELS = {
     "destroy_point": "Destroy (Point)",
     "interdict_point": "Interdict (Point)",
     "neutralize_point": "Neutralize (Point)",
-    # Maritime control points (Table H-XIV, Mini-Phase H8/H9) - see
-    # maritime_control_measures.py's own docstring for what's built
-    # there instead (the Bearing Line family) and the much larger
-    # AEGIS-specific/ASW-sonar/sonobuoy family deliberately left out.
-    "plan_ship": "Plan Ship",
-    "aim_point": "Aim Point",
-    "defended_asset": "Defended Asset",
-    "drop_point": "Drop Point",
-    "entry_point": "Entry Point",
-    "air_detonation": "Air Detonation",
-    "ground_zero": "Ground Zero",
-    "impact_point": "Impact Point",
-    "predicted_impact_point": "Predicted Impact Point",
-    "missile_detection_point": "Missile Detection Point",
-    "brief_contact": "Brief Contact",
-    "datum_lost_contact": "Datum Lost Contact",
-    "navigational_reference_point": "Navigational Reference Point",
 }
 
 
@@ -261,11 +239,13 @@ def _configure_attribute_form(layer):
 
     # Sensible defaults so a feature added and saved without touching
     # every field still resolves to a valid SIDC rather than an
-    # empty-string one mct_build_sidc() would reject. Default entity was
-    # "checkpoint" until 2026-08-10, when Table H-VI (which owned it)
-    # moved out to its own layer - see _ENTITY_LABELS' own comment.
+    # empty-string one mct_build_sidc() would reject. The default entity
+    # has had to move twice as groups split off to their own layers -
+    # "checkpoint" until Table H-VI left (2026-08-10), then
+    # "distressed_vessel" until Table H-XIV left (2026-08-12). See
+    # _ENTITY_LABELS' own comment.
     layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
-    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'distressed_vessel'"))
+    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'point_target'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
 

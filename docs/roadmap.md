@@ -5252,6 +5252,82 @@ tested, not claimed as done here.
 
   771 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XIV's point vocabulary moved and expanded to
+  the full 105 entries.** Two decisions here were the maintainer's, not
+  this pass's, and both reversed earlier calls - so they were put to
+  them explicitly, with the tradeoffs stated, rather than assumed.
+
+  **Scope: the sonar/sonobuoy curation was reversed.** This table's
+  points started as an 18-entry curated subset on the shared
+  control_measure_points.py layer, with the Sonobuoy (17 entries) and
+  anti-submarine-warfare fix/contact (17) families deliberately left
+  out as "more Navy/ASW-specific" - a standing decision this project's
+  own docstrings recorded in three places. The maintainer went through
+  printed pages 474-501 directly and asked for the lot; that is now
+  built. sidc.py's own entities are untouched by the move, so anything
+  already digitized keeps rendering.
+
+  **Grouping: a label prefix plus a derived field, NOT a cascading
+  dropdown.** 105 entries in one flat list is unusable - "can we make
+  them into sub menu, otherwise the list is too long". QGIS's attribute
+  form has no nested dropdown, and the only mechanism that genuinely
+  filters one field by another is the ValueRelation cascade **this
+  project already retired from unit_layer.py after a confirmed
+  native-crash risk** - the same cascade sidc.py's own
+  ENTITIES["subsurface"] comment names as the likely root cause of the
+  Subsurface bug that prompted splitting per-appendix layers in the
+  first place. Rather than quietly re-adding a known hazard for a nicer
+  menu, both options were put to the maintainer with that tradeoff
+  stated; they chose the prefix. So each label reads "Routes - General
+  Route", which clusters the dropdown by group and answers to
+  type-ahead, and a real "group" FIELD is auto-derived from the chosen
+  entity (applyOnUpdate, so it re-derives on change) for filtering and
+  styling. The group is never typed - it is a property OF the entity,
+  and an editable copy could only ever disagree with the symbol drawn.
+
+  Groups are the table's OWN sub-headings, in its own order: General,
+  Sub-Surface Warfare, Search, Sonobuoys, Reference Points, Subsurface
+  Stations, Surface Stations, Routes, Emergency, Hazard, Sea Subsurface
+  Returns. "General" is this module's name for the table's first,
+  unheaded block (210100-211100). **"Hazard" was nearly missed** - the
+  PDF's own text layer renders that heading as "Har.ard", so the
+  heading scan skipped it and its three entries would have been filed
+  under Emergency; caught by rendering the page as an image instead of
+  trusting the extracted text, which is exactly the failure mode this
+  project's own methodology already warns about.
+
+  **Five codes in the 474-501 range are deliberately not built**, each
+  for a different reason, all recorded in the module docstring, sidc.py
+  and a test rather than left as silent gaps:
+
+  - **210000** is the table's own parent row - template column reads
+    "N/A". Nothing to draw; milsymbol has no icon for it either.
+  - **211000/211200/211300** are each marked "(AEGIS only)" in their
+    own CONTROL MEASURE cell. The maintainer's instruction on this pass
+    was to ignore AEGIS.
+  - **217300 (PIM Route)** is broken in milsymbol itself: its source
+    maps the code to `icn["TP.ROUTE POINT R"]` - the SAME icon as
+    217500, Point R Route - under a literal `##### FIX TODO #######`
+    comment. Shipping it would silently draw the wrong symbol, which
+    this project treats as worse than drawing none (the same call
+    already made for Search Area's placeholder glyph).
+  - **218400 (Navigational)** is not a point at all - its own draw
+    rules say "requires two anchor points... define the corner points
+    of the symbol", a two-vertex hooked line, which is why milsymbol
+    has no point icon for it. It belongs on the Lines layer as a
+    hand-built construction. **Still outstanding.**
+
+  Names were taken from milsymbol's own per-code source comments rather
+  than the PDF's text layer, which is badly mangled here ("Mal'itime
+  Contl'OI Points", "Beal'ing Line"). Cross-checked against the page
+  images for the entries where the two disagreed. Every one of the 105
+  was then rendered through the real pipeline and confirmed to produce
+  a symbol, with the codes checked unique - worth doing exhaustively
+  rather than by sample, since most of these had never been rendered
+  before this expansion.
+
+  780 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

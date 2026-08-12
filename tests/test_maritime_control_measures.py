@@ -30,9 +30,21 @@ from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.maritime_control_measures import (
     LINES_LAYER_NAME,
     LINE_MEASURE_TYPE_LABELS,
+    POINTS_LAYER_NAME,
+    POINT_ENTITY_LABELS,
+    POINT_GROUP_LABELS,
     add_maritime_control_measures_lines_layer,
+    add_maritime_control_measures_points_layer,
     create_maritime_control_measures_lines_layer,
+    create_maritime_control_measures_points_layer,
 )
+from MilitaryCartographyTools.military_symbology.maritime_control_measures import (
+    _POINT_ENTITIES,
+)
+from MilitaryCartographyTools.military_symbology.control_measure_points import (
+    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
+)
+from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
@@ -443,3 +455,200 @@ class TestAddMaritimeControlMeasuresLinesLayer(QgisTestCase):
         names = [child.name() for child in root.children()]
 
         self.assertEqual(names[0], LINES_LAYER_NAME)
+
+
+class TestCreateMaritimeControlMeasuresPointsLayer(QgisTestCase):
+
+    """
+    Table H-XIV's own point vocabulary (printed pages 474-501), moved
+    here 2026-08-12 out of the shared control_measure_points.py layer
+    and expanded from an 18-entry curated subset to all 105 usable
+    entries at the project maintainer's own request.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+
+    def test_has_the_expected_fields(self):
+
+        layer = create_maritime_control_measures_points_layer()
+
+        field_names = [field.name() for field in layer.fields()]
+
+        self.assertEqual(
+            field_names,
+            ["affiliation", "group", "entity", "status", "unique_designation"]
+        )
+
+
+    def test_is_a_point_layer(self):
+
+        layer = create_maritime_control_measures_points_layer()
+
+        self.assertEqual(layer.geometryType().name, "Point")
+
+
+    def test_covers_the_whole_table_and_nothing_it_should_not(self):
+
+        # Pinned against the standard's own code list rather than
+        # against the dict itself. Five codes in the 474-501 range are
+        # deliberately absent, each for its own reason - see the
+        # module docstring: 210000 (parent row, template "N/A"),
+        # 211000/211200/211300 ("(AEGIS only)"), 217300 (milsymbol maps
+        # it to the WRONG icon, under its own ##### FIX TODO #####) and
+        # 218400 (a two-anchor-point line, not a point).
+        codes = {
+            ENTITIES["control_measure"][entity]
+            for entity in POINT_ENTITY_LABELS
+        }
+
+        self.assertEqual(len(codes), len(POINT_ENTITY_LABELS))
+        self.assertEqual(len(codes), 105)
+
+        for excluded in ("210000", "211000", "211200", "211300",
+                         "217300", "218400"):
+
+            with self.subTest(code=excluded):
+
+                self.assertNotIn(excluded, codes)
+
+        # Nothing outside the table's own point range leaked in.
+        self.assertTrue(all("210100" <= code <= "219200" for code in codes))
+
+
+    def test_every_entity_label_is_prefixed_with_its_group(self):
+
+        # 105 entries is far too many for one flat list, and QGIS has no
+        # nested dropdown - the only mechanism that genuinely filters
+        # one field by another is the ValueRelation cascade this project
+        # retired for a confirmed native-crash risk. So the group is
+        # carried as a label prefix (this test) plus a real auto-derived
+        # field (the next one). See POINT_ENTITY_LABELS' own comment.
+        for entity, (group, name) in _POINT_ENTITIES.items():
+
+            with self.subTest(entity=entity):
+
+                self.assertEqual(
+                    POINT_ENTITY_LABELS[entity],
+                    f"{POINT_GROUP_LABELS[group]} - {name}"
+                )
+
+
+    def test_group_field_is_derived_from_the_entity_on_update(self):
+
+        # The group is a property OF the entity, so it is never typed -
+        # letting it be edited independently could only make it disagree
+        # with the symbol actually drawn. applyOnUpdate so changing the
+        # entity re-derives it.
+        layer = create_maritime_control_measures_points_layer()
+
+        idx = layer.fields().indexOf("group")
+
+        definition = layer.defaultValueDefinition(idx)
+
+        self.assertTrue(definition.applyOnUpdate())
+
+        expression = QgsExpression(definition.expression())
+
+        for entity, (group, _name) in _POINT_ENTITIES.items():
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("entity", entity)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                self.assertEqual(expression.evaluate(context), group)
+
+
+    def test_groups_follow_the_tables_own_sub_headings(self):
+
+        self.assertEqual(
+            list(POINT_GROUP_LABELS.values()),
+            [
+                "General",
+                "Sub-Surface Warfare",
+                "Search",
+                "Sonobuoys",
+                "Reference Points",
+                "Subsurface Stations",
+                "Surface Stations",
+                "Routes",
+                "Emergency",
+                "Hazard",
+                "Sea Subsurface Returns",
+            ]
+        )
+
+        # Every group actually has entries - a typo in a range bound
+        # would otherwise leave one silently empty.
+        populated = {group for group, _name in _POINT_ENTITIES.values()}
+
+        self.assertEqual(populated, set(POINT_GROUP_LABELS))
+
+
+    def test_the_maritime_family_left_the_shared_points_layer(self):
+
+        overlap = set(POINT_ENTITY_LABELS) & set(
+            _CONTROL_MEASURE_POINT_ENTITY_LABELS
+        )
+
+        self.assertEqual(overlap, set())
+
+
+    def test_every_entity_resolves_to_a_real_rendered_symbol(self):
+
+        # The whole point of checking all 105 rather than a sample: this
+        # expansion reversed an earlier curation, so most of these codes
+        # had never been rendered through the real pipeline before.
+        layer = create_maritime_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        for entity in POINT_ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("affiliation", "friend")
+                feature.setAttribute("entity", entity)
+                feature.setAttribute("status", "present")
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                path, ok = svg_layer.dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.Name,
+                    context,
+                    ""
+                )
+
+                self.assertTrue(ok)
+                self.assertTrue(path.startswith("base64:"))
+
+
+    def test_points_layer_is_created_and_added(self):
+
+        iface = FakeIface()
+
+        layer = add_maritime_control_measures_points_layer(iface)
+
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)),
+            1
+        )
