@@ -93,7 +93,6 @@ from ._control_measure_shared import (
     _build_pal_layer_settings,
     _build_rule_based_renderer,
     _configure_affiliation_field,
-    _configure_designation_labeling,
     _configure_status_field,
     _status_driven_area_outline_symbol,
     _value_map,
@@ -365,6 +364,44 @@ _AREA_DESIGNATION_LABEL_EXPRESSION = "CASE " + " ".join(
 ) + " ELSE '' END"
 
 
+# Stable ids so these areas' own labels can cut real gaps via QGIS
+# Selective Masking. Only two of the five need one: No Fire Area is the
+# only type here with a FILL for a label to disappear into, and
+# Position Area For Artillery is the only one whose labels sit ON the
+# outline rather than inside the shape.
+_NFA_HATCH_SYMBOL_LAYER_ID = "nfa_hatch"
+_PAA_OUTLINE_SYMBOL_LAYER_ID = "paa_outline"
+
+_MASKED_AREA_SYMBOL_LAYER_IDS = [
+    _NFA_HATCH_SYMBOL_LAYER_ID,
+    _PAA_OUTLINE_SYMBOL_LAYER_ID,
+]
+
+# Position Area For Artillery draws "PAA" at FOUR points around its own
+# perimeter - top, bottom, left and right - not once in the middle like
+# every other area in this table. Straight off its own template
+# (page 521, the Circular variant), and the maintainer's own words:
+# "the text PAA should be in all four directions - top, bottom, right
+# and left along the perimeter of the area made".
+#
+# Each anchor is the midpoint of one bounding-box edge. That is EXACT
+# for both shapes the standard actually allows here - PAA is Rectangle
+# or Circular only, with no Irregular variant in its own table - so
+# there is no need for the boundary-clipping machinery
+# mct_area_label_anchor() needs for the freeform zones in H7. The
+# bounding box is used rather than centroid(), which would wander off
+# the two axes on a rotated rectangle.
+_PAA_MID_X = "(x_min($geometry) + x_max($geometry)) / 2"
+_PAA_MID_Y = "(y_min($geometry) + y_max($geometry)) / 2"
+
+_PAA_PERIMETER_ANCHORS = (
+    f"make_point({_PAA_MID_X}, y_max($geometry))",
+    f"make_point({_PAA_MID_X}, y_min($geometry))",
+    f"make_point(x_min($geometry), {_PAA_MID_Y})",
+    f"make_point(x_max($geometry), {_PAA_MID_Y})",
+)
+
+
 def _nfa_symbol():
 
     """
@@ -378,6 +415,10 @@ def _nfa_symbol():
     symbol = _status_driven_area_outline_symbol()
 
     hatch_layer = QgsLinePatternFillSymbolLayer()
+
+    hatch_layer.setId(
+        _NFA_HATCH_SYMBOL_LAYER_ID
+    )
 
     hatch_layer.setLineAngle(
         45
@@ -395,8 +436,16 @@ def _nfa_symbol():
         QColor(0, 0, 0)
     )
 
+    # A QgsLinePatternFillSymbolLayer paints its hatch through a SUB-
+    # SYMBOL (a QgsLineSymbol), so a data-defined StrokeColor set on the
+    # fill layer itself is silently ignored - which is what this did
+    # until 2026-08-12, leaving every No Fire Area hatched black beside
+    # its own correctly affiliation-coloured outline. The identical
+    # latent bug airspace_control_measures.py's own Weapons Free Zone
+    # had, found there first and the same fix applied here on sight
+    # rather than waiting for it to be reported twice.
     _apply_affiliation_color(
-        hatch_layer,
+        hatch_layer.subSymbol().symbolLayer(0),
         [QgsSymbolLayer.Property.StrokeColor]
     )
 
@@ -407,12 +456,30 @@ def _nfa_symbol():
     return symbol
 
 
+def _paa_symbol():
+
+    """
+    Position Area For Artillery. The same plain status-driven outline
+    every other area here uses, but with a stable id on it - its own
+    "PAA" labels sit ON that outline (see _PAA_PERIMETER_ANCHORS), so
+    the outline has to be maskable for the text to stay readable.
+    """
+
+    symbol = _status_driven_area_outline_symbol()
+
+    symbol.symbolLayer(0).setId(
+        _PAA_OUTLINE_SYMBOL_LAYER_ID
+    )
+
+    return symbol
+
+
 _AREA_SYMBOL_BUILDERS = {
     "aca": _status_driven_area_outline_symbol,
     "ffa": _status_driven_area_outline_symbol,
     "nfa": _nfa_symbol,
     "rfa": _status_driven_area_outline_symbol,
-    "paa": _status_driven_area_outline_symbol,
+    "paa": _paa_symbol,
 }
 
 
@@ -653,13 +720,83 @@ def create_fire_support_coordination_measures_areas_layer(name=AREAS_LAYER_NAME)
         _build_rule_based_renderer(layer, _AREA_SYMBOL_BUILDERS)
     )
 
-    _configure_designation_labeling(
-        layer,
-        Qgis.LabelPlacement.OverPoint,
-        _AREA_DESIGNATION_LABEL_EXPRESSION
-    )
+    _configure_areas_labeling(layer)
 
     return layer
+
+
+def _configure_areas_labeling(layer):
+
+    """
+    Four of the five areas here label once, centred inside the shape.
+    Position Area For Artillery labels FOUR times instead, once at each
+    of the top, bottom, left and right of its own perimeter - see
+    _PAA_PERIMETER_ANCHORS. That is a different PLACEMENT rather than
+    different text, so one shared QgsPalLayerSettings cannot express it
+    and this builds a QgsRuleBasedLabeling tree (2026-08-12).
+
+    Every rule is masked. For No Fire Area that is the whole point -
+    it is the one area here with a hatched fill, and the maintainer
+    asked for the text to be readable against it. For PAA the labels sit
+    ON the outline, exactly as its own template draws them (the circle's
+    arc breaks where each "PAA" sits), so the outline is what gets cut.
+    Airspace Coordination Area/Free Fire Area/Restricted Fire Area have
+    no fill and their label sits well inside, so masking is a harmless
+    no-op there - which is why one shared id list on every rule is fine,
+    and necessary: masking is configured per QGIS layer, not per rule,
+    and rules declaring different lists make QGIS keep one arbitrarily.
+    """
+
+    centred_rule = QgsRuleBasedLabeling.Rule(
+        _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.OverPoint,
+            _AREA_DESIGNATION_LABEL_EXPRESSION,
+            masked_symbol_layer_ids=_MASKED_AREA_SYMBOL_LAYER_IDS
+        )
+    )
+
+    # Explicit non-PAA filter rather than setIsElse(True): each rule in
+    # a QgsRuleBasedLabeling gets its own independent sub-provider, and
+    # an else-flagged rule's provider still places its own label for the
+    # rows the other rules matched - giving PAA a fifth, centred label
+    # on top of its four. Confirmed the same way in c2_measures.py's own
+    # _configure_area_designation_labeling(); reused here rather than
+    # rediscovered.
+    centred_rule.setFilterExpression(
+        "\"measure_type\" IS NULL OR \"measure_type\" != 'paa'"
+    )
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    root_rule.appendChild(centred_rule)
+
+    for anchor in _PAA_PERIMETER_ANCHORS:
+
+        paa_rule = QgsRuleBasedLabeling.Rule(
+            _build_pal_layer_settings(
+                layer,
+                Qgis.LabelPlacement.OverPoint,
+                _AREA_DESIGNATION_LABEL_EXPRESSION,
+                masked_symbol_layer_ids=_MASKED_AREA_SYMBOL_LAYER_IDS,
+                label_geometry_expression=anchor,
+                quadrant=Qgis.LabelQuadrantPosition.Over
+            )
+        )
+
+        paa_rule.setFilterExpression(
+            "\"measure_type\" = 'paa'"
+        )
+
+        root_rule.appendChild(paa_rule)
+
+    layer.setLabeling(
+        QgsRuleBasedLabeling(root_rule)
+    )
+
+    layer.setLabelsEnabled(
+        True
+    )
 
 
 def add_fire_support_coordination_measures_lines_layer(iface):

@@ -1072,6 +1072,17 @@ Airspace Control Measures' own Weapons Free Zone — **Restricted Fire
 Area (RFA)**, **Position Area For Artillery (PAA)** (Rectangle/Circle
 only, no Irregular variant in the standard's own table).
 
+**No Fire Area's label masks the hatch**, so the text stays readable
+against the diagonal fill instead of competing with it.
+
+**Position Area For Artillery labels all four sides.** Rather than one
+label in the middle, "PAA" is drawn at the top, bottom, left and right
+of the area's perimeter, sitting on the outline with the line breaking
+around it — exactly as the standard's own template draws it. This works
+for both shapes the standard allows here (rectangle and circle); the
+anchors are the midpoints of each side, so a rotated or stretched shape
+still gets its four labels on the right axes.
+
 **Lines** offers 6 types. Four repeat their label at both ends —
 **Fire Support Coordination Line (FSCL)**, **No Fire Line (NFL)**,
 **Battlefield Coordination Line (BCL)**, **Restrictive Fire Line

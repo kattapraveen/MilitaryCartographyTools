@@ -459,6 +459,27 @@ class TestCreateFireSupportCoordinationMeasuresAreasLayer(QgisTestCase):
         QgsProject.instance().setCrs(WGS84)
 
 
+    def _area_label_rules(self, layer):
+
+        """
+        Five rules since 2026-08-12: one centred rule for ACA/FFA/NFA/
+        RFA, then four for Position Area For Artillery, one per
+        perimeter anchor (top, bottom, left, right in that order).
+
+        NOTE settings() returns BY VALUE - hold it before use rather
+        than chaining, or the temporary can be collected mid-expression
+        and segfault the interpreter.
+        """
+
+        root = layer.labeling().rootRule()
+
+        children = root.children()
+
+        self.assertEqual(len(children), 5)
+
+        return children
+
+
     def _evaluate_label(self, layer, measure_type, **attrs):
 
         feature = QgsFeature(layer.fields())
@@ -468,7 +489,7 @@ class TestCreateFireSupportCoordinationMeasuresAreasLayer(QgisTestCase):
 
             feature.setAttribute(key, value)
 
-        settings = layer.labeling().settings()
+        settings = self._area_label_rules(layer)[0].settings()
 
         expression = QgsExpression(settings.fieldName)
         context = layer.createExpressionContext()
@@ -548,6 +569,154 @@ class TestCreateFireSupportCoordinationMeasuresAreasLayer(QgisTestCase):
                     self._evaluate_label(layer, measure_type),
                     prefix
                 )
+
+
+    def test_paa_labels_all_four_sides_of_its_own_perimeter(self):
+
+        # 2026-08-12, the maintainer's own words: "the text PAA should
+        # be in all four directions - top, bottom, right and left along
+        # the perimeter of the area made" - which is what its own
+        # template draws (page 521, the Circular variant). Every other
+        # area here labels once in the middle, so this is a genuinely
+        # different PLACEMENT and needs its own rules.
+        #
+        # Each anchor is a bounding-box edge midpoint, which is EXACT
+        # for both shapes the standard allows here (PAA is Rectangle or
+        # Circular only, no Irregular variant) - so none of the
+        # boundary-clipping machinery H7's freeform zones need applies.
+        layer = create_fire_support_coordination_measures_areas_layer()
+
+        centred_rule, *paa_rules = self._area_label_rules(layer)
+
+        mid_x = "(x_min($geometry) + x_max($geometry)) / 2"
+        mid_y = "(y_min($geometry) + y_max($geometry)) / 2"
+
+        expected = [
+            f"make_point({mid_x}, y_max($geometry))",
+            f"make_point({mid_x}, y_min($geometry))",
+            f"make_point(x_min($geometry), {mid_y})",
+            f"make_point(x_max($geometry), {mid_y})",
+        ]
+
+        self.assertEqual(len(paa_rules), 4)
+
+        for rule, anchor in zip(paa_rules, expected):
+
+            with self.subTest(anchor=anchor):
+
+                self.assertEqual(
+                    rule.filterExpression(), '"measure_type" = \'paa\''
+                )
+
+                settings = rule.settings()
+
+                self.assertTrue(settings.geometryGeneratorEnabled)
+                self.assertEqual(settings.geometryGenerator, anchor)
+
+                # Over, not Above/Below: the template draws each "PAA"
+                # sitting ON the outline with the line broken around it.
+                self.assertEqual(
+                    settings.quadOffset,
+                    Qgis.LabelQuadrantPosition.Over
+                )
+
+        # The centred rule must NOT also fire for PAA, or it would get a
+        # fifth label in the middle. An explicit filter rather than
+        # setIsElse(True), which does not suppress it - see
+        # _configure_areas_labeling()'s own comment.
+        self.assertEqual(
+            centred_rule.filterExpression(),
+            '"measure_type" IS NULL OR "measure_type" != \'paa\''
+        )
+
+
+    def test_area_labels_mask_the_fill_and_outline_they_sit_on(self):
+
+        # No Fire Area is the one area here with a hatched fill, and the
+        # maintainer asked for its text to stay readable against it.
+        # PAA's own labels sit ON the outline, so that is what gets cut
+        # there. All five rules must declare the SAME list - masking is
+        # per QGIS layer, not per rule.
+        layer = create_fire_support_coordination_measures_areas_layer()
+
+        declared = []
+
+        for rule in self._area_label_rules(layer):
+
+            settings = rule.settings()
+
+            text_format = settings.format()
+
+            mask = text_format.mask()
+
+            self.assertTrue(mask.enabled())
+
+            declared.append(
+                sorted(
+                    reference.symbolLayerIdV2()
+                    for reference in mask.maskedSymbolLayers()
+                )
+            )
+
+        self.assertEqual(declared[0], ["nfa_hatch", "paa_outline"])
+
+        for other in declared[1:]:
+
+            self.assertEqual(other, declared[0])
+
+        # The ids have to actually be ON the symbol layers, or the
+        # references above point at nothing and masking silently does
+        # nothing.
+        nfa_symbol = _rule_symbol_for(layer, "nfa")
+
+        self.assertEqual(
+            nfa_symbol.symbolLayer(1).id(), "nfa_hatch"
+        )
+
+        paa_symbol = _rule_symbol_for(layer, "paa")
+
+        self.assertEqual(
+            paa_symbol.symbolLayer(0).id(), "paa_outline"
+        )
+
+
+    def test_nfa_hatch_follows_affiliation_through_its_sub_symbol(self):
+
+        # A QgsLinePatternFillSymbolLayer paints through a SUB-SYMBOL,
+        # so a data-defined StrokeColor on the fill layer itself is
+        # silently ignored - this drew every No Fire Area hatch black
+        # beside a correctly coloured outline until 2026-08-12. The
+        # identical latent bug airspace_control_measures.py's own
+        # Weapons Free Zone had; found there first, fixed here on sight.
+        layer = create_fire_support_coordination_measures_areas_layer()
+
+        hatch = _rule_symbol_for(layer, "nfa").symbolLayer(1)
+
+        sub_layer = hatch.subSymbol().symbolLayer(0)
+
+        for affiliation, hex_color in (
+            ("friend", "#0000ff"),
+            ("hostile", "#ff0000"),
+            ("neutral", "#00ff00"),
+            ("unknown", "#ffff00"),
+        ):
+
+            with self.subTest(affiliation=affiliation):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("affiliation", affiliation)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                color, ok = sub_layer.dataDefinedProperties().valueAsColor(
+                    QgsSymbolLayer.Property.StrokeColor,
+                    context,
+                    QColor(1, 2, 3)
+                )
+
+                self.assertTrue(ok)
+                self.assertEqual(color.name(), hex_color)
 
 
     def test_nfa_has_a_hatched_fill_layer(self):

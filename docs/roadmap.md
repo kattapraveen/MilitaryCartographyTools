@@ -5378,6 +5378,52 @@ tested, not claimed as done here.
 
   784 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XVI areas.** Two changes, both from the
+  maintainer's own live testing, plus one latent bug found on the way.
+
+  - **No Fire Area's label masks its hatch**, so the text stays
+    readable against the diagonal fill. The same treatment H7's own
+    Weapons Free Zone already had - NFA is the only other area in this
+    whole appendix pass with a real fill.
+  - **Position Area For Artillery labels all FOUR sides of its own
+    perimeter** - "the text PAA should be in all four directions - top,
+    bottom, right and left along the perimeter of the area made" -
+    rather than once in the middle like every other area in the table.
+    Straight off its own template (page 521, the Circular variant),
+    which draws each "PAA" sitting ON the outline with the line broken
+    around it; so the labels use the Over quadrant and the PAA outline
+    is masked too.
+
+    Each anchor is a bounding-box edge midpoint. That is EXACT for both
+    shapes the standard actually allows here - PAA is Rectangle or
+    Circular only, with no Irregular variant in its own table - so none
+    of the boundary-clipping machinery mct_area_label_anchor() needs for
+    H7's freeform zones applies. Bounding box rather than centroid(),
+    which would wander off the two axes on a rotated rectangle.
+
+    The centred rule needed an explicit non-PAA filter rather than
+    setIsElse(True): an else-flagged rule's own sub-provider still
+    places its label for rows the other rules matched, which would have
+    given every PAA a fifth label in the middle. Already established in
+    c2_measures.py's own area labelling and reused here rather than
+    rediscovered.
+
+  Both changes needed the areas layer to move from
+  QgsVectorLayerSimpleLabeling to QgsRuleBasedLabeling, since the five
+  types no longer share one placement, and all five rules declare the
+  same masked-id list (masking is per QGIS layer, not per rule).
+
+  **Latent bug fixed on sight**: No Fire Area's hatch was rendering
+  black beside its own correctly affiliation-coloured outline, because
+  a QgsLinePatternFillSymbolLayer paints through a SUB-SYMBOL and a
+  data-defined StrokeColor set on the fill layer itself is silently
+  ignored. This is the identical bug found in H7's Weapons Free Zone
+  earlier the same day - the same wrong pattern had been copied into
+  both. Fixed here without waiting for it to be reported a second time,
+  and pinned by a test across all four affiliations.
+
+  787 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---
