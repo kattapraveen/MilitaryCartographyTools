@@ -5485,6 +5485,47 @@ tested, not claimed as done here.
 
   797 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XVIII (Target acquisition).** One missing
+  measure type built, one pair explicitly deferred.
+
+  - **Terminally Guided Munition Footprint (242000, "TGMF") was missed
+    entirely** when this mini-phase was first built - not curated out
+    and recorded the way the two Weapon/Sensor Range Fans were, just
+    absent, with nothing in the module docstring acknowledging it.
+    Added on the maintainer's own report. Its construction is the same
+    freeform outline + centred prefix as every other entry here, so it
+    needed no new technique - which is what makes the omission worth
+    noting rather than shrugging at.
+
+    **Why it slipped, and what stops the next one.** Every other entry
+    in this table is an Irregular/Rectangle/Circular code TRIPLE folded
+    into one measure type; TGMF is a lone code. A pass reading the
+    table in triples had nothing to catch on. The test guarding this
+    was a bare `len(AREA_MEASURE_TYPE_LABELS) == 11`, which agreed with
+    itself and stayed green - a count can only ever confirm what was
+    already built. Replaced with an explicit set assertion against the
+    standard's own code list, so an absent measure type now fails by
+    name. Worth applying the same reading to other tables' guards.
+
+    Its own template shows no Field T box, unlike its siblings; the
+    optional name is still offered for uniformity with the rest of the
+    layer, and simply stays unused if left blank.
+
+  - **Weapon/Sensor Range Fan - Circular (242100) and Sector (242200)
+    remain unbuilt, now tracked as work rather than as a curation
+    decision** (task #38). Both need genuinely computed geometry from a
+    single anchor point - concentric range rings, or a pie sector with
+    an azimuth centreline and left/right limits - not a boundary the
+    user digitizes. The likely approach is a geometry generator in the
+    style of H7's own Base Defense Zone (centre + radius click into
+    make_circle), extended to arcs and sectors; the open design
+    question, to settle with the maintainer before building, is whether
+    ranges and azimuths come from attribute fields or from extra
+    clicked points. Pinned by an assertNotIn so the deferral stays
+    visible rather than reading as an oversight.
+
+  798 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

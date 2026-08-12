@@ -1147,21 +1147,22 @@ category already excluded throughout Maritime Control Measures.
 
 ### Target Acquisition Control Measures
 
-MIL-STD-2525D Appendix H.5.20 (Table H-XVIII) — 11 area types, all the
+MIL-STD-2525D Appendix H.5.20 (Table H-XVIII) — 12 area types, all the
 same "freeform outline + prefix + optional name" construction: **Artillery
 Target Intelligence Zone (ATI)**, **Call For Fire Zone (CFF ZONE)**,
 **Censor Zone**, **Critical Friendly Zone (CF ZONE)**, **Dead Space Area
 (DA)**, **Sensor Zone**, **Target Build-up Area (TBA)**, **Target Value
-Area (TVAR)**, **Zone of Responsibility (ZOR)**, **Blue Kill Box (BKB)**,
-**Purple Kill Box (PKB)**. The prefix text matches each one's own
+Area (TVAR)**, **Zone of Responsibility (ZOR)**, **Terminally Guided
+Munition Footprint (TGMF)**, **Blue Kill Box (BKB)**, **Purple Kill Box
+(PKB)**. The prefix text matches each one's own
 template exactly — the standard itself isn't consistent about spelling
 "ZONE" out, so this plugin doesn't force one either.
 
-**Weapon/Sensor Range Fan (Circular and Sector variants)** are not
-built — both need genuinely computed geometry from a single anchor
-point (one or more concentric range rings, or a pie-shaped sector with
-an azimuth centreline and left/right limits) rather than a boundary you
-directly digitize.
+**Weapon/Sensor Range Fan (Circular and Sector variants)** are not built
+yet — both need genuinely computed geometry from a single anchor point
+(one or more concentric range rings, or a pie-shaped sector with an
+azimuth centreline and left/right limits) rather than a boundary you
+directly digitize. They are on the list to build.
 
 ### Control Measure Points
 

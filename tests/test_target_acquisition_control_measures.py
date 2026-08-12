@@ -119,11 +119,58 @@ class TestCreateTargetAcquisitionControlMeasuresAreasLayer(QgisTestCase):
         )
 
 
-    def test_has_exactly_eleven_measure_types(self):
+    def test_covers_every_measure_type_the_table_lists(self):
+
+        # Was a bare `len(...) == 11` count until 2026-08-12, which is
+        # exactly the check that let Terminally Guided Munition
+        # Footprint (242000) go missing: it was never added, so the
+        # count agreed with itself and stayed green. Pinned against the
+        # standard's OWN code list now, so an absent measure type fails
+        # by name rather than passing quietly.
+        #
+        # Codes are given as the table gives them - most entries are an
+        # Irregular/Rectangle/Circular TRIPLE folded into one measure
+        # type here, TGMF is a lone code, and the two Kill Boxes share
+        # one 2423xx run between them. That mixture is very likely why a
+        # pass reading the table in triples skipped the one entry that
+        # isn't one.
+        self.assertEqual(
+            set(AREA_MEASURE_TYPE_LABELS),
+            {
+                "ati",            # 241101/102/103
+                "cffz",           # 241201/202/203
+                "censor_zone",    # 241301/302/303
+                "cfz",            # 241401/402/403
+                "dead_space_area",  # 241501/502/503
+                "sensor_zone",    # 241601/602/603
+                "tba",            # 241701/702/703
+                "tvar",           # 241801/802/803
+                "zor",            # 241901/902/903
+                "tgmf",           # 242000 - single code, no triple
+                "blue_kill_box",  # 242301/302/303
+                "purple_kill_box",  # 242304/305/306
+            }
+        )
+
+        # Weapon/Sensor Range Fan (242100 Circular, 242200 Sector) are
+        # deliberately still absent - genuinely computed geometry from
+        # one anchor point, not a digitized boundary. Tracked to build
+        # rather than curated out.
+        self.assertNotIn("weapon_sensor_range_fan_circular", AREA_MEASURE_TYPE_LABELS)
+        self.assertNotIn("weapon_sensor_range_fan_sector", AREA_MEASURE_TYPE_LABELS)
+
+
+    def test_terminally_guided_munition_footprint_labels_tgmf(self):
+
+        layer = create_target_acquisition_control_measures_areas_layer()
+
+        self.assertEqual(self._evaluate_label(layer, "tgmf"), "TGMF")
 
         self.assertEqual(
-            len(AREA_MEASURE_TYPE_LABELS),
-            11
+            self._evaluate_label(
+                layer, "tgmf", unique_designation="alpha"
+            ),
+            "TGMF\nALPHA"
         )
 
 

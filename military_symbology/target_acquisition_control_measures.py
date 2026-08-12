@@ -6,7 +6,7 @@ H-XVIII, "Target acquisition control measure symbols") - Mini-Phase
 H13/H14, the thirteenth H.5.x logical group in this appendix-by-
 appendix pass.
 
-**Areas only - 11 measure types, every one of them the identical
+**Areas only - 12 measure types, every one of them the identical
 "freeform outline + prefix + optional name" construction already
 proven throughout this appendix**, each folding a separate Irregular/
 Rectangle/Circular SIDC code triple into one measure type (the same
@@ -18,8 +18,22 @@ ZONE" - the standard's own template text, not "CFFZ"), Censor Zone
 403, "CF ZONE"), Dead Space Area (241501/502/503, "DA"), Sensor Zone
 (241601/602/603, "SENSOR ZONE"), Target Build-up Area (241701/702/703,
 "TBA"), Target Value Area (241801/802/803, "TVAR"), Zone of
-Responsibility (241901/902/903, "ZOR"), Blue Kill Box (242301/302/303,
-"BKB"), Purple Kill Box (242304/305/306, "PKB"). The prefix text is
+Responsibility (241901/902/903, "ZOR"), Terminally Guided Munition
+Footprint (242000, "TGMF"), Blue Kill Box (242301/302/303, "BKB"),
+Purple Kill Box (242304/305/306, "PKB").
+
+**Terminally Guided Munition Footprint was missed entirely** when this
+mini-phase was first built - not curated out and recorded like the two
+Weapon/Sensor Range Fans below, just absent, with nothing in this
+docstring acknowledging it. Added 2026-08-12 on the maintainer's own
+report. It is the one measure type here with a SINGLE code rather than
+an Irregular/Rectangle/Circular triple, which is probably how it fell
+through a pass that was reading the table in code-triples. Its own
+construction is the same freeform outline + centred prefix as every
+other entry, so it needed no new technique. Its template shows no Field
+T box, unlike its siblings; the optional name is still offered here for
+uniformity with the rest of the layer, and simply stays unused if left
+blank. The prefix text is
 kept exactly as each measure type's own template/example shows it,
 rather than forced onto one uniform abbreviation scheme - the standard
 itself is inconsistent here (some spell the word "ZONE" out, others
@@ -83,6 +97,7 @@ AREA_MEASURE_TYPE_LABELS = {
     "tba": "Target Build-up Area (TBA)",
     "tvar": "Target Value Area (TVAR)",
     "zor": "Zone of Responsibility (ZOR)",
+    "tgmf": "Terminally Guided Munition Footprint (TGMF)",
     "blue_kill_box": "Blue Kill Box (BKB)",
     "purple_kill_box": "Purple Kill Box (PKB)",
 }
@@ -97,6 +112,7 @@ _AREA_LABEL_PREFIXES = {
     "tba": "TBA",
     "tvar": "TVAR",
     "zor": "ZOR",
+    "tgmf": "TGMF",
     "blue_kill_box": "BKB",
     "purple_kill_box": "PKB",
 }
@@ -118,7 +134,7 @@ _AREA_SYMBOL_BUILDERS = {
 def create_target_acquisition_control_measures_areas_layer(name=AREAS_LAYER_NAME):
 
     """
-    A fresh, empty polygon layer for Table H-XVIII's own 11 zone/box
+    A fresh, empty polygon layer for Table H-XVIII's own 12 zone/box
     measure types - see this module's own docstring for the full list
     and for the two entries skipped (both Weapon/Sensor Range Fan
     variants).
