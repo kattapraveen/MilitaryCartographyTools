@@ -565,24 +565,42 @@ def _serrated_ring_points(ring_points, tooth_count, outward=True):
 # pictures.
 #
 # "double_cross" is one marker holding TWO crosses, because Double
-# Fence spaces the pair (0.5 of a cross width) differently from the gap
-# between pairs (3 widths) - a marker line has only one interval, so
-# the pair has to be a single glyph. Its viewBox is 250 wide against
-# the others' 100, so the caller sizes it 2.5x to keep each cross the
-# same size as its siblings'.
+# Fence spaces the pair differently from the gap between pairs - and a
+# marker line has only one interval, so the pair has to be a single
+# glyph. Its viewBox is wider than the others' 100, so the caller sizes
+# it up to keep each cross the same size as its siblings' (see
+# _double_cross_geometry, which derives both from one number).
 _WIRE_GLYPH_GEOMETRY = {
     "cross": (100, ["M 16,16 L 84,84", "M 84,16 L 16,84"]),
-    "double_cross": (
-        250,
-        [
-            "M 16,16 L 84,84", "M 84,16 L 16,84",
-            "M 166,16 L 234,84", "M 234,16 L 166,84",
-        ],
-    ),
     # An OVAL, not a circle - the maintainer was explicit that the
     # concertina glyph is a "0" rather than an "O".
     "oval": (100, ["M 50,12 C 22,12 22,88 50,88 C 78,88 78,12 50,12 Z"]),
 }
+
+_CROSS_PATHS = _WIRE_GLYPH_GEOMETRY["cross"][1]
+
+
+def _double_cross_geometry(pair_gap):
+
+    """
+    Two crosses `pair_gap` glyph-widths apart, in a viewBox exactly
+    wide enough to hold them.
+
+    Both the viewBox width and the caller's own size multiplier are
+    derived from `pair_gap` rather than written down separately - they
+    are the same fact, and an earlier version had them as two literals
+    (a 250 viewBox and a 2.5 multiplier) that would silently disagree
+    the moment the spacing changed. Which it then did.
+    """
+
+    second = 100 * (1 + pair_gap)
+
+    paths = list(_CROSS_PATHS) + [
+        "M {},16 L {},84".format(second + 16, second + 84),
+        "M {},16 L {},84".format(second + 84, second + 16),
+    ]
+
+    return 100 * (2 + pair_gap), paths
 
 
 @qgsfunction(
@@ -593,14 +611,19 @@ def mct_wire_glyph_svg(values, feature=None, parent=None):
 
     """
     One wire-obstacle glyph as an inline "base64:<...>" SVG path.
-    `kind` is a key of _WIRE_GLYPH_GEOMETRY; `colour` is the obstacle's
-    own green or black.
+    `kind` is a key of _WIRE_GLYPH_GEOMETRY, or "double_cross";
+    `colour` is the obstacle's own green or black; `pair_gap` is the
+    space between the two crosses of a double_cross, in glyph widths.
     """
 
     kind = str(values[0]) if values else "cross"
     colour = str(values[1]) if len(values) > 1 and values[1] else "rgb(0,155,0)"
+    pair_gap = float(values[2]) if len(values) > 2 else 0.25
 
-    geometry = _WIRE_GLYPH_GEOMETRY.get(kind)
+    if kind == "double_cross":
+        geometry = _double_cross_geometry(pair_gap)
+    else:
+        geometry = _WIRE_GLYPH_GEOMETRY.get(kind)
 
     if geometry is None:
         return ""

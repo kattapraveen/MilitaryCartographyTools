@@ -2233,14 +2233,22 @@ class TestWireObstacles(QgisTestCase):
     def test_the_paired_glyph_is_drawn_wide_enough_to_stay_square(self):
 
         # QGIS sizes an SVG marker by WIDTH, and double_cross holds two
-        # crosses in a 250-wide viewBox - so without the 2.5 multiplier
-        # each of its crosses would render at 40% of its siblings'.
+        # crosses plus the gap between them - so without the multiplier
+        # each of its crosses would render smaller than its siblings'.
+        # Asserted as DERIVED from the pair gap, because an earlier
+        # version wrote the viewBox width and the multiplier as two
+        # separate literals and they disagreed the moment the maintainer
+        # changed the spacing.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _WIRE_GLYPH_WIDTH_MULTIPLIERS,
+            _WIRE_PAIR_GAP,
         )
 
-        self.assertEqual(
-            _WIRE_GLYPH_WIDTH_MULTIPLIERS.get("double_cross"), 2.5
+        self.assertEqual(_WIRE_PAIR_GAP, 0.25)
+
+        self.assertAlmostEqual(
+            _WIRE_GLYPH_WIDTH_MULTIPLIERS.get("double_cross"),
+            2 + _WIRE_PAIR_GAP
         )
 
 
@@ -2313,6 +2321,7 @@ class TestWireObstacles(QgisTestCase):
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _WIRE_GAP_SCALE,
             _WIRE_GLYPH_SIZE_MM,
+            _WIRE_GLYPH_WIDTH_MULTIPLIERS,
             _WIRE_SPECS,
             create_obstacle_control_measures_lines_layer,
         )
@@ -2345,7 +2354,9 @@ class TestWireObstacles(QgisTestCase):
 
             self.assertEqual(len(marker_lines), 1, rule.label())
 
-            width_multiplier = 2.5 if spec.glyph == "double_cross" else 1.0
+            width_multiplier = (
+                _WIRE_GLYPH_WIDTH_MULTIPLIERS.get(spec.glyph, 1.0)
+            )
 
             expected = (
                 _WIRE_GLYPH_SIZE_MM * width_multiplier

@@ -6332,6 +6332,27 @@ tested, not claimed as done here.
 
     880 tests passing on both QGIS versions.
 
+- **Double Fence pair spacing to 0.25**, and a duplication removed with
+  it (2026-08-12).
+
+  The pair gap had been written down TWICE - as a 250-wide viewBox in
+  the glyph function and as a 2.5 size multiplier in the module - which
+  are the same fact, since QGIS sizes an SVG marker by width. Changing
+  the spacing to 0.25 would have made them disagree and rendered the
+  paired crosses at the wrong size against every other glyph.
+
+  Both are now derived from one `_WIRE_PAIR_GAP` constant, passed into
+  the glyph function as an argument, and the test asserts the
+  multiplier as `2 + _WIRE_PAIR_GAP` rather than as a literal. The
+  duplication was latent from the first build and only surfaced because
+  the maintainer changed the number.
+
+  Note this gap is deliberately NOT scaled by `_WIRE_GAP_SCALE`: that
+  factor tunes the space BETWEEN pairs, and the within-pair figure was
+  given explicitly.
+
+    880 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

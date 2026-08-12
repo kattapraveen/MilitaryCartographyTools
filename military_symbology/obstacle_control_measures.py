@@ -2413,10 +2413,18 @@ _WIRE_SPECS = {
 # The width (and height) of a single cross or oval.
 _WIRE_GLYPH_SIZE_MM = 3.0
 
-# double_cross is one marker holding two crosses in a 250-wide viewBox,
-# and QGIS sizes an SVG marker by its WIDTH - so it is drawn 2.5x to
-# keep each cross the same size as every other glyph here.
-_WIRE_GLYPH_WIDTH_MULTIPLIERS = {"double_cross": 2.5}
+# The space between the two crosses of a Double Fence pair, in glyph
+# widths. Given explicitly by the maintainer (0.5 first, then 0.25),
+# and deliberately NOT scaled by _WIRE_GAP_SCALE below - that factor
+# tunes the gap BETWEEN pairs, which is a different number.
+_WIRE_PAIR_GAP = 0.25
+
+# double_cross holds two crosses plus the gap between them, and QGIS
+# sizes an SVG marker by its WIDTH - so it is drawn that much larger to
+# keep each cross the same size as every other glyph here. Derived from
+# _WIRE_PAIR_GAP rather than written down, so the marker size and the
+# glyph's own viewBox cannot disagree.
+_WIRE_GLYPH_WIDTH_MULTIPLIERS = {"double_cross": 2 + _WIRE_PAIR_GAP}
 
 # How much of each end of the line the glyphs leave clear.
 _WIRE_END_TRIM = 0.04
@@ -2490,7 +2498,8 @@ def _wire_obstacle_symbol(measure_type):
         QgsSymbolLayer.Property.Name,
         QgsProperty.fromExpression(
             f"mct_wire_glyph_svg('{spec.glyph}', "
-            + _POINT_MONO_COLOR_EXPRESSION + ")"
+            + _POINT_MONO_COLOR_EXPRESSION
+            + f", {_WIRE_PAIR_GAP})"
         )
     )
 
