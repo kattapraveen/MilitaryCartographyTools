@@ -1192,8 +1192,12 @@ def _dynamic_minefield_symbol(dummy=False):
     maintainer's own audit, which asked for them to merge into one.
     Merging would conflate a DUMMY minefield with a real one: the
     dashed chevron is the only thing that says "this is a decoy", and
-    that is a claim about the ground, not a styling detail. Raised for
-    the maintainer to overrule if they still want the merge.
+    that is a claim about the ground, not a styling detail.
+
+    **CONFIRMED by the maintainer 2026-08-12** ("the dummy minefield
+    and dynamic are fine, no problem") after smoke-testing B3. Recorded
+    here because the audit document still reads "merge", and a later
+    pass working from it would otherwise file this as a defect.
     """
 
     symbol = QgsFillSymbol.createSimple({"style": "no"})

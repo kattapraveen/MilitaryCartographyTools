@@ -6035,8 +6035,10 @@ tested, not claimed as done here.
   Depiction (270707) to merge into one area. They are built as TWO,
   because the dashed chevron is the only thing that says "this is a
   decoy" - a claim about the ground, not a styling detail, and merging
-  would conflate a fake minefield with a real one. Flagged for the
-  maintainer to overrule.
+  would conflate a fake minefield with a real one. **CONFIRMED by the
+  maintainer 2026-08-12** after smoke-testing B3: "the dummy minefield
+  and dynamic are fine, no problem". The audit document still reads
+  "merge", so the departure is recorded in the module itself too.
 
   Both dynamic areas scatter their mines with
   QgsRandomMarkerFillSymbolLayer at a FIXED count and a fixed seed, so
