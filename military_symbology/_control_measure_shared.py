@@ -95,6 +95,38 @@ AFFILIATION_LABELS = {
 # intentionally NOT identical to sidc.py's AFFILIATIONS any more.
 DEFAULT_AFFILIATION = "unspecified"
 
+# The POINTS counterpart, and deliberately NOT AFFILIATION_LABELS.
+#
+# The comment above already spells out why control measures get a fifth
+# "unspecified" value that sidc.py's own AFFILIATIONS does not have,
+# and even notes that point symbols do not have that problem - but it
+# never provided the points-side vocabulary to go with the observation.
+# So the only shared affiliation helper available was the lines/areas
+# one, and the H-XIX Points layer reached for it. That is the whole of
+# the 2026-08-12 "every obstacle point renders as unknown" bug: a
+# POINTS layer feeds `affiliation` into build_sidc(), where SIDC digit
+# 4 has only the four real standard identities, so the shared default
+# ("unspecified") made build_sidc() raise, mct_build_sidc() returned
+# the KeyError MESSAGE as if it were a SIDC, and milsymbol drew its own
+# unknown-icon fallback for every entity alike.
+#
+# Written out in the dropdown order the Points layers already showed
+# (friend/hostile/neutral/unknown) rather than derived from
+# AFFILIATIONS' own key order, so adopting this shared dict does not
+# quietly reshuffle any existing layer's menu. Coverage is pinned by
+# test instead - test_control_measure_shared.py asserts these keys are
+# exactly AFFILIATIONS' keys, so a future standard identity cannot be
+# added to sidc.py and silently missed here, and no value can be
+# offered that build_sidc() would reject.
+POINT_AFFILIATION_LABELS = {
+    "friend": "Friend",
+    "hostile": "Hostile",
+    "neutral": "Neutral",
+    "unknown": "Unknown",
+}
+
+DEFAULT_POINT_AFFILIATION = "friend"
+
 _AFFILIATION_COLOR_EXPRESSION = (
     "CASE "
     "WHEN \"affiliation\" = 'friend' THEN color_rgb(0, 0, 255) "
@@ -251,6 +283,35 @@ def _configure_affiliation_field(layer):
     layer.setDefaultValueDefinition(
         affiliation_idx,
         QgsDefaultValue(f"'{DEFAULT_AFFILIATION}'")
+    )
+
+
+def _configure_point_affiliation_field(layer):
+
+    """
+    The POINTS counterpart to _configure_affiliation_field(): the four
+    real SIDC standard identities only, defaulting to 'friend'.
+
+    Any layer whose `affiliation` field reaches build_sidc() - i.e.
+    every milsymbol-rendered Points layer - must use this one, NOT
+    _configure_affiliation_field(), which is for the hand-drawn lines
+    and areas layers where affiliation only picks a Qt colour. See
+    POINT_AFFILIATION_LABELS for what goes wrong otherwise.
+    """
+
+    affiliation_idx = layer.fields().indexOf("affiliation")
+
+    layer.setEditorWidgetSetup(
+        affiliation_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(POINT_AFFILIATION_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        affiliation_idx,
+        QgsDefaultValue(f"'{DEFAULT_POINT_AFFILIATION}'")
     )
 
 

@@ -5822,6 +5822,61 @@ tested, not claimed as done here.
 
     821 tests passing on both QGIS versions.
 
+- **The same defect class, swept across every Points layer**
+  (2026-08-12, on the maintainer's instruction after the H-XIX fix
+  above: "fix the other three layers too").
+
+  **Root cause addressed, not just the three sites.**
+  `_control_measure_shared.py` now carries `POINT_AFFILIATION_LABELS`
+  and `DEFAULT_POINT_AFFILIATION`, plus a
+  `_configure_point_affiliation_field()` to match the lines/areas
+  helper that already existed. That absence was the actual cause: the
+  module's own comment had already worked out that points and control
+  measures need different affiliation vocabularies - it says so
+  explicitly, "Point symbols don't have this problem" - but only ever
+  provided the control-measure one, so a new Points layer reaching for
+  a shared helper could only find the wrong one. All seven Points
+  layers now take the shared points vocabulary; airspace, maritime and
+  target stop offering "Unspecified (black)", and c2, defensive,
+  offensive and obstacle stop each restating the same four-value dict.
+
+  `POINT_AFFILIATION_LABELS` is written out longhand rather than
+  derived from AFFILIATIONS, so adopting it does not reshuffle any
+  existing dropdown's order; a test pins its keys to AFFILIATIONS'
+  instead, which also catches a standard identity added to sidc.py and
+  missed here.
+
+  **A separate, older bug found by the new sweep**: Abatis (280100) is
+  a LINE, so milsymbol has no point icon for it at all - and it was the
+  shared Control Measure Points layer's own DEFAULT entity. Every
+  freshly digitized point on that layer drew the unknown icon until an
+  entity was chosen: the same user-visible symptom as the H-XIX bug,
+  from an unrelated cause, and present since Abatis was left there. The
+  default is now Shelter. Abatis stays in the dropdown as intended (it
+  should not vanish between batches) and B4 still removes it when it
+  builds the line version. Its unrenderability is now asserted rather
+  than skipped, so the exemption fails and must be deleted when B4
+  removes the entry.
+
+  **tests/test_point_layer_affiliations.py** is new and deliberately
+  cross-layer: the defect is not about any one table, so pinning it
+  inside each table's own tests would not have caught the next layer to
+  get this wrong. It enumerates every Points layer and asserts each
+  one's affiliation default is a real standard identity, that no
+  dropdown offers a value build_sidc() rejects, and that both the
+  layer's own defaults and every offered affiliation decode to a real
+  icon rather than milsymbol's unknown fallback. Verified by
+  reintroducing `dict(AFFILIATION_LABELS)` on the target layer: caught.
+
+  Two test-construction notes worth keeping. The sweep must FIND the
+  data-defined symbol layer rather than assume `symbolLayer(0)` -
+  Defensive draws a simple marker beneath its icon and C2 draws one
+  above, so the index differs per layer. And it must drive each layer's
+  OWN configured defaults rather than restating them, which is exactly
+  what the original B1 test failed to do.
+
+    829 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

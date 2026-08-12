@@ -239,7 +239,18 @@ def _configure_attribute_form(layer):
     # until Table H-XVII left (both 2026-08-12). See
     # _ENTITY_LABELS' own comment.
     layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
-    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'abatis'"))
+    # NOT 'abatis', which was this layer's default until 2026-08-12.
+    # Abatis (280100) is a LINE, so milsymbol has no point icon for it
+    # at all and every freshly digitized Control Measure Point drew the
+    # unknown-icon fallback until a real entity was chosen - the same
+    # user-visible symptom as the H-XIX Points bug, from a different
+    # cause. Found by tests/test_point_layer_affiliations.py, which
+    # sweeps every Points layer's own defaults.
+    #
+    # Abatis stays in the dropdown (see _ENTITY_LABELS) so it does not
+    # vanish between batches, but it cannot be what a new point defaults
+    # to. B4 removes it from here when it builds the line version.
+    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'shelter'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
 

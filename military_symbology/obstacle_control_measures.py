@@ -153,6 +153,7 @@ from qgis.PyQt.QtCore import QMetaType
 from qgis.core import Qgis
 
 from ._control_measure_shared import (
+    POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
     _build_pal_layer_settings,
     _value_map,
@@ -498,12 +499,10 @@ _POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
 # Same four-value dict and same 'friend' default as every other Points
 # layer in this pass (c2_measures, defensive_control_measures,
 # offensive_control_measures).
-_POINT_AFFILIATION_LABELS = {
-    "friend": "Friend",
-    "hostile": "Hostile",
-    "neutral": "Neutral",
-    "unknown": "Unknown",
-}
+# The four real SIDC standard identities - see
+# POINT_AFFILIATION_LABELS in _control_measure_shared.py for why a
+# Points layer must not use the lines/areas AFFILIATION_LABELS.
+_POINT_AFFILIATION_LABELS = POINT_AFFILIATION_LABELS
 
 # Affiliation has no VISIBLE effect on this particular layer - monoColor
 # repaints the whole icon green or black per the feature's own `colour`

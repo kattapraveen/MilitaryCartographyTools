@@ -127,6 +127,7 @@ from qgis.PyQt.QtGui import QColor
 
 from ._control_measure_shared import (
     AFFILIATION_LABELS,
+    POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
     _STATUS_LINE_STYLE_EXPRESSION,
     _apply_affiliation_color,
@@ -639,7 +640,16 @@ _POINT_GROUP_EXPRESSION = "CASE " + " ".join(
     for entity, (group, _name) in _POINT_ENTITIES.items()
 ) + " ELSE '' END"
 
-_POINT_AFFILIATION_LABELS = dict(AFFILIATION_LABELS)
+# NOT dict(AFFILIATION_LABELS), which is what this was until
+# 2026-08-12. That shared dict carries a fifth value, "Unspecified
+# (black)", correct for the hand-drawn lines/areas layers - where
+# affiliation only picks a Qt colour - but not a SIDC standard
+# identity, so on this milsymbol-rendered Points layer choosing it made
+# build_sidc() raise and milsymbol drew its unknown-icon fallback. The
+# default here was already 'friend', so nothing was broken as shipped;
+# the attribute form simply offered one menu entry that silently broke
+# the symbol. See POINT_AFFILIATION_LABELS in _control_measure_shared.py.
+_POINT_AFFILIATION_LABELS = POINT_AFFILIATION_LABELS
 
 _POINT_STATUS_LABELS = dict(STATUS_LABELS)
 

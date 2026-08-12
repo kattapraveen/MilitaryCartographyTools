@@ -211,6 +211,7 @@ from qgis.PyQt.QtGui import QColor
 
 from ._control_measure_shared import (
     AFFILIATION_LABELS,
+    POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
     _AFFILIATION_COLOR_EXPRESSION,
     _PLAIN_DESIGNATION_LABEL_EXPRESSION,
@@ -2656,12 +2657,10 @@ POINT_ENTITY_LABELS = {
     "point_of_departure": "Point of Departure",
 }
 
-_POINT_AFFILIATION_LABELS = {
-    "friend": "Friend",
-    "hostile": "Hostile",
-    "neutral": "Neutral",
-    "unknown": "Unknown",
-}
+# The four real SIDC standard identities - see
+# POINT_AFFILIATION_LABELS in _control_measure_shared.py for why a
+# Points layer must not use the lines/areas AFFILIATION_LABELS.
+_POINT_AFFILIATION_LABELS = POINT_AFFILIATION_LABELS
 
 _POINT_STATUS_LABELS = {
     "present": "Present",

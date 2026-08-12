@@ -169,6 +169,7 @@ from qgis.PyQt.QtGui import QColor
 from ._control_measure_shared import (
     AFFILIATION_LABELS,
     ECHELON_LABELS,
+    POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
     _ECHELON_CHARACTER_EXPRESSION,
     _PLAIN_DESIGNATION_LABEL_EXPRESSION,
@@ -923,12 +924,10 @@ POINT_ENTITY_LABELS = {
 # _control_measure_shared (that 5-value, "unspecified"-inclusive set is
 # specific to the hand-built line/fill symbology's own data-defined
 # colour expression, a different rendering mechanism entirely).
-_POINT_AFFILIATION_LABELS = {
-    "friend": "Friend",
-    "hostile": "Hostile",
-    "neutral": "Neutral",
-    "unknown": "Unknown",
-}
+# The four real SIDC standard identities - see
+# POINT_AFFILIATION_LABELS in _control_measure_shared.py for why a
+# Points layer must not use the lines/areas AFFILIATION_LABELS.
+_POINT_AFFILIATION_LABELS = POINT_AFFILIATION_LABELS
 
 _POINT_STATUS_LABELS = {
     "present": "Present",
