@@ -6353,6 +6353,40 @@ tested, not claimed as done here.
 
     880 tests passing on both QGIS versions.
 
+- **B4 continued - the toothed obstacles** (2026-08-12). Four more:
+  Abatis (280100), both antitank ditches (290201/290202) and the
+  Antitank Wall (290204). Thirteen of B4's seventeen are now built.
+
+  They reuse the wire family's own construction rather than a parallel
+  one, because they ARE the same thing - a line carrying a repeating
+  glyph. Only the glyph and its spacing differ, so they are four more
+  rows in `_WIRE_SPECS` and four more shapes in the glyph function,
+  which grew a `filled` flag for the one real difference between the
+  two ditches: Under Construction is hollow, Completed is solid, and
+  that is the whole of it in the standard's own templates.
+
+  "The teeth point toward enemy forces" needs no code: a marker line
+  rotates its glyph to follow the line, so the side they fall on
+  follows the order the anchor points were digitized in - which is
+  exactly what the standard's own Orientation rule says.
+
+  Three existing tests then failed, correctly: they asserted
+  `_WIRE_SPECS` held exactly the nine wire types. Two were widened to
+  cover every line obstacle (the no-two-alike invariant is the same
+  invariant for all thirteen), and the third - which pins the
+  maintainer's own transcription of the manual - was scoped to the nine
+  it actually describes, since the toothed four came from the templates
+  instead.
+
+  **Four remain in B4**, listed in the module and deliberately NOT
+  offered by the layer until they can be drawn correctly: Obstacle Line
+  and Antitank Ditch Reinforced with Antitank Mines (templates not yet
+  read), and Mine Cluster and Trip Wire, whose constructions are now
+  known and recorded but which need their own geometry functions rather
+  than a marker line.
+
+    882 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
