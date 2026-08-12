@@ -2331,3 +2331,233 @@ def add_obstacle_control_measures_minefields_layer(iface):
         MINEFIELDS_LAYER_NAME,
         create_obstacle_control_measures_minefields_layer
     )
+
+
+# ============================================================
+# Batch B4 - wire obstacles (Lines)
+# ============================================================
+
+LINES_LAYER_NAME = "Obstacle Control Measures (Lines)"
+
+# Table H-XIX's own wire-obstacle family, printed pages 586-587.
+#
+# 290300 ("Wire Obstacles") is NOT here: its template cell reads "N/A",
+# so it is a heading row, not a symbol - the same parent-row trap the
+# module docstring warns about, and the reason this vocabulary is
+# written out rather than derived from a code prefix.
+WIRE_MEASURE_TYPE_LABELS = {
+    "unspecified_wire_obstacle": "Unspecified Wire Obstacle",
+    "single_fence": "Single Fence",
+    "double_fence": "Double Fence",
+    "double_apron_fence": "Double Apron Fence",
+    "low_wire_fence": "Low Wire Fence",
+    "high_wire_fence": "High Wire Fence",
+    "single_concertina": "Single Concertina",
+    "double_strand_concertina": "Double Strand Concertina",
+    "triple_strand_concertina": "Triple Strand Concertina",
+}
+
+WIRE_MEASURE_TYPE_CODES = {
+    "unspecified_wire_obstacle": "290301",
+    "single_fence": "290302",
+    "double_fence": "290303",
+    "double_apron_fence": "290304",
+    "low_wire_fence": "290305",
+    "high_wire_fence": "290306",
+    "single_concertina": "290307",
+    "double_strand_concertina": "290308",
+    "triple_strand_concertina": "290309",
+}
+
+# All nine are one construction - a line carrying a repeating glyph -
+# so they share ONE symbol, with the glyph and the line chosen by
+# expression rather than nine near-identical symbol builders.
+_WIRE_GLYPH_KINDS = {
+    "unspecified_wire_obstacle": "cross",
+    "single_fence": "star",
+    "double_fence": "double_star",
+    "double_apron_fence": "apron_star",
+    "low_wire_fence": "cross",
+    "high_wire_fence": "loop",
+    "single_concertina": "loop",
+    "double_strand_concertina": "double_loop",
+    "triple_strand_concertina": "triple_loop",
+}
+
+# Single Concertina hangs its loops ABOVE the line; High Wire Fence
+# centres the same loop ON it. That offset is the only thing
+# distinguishing the two in the standard's own templates - they were
+# identical until a render put them side by side.
+_WIRE_TYPES_WITH_RAISED_GLYPH = ("single_concertina",)
+
+# Unspecified Wire Obstacle draws its crosses with NO line between
+# them - read off its own template, where the other eight all carry a
+# drawn line.
+_WIRE_TYPES_WITHOUT_A_LINE = ("unspecified_wire_obstacle",)
+
+_WIRE_GLYPH_SIZE_MM = 3.0
+_WIRE_GLYPH_INTERVAL_MM = 4.6
+
+
+def _wire_glyph_expression():
+
+    cases = " ".join(
+        f"WHEN \"measure_type\" = '{measure_type}' THEN '{kind}'"
+        for measure_type, kind in _WIRE_GLYPH_KINDS.items()
+    )
+
+    return (
+        "mct_wire_glyph_svg(CASE " + cases + " ELSE 'cross' END, "
+        + _POINT_MONO_COLOR_EXPRESSION + ")"
+    )
+
+
+def _wire_obstacle_symbol():
+
+    """
+    Every wire obstacle in one symbol: a status-driven line with a
+    repeating glyph riding it.
+
+    The glyph is an SVG marker whose path is data-defined, so nine
+    measure types share one symbol rather than nine builders that would
+    drift apart - the same reasoning as the mine-type field in B3.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    no_line = " OR ".join(
+        f"\"measure_type\" = '{t}'" for t in _WIRE_TYPES_WITHOUT_A_LINE
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(
+            f"CASE WHEN {no_line} THEN 'no'"
+            f" ELSE {_STATUS_LINE_STYLE_EXPRESSION} END"
+        )
+    )
+
+    glyph = QgsSvgMarkerSymbolLayer("")
+
+    glyph.setSize(_WIRE_GLYPH_SIZE_MM)
+
+    glyph.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(_wire_glyph_expression())
+    )
+
+    raised = " OR ".join(
+        f"\"measure_type\" = '{t}'" for t in _WIRE_TYPES_WITH_RAISED_GLYPH
+    )
+
+    glyph.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Offset,
+        QgsProperty.fromExpression(
+            f"CASE WHEN {raised}"
+            f" THEN format('0,%1', {-_WIRE_GLYPH_SIZE_MM * 0.5})"
+            " ELSE '0,0' END"
+        )
+    )
+
+    marker_line = QgsMarkerLineSymbolLayer()
+
+    marker_line.setInterval(_WIRE_GLYPH_INTERVAL_MM)
+
+    marker_line.setSubSymbol(QgsMarkerSymbol([glyph]))
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, line_layer)
+
+    symbol.appendSymbolLayer(marker_line)
+
+    return symbol
+
+
+_LINE_SYMBOL_BUILDERS = {
+    measure_type: _wire_obstacle_symbol
+    for measure_type in WIRE_MEASURE_TYPE_LABELS
+}
+
+
+def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
+
+    """
+    Table H-XIX's own line obstacles (batch B4). The wire family lands
+    first; the ditches, Abatis, Obstacle Line, Mine Cluster and Trip
+    Wire join this same layer as the batch continues.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", name, "memory")
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("colour", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("length_km", QMetaType.Type.Double),
+        ]
+    )
+
+    layer.updateFields()
+
+    fields = layer.fields()
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("measure_type"),
+        QgsEditorWidgetSetup(
+            "ValueMap", {"map": _value_map(WIRE_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("colour"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(COLOUR_LABELS)})
+    )
+
+    # Hand-drawn, so the lines/areas affiliation vocabulary is the
+    # right one here - and nothing on this layer feeds build_sidc(),
+    # unlike the minefield boxes, whose mine glyphs do.
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("measure_type"),
+        QgsDefaultValue("'unspecified_wire_obstacle'")
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("colour"), QgsDefaultValue(f"'{GREEN}'")
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("length_km"),
+        QgsDefaultValue("mct_length_km($geometry)", True)
+    )
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
+    )
+
+    return layer
+
+
+def add_obstacle_control_measures_lines_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        LINES_LAYER_NAME,
+        create_obstacle_control_measures_lines_layer
+    )

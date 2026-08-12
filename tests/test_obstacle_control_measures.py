@@ -2104,3 +2104,160 @@ class TestDecoyChevronSpan(QgisTestCase):
                     widened.add(rule.label())
 
         self.assertEqual(widened, {"minefield_dynamic_dummy"})
+
+
+class TestWireObstacles(QgisTestCase):
+
+    """
+    Batch B4's wire family (290301-290309) - nine measure types sharing
+    ONE symbol, with the glyph and the line chosen by expression.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_excludes_the_wire_obstacles_parent_row(self):
+
+        # 290300's own template cell reads "N/A" - a heading, not a
+        # symbol. The exact trap the module docstring warns about.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            WIRE_MEASURE_TYPE_CODES,
+        )
+
+        self.assertNotIn("290300", set(WIRE_MEASURE_TYPE_CODES.values()))
+
+
+    def test_covers_every_wire_code_the_table_lists(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            WIRE_MEASURE_TYPE_CODES,
+            WIRE_MEASURE_TYPE_LABELS,
+        )
+
+        self.assertEqual(
+            set(WIRE_MEASURE_TYPE_CODES), set(WIRE_MEASURE_TYPE_LABELS)
+        )
+
+        self.assertEqual(
+            set(WIRE_MEASURE_TYPE_CODES.values()),
+            {f"2903{n:02d}" for n in range(1, 10)}
+        )
+
+
+    def test_every_wire_type_draws_a_distinguishable_glyph(self):
+
+        # Two pairs shipped IDENTICAL in the first build - Double Apron
+        # Fence against Single Fence, and High Wire Fence against
+        # Single Concertina - and only a render caught it. This asserts
+        # that no two measure types resolve to the same glyph AND
+        # offset, which is what "distinguishable" actually means here.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            WIRE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        seen = {}
+
+        for measure_type in WIRE_MEASURE_TYPE_LABELS:
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("measure_type", measure_type)
+            feature.setAttribute("colour", GREEN)
+            feature.setAttribute("status", "present")
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            symbol = None
+
+            for rule in layer.renderer().rootRule().children():
+
+                if rule.label() == measure_type:
+                    symbol = rule.symbol()
+                    break
+
+            self.assertIsNotNone(symbol, measure_type)
+
+            marker = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
+
+            properties = marker.dataDefinedProperties()
+
+            glyph, _ = properties.valueAsString(
+                QgsSymbolLayer.Property.Name, context, ""
+            )
+
+            offset, _ = properties.valueAsString(
+                QgsSymbolLayer.Property.Offset, context, ""
+            )
+
+            # The LINE is part of what distinguishes these, not just
+            # the glyph: Unspecified Wire Obstacle and Low Wire Fence
+            # both repeat a cross, and the standard tells them apart by
+            # Unspecified drawing no line at all. An earlier version of
+            # this test omitted the line and failed on that pair - the
+            # test was wrong there, not the symbol.
+            style, _ = symbol.symbolLayer(0).dataDefinedProperties(
+            ).valueAsString(
+                QgsSymbolLayer.Property.StrokeStyle, context, ""
+            )
+
+            signature = (glyph, offset, style)
+
+            self.assertNotIn(
+                signature, seen,
+                f"{measure_type} draws the same as {seen.get(signature)}"
+            )
+
+            seen[signature] = measure_type
+
+
+    def test_only_the_unspecified_obstacle_omits_its_line(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            WIRE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        for measure_type in WIRE_MEASURE_TYPE_LABELS:
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("measure_type", measure_type)
+            feature.setAttribute("status", "present")
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            for rule in layer.renderer().rootRule().children():
+
+                if rule.label() != measure_type:
+                    continue
+
+                style, _ = rule.symbol().symbolLayer(
+                    0
+                ).dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.StrokeStyle, context, ""
+                )
+
+                with self.subTest(measure_type=measure_type):
+
+                    if measure_type == "unspecified_wire_obstacle":
+                        self.assertEqual(style, "no")
+                    else:
+                        self.assertNotEqual(style, "no")

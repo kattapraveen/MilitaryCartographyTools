@@ -6237,6 +6237,47 @@ tested, not claimed as done here.
 
     871 tests passing on both QGIS versions.
 
+- **H-XIX batch B4, first pass - the wire family** (2026-08-12). Nine
+  of B4's seventeen entries: 290301-290309, printed pages 586-587.
+
+  New `Obstacle Control Measures (Lines)` layer. All nine are ONE
+  construction - a line carrying a repeating glyph - so they share a
+  single symbol with the glyph, its offset and the line's style all
+  chosen by expression, rather than nine near-identical builders that
+  would drift apart. Same reasoning as B3's mine-type field.
+
+  **290300 ("Wire Obstacles") is excluded**: its template cell reads
+  "N/A", making it a heading row rather than a symbol - the third
+  parent row this table has hidden in a code range, after 270500 and
+  270700.
+
+  The glyphs are inline SVG (mct_wire_glyph_svg) rather than font
+  markers. An X, a six-pointed asterisk and a wire loop would otherwise
+  depend on whatever glyphs the host machine's fonts happen to carry,
+  which is not good enough on a standard this project renders against
+  template pictures.
+
+  **The render caught two pairs shipping identical.** Double Apron
+  Fence was drawing Single Fence's plain barb, and High Wire Fence was
+  drawing Single Concertina's loop. The apron now has its own glyph
+  (a barb with a stay to each side, which is what the apron is), and
+  the concertina raises its loops ABOVE the line where High Wire Fence
+  centres them on it - which is the only thing separating those two in
+  the standard's own templates.
+
+  The regression guard for that then found a THIRD pair, correctly:
+  Unspecified Wire Obstacle and Low Wire Fence both repeat a cross. But
+  there the test was wrong, not the symbol - the standard separates
+  those two by Unspecified drawing no line at all, so the line style is
+  now part of what the test treats as the symbol's signature.
+
+  **Still to come in B4** (8 entries): Abatis (280100), Obstacle Line
+  (290100), the four antitank ditches (290201-290204), Mine Cluster
+  (290400) and Trip Wire (290500) - the last still expected to need its
+  own construction rather than the shared marker line.
+
+    875 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
