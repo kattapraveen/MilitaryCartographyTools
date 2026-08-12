@@ -46,14 +46,17 @@ assumed:
   (56 -64 88 168) is identical to Point of Departure's own, the symbol
   offensive_control_measures.py already anchors "bottom" for exactly
   this reason. See _POINT_VERTICAL_ANCHOR_EXPRESSION.
-- **Pop-Up Point (180400) needs a size multiplier** - its own "PUP"
-  text sits outside the circle, widening its viewBox to 198x108 against
-  the bars family's 88x148, and QGIS reads a marker's size as its WIDTH,
-  so a fixed 8mm draws it at roughly half its siblings' scale. Doubled
-  per the maintainer's own instruction - see _POINT_SIZE_MULTIPLIERS,
-  which also records the part of that same finding still outstanding
-  (the anchor sits right of the circle, and QGIS has no anchor option
-  that lands where it should).
+- **Pop-Up Point (180400) needs both a size multiplier and an offset**,
+  for the same underlying reason: its own "PUP" text hangs off to the
+  RIGHT, outside the circle, widening its viewBox to 198x108 against the
+  bars family's 88x148. QGIS reads a marker's size as its WIDTH, so a
+  fixed 8mm drew it at roughly half its siblings' scale (doubled per the
+  maintainer's own instruction, see _POINT_SIZE_MULTIPLIERS); and QGIS
+  centres a marker on its VIEWBOX, so the click landed in the white
+  space between circle and text rather than on the circle the standard
+  actually anchors (corrected with an explicit offset, see
+  _POP_UP_POINT_CIRCLE_OFFSET_RATIO). It is the only entry in this
+  table needing either.
 
 180000, the table's own generic "Airspace Control Points" parent entry,
 was missing from sidc.py entirely until this move - see that dict's own
@@ -896,12 +899,6 @@ _POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
 # Matching PUP's own circle to Air Control Point's exactly would want
 # 1.83x; 2.0 is the project maintainer's own call ("pop up point can be
 # doubled in size", 2026-08-12), so that is what this uses.
-#
-# This does NOT address the other half of the same finding: the drawn
-# circle is centred at x=100 within a 46..244 viewBox, so QGIS centring
-# the SVG puts the anchor point right of the circle rather than in it.
-# QGIS's own horizontal-anchor options are left/center/right only, none
-# of which lands there. Reported and left as-is.
 _POINT_SIZE_MULTIPLIERS = {
     "pop_up_point": 2.0,
 }
@@ -910,6 +907,39 @@ _POINT_SIZE_EXPRESSION = "CASE " + " ".join(
     f"WHEN \"entity\" = '{entity}' THEN {_POINTS_DEFAULT_MARKER_SIZE_MM * multiplier}"
     for entity, multiplier in _POINT_SIZE_MULTIPLIERS.items()
 ) + f" ELSE {_POINTS_DEFAULT_MARKER_SIZE_MM} END"
+
+# The other half of the same Pop-Up Point finding: because that "PUP"
+# text hangs off to the RIGHT, the icon is not symmetric about the thing
+# the standard actually anchors. Its own draw rules say "The center
+# point defines the center of the symbol", and the template's own arrow
+# points at the CIRCLE - but milsymbol draws the circle at x=100 inside
+# a 46..244 viewBox, whose own midpoint is x=145, and QGIS centres an
+# SVG marker on its viewBox. So the click landed 45 viewBox-units right
+# of the circle, out in the white space between circle and text.
+#
+# QGIS's own horizontal-anchor options are left/center/right only, none
+# of which lands on x=100, so this is corrected with an explicit offset
+# instead: shift the drawn symbol RIGHT by the same 45 units, expressed
+# as a fraction of the icon's own width so it tracks
+# _POINT_SIZE_MULTIPLIERS rather than silently going stale if that size
+# ever changes.
+#
+# Confirmed by probe render, not just arithmetic: at 300 DPI the circle
+# measured 43.5 px left of the anchor (3.68 mm at 16 mm marker width),
+# against the 3.64 mm this fraction predicts - agreeing to within the
+# ~1 px uncertainty of locating the circle's own crown row. The
+# post-fix render re-measures the gap at under half a pixel.
+_POP_UP_POINT_CIRCLE_OFFSET_RATIO = (145.0 - 100.0) / 198.0
+
+_POINT_OFFSET_EXPRESSION = (
+    "CASE WHEN \"entity\" = 'pop_up_point' THEN '"
+    + "%.4f" % (
+        _POINTS_DEFAULT_MARKER_SIZE_MM
+        * _POINT_SIZE_MULTIPLIERS["pop_up_point"]
+        * _POP_UP_POINT_CIRCLE_OFFSET_RATIO
+    )
+    + ",0' ELSE '0,0' END"
+)
 
 # Downed Aircrew Pick-Up Point's own draw rules: "The point defines the
 # tip of the inverted cone" - i.e. the feature's own coordinate is the
@@ -999,6 +1029,11 @@ def _build_points_renderer():
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(_POINT_SIZE_EXPRESSION)
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Offset,
+        QgsProperty.fromExpression(_POINT_OFFSET_EXPRESSION)
     )
 
     svg_layer.setDataDefinedProperty(

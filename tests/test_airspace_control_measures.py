@@ -979,6 +979,55 @@ class TestCreateAirspaceControlMeasuresPointsLayer(QgisTestCase):
         self.assertEqual(set(sizes.values()), {8.0})
 
 
+    def test_only_pop_up_point_is_offset_onto_its_own_circle(self):
+
+        # Same root cause as the size multiplier above: the "PUP" text
+        # hangs off to the RIGHT, so milsymbol draws the circle at
+        # x=100 inside a 46..244 viewBox whose own midpoint is x=145 -
+        # and QGIS centres a marker on its VIEWBOX, which put the click
+        # in the white space between circle and text. The standard
+        # anchors the circle ("The center point defines the center of
+        # the symbol"), so the symbol shifts right by those 45 units.
+        #
+        # Verified by probe render, not arithmetic alone: before the
+        # offset the circle measured 43.5 px left of the anchor at 300
+        # DPI, after it 0.5 px - i.e. sub-pixel, that half being the
+        # pixel-centre convention.
+        layer = create_airspace_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        offsets = {}
+
+        for entity in POINT_ENTITY_LABELS:
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("entity", entity)
+            feature.setAttribute("status", "present")
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            value, ok = svg_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Offset,
+                context,
+                ""
+            )
+
+            self.assertTrue(ok)
+
+            offsets[entity] = value
+
+        pop_up_x, pop_up_y = offsets.pop("pop_up_point").split(",")
+
+        # 16 mm wide (8 mm doubled) x (145-100)/198 of that width.
+        self.assertAlmostEqual(float(pop_up_x), 3.6364, places=3)
+        self.assertEqual(float(pop_up_y), 0.0)
+
+        self.assertEqual(set(offsets.values()), {"0,0"})
+
+
     def test_every_entity_resolves_to_a_real_rendered_symbol(self):
 
         layer = create_airspace_control_measures_points_layer()

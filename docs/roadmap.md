@@ -5149,12 +5149,26 @@ tested, not claimed as done here.
     viewBox is 198x108 where the bars family's is 88x148. Static, so a
     fixed multiplier fixes it. Matching PUP's own circle to Air Control
     Point's exactly would have wanted 1.83x; the maintainer's own call
-    was "pop up point can be doubled in size", so it uses 2.0. **The
-    other half of this finding is still outstanding**: the drawn circle
-    is centred at x=100 within a 46..244 viewBox, so QGIS centring the
-    SVG leaves the anchor point right of the circle rather than in it,
-    and QGIS's own horizontal-anchor options (left/center/right) have
-    nothing that lands there. Recorded in _POINT_SIZE_MULTIPLIERS.
+    was "pop up point can be doubled in size", so it uses 2.0.
+
+    **The other half of the same finding - the click landing beside
+    the circle rather than on it - was then fixed too**, on the
+    maintainer's follow-up ("can you fix the pop up point so that the
+    point of click is the center of the circle?"). Because that "PUP"
+    text hangs off to the RIGHT, milsymbol draws the circle at x=100
+    inside a 46..244 viewBox whose own midpoint is x=145, and QGIS
+    centres a marker on its VIEWBOX - so the click sat in the white
+    space between circle and text. The standard anchors the circle
+    ("The center point defines the center of the symbol"), and QGIS's
+    own horizontal-anchor options are left/center/right only, none of
+    which lands on x=100, so this takes an explicit offset instead:
+    shift right by those same 45 units, expressed as a FRACTION of the
+    icon's own width so it tracks the size multiplier rather than going
+    stale if that ever changes. Measured before and after by probe
+    render at 300 DPI - the circle sat 43.5 px left of the anchor
+    before (3.68 mm, against the 3.64 mm the fraction predicts, agreeing
+    within the ~1 px uncertainty of locating the circle's crown row),
+    and 0.5 px after, that half being the pixel-centre convention.
   - **TACAN (180600) shrinks whenever a designation is typed** - bare
     it is 88x148, with "629" it is 164.5x148, i.e. 53% scale. Because
     the width depends on how many characters the user types, no static
@@ -5179,7 +5193,7 @@ tested, not claimed as done here.
   which this walked straight back into. Each intermediate is now held
   in its own variable, with a comment saying so.
 
-  767 tests passing on both QGIS versions. **Table H-XIII is now
+  768 tests passing on both QGIS versions. **Table H-XIII is now
   complete** - lines, areas and points all built and reviewed.
 
     739 tests passing on both QGIS versions.
