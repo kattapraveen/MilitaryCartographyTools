@@ -1251,8 +1251,14 @@ def _dynamic_minefield_symbol(dummy=False):
         # ABOVE the shape, not inside it - the template puts Dummy
         # Minefield's chevron clear of the boundary, unlike Decoy Mined
         # Area, which centres it.
+        # Half-span 0.5 - the full width of the shape, corner to
+        # corner. The maintainer's own note: sitting ABOVE the area
+        # rather than inside it, the chevron should "extend to the
+        # horizontal extent of the area", where the two Decoy Mined
+        # Area variants keep the default narrow span because theirs is
+        # drawn inside the boundary.
         chevron_generator.setGeometryExpression(
-            "translate(mct_decoy_chevron($geometry), 0,"
+            "translate(mct_decoy_chevron($geometry, 0.5), 0,"
             " (y_max($geometry) - y_min($geometry)) * 0.82)"
         )
 

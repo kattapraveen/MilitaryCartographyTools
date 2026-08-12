@@ -6217,6 +6217,24 @@ tested, not claimed as done here.
 
     868 tests passing on both QGIS versions.
 
+- **Dummy Dynamic's chevron spans the area** (2026-08-12) - the one
+  observation from the maintainer's B3 smoke test: "the chevron above
+  should ideally extend to the horizontal extent of the area, height is
+  fine".
+
+  mct_decoy_chevron() gained a half-span argument rather than being
+  widened outright, because ONE function serves two different
+  placements: Decoy Mined Area and Decoy Mined Area, Fenced draw their
+  chevron INSIDE the shape, where the template keeps it well short of
+  the sides, while Dummy Minefield, Dynamic draws it ABOVE. Only that
+  caller passes 0.5 (corner to corner); the other two keep the measured
+  0.24. Both spans are pinned by test, and the two Decoy variants were
+  re-rendered to confirm they did not move.
+
+  Height untouched, as asked.
+
+    871 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

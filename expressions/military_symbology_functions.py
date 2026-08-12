@@ -736,9 +736,15 @@ def mct_decoy_chevron(values, feature=None, parent=None):
     millimetre size.
 
     Proportions measured off the enlarged template rather than guessed:
-    the apex sits about 0.185 of the shape's height above centre, the
-    two arms end about 0.20 below it and about 0.24 of its width to
-    either side.
+    the apex sits about 0.185 of the shape's height above centre and
+    the two arms end about 0.20 below it.
+
+    The half-span is the one caller-tunable part (second argument,
+    default 0.24 of the width). Decoy Mined Area and Decoy Mined Area,
+    Fenced draw the chevron INSIDE the shape, where the template keeps
+    it well short of the sides. Dummy Minefield, Dynamic draws it ABOVE
+    the shape instead, and the maintainer asked for it to span the
+    area's full horizontal extent there - so that caller passes 0.5.
     """
 
     if len(values) < 1:
@@ -749,12 +755,14 @@ def mct_decoy_chevron(values, feature=None, parent=None):
     if geometry is None or geometry.isEmpty():
         return geometry
 
+    half_span_fraction = float(values[1]) if len(values) > 1 else 0.24
+
     box = geometry.boundingBox()
 
     centre_x = (box.xMinimum() + box.xMaximum()) / 2.0
     centre_y = (box.yMinimum() + box.yMaximum()) / 2.0
 
-    half_span = box.width() * 0.24
+    half_span = box.width() * half_span_fraction
     apex_rise = box.height() * 0.185
     arm_drop = box.height() * 0.20
 

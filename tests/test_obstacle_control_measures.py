@@ -2008,3 +2008,99 @@ class TestScatterPoints(QgisTestCase):
         result = self._scatter(geometry)
 
         self.assertFalse(result.isEmpty())
+
+
+class TestDecoyChevronSpan(QgisTestCase):
+
+    """
+    One chevron function, two spans - pinned because widening it for
+    the Dummy Dynamic area could silently widen the two Decoy Mined
+    Area variants too, whose template keeps theirs well inside the
+    boundary.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _chevron_width(self, half_span_fraction=None):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        corners = [
+            QgsPointXY(0, 0),
+            QgsPointXY(100, 0),
+            QgsPointXY(100, 60),
+            QgsPointXY(0, 60),
+        ]
+
+        polygon = QgsGeometry.fromPolygonXY([corners + [corners[0]]])
+
+        arguments = "geom_from_wkt('{}')".format(polygon.asWkt())
+
+        if half_span_fraction is not None:
+            arguments += ", {}".format(half_span_fraction)
+
+        expression = QgsExpression(f"mct_decoy_chevron({arguments})")
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result.boundingBox().width()
+
+
+    def test_the_default_span_stays_well_inside_the_shape(self):
+
+        # 0.24 either side of centre - the two Decoy Mined Area
+        # variants draw their chevron INSIDE the boundary.
+        self.assertAlmostEqual(self._chevron_width(), 100 * 0.48, places=6)
+
+
+    def test_the_dummy_dynamic_span_matches_the_area_width(self):
+
+        # "the chevron above should ideally extend to the horizontal
+        # extent of the area" - the maintainer, on the Dummy Dynamic,
+        # whose chevron sits ABOVE the shape rather than inside it.
+        self.assertAlmostEqual(self._chevron_width(0.5), 100.0, places=6)
+
+
+    def test_only_the_dummy_dynamic_asks_for_the_full_span(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_areas_layer,
+        )
+
+        layer = create_obstacle_control_measures_areas_layer()
+
+        widened = set()
+
+        for rule in layer.renderer().rootRule().children():
+
+            symbol = rule.symbol()
+
+            for index in range(symbol.symbolLayerCount()):
+
+                expression = getattr(
+                    symbol.symbolLayer(index), "geometryExpression",
+                    lambda: ""
+                )()
+
+                if "mct_decoy_chevron($geometry, 0.5)" in expression:
+                    widened.add(rule.label())
+
+        self.assertEqual(widened, {"minefield_dynamic_dummy"})
