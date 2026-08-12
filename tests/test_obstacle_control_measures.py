@@ -2172,7 +2172,9 @@ class TestWireObstacles(QgisTestCase):
         )
 
         self.assertEqual(
-            set(_WIRE_SPECS) | {"abatis", "antitank_ditch_reinforced"},
+            set(_WIRE_SPECS) | {
+                "abatis", "antitank_ditch_reinforced", "mine_cluster"
+            },
             set(LINE_MEASURE_TYPE_LABELS)
         )
 
@@ -2502,3 +2504,346 @@ class TestWireObstacles(QgisTestCase):
         # off a drawn line, which is a different symbol entirely.
         self.assertEqual(under.gap, 0.0)
         self.assertEqual(under.lines, ())
+
+
+class TestMineClusterObstacle(QgisTestCase):
+
+    """
+    Mine Cluster (290400) - "user clicks two points, connect it with a
+    dashed line, make a semi-circle over it, radius 1/3... of the line
+    connecting the two points" - the maintainer's own construction,
+    given the same day the radius fraction was corrected from an
+    initial 1/2 reading.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _arc(self, wkt, radius_fraction=None, segments=None):
+
+        from qgis.core import QgsGeometry
+
+        arguments = "geom_from_wkt('{}')".format(
+            QgsGeometry.fromWkt(wkt).asWkt()
+        )
+
+        if radius_fraction is not None:
+            arguments += ", {}".format(radius_fraction)
+
+        if segments is not None:
+            arguments += ", {}".format(segments)
+
+        expression = QgsExpression(f"mct_mine_cluster_arc({arguments})")
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_default_radius_is_a_third_of_the_line_not_half(self):
+
+        # The maintainer's own correction: "radius 1/3 and not 1/2 of
+        # the line connecting the two points".
+        arc = self._arc("LINESTRING(0 0, 300 0)")
+
+        box = arc.boundingBox()
+
+        # Bulges perpendicular to the line by exactly the radius.
+        self.assertAlmostEqual(box.height(), 300 * (1.0 / 3.0), places=6)
+
+
+    def test_the_arcs_diameter_sits_on_the_line_centred_at_its_midpoint(self):
+
+        arc = self._arc("LINESTRING(0 0, 300 0)")
+
+        vertices = arc.asPolyline()
+
+        radius = 300 * (1.0 / 3.0)
+
+        # First and last points of the semicircle are its own diameter
+        # ends - ON the line (y == 0), radius either side of the
+        # midpoint (150). Parametrized starting at the PT2 end (theta
+        # == 0) and finishing at the PT1 end (theta == pi).
+        self.assertAlmostEqual(vertices[0].x(), 150 + radius, places=6)
+        self.assertAlmostEqual(vertices[0].y(), 0, places=6)
+
+        self.assertAlmostEqual(vertices[-1].x(), 150 - radius, places=6)
+        self.assertAlmostEqual(vertices[-1].y(), 0, places=6)
+
+        # The apex, at the arc's own midpoint, is directly above the
+        # line's own midpoint at exactly one radius.
+        apex = vertices[len(vertices) // 2]
+
+        self.assertAlmostEqual(apex.x(), 150, places=2)
+        self.assertAlmostEqual(apex.y(), radius, places=2)
+
+
+    def test_a_custom_radius_fraction_is_honoured(self):
+
+        arc = self._arc("LINESTRING(0 0, 100 0)", radius_fraction=0.2)
+
+        self.assertAlmostEqual(arc.boundingBox().height(), 20, places=6)
+
+
+    def test_diagonal_line_still_bulges_perpendicular_to_it(self):
+
+        # A line at 45 degrees - the arc must bulge perpendicular to
+        # the LINE's own direction, not to a map axis.
+        arc = self._arc("LINESTRING(0 0, 300 300)")
+
+        length = (300 ** 2 + 300 ** 2) ** 0.5
+
+        radius = length * (1.0 / 3.0)
+
+        vertices = arc.asPolyline()
+
+        apex = vertices[len(vertices) // 2]
+
+        midpoint_x, midpoint_y = 150, 150
+
+        # Perpendicular offset from the line's own midpoint, not from
+        # the origin.
+        offset = ((apex.x() - midpoint_x) ** 2
+                  + (apex.y() - midpoint_y) ** 2) ** 0.5
+
+        self.assertAlmostEqual(offset, radius, places=4)
+
+
+    def test_mine_cluster_is_offered_on_the_lines_layer(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        self.assertEqual(LINE_MEASURE_TYPE_CODES["mine_cluster"], "290400")
+        self.assertEqual(LINE_MEASURE_TYPE_LABELS["mine_cluster"], "Mine Cluster")
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        self.assertIn("mine_cluster", labels)
+
+
+    def test_mine_cluster_symbol_has_a_generated_straight_line_and_a_generated_arc(self):
+
+        # Both layers are geometry generators now, not one plain line
+        # plus one generator: the straight portion must be TRIMMED to
+        # match the arc's own span, so it needs generating too.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _mine_cluster_symbol,
+        )
+
+        from qgis.core import QgsGeometryGeneratorSymbolLayer
+
+        symbol = _mine_cluster_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        self.assertIsInstance(
+            symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer
+        )
+        self.assertIsInstance(
+            symbol.symbolLayer(1), QgsGeometryGeneratorSymbolLayer
+        )
+
+        self.assertIn(
+            "mct_mine_cluster_arc($geometry,",
+            symbol.symbolLayer(1).geometryExpression()
+        )
+
+
+    def test_the_straight_line_is_trimmed_to_match_the_arcs_own_span(self):
+
+        # "the line should not extend beyond the semicircle or the
+        # semicircle should touch the end points of the line" - the
+        # maintainer's own correction. The line's own trim fractions
+        # (mid +/- radius) must match the arc's radius fraction exactly,
+        # not just be close, or the two ends drift apart at some sizes.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _MINE_CLUSTER_ARC_RADIUS_FRACTION,
+            _mine_cluster_symbol,
+        )
+
+        symbol = _mine_cluster_symbol()
+
+        expression = symbol.symbolLayer(0).geometryExpression()
+
+        self.assertIn("line_substring($geometry,", expression)
+
+        expected_start = 0.5 - _MINE_CLUSTER_ARC_RADIUS_FRACTION
+        expected_end = 0.5 + _MINE_CLUSTER_ARC_RADIUS_FRACTION
+
+        self.assertIn(f"length($geometry) * {expected_start}", expression)
+        self.assertIn(f"length($geometry) * {expected_end}", expression)
+
+
+    def test_trimmed_line_and_arc_share_the_same_endpoints(self):
+
+        # The claim the expressions above only imply: evaluate both
+        # against a real feature and check the trimmed line's own
+        # endpoints coincide with the arc's diameter endpoints.
+        from qgis.core import QgsFeature, QgsGeometry, QgsPointXY
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setGeometry(
+            QgsGeometry.fromPolylineXY(
+                [QgsPointXY(0, 0), QgsPointXY(300, 0)]
+            )
+        )
+
+        feature.setAttribute("measure_type", "mine_cluster")
+        feature.setAttribute("colour", "green")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        line = QgsExpression(
+            "line_substring($geometry, length($geometry) * (1.0/6.0),"
+            " length($geometry) * (5.0/6.0))"
+        ).evaluate(context)
+
+        arc = QgsExpression(
+            "mct_mine_cluster_arc($geometry, {})".format(1.0 / 3.0)
+        ).evaluate(context)
+
+        line_vertices = line.asPolyline()
+        arc_vertices = arc.asPolyline()
+
+        line_ends = {
+            round(line_vertices[0].x(), 6), round(line_vertices[-1].x(), 6)
+        }
+        arc_ends = {
+            round(arc_vertices[0].x(), 6), round(arc_vertices[-1].x(), 6)
+        }
+
+        self.assertEqual(line_ends, arc_ends)
+
+
+    def test_both_layers_of_the_symbol_are_dashed_regardless_of_status(self):
+
+        # Fixed iconography, not the H.5.1.1.3 present/planned rule -
+        # the same "always dashed" treatment as Maritime's own Bearing
+        # Line, Acoustic (Ambiguous) and the Decoy chevrons. A CUSTOM
+        # dash pattern, not the bare Qt default, since the maintainer
+        # asked for the dashes 40% longer and the gaps 50% wider.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _MINE_CLUSTER_DASH_MM,
+            _MINE_CLUSTER_GAP_MM,
+            _mine_cluster_symbol,
+        )
+
+        symbol = _mine_cluster_symbol()
+
+        for index in (0, 1):
+
+            with self.subTest(symbol_layer=index):
+
+                inner = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+
+                self.assertTrue(inner.useCustomDashPattern())
+
+                self.assertEqual(
+                    list(inner.customDashVector()),
+                    [_MINE_CLUSTER_DASH_MM, _MINE_CLUSTER_GAP_MM]
+                )
+
+                self.assertFalse(
+                    inner.dataDefinedProperties().isActive(
+                        QgsSymbolLayer.Property.StrokeStyle
+                    )
+                )
+
+
+    def test_the_dash_pattern_is_qts_own_default_scaled_by_the_maintainers_ask(self):
+
+        # Traceability: +40% dash, +50% gap, off Qt's OWN DashLine
+        # default ([4, 2] pen widths) - not off some other round number
+        # this project invented.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _AREA_OUTLINE_WIDTH_MM,
+            _MINE_CLUSTER_DASH_MM,
+            _MINE_CLUSTER_GAP_MM,
+        )
+
+        self.assertAlmostEqual(
+            _MINE_CLUSTER_DASH_MM, _AREA_OUTLINE_WIDTH_MM * 4.0 * 1.4,
+            places=9
+        )
+        self.assertAlmostEqual(
+            _MINE_CLUSTER_GAP_MM, _AREA_OUTLINE_WIDTH_MM * 2.0 * 1.5,
+            places=9
+        )
+
+
+    def test_mine_cluster_arc_evaluates_against_a_real_feature(self):
+
+        # A minimal end-to-end check: build the real Lines layer, give
+        # it a genuine two-point feature and confirm the generator's
+        # own expression - exactly what the geometry generator symbol
+        # layer evaluates on every repaint - produces a real, non-empty
+        # arc rather than erroring or returning nothing.
+        from qgis.core import QgsFeature, QgsGeometry, QgsPointXY
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setGeometry(
+            QgsGeometry.fromPolylineXY(
+                [QgsPointXY(0, 0), QgsPointXY(300, 0)]
+            )
+        )
+
+        feature.setAttribute("measure_type", "mine_cluster")
+        feature.setAttribute("colour", "green")
+
+        expression = QgsExpression(
+            "mct_mine_cluster_arc($geometry, {})".format(1.0 / 3.0)
+        )
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        arc = expression.evaluate(context)
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+        self.assertFalse(arc.isEmpty())
+
+        self.assertAlmostEqual(
+            arc.boundingBox().height(), 300 * (1.0 / 3.0), places=6
+        )

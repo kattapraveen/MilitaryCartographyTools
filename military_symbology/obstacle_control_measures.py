@@ -2555,6 +2555,121 @@ def _abatis_symbol():
     return symbol
 
 
+# Mine Cluster (290400): "user clicks two points, connect it with a
+# dashed line, make a semi-circle over it" - the maintainer's own
+# construction, radius corrected same-day from an initial 1/2 reading
+# to 1/3 of the line connecting the two points. Then corrected again,
+# same day: "the line should not extend beyond the semicircle... make
+# the dashes slightly longer say by 40% and increase the space between
+# them by 50%".
+_MINE_CLUSTER_ARC_RADIUS_FRACTION = 1.0 / 3.0
+
+# Qt's own default DashLine pattern - confirmed by probing a real QPen
+# rather than assumed - is [4, 2] in units of the pen's own width, i.e.
+# dash 4x the stroke width, gap 2x. That was this symbol's original,
+# unnamed pattern (a bare setPenStyle(DashLine)); the maintainer's own
+# "+40% dash, +50% gap" is applied to THAT baseline, not to some other
+# round number, so the two numbers stay traceable to Qt's own default.
+_MINE_CLUSTER_DASH_MM = _AREA_OUTLINE_WIDTH_MM * 4.0 * 1.4
+_MINE_CLUSTER_GAP_MM = _AREA_OUTLINE_WIDTH_MM * 2.0 * 1.5
+
+# The straight line's own span, as a fraction of the digitized line's
+# length, matching the arc's own diameter exactly (mid +/- radius) -
+# "the line should not extend beyond the semicircle, or the semicircle
+# should touch the end points of the line". Derived from the same
+# radius fraction the arc uses, not restated, so the two can never
+# drift apart.
+_MINE_CLUSTER_LINE_START_FRACTION = 0.5 - _MINE_CLUSTER_ARC_RADIUS_FRACTION
+_MINE_CLUSTER_LINE_END_FRACTION = 0.5 + _MINE_CLUSTER_ARC_RADIUS_FRACTION
+
+
+def _mine_cluster_dashed_line_layer():
+
+    """
+    The one dash pattern both of Mine Cluster's own symbol layers
+    share - broken out so the straight line and the arc cannot drift
+    into two different-looking dashes.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    line_layer.setUseCustomDashPattern(True)
+
+    line_layer.setCustomDashPatternUnit(Qgis.RenderUnit.Millimeters)
+
+    line_layer.setCustomDashVector(
+        [_MINE_CLUSTER_DASH_MM, _MINE_CLUSTER_GAP_MM]
+    )
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    return line_layer
+
+
+def _mine_cluster_symbol():
+
+    """
+    Mine Cluster (290400) - a dashed straight line spanning the SAME
+    stretch as the dashed semicircle drawn over it (mct_mine_cluster_arc),
+    not the feature's full PT1-PT2 length - the maintainer's own
+    correction, so the line never runs past the arc's own ends. Always
+    dashed, in both present and planned status - fixed iconography, not
+    driven by "status", the same "always dashed" treatment already used
+    for Maritime's own Bearing Line, Acoustic (Ambiguous) and the Decoy
+    chevrons.
+
+    Both symbol layers are geometry generators, even the straight
+    portion: it is a TRIMMED copy of the digitized line
+    (line_substring), not the raw geometry, since the arc's radius is
+    only a fraction of the full line's length.
+    """
+
+    symbol = QgsLineSymbol()
+
+    straight_inner = QgsLineSymbol()
+
+    straight_inner.changeSymbolLayer(0, _mine_cluster_dashed_line_layer())
+
+    straight_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    straight_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    straight_generator.setGeometryExpression(
+        f"line_substring($geometry,"
+        f" length($geometry) * {_MINE_CLUSTER_LINE_START_FRACTION},"
+        f" length($geometry) * {_MINE_CLUSTER_LINE_END_FRACTION})"
+    )
+
+    straight_generator.setSubSymbol(straight_inner)
+
+    symbol.changeSymbolLayer(0, straight_generator)
+
+    arc_inner = QgsLineSymbol()
+
+    arc_inner.changeSymbolLayer(0, _mine_cluster_dashed_line_layer())
+
+    arc_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    arc_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    arc_generator.setGeometryExpression(
+        f"mct_mine_cluster_arc($geometry,"
+        f" {_MINE_CLUSTER_ARC_RADIUS_FRACTION})"
+    )
+
+    arc_generator.setSubSymbol(arc_inner)
+
+    symbol.appendSymbolLayer(arc_generator)
+
+    return symbol
+
+
 # Antitank Ditch Reinforced with Antitank Mines: "a line with filled
 # triangles pointing downward, the triangles alternating with anti-tank
 # mine" - the maintainer's own description. Two interleaved series, so
@@ -2780,37 +2895,49 @@ def _wire_obstacle_symbol(measure_type):
 
 # STILL TO BUILD in B4, and deliberately absent rather than guessed:
 #
-#   290400 Mine Cluster                      - construction known (a
-#           dashed straight line between two points plus a dashed
-#           semicircle over it, radius half that line), needs its own
-#           geometry function rather than a marker line
 #   290500 Trip Wire                         - construction known (PT1-
 #           PT2 vertical, PT3 sets the horizontal extent, and the
 #           distance from the PT1-PT2 line to PT3 is the radius of a 90
 #           degree arc at the bottom); the one the maintainer flagged
 #           as awkward, and it needs its own geometry function too
 #
-# The four here are the ones whose construction was read off the
+# Neither the wire family nor the toothed family, so its own small
+# dict rather than folding into either - a two-point line plus a
+# generated arc, nothing repeating along it.
+MINE_CLUSTER_MEASURE_TYPE_LABELS = {
+    "mine_cluster": "Mine Cluster",
+}
+
+MINE_CLUSTER_MEASURE_TYPE_CODES = {
+    "mine_cluster": "290400",
+}
+
+# The ones here are the ones whose construction was read off the
 # standard directly - the rest are left out so the layer never offers
 # a measure type it cannot draw correctly.
 LINE_MEASURE_TYPE_LABELS = dict(WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TOOTHED_MEASURE_TYPE_LABELS)
+LINE_MEASURE_TYPE_LABELS.update(MINE_CLUSTER_MEASURE_TYPE_LABELS)
 
 LINE_MEASURE_TYPE_CODES = dict(WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TOOTHED_MEASURE_TYPE_CODES)
+LINE_MEASURE_TYPE_CODES.update(MINE_CLUSTER_MEASURE_TYPE_CODES)
 
 _LINE_SYMBOL_BUILDERS = {
     measure_type: (
         lambda measure_type=measure_type: _wire_obstacle_symbol(measure_type)
     )
     for measure_type in LINE_MEASURE_TYPE_LABELS
-    if measure_type not in ("abatis", "antitank_ditch_reinforced")
+    if measure_type not in (
+        "abatis", "antitank_ditch_reinforced", "mine_cluster"
+    )
 }
 
 _LINE_SYMBOL_BUILDERS["abatis"] = _abatis_symbol
 _LINE_SYMBOL_BUILDERS["antitank_ditch_reinforced"] = (
     _antitank_ditch_reinforced_symbol
 )
+_LINE_SYMBOL_BUILDERS["mine_cluster"] = _mine_cluster_symbol
 
 
 def _line_default_colour_expression():
@@ -2861,8 +2988,8 @@ def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     """
     Table H-XIX's own line obstacles (batch B4). The wire family lands
-    first; the ditches, Abatis, Obstacle Line, Mine Cluster and Trip
-    Wire join this same layer as the batch continues.
+    first; the ditches, Abatis, Obstacle Line and Mine Cluster have
+    since joined this same layer - only Trip Wire remains.
     """
 
     crs = QgsProject.instance().crs()

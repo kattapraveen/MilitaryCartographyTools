@@ -771,6 +771,95 @@ def mct_abatis_line(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_mine_cluster_arc',
+    group='Military Cartography Tools'
+)
+def mct_mine_cluster_arc(values, feature=None, parent=None):
+
+    """
+    Table H-XIX's own Mine Cluster (290400): the dashed semicircle
+    drawn OVER the dashed straight line between the feature's own two
+    clicked points - the maintainer's own construction in their own
+    words: "user clicks two points, connect it with a dashed line,
+    make a semi-circle over it, radius 1/3... of the line connecting
+    the two points" (a same-day correction of an initial 1/2 reading).
+
+    The straight line is the feature's own digitized geometry, drawn
+    separately (see _mine_cluster_symbol); this returns only the arc.
+    Real generated geometry rather than a fixed-size marker, so it
+    scales with however far apart the two clicks are, the same reason
+    mct_abatis_line and mct_decoy_chevron are geometry rather than
+    markers.
+
+    The semicircle's DIAMETER sits ON the line, centred at its
+    midpoint - since the radius is only a third of the line's own
+    length, a length/3 stretch of bare straight line is left at each
+    end rather than the arc spanning the full line. The arc bulges to
+    the LEFT of the PT1->PT2 direction of travel (rotate the direction
+    vector 90 degrees counterclockwise), which reads as "above" a
+    left-to-right line on a normally-oriented map. The standard does
+    not mandate a side, so this is a placement call rather than a
+    measurement - the one part of this construction to re-check against
+    a live smoke test.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    radius_fraction = float(values[1]) if len(values) > 1 else (1.0 / 3.0)
+    segments = int(values[2]) if len(values) > 2 else 24
+
+    length = geometry.length()
+
+    if length <= 0:
+        return QgsGeometry()
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 2:
+        return QgsGeometry()
+
+    start = QgsPointXY(vertices[0])
+    end = QgsPointXY(vertices[-1])
+
+    dx = end.x() - start.x()
+    dy = end.y() - start.y()
+
+    span = math.hypot(dx, dy)
+
+    if span == 0:
+        return QgsGeometry()
+
+    ux, uy = dx / span, dy / span
+    nx, ny = -uy, ux
+
+    mid_x = (start.x() + end.x()) / 2.0
+    mid_y = (start.y() + end.y()) / 2.0
+
+    radius = length * radius_fraction
+
+    points = []
+
+    for index in range(segments + 1):
+
+        theta = math.pi * index / segments
+
+        points.append(
+            QgsPointXY(
+                mid_x + radius * (math.cos(theta) * ux + math.sin(theta) * nx),
+                mid_y + radius * (math.cos(theta) * uy + math.sin(theta) * ny),
+            )
+        )
+
+    return QgsGeometry.fromPolylineXY(points)
+
+
+@qgsfunction(
     'mct_scatter_points',
     group='Military Cartography Tools'
 )
@@ -2627,6 +2716,7 @@ _FUNCTIONS = [
     mct_decoy_chevron_svg,
     mct_scatter_points,
     mct_abatis_line,
+    mct_mine_cluster_arc,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,

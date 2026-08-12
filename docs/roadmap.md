@@ -6509,6 +6509,74 @@ tested, not claimed as done here.
 
   887 tests passing on both QGIS versions.
 
+- **Mine Cluster (290400) built** (2026-08-12), the first of B4's last
+  two. The maintainer's own construction: "user clicks two points,
+  connect it with a dashed line, make a semi-circle over it, radius
+  1/3 and not 1/2 of the line connecting the two points."
+
+  **That last clause is a deliberate departure from the standard's own
+  text**, flagged here rather than silently followed either way. Table
+  H-XIX's own draw rule for 290400 (printed page 597, rendered and
+  read directly) states: "The radius of the semicircle is 1/2 the
+  length of the straight line." The maintainer's instruction was 1/3,
+  given as an explicit correction ("and not 1/2") rather than as a
+  vague description this project might have misread - so it is built
+  exactly as instructed, as `_MINE_CLUSTER_ARC_RADIUS_FRACTION = 1.0 /
+  3.0`, with the standard's own 1/2 recorded here for the record and
+  raised back to the maintainer to confirm is an intentional
+  house departure, not a misremembering.
+
+  Two symbol layers: the straight PT1-PT2 line is drawn as-is (a
+  QgsSimpleLineSymbolLayer over the feature's own digitized geometry),
+  and the arc is real generated geometry
+  (`mct_mine_cluster_arc($geometry, 1/3)`) rather than a fixed-size
+  marker, so it scales with however far apart the two clicks are - the
+  same reasoning already applied to Abatis's kink and the Decoy
+  chevrons. Both layers are dashed OUTRIGHT, not driven by "status":
+  the standard's own note reads "the dashed lines in this symbol shall
+  be displayed in present and anticipated status", i.e. always dashed,
+  the same fixed-iconography treatment as Maritime's own Bearing Line,
+  Acoustic (Ambiguous).
+
+  The semicircle's diameter sits ON the line, centred at its own
+  midpoint - not spanning the full line, since the radius is a
+  fraction of the line's length, leaving a straight run bare at each
+  end. Built generically for any line angle (bulges perpendicular to
+  the PT1->PT2 direction, not to a map axis), verified against a
+  diagonal line, not just an axis-aligned one.
+
+  Only Trip Wire (290500) remains in B4 - the one already flagged as
+  needing its own working-out at build time.
+
+  895 tests passing on both QGIS versions.
+
+- **Mine Cluster, corrected same day** (2026-08-12): "the line should
+  not extend beyond the semicircle or the semicircle should touch the
+  end points of the line, make the dashes slightly longer say by 40%
+  and increase the space between them by 50%." This also settles the
+  open question the previous entry raised: the maintainer confirmed
+  1/3 by correcting the RELATIONSHIP between the line and the arc
+  rather than the radius itself, so 1/2 (the standard's own printed
+  figure) is not the intended reading here.
+
+  The straight line is now a geometry generator too, not the raw
+  digitized geometry: `line_substring($geometry, length($geometry) *
+  (0.5 - 1/3), length($geometry) * (0.5 + 1/3))` trims it to exactly
+  the arc's own diameter span, derived from the SAME radius fraction
+  the arc uses rather than a second hard-coded number, so the two
+  cannot drift apart.
+
+  The dash pattern is a custom `QgsSimpleLineSymbolLayer` dash vector
+  now, not a bare `Qt.PenStyle.DashLine`. Probed Qt's own default
+  first rather than assuming it (`QPen().dashPattern()` with
+  `Qt.PenStyle.DashLine` set) - `[4, 2]` in units of the pen's own
+  width - and applied the maintainer's +40%/+50% to THAT baseline, so
+  `_MINE_CLUSTER_DASH_MM`/`_MINE_CLUSTER_GAP_MM` stay traceable to a
+  real starting point rather than round numbers invented to look
+  about right.
+
+  898 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
