@@ -6450,6 +6450,65 @@ tested, not claimed as done here.
 
     883 tests passing on both QGIS versions.
 
+- **Maritime Control Measures (Points): the Group now genuinely filters
+  the Entity list** (2026-08-12). The maintainer's own report, and it
+  had two halves - one usability, one correctness. "From a UI point of
+  view, it is not friendly", 105 entities in one flat dropdown; and
+  "user may select group as general and entity as reference point -
+  ultimately reference point is displayed which is incorrect."
+
+  When this layer was built earlier the same day, the group was carried
+  as a PREFIX on every label plus a "group" field auto-derived from the
+  chosen entity, on the stated grounds that the only QGIS mechanism
+  that truly filters one field by another - a ValueRelation cascade -
+  had been retired from the old shared `unit_layer.py` after a native
+  crash. **That reasoning was wrong, and this roadmap already said so.**
+  The maintainer remembered it correctly: "initially when we had
+  land/air/space etc under one layer, in the menu selection, if we
+  selected land in group, only land related entities came up, and it
+  worked perfectly fine". The crash was only ever reproduced by driving
+  `QgsValueRelationFieldFormatter.createCache()` DIRECTLY from the
+  headless harness, and Phase 10's own entry records the resolution in
+  as many words - "**Confirmed safe 2026-08-07**: user smoke-tested the
+  real interactive attribute form live - the cascading dropdown works
+  correctly, no crash". What `unit_layer.py` was retired for was its
+  one-layer-for-four-domains design, not this widget. The lesson is
+  narrower than "avoid the cascade": a caveat that has since been
+  settled has to be re-read before being cited, not carried forward as
+  received wisdom.
+
+  So the dependency now runs group -> entity, the way the form reads:
+  a hidden `NoGeometry` lookup layer (one row per (group, entity, label)
+  pair, registered with `addToLegend=False`, reused rather than rebuilt
+  so a second Points layer cannot orphan the first one's widget config)
+  backs a ValueRelation on "entity", filtered by `"group" =
+  current_value('group')`. Entity labels dropped their group prefix -
+  the group is on the line directly above in the form, so repeating it
+  in all 105 options was the workaround, not the goal.
+
+  **The correctness half needed its own answer.** Filtering the
+  dropdown only stops a mismatched pair being PICKED; changing the
+  group AFTER the entity still leaves the old value stored, because
+  QGIS re-filters the list but does not clear the field. "entity" now
+  carries a HARD constraint expression pinning it to its own group's
+  rows - an ordinary per-feature expression with no `current_value()`
+  in it, which is also the documented fallback the original crash note
+  itself named. The two defaults are derived from each other so a
+  freshly digitized point can never arrive already invalid.
+
+  **Verified in a real QgsAttributeForm, offscreen, deliberately
+  outside the test suite** (instantiating a ValueRelation widget is
+  exactly the call that once segfaulted this harness, so it ran in its
+  own process where a crash would cost nothing). It did not crash, and
+  the filter works: group=General offers its own 10 entries,
+  group=Hazard 3, group=Sonobuoys 16. That probe also corrected a wrong
+  assumption in the first cut - `OrderByValue: False` does NOT preserve
+  the lookup layer's own row order (the standard's printed order); QGIS
+  sorts a ValueRelation either way, so it is now True, sorting by the
+  label the user actually reads rather than by the internal entity slug.
+
+  887 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

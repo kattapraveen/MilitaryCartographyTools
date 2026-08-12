@@ -16,9 +16,11 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsFeature,
+    QgsFieldConstraints,
     QgsProject,
     QgsSymbolLayer,
     QgsVectorLayer,
+    QgsVectorLayerUtils,
 )
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtCore import Qt
@@ -32,6 +34,7 @@ from MilitaryCartographyTools.military_symbology.maritime_control_measures impor
     LINE_MEASURE_TYPE_LABELS,
     POINTS_LAYER_NAME,
     POINT_ENTITY_LABELS,
+    POINT_ENTITY_LOOKUP_LAYER_NAME,
     POINT_GROUP_LABELS,
     add_maritime_control_measures_lines_layer,
     add_maritime_control_measures_points_layer,
@@ -527,51 +530,210 @@ class TestCreateMaritimeControlMeasuresPointsLayer(QgisTestCase):
         self.assertTrue(all("210100" <= code <= "219200" for code in codes))
 
 
-    def test_every_entity_label_is_prefixed_with_its_group(self):
+    def test_entity_labels_are_the_tables_own_plain_names(self):
 
-        # 105 entries is far too many for one flat list, and QGIS has no
-        # nested dropdown - the only mechanism that genuinely filters
-        # one field by another is the ValueRelation cascade this project
-        # retired for a confirmed native-crash risk. So the group is
-        # carried as a label prefix (this test) plus a real auto-derived
-        # field (the next one). See POINT_ENTITY_LABELS' own comment.
-        for entity, (group, name) in _POINT_ENTITIES.items():
+        # No group prefix any more. Until 2026-08-12 every label read
+        # "<Group> - <Name>", because the dropdown was one flat
+        # 105-entry list and the prefix was the only thing clustering
+        # it. The group now filters the list instead (see the next
+        # tests), and sits on the line above in the form, so repeating
+        # it in every option was noise.
+        for entity, (_group, name) in _POINT_ENTITIES.items():
 
             with self.subTest(entity=entity):
 
                 self.assertEqual(
                     POINT_ENTITY_LABELS[entity],
-                    f"{POINT_GROUP_LABELS[group]} - {name}"
+                    name
                 )
 
+                # Not a blanket "no dash" check - several of the
+                # table's own names genuinely contain one ("Bottom
+                # Return - Installation/Manmade"). What must be gone is
+                # the GROUP prefix specifically.
+                for prefix in POINT_GROUP_LABELS.values():
 
-    def test_group_field_is_derived_from_the_entity_on_update(self):
+                    self.assertFalse(
+                        POINT_ENTITY_LABELS[entity].startswith(f"{prefix} - ")
+                    )
 
-        # The group is a property OF the entity, so it is never typed -
-        # letting it be edited independently could only make it disagree
-        # with the symbol actually drawn. applyOnUpdate so changing the
-        # entity re-derives it.
+
+    def test_entity_dropdown_is_filtered_by_the_chosen_group(self):
+
+        # The maintainer's own ask: "in the menu selection, if we
+        # selected land in group, only land related entities came up".
         layer = create_maritime_control_measures_points_layer()
 
-        idx = layer.fields().indexOf("group")
+        idx = layer.fields().indexOf("entity")
 
-        definition = layer.defaultValueDefinition(idx)
+        setup = layer.editorWidgetSetup(idx)
 
-        self.assertTrue(definition.applyOnUpdate())
+        self.assertEqual(setup.type(), "ValueRelation")
 
-        expression = QgsExpression(definition.expression())
+        config = setup.config()
 
-        for entity, (group, _name) in _POINT_ENTITIES.items():
+        self.assertEqual(
+            config["FilterExpression"],
+            "\"group\" = current_value('group')"
+        )
 
-            with self.subTest(entity=entity):
+        self.assertEqual(config["Key"], "entity")
+        self.assertEqual(config["Value"], "label")
 
-                feature = QgsFeature(layer.fields())
-                feature.setAttribute("entity", entity)
+        # True, so the visible list is sorted by the label the user
+        # reads rather than by the internal entity slug. QGIS sorts it
+        # either way - it does NOT preserve the lookup layer's own row
+        # order, which is what an early cut of this assumed.
+        self.assertTrue(config["OrderByValue"])
 
-                context = layer.createExpressionContext()
-                context.setFeature(feature)
+        lookup = QgsProject.instance().mapLayer(config["Layer"])
 
-                self.assertEqual(expression.evaluate(context), group)
+        self.assertIsNotNone(
+            lookup,
+            "the ValueRelation points at a layer that is not in the project"
+        )
+
+
+    def test_the_lookup_layer_holds_the_whole_vocabulary(self):
+
+        create_maritime_control_measures_points_layer()
+
+        lookup = QgsProject.instance().mapLayersByName(
+            POINT_ENTITY_LOOKUP_LAYER_NAME
+        )[0]
+
+        rows = [
+            (
+                feature["group"],
+                feature["entity"],
+                feature["label"],
+            )
+            for feature in lookup.getFeatures()
+        ]
+
+        self.assertEqual(
+            rows,
+            [
+                (group, entity, name)
+                for entity, (group, name) in _POINT_ENTITIES.items()
+            ]
+        )
+
+
+    def test_the_lookup_layer_is_hidden_and_shared_not_rebuilt(self):
+
+        # It carries no user data and the user never edits it, so it
+        # must not appear in the Layers panel; and a second Points
+        # layer must reuse the same one, or the first layer's widget
+        # config would be left pointing at an orphaned id.
+        first = create_maritime_control_measures_points_layer()
+        second = create_maritime_control_measures_points_layer("Another")
+
+        project = QgsProject.instance()
+
+        registered = project.mapLayersByName(POINT_ENTITY_LOOKUP_LAYER_NAME)
+
+        self.assertEqual(len(registered), 1)
+
+        self.assertNotIn(
+            registered[0],
+            project.layerTreeRoot().checkedLayers()
+        )
+
+        self.assertIsNone(
+            project.layerTreeRoot().findLayer(registered[0].id())
+        )
+
+        def lookup_id(layer):
+
+            idx = layer.fields().indexOf("entity")
+
+            return layer.editorWidgetSetup(idx).config()["Layer"]
+
+        self.assertEqual(lookup_id(first), lookup_id(second))
+        self.assertEqual(lookup_id(first), registered[0].id())
+
+
+    def test_an_entity_outside_the_chosen_group_fails_to_validate(self):
+
+        # The gap the dropdown filter alone leaves: pick the entity
+        # first, then change the group, and QGIS re-filters the list but
+        # keeps the stored value. That is the maintainer's own example -
+        # "user may select group as general and entity as reference
+        # point" - so it is a hard constraint, not a warning.
+        layer = create_maritime_control_measures_points_layer()
+
+        idx = layer.fields().indexOf("entity")
+
+        self.assertEqual(
+            layer.fieldConstraintsAndStrength(idx).get(
+                QgsFieldConstraints.Constraint.ConstraintExpression
+            ),
+            QgsFieldConstraints.ConstraintStrength.ConstraintStrengthHard
+        )
+
+        matched = QgsFeature(layer.fields())
+        matched.setAttribute("group", "general")
+        matched.setAttribute("entity", "plan_ship")
+
+        ok, errors = QgsVectorLayerUtils.validateAttribute(layer, matched, idx)
+
+        self.assertTrue(ok, errors)
+
+        mismatched = QgsFeature(layer.fields())
+        mismatched.setAttribute("group", "general")
+        mismatched.setAttribute("entity", "reference_point")
+
+        self.assertEqual(
+            _POINT_ENTITIES["reference_point"][0],
+            "reference_points"
+        )
+
+        ok, _errors = QgsVectorLayerUtils.validateAttribute(
+            layer, mismatched, idx
+        )
+
+        self.assertFalse(ok)
+
+
+    def test_the_default_group_and_entity_are_a_valid_pair(self):
+
+        # Every point starts life on the defaults, so if they disagreed
+        # the constraint above would reject every freshly digitized
+        # feature.
+        layer = create_maritime_control_measures_points_layer()
+
+        feature = QgsFeature(layer.fields())
+
+        context = layer.createExpressionContext()
+
+        for field in ("group", "entity"):
+
+            idx = layer.fields().indexOf(field)
+
+            definition = layer.defaultValueDefinition(idx)
+
+            self.assertFalse(
+                definition.applyOnUpdate(),
+                f"{field} is re-derived on update; the cascade runs "
+                "group -> entity now, so neither field is derived"
+            )
+
+            feature.setAttribute(
+                field,
+                QgsExpression(definition.expression()).evaluate(context)
+            )
+
+        self.assertEqual(
+            _POINT_ENTITIES[feature["entity"]][0],
+            feature["group"]
+        )
+
+        ok, errors = QgsVectorLayerUtils.validateAttribute(
+            layer, feature, layer.fields().indexOf("entity")
+        )
+
+        self.assertTrue(ok, errors)
 
 
     def test_groups_follow_the_tables_own_sub_headings(self):

@@ -59,12 +59,13 @@ so anything already digitized keeps rendering.
 They are grouped by **the table's own sub-headings** - General,
 Sub-Surface Warfare, Search, Sonobuoys, Reference Points, Subsurface
 Stations, Surface Stations, Routes, Emergency, Hazard, Sea Subsurface
-Returns - which is both how the dropdown reads and a real "group" field
-on the layer. See POINT_ENTITY_LABELS for why the group is a label
-prefix plus an auto-derived field rather than a genuine cascading
-dropdown (short version: the only QGIS mechanism that truly filters one
-field by another is the ValueRelation cascade this project already
-retired for a confirmed native-crash risk).
+Returns - carried as a real "group" field that **filters the "Entity"
+dropdown to just that group's own entries**, so 105 options are never
+shown at once. That cascade replaced a flat list with group-prefixed
+labels on 2026-08-12; see POINT_ENTITY_LABELS for why the flat list was
+there first, and why the ValueRelation crash risk it was avoiding
+turned out to have already been settled by the maintainer's own live
+smoke test.
 
 **Five codes in the 474-501 range are deliberately NOT built**, each for
 its own reason:
@@ -109,7 +110,9 @@ from qgis.core import (
     Qgis,
     QgsDefaultValue,
     QgsEditorWidgetSetup,
+    QgsFeature,
     QgsField,
+    QgsFieldConstraints,
     QgsLineSymbol,
     QgsProject,
     QgsMarkerSymbol,
@@ -143,9 +146,15 @@ from ._control_measure_shared import (
 LINES_LAYER_NAME = "Maritime Control Measures (Lines)"
 POINTS_LAYER_NAME = "Maritime Control Measures (Points)"
 
+# Not a layer the user ever sees or edits - the hidden reference table
+# behind the Points layer's own cascading "Entity" dropdown. See
+# _point_entity_lookup_layer().
+POINT_ENTITY_LOOKUP_LAYER_NAME = "Maritime Control Measure Point Entities"
+
 __all__ = [
     "LINES_LAYER_NAME",
     "POINTS_LAYER_NAME",
+    "POINT_ENTITY_LOOKUP_LAYER_NAME",
     "LINE_MEASURE_TYPE_LABELS",
     "POINT_ENTITY_LABELS",
     "POINT_GROUP_LABELS",
@@ -604,41 +613,66 @@ _POINT_ENTITIES = {
     "bottom_return_non_milco_wreck_non_dangerous": ("sea_subsurface_returns", "Bottom Return - Non-MILCO, Wreck, Non Dangerous"),
 }
 
-# **Why the group is a label PREFIX rather than a real cascading
-# dropdown.** 105 entries is far too many for one flat list - the
-# maintainer's own words, "can we make them into sub menu, otherwise
-# the list is too long". QGIS's attribute form has no nested dropdown;
-# the only mechanism that genuinely filters one field by another is a
-# ValueRelation cascade, which is EXACTLY what this project retired
-# from unit_layer.py after a confirmed native-crash risk (see sidc.py's
-# own ENTITIES["subsurface"] comment, which names that cascade as the
-# likely root cause of the Subsurface bug that prompted splitting the
-# per-appendix layers in the first place). Reintroducing it here would
-# be re-adding a known hazard to get a nicer menu.
+# **The group genuinely filters the entity list, from 2026-08-12.**
+# 105 entries is far too many for one flat list - the maintainer's own
+# words, "can we make them into sub menu, otherwise the list is too
+# long". This first shipped as a compromise rather than a cascade: the
+# group was a PREFIX on every label in one flat 105-entry ValueMap,
+# plus a "group" field auto-derived from the chosen entity. The reason
+# given was that QGIS's only real filter-one-field-by-another mechanism
+# is a ValueRelation cascade, and this project had retired that after a
+# native crash while building the old shared unit_layer.py.
 #
-# So the group is carried two ways instead, neither of them new
-# machinery: every entity's own label is prefixed with its group, so
-# one alphabetical dropdown still clusters by group and answers to
-# type-ahead ("Routes" jumps straight to the eight route entries); and
-# a real "group" FIELD is filled in automatically from the chosen
-# entity (see _POINT_GROUP_EXPRESSION), so the groups are also there
-# for filtering, selecting and styling in the attribute table rather
-# than being purely cosmetic text. Presented as a choice to the
-# maintainer with the crash-risk tradeoff stated, and this is the
-# option they picked.
+# The maintainer reopened it from their own experience of that layer:
+# "initially when we had land/air/space etc under one layer, in the
+# menu selection, if we selected land in group, only land related
+# entities came up, and it worked perfectly fine". They are right, and
+# docs/roadmap.md says so in as many words. That crash was only ever
+# reproduced by driving QgsValueRelationFieldFormatter.createCache()
+# DIRECTLY from this headless harness, outside any real form - the
+# maintainer's own live smoke test settled it the next day
+# ("**Confirmed safe 2026-08-07**: user smoke-tested the real
+# interactive attribute form live - the cascading dropdown works
+# correctly, no crash"). What got retired with unit_layer.py was its
+# one-layer-for-four-domains design, not this widget.
+#
+# So the form now reads the way it looks: pick a group, and "entity"
+# offers only that group's own rows (_configure_points_attribute_form).
+# Two consequences follow.
+#
+# - Entity labels are the table's own plain names, with no group
+#   prefix. The prefix was the workaround; the group now sits on the
+#   line directly above in the form, so repeating it in all 105 options
+#   is just noise.
+# - The group is no longer derived from the entity - the dependency
+#   runs the other way. A mismatched pair is still reachable by
+#   changing the group AFTER the entity (QGIS re-filters the dropdown
+#   but leaves the stored value alone), which is exactly the
+#   maintainer's own worry: "user may select group as general and
+#   entity as reference point - ultimately reference point is displayed
+#   which is incorrect". _POINT_ENTITY_GROUP_CONSTRAINT below catches
+#   that on save. It is a plain per-feature expression with no
+#   current_value() in it, which is also the documented fallback the
+#   original crash note itself named.
 POINT_ENTITY_LABELS = {
-    entity: f"{POINT_GROUP_LABELS[group]} - {name}"
-    for entity, (group, name) in _POINT_ENTITIES.items()
+    entity: name
+    for entity, (_group, name) in _POINT_ENTITIES.items()
 }
 
-# Auto-derived, never typed: the group is a property OF the entity, so
-# letting it be edited independently could only ever make it disagree
-# with the symbol actually drawn. applyOnUpdate=True so changing the
-# entity re-derives it rather than leaving the first choice behind.
-_POINT_GROUP_EXPRESSION = "CASE " + " ".join(
+# entity -> its own group, as an expression over the feature. Used as a
+# hard constraint on "entity" (see above), not as a default value.
+_POINT_GROUP_OF_ENTITY_EXPRESSION = "CASE " + " ".join(
     f"WHEN \"entity\" = '{entity}' THEN '{group}'"
     for entity, (group, _name) in _POINT_ENTITIES.items()
 ) + " ELSE '' END"
+
+_POINT_ENTITY_GROUP_CONSTRAINT = (
+    f"({_POINT_GROUP_OF_ENTITY_EXPRESSION}) = \"group\""
+)
+
+_POINT_ENTITY_GROUP_CONSTRAINT_DESCRIPTION = (
+    "The entity must be one of the chosen group's own entries."
+)
 
 # NOT dict(AFFILIATION_LABELS), which is what this was until
 # 2026-08-12. That shared dict carries a fifth value, "Unspecified
@@ -654,6 +688,10 @@ _POINT_AFFILIATION_LABELS = POINT_AFFILIATION_LABELS
 _POINT_STATUS_LABELS = dict(STATUS_LABELS)
 
 _POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
+
+_POINTS_DEFAULT_ENTITY = "plan_ship"
+
+_POINTS_DEFAULT_GROUP = _POINT_ENTITIES[_POINTS_DEFAULT_ENTITY][0]
 
 # Plain `uniqueDesignation`, matching every other Points layer in this
 # appendix-by-appendix pass. Not individually verified per icon across
@@ -676,6 +714,66 @@ _POINTS_SIDC_EXPRESSION = (
 )
 
 
+def _point_entity_lookup_layer(name=POINT_ENTITY_LOOKUP_LAYER_NAME):
+
+    """
+    The small reference table behind the "Entity" field's cascading
+    ValueRelation dropdown - one row per (group, entity) pair. Not user
+    data. Rows are built in _POINT_ENTITIES' own order (the standard's
+    printed order down pages 474-501) because that is the source
+    order, not because the dropdown honours it: QGIS sorts a
+    ValueRelation's options itself, by label here (see
+    _configure_points_attribute_form's own OrderByValue note).
+
+    It has to be a real registered project layer: a ValueRelation
+    addresses its source by layer id, so nothing unregistered will do.
+    addToLegend=False keeps it out of the Layers panel, the same narrow
+    exception the old unit_layer.py made for the same reason.
+
+    Reused when one of the same name is already registered rather than
+    rebuilt - every Points layer this module creates can share the one
+    lookup, and rebuilding it would orphan the id that an
+    already-created layer's widget config points at.
+    """
+
+    project = QgsProject.instance()
+
+    for existing in project.mapLayersByName(name):
+
+        if [field.name() for field in existing.fields()] == [
+            "group", "entity", "label"
+        ]:
+
+            return existing
+
+    layer = QgsVectorLayer(
+        "NoGeometry?field=group:string&field=entity:string&field=label:string",
+        name,
+        "memory"
+    )
+
+    features = []
+
+    for entity, (group, label) in _POINT_ENTITIES.items():
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setAttribute("group", group)
+        feature.setAttribute("entity", entity)
+        feature.setAttribute("label", label)
+
+        features.append(feature)
+
+    layer.dataProvider().addFeatures(features)
+
+    project.addMapLayer(
+        layer,
+        False
+    )
+
+    return layer
+
+
 def _configure_points_attribute_form(layer):
 
     fields = layer.fields()
@@ -696,9 +794,44 @@ def _configure_points_attribute_form(layer):
     layer.setEditorWidgetSetup(
         entity_idx,
         QgsEditorWidgetSetup(
-            "ValueMap",
-            {"map": _value_map(POINT_ENTITY_LABELS)}
+            "ValueRelation",
+            {
+                "Layer": _point_entity_lookup_layer().id(),
+                "Key": "entity",
+                "Value": "label",
+                "FilterExpression": "\"group\" = current_value('group')",
+                "AllowMulti": False,
+                "AllowNull": False,
+                # Sort by the displayed label. QGIS sorts a
+                # ValueRelation either way - False sorts by the KEY
+                # instead, i.e. by the internal entity slug, which is
+                # not what the user is reading. Verified in a real
+                # QgsAttributeForm, not assumed: an early cut of this
+                # used False expecting it to preserve the lookup
+                # layer's own row order (the standard's printed order),
+                # and the form sorted the list regardless.
+                "OrderByValue": True,
+                "NofColumns": 1,
+                "UseCompleter": False,
+            }
         )
+    )
+
+    # Belt to the dropdown's braces. The filter stops a mismatched pair
+    # being PICKED; this stops one being LEFT behind by changing the
+    # group after the entity. Hard, so it blocks the save rather than
+    # only warning - a wrong pair here means the drawn symbol disagrees
+    # with the recorded group.
+    layer.setConstraintExpression(
+        entity_idx,
+        _POINT_ENTITY_GROUP_CONSTRAINT,
+        _POINT_ENTITY_GROUP_CONSTRAINT_DESCRIPTION
+    )
+
+    layer.setFieldConstraint(
+        entity_idx,
+        QgsFieldConstraints.Constraint.ConstraintExpression,
+        QgsFieldConstraints.ConstraintStrength.ConstraintStrengthHard
     )
 
     layer.setEditorWidgetSetup(
@@ -718,12 +851,19 @@ def _configure_points_attribute_form(layer):
     )
 
     layer.setDefaultValueDefinition(affiliation_idx, QgsDefaultValue("'friend'"))
-    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'plan_ship'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
+    # Derived from each other rather than written out twice: a new
+    # feature must open on a pair the constraint above accepts, or
+    # every point would arrive invalid.
     layer.setDefaultValueDefinition(
         group_idx,
-        QgsDefaultValue(_POINT_GROUP_EXPRESSION, True)
+        QgsDefaultValue(f"'{_POINTS_DEFAULT_GROUP}'")
+    )
+
+    layer.setDefaultValueDefinition(
+        entity_idx,
+        QgsDefaultValue(f"'{_POINTS_DEFAULT_ENTITY}'")
     )
 
 
