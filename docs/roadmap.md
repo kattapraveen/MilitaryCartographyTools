@@ -5735,6 +5735,26 @@ tested, not claimed as done here.
 
   816 tests passing on both QGIS versions.
 
+- **2026-08-12, H-XIX open question 1 settled: Mine Cluster (290400)
+  and Trip Wire (290500) are LINES.** The maintainer's audit had listed
+  both as "symbol/point"; their own templates require two and three
+  anchor points respectively, and the maintainer confirmed lines. Both
+  were already held that way in the inventory, so this changes no code
+  - it moves the entry from "open question, do not guess" to settled,
+  and pins it by test so B4 cannot drift back.
+
+  **Trip Wire is flagged as the awkward one.** Its three anchor points
+  give a vertical straight portion (PT1-PT2), a horizontal extent
+  (PT3), AND a 90 degree arc at the bottom whose radius is the distance
+  from the PT1-PT2 line to PT3. The maintainer's own note: "slightly
+  complex, we will figure it out when it comes to that". B4 should
+  budget for it separately rather than assuming it drops into that
+  batch's shared marker-line helper.
+
+  Two of the three open questions from the audit reconciliation remain
+  (the four code typos read as intended, and the reading of "OT"), both
+  low-risk and recorded in the module docstring.
+
     739 tests passing on both QGIS versions.
 
 ---

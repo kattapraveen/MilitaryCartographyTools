@@ -97,12 +97,21 @@ the inventory.
 
 **OPEN QUESTIONS for the maintainer**, recorded rather than guessed:
 
-1. **Mine Cluster (290400) and Trip Wire (290500)** are listed in the
-   audit as "symbol/point", but their own templates require TWO and
-   THREE anchor points respectively ("points 1 and 2 define the corners
-   of the symbol"). They are held here as LINEs on that basis - fixed
-   glyphs whose size and orientation come from clicked points. If the
-   intent was a single-click fixed-size symbol instead, B4 changes.
+1. ~~Mine Cluster (290400) and Trip Wire (290500)~~ **SETTLED
+   2026-08-12: both are LINES.** The audit had listed them as
+   "symbol/point", but their own templates require TWO and THREE anchor
+   points respectively ("points 1 and 2 define the corners of the
+   symbol"), and the maintainer confirmed lines. They are fixed glyphs
+   whose size and orientation come from clicked points.
+
+   **Trip Wire's construction is the awkward one** and is expected to
+   need working out at build time rather than following B4's shared
+   marker-line helper: its three anchor points define a vertical
+   straight portion (PT1-PT2), a horizontal extent (PT3), AND a 90
+   degree arc at the bottom whose radius is the PT1-PT2-to-PT3
+   distance. Flagged by the maintainer as "slightly complex, we will
+   figure it out when it comes to that" - so B4 should budget for it
+   separately rather than assuming it drops into the shared helper.
 2. **Four code typos in the audit**, read as intended rather than
    literally: Block "2700501" -> 270501; Antitank Mine "280202" ->
    280300 (280202 does not exist); UXO Area "2701000" -> 271000;
@@ -362,7 +371,12 @@ TABLE_H_XIX_INVENTORY = {
     # corners of the symbol"), so it is digitized as a line even though
     # it draws as one fixed glyph - see OPEN QUESTIONS in the docstring.
     "290400": _e("Mine Cluster", LINE, B4_WIRE, CONFIRMED, GREEN),
-    # Three anchor points per its own template, so likewise a line.
+    # Three anchor points per its own template, so likewise a line -
+    # confirmed by the maintainer. Its construction is the awkward one
+    # in B4: PT1-PT2 give a vertical straight portion, PT3 the
+    # horizontal extent, plus a 90 degree arc at the bottom whose radius
+    # is the distance from the PT1-PT2 line to PT3. Budget for it
+    # separately from the shared marker-line helper.
     "290500": _e("Trip Wire", LINE, B4_WIRE, CONFIRMED, GREEN),
     "290600": _e("Lane", LINE, B7_CROSSINGS, ASSUMED, BLACK),
     "290700": _e("Ferry", LINE, B7_CROSSINGS),

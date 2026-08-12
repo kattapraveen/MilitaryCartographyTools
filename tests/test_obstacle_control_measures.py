@@ -203,6 +203,12 @@ class TestTableHXIXInventory(QgisTestCase):
         # "Line Cluster" - a name taken from mangled OCR.
         self.assertEqual(TABLE_H_XIX_INVENTORY["290400"]["name"], "Mine Cluster")
 
+        # Both were listed as "symbol/point" in the maintainer's audit
+        # but their templates need two and three anchor points; settled
+        # 2026-08-12 as LINES. Pinned so B4 cannot drift back.
+        self.assertEqual(TABLE_H_XIX_INVENTORY["290400"]["geometry"], LINE)
+        self.assertEqual(TABLE_H_XIX_INVENTORY["290500"]["geometry"], LINE)
+
         # The PDF text layer renders 271500 as "~~ry", which reads as
         # Ferry. It is Ford Easy; Ferry is 290700.
         self.assertEqual(TABLE_H_XIX_INVENTORY["271500"]["name"], "Ford Easy")
