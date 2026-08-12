@@ -38,12 +38,23 @@ by reading each one's own template picture (not assumed from the
 family's shared "abbreviation" framing): Fire Support Coordination Line
 ("FSCL", 260100), No Fire Line ("NFL", 260300), Battlefield Coordination
 Line ("BCL", 260400), and Restrictive Fire Line ("RFL", 260500) all show
-their abbreviation at BOTH ends (the `_end_label_layer()` fixed-marker
-technique used throughout this appendix); Coordinated Fire Line ("CFL",
-260200) and Munition Flight Path ("MFP", 260600) both show a single
-label CENTRED along the line instead (the same `Qgis.LabelPlacement.
-Line` technique already used for maneuver_control_measures_2.py's own
-Airhead Line and this appendix's own corridor/route family). **CFL is
+their abbreviation at BOTH ends; Coordinated Fire Line ("CFL", 260200)
+and Munition Flight Path ("MFP", 260600) both show a single label
+CENTRED along the line instead.
+
+**Every one of those labels carries the feature's own unique
+designation, and every one is masked** - reworked 2026-08-12 from the
+maintainer's own live testing of the whole family. The designation's
+POSITION relative to the abbreviation is per-type, read off each
+template: FSCL puts it FIRST ("MND(S) FSCL" in the standard's own
+example), NFL/BCL/RFL/CFL put it LAST ("NFL II CORPS", "BCL III MEF",
+"CFL 52ID (M)"), and MFP has no designation box at all. CFL sits above
+the centre of its line; MFP stays on the line where its own template
+draws it, and only needed the mask. See _configure_lines_labeling(),
+which replaced the shared single-label call with a rule tree - and note
+that the both-ends pair could not stay as _end_label_layer() font
+markers, because a marker's character is fixed when the symbol is built
+and cannot read a feature's own fields. **CFL is
 also the one line in this whole family drawn DASHED as a fixed property
 of the code itself, not status-driven** - confirmed by its own template
 and example both showing a dashed line with no solid variant, the same
@@ -64,6 +75,7 @@ from qgis.core import (
     QgsLineSymbol,
     QgsProject,
     QgsProperty,
+    QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -78,11 +90,11 @@ from ._control_measure_shared import (
     _PLAIN_DESIGNATION_LABEL_EXPRESSION,
     _STATUS_LINE_STYLE_EXPRESSION,
     _apply_affiliation_color,
+    _build_pal_layer_settings,
     _build_rule_based_renderer,
     _configure_affiliation_field,
     _configure_designation_labeling,
     _configure_status_field,
-    _end_label_layer,
     _status_driven_area_outline_symbol,
     _value_map,
     add_layer_if_absent,
@@ -114,20 +126,105 @@ LINE_MEASURE_TYPE_LABELS = {
     "mfp": "Munition Flight Path (MFP)",
 }
 
-_CENTRED_LABEL_CHARACTERS = {
+# Where each measure type's own unique designation (Field T) sits
+# relative to its abbreviation, read straight off each template picture
+# (page 521-523) and confirmed by the maintainer's own live testing:
+# FSCL puts the designation FIRST ("MND(S) FSCL" in the standard's own
+# example), every other labelled type puts it LAST ("NFL II CORPS",
+# "BCL III MEF", "CFL 52ID (M)"). Munition Flight Path has no Field T
+# box in its own template at all - just the fixed "MFP".
+_LINE_LABEL_ABBREVIATIONS = {
+    "fscl": "FSCL",
     "cfl": "CFL",
+    "nfl": "NFL",
+    "bcl": "BCL",
+    "rfl": "RFL",
     "mfp": "MFP",
 }
 
+_DESIGNATION_PREFIXED_TYPES = ("fscl",)
+
+_UNDESIGNATED_TYPES = ("mfp",)
+
+
+def _line_label_expression(measure_type):
+
+    """
+    "<designation> FSCL" for FSCL, "NFL <designation>" for the rest,
+    and the bare abbreviation for whichever types take no designation
+    or whose own field was left blank. trim() collapses the separating
+    space away in that blank case rather than leaving "NFL " with a
+    trailing gap the mask would then cut a hole for.
+    """
+
+    abbreviation = _LINE_LABEL_ABBREVIATIONS[measure_type]
+
+    if measure_type in _UNDESIGNATED_TYPES:
+        return f"'{abbreviation}'"
+
+    designation = "upper(coalesce(\"unique_designation\",''))"
+
+    if measure_type in _DESIGNATION_PREFIXED_TYPES:
+        return f"trim({designation} || ' {abbreviation}')"
+
+    return f"trim('{abbreviation} ' || {designation})"
+
+
 _LINE_DESIGNATION_LABEL_EXPRESSION = "CASE " + " ".join(
-    f"WHEN \"measure_type\" = '{measure_type}' THEN '{character}'"
-    for measure_type, character in _CENTRED_LABEL_CHARACTERS.items()
+    f"WHEN \"measure_type\" = '{measure_type}' THEN "
+    + _line_label_expression(measure_type)
+    for measure_type in _LINE_LABEL_ABBREVIATIONS
 ) + " ELSE '' END"
 
+# Which types put that label at BOTH ENDS rather than once in the
+# middle - the template pictures again: FSCL/NFL/BCL/RFL all draw it
+# twice, once near each of PT1 and PT2, while CFL and MFP each draw it
+# once at the centre (MFP's own Note 1 says so in as many words:
+# "'MFP' shall be displayed once at the approximate center").
+_END_LABELLED_TYPES = ("fscl", "nfl", "bcl", "rfl")
 
-def _end_labelled_line_symbol(character):
+_CENTRE_LABELLED_TYPES = ("cfl", "mfp")
+
+
+def _measure_type_filter(measure_types):
+
+    return " OR ".join(
+        f"\"measure_type\" = '{measure_type}'"
+        for measure_type in measure_types
+    )
+
+
+# Stable ids so every one of these lines can have its own label cut a
+# real gap in it. Masking is configured layer-wide against a LIST, so a
+# type whose id is missing here would keep drawing through its own text.
+_FSCL_FAMILY_SYMBOL_LAYER_ID = "fscl_family_line"
+_CFL_SYMBOL_LAYER_ID = "cfl_line"
+_MFP_SYMBOL_LAYER_ID = "mfp_line"
+
+_MASKED_LINE_SYMBOL_LAYER_IDS = [
+    _FSCL_FAMILY_SYMBOL_LAYER_ID,
+    _CFL_SYMBOL_LAYER_ID,
+    _MFP_SYMBOL_LAYER_ID,
+]
+
+
+def _end_labelled_line_symbol():
+
+    """
+    FSCL/NFL/BCL/RFL. Until 2026-08-12 this appended a fixed-character
+    font marker at each end via _end_label_layer() - which could only
+    ever draw the bare abbreviation, since a marker's character is
+    fixed at build time and cannot read the feature's own fields. The
+    text now comes from a pair of real PAL labels instead (see
+    _configure_lines_labeling()), so the designation can ride along
+    with it; this builds the plain line only.
+    """
 
     line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setId(
+        _FSCL_FAMILY_SYMBOL_LAYER_ID
+    )
 
     line_layer.setColor(
         QColor(0, 0, 0)
@@ -154,21 +251,16 @@ def _end_labelled_line_symbol(character):
         line_layer
     )
 
-    for placement in (
-        Qgis.MarkerLinePlacement.FirstVertex,
-        Qgis.MarkerLinePlacement.LastVertex,
-    ):
-
-        symbol.appendSymbolLayer(
-            _end_label_layer(placement, character)
-        )
-
     return symbol
 
 
 def _mfp_symbol():
 
     line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setId(
+        _MFP_SYMBOL_LAYER_ID
+    )
 
     line_layer.setColor(
         QColor(0, 0, 0)
@@ -207,6 +299,10 @@ def _cfl_symbol():
 
     line_layer = QgsSimpleLineSymbolLayer()
 
+    line_layer.setId(
+        _CFL_SYMBOL_LAYER_ID
+    )
+
     line_layer.setColor(
         QColor(0, 0, 0)
     )
@@ -235,11 +331,11 @@ def _cfl_symbol():
 
 
 _LINE_SYMBOL_BUILDERS = {
-    "fscl": lambda: _end_labelled_line_symbol("FSCL"),
+    "fscl": _end_labelled_line_symbol,
     "cfl": _cfl_symbol,
-    "nfl": lambda: _end_labelled_line_symbol("NFL"),
-    "bcl": lambda: _end_labelled_line_symbol("BCL"),
-    "rfl": lambda: _end_labelled_line_symbol("RFL"),
+    "nfl": _end_labelled_line_symbol,
+    "bcl": _end_labelled_line_symbol,
+    "rfl": _end_labelled_line_symbol,
     "mfp": _mfp_symbol,
 }
 
@@ -320,6 +416,122 @@ _AREA_SYMBOL_BUILDERS = {
 }
 
 
+def _configure_lines_labeling(layer):
+
+    """
+    Table H-XVI's own lines don't all label the same way, so this
+    builds a QgsRuleBasedLabeling tree rather than one shared
+    QgsPalLayerSettings. Reworked 2026-08-12 from the maintainer's own
+    live testing of the whole family.
+
+    - **FSCL/NFL/BCL/RFL carry their label at BOTH ENDS**, each one
+      including the feature's own unique designation - "MND(S) FSCL",
+      "NFL II CORPS", "BCL III MEF". Two rules, one anchored on
+      `start_point($geometry)` and one on `end_point($geometry)`, both
+      OverPoint with the Above quadrant so the text sits clear of the
+      line exactly as the template draws it. They are ALSO masked, so
+      the line still breaks around the glyphs on any geometry where
+      "above" and "clear of the line" aren't the same thing (a
+      near-vertical bearing, say) - "not overlapping line" is the
+      requirement, and the quadrant alone doesn't guarantee it.
+
+      This replaced a pair of fixed-character font markers. Those could
+      only ever draw the bare abbreviation: a marker's character is set
+      when the symbol is built and cannot read the feature's fields, so
+      there was nowhere for a per-feature designation to come from.
+
+    - **CFL labels once at the CENTRE, above the line** - its own draw
+      rules say "the line information will be posted once at the center
+      of the line". Line placement with the AboveLine flag.
+
+    - **MFP labels once at the centre too**, but stays ON the line
+      where it already was (its own template draws it interrupting the
+      line) - the only change it needed was the mask, so the line stops
+      striking through the text.
+
+    Every rule declares the SAME masked-id list. Masking is configured
+    per QGIS layer rather than per rule, and rules declaring different
+    lists make QGIS log "Different sets of symbol layers are masked by
+    different sources! Only one (arbitrary) set will be retained!" and
+    silently keep just one of them.
+    """
+
+    rules = []
+
+    # AboveRight at the start and AboveLeft at the end, rather than a
+    # plain Above at both: Above centres the text ON the end vertex, so
+    # half of a long designation like "MND(S) FSCL" hangs off past the
+    # end of the line entirely (confirmed by render). These two push it
+    # INWARD from each end instead, which is where the template draws
+    # it.
+    for anchor, quadrant in (
+        ("start_point($geometry)", Qgis.LabelQuadrantPosition.AboveRight),
+        ("end_point($geometry)", Qgis.LabelQuadrantPosition.AboveLeft),
+    ):
+
+        rule = QgsRuleBasedLabeling.Rule(
+            _build_pal_layer_settings(
+                layer,
+                Qgis.LabelPlacement.OverPoint,
+                _LINE_DESIGNATION_LABEL_EXPRESSION,
+                masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS,
+                label_geometry_expression=anchor,
+                quadrant=quadrant
+            )
+        )
+
+        rule.setFilterExpression(
+            _measure_type_filter(_END_LABELLED_TYPES)
+        )
+
+        rules.append(rule)
+
+    cfl_rule = QgsRuleBasedLabeling.Rule(
+        _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.Line,
+            _LINE_DESIGNATION_LABEL_EXPRESSION,
+            masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS,
+            line_placement_flags=Qgis.LabelLinePlacementFlag.AboveLine
+        )
+    )
+
+    cfl_rule.setFilterExpression(
+        _measure_type_filter(("cfl",))
+    )
+
+    rules.append(cfl_rule)
+
+    mfp_rule = QgsRuleBasedLabeling.Rule(
+        _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.Line,
+            _LINE_DESIGNATION_LABEL_EXPRESSION,
+            masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS
+        )
+    )
+
+    mfp_rule.setFilterExpression(
+        _measure_type_filter(("mfp",))
+    )
+
+    rules.append(mfp_rule)
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    for rule in rules:
+
+        root_rule.appendChild(rule)
+
+    layer.setLabeling(
+        QgsRuleBasedLabeling(root_rule)
+    )
+
+    layer.setLabelsEnabled(
+        True
+    )
+
+
 def create_fire_support_coordination_measures_lines_layer(name=LINES_LAYER_NAME):
 
     """
@@ -340,6 +552,7 @@ def create_fire_support_coordination_measures_lines_layer(name=LINES_LAYER_NAME)
             QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),
         ]
     )
@@ -373,11 +586,7 @@ def create_fire_support_coordination_measures_lines_layer(name=LINES_LAYER_NAME)
         _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
     )
 
-    _configure_designation_labeling(
-        layer,
-        Qgis.LabelPlacement.Line,
-        _LINE_DESIGNATION_LABEL_EXPRESSION
-    )
+    _configure_lines_labeling(layer)
 
     return layer
 

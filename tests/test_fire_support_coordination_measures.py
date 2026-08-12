@@ -82,12 +82,38 @@ class TestCreateFireSupportCoordinationMeasuresLinesLayer(QgisTestCase):
         QgsProject.instance().setCrs(WGS84)
 
 
-    def _evaluate_label(self, layer, measure_type):
+    def _label_rules(self, layer):
+
+        """
+        This layer went from QgsVectorLayerSimpleLabeling to
+        QgsRuleBasedLabeling 2026-08-12, when each measure type's label
+        stopped sharing one placement - so there is no single
+        layer.labeling().settings() any more. Four rules, appended in
+        this order: the two end-anchored ones (start, then end), then
+        CFL, then MFP.
+
+        NOTE a rule's own settings() returns BY VALUE - hold it in its
+        own variable rather than chaining, or the temporary's C++ object
+        can be collected mid-expression and segfault the interpreter.
+        See test_offensive_control_measures.py's own note on the trap.
+        """
+
+        root = layer.labeling().rootRule()
+
+        children = root.children()
+
+        self.assertEqual(len(children), 4)
+
+        return children
+
+
+    def _evaluate_label(self, layer, measure_type, unique_designation=""):
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("measure_type", measure_type)
+        feature.setAttribute("unique_designation", unique_designation)
 
-        settings = layer.labeling().settings()
+        settings = self._label_rules(layer)[0].settings()
 
         expression = QgsExpression(settings.fieldName)
         context = layer.createExpressionContext()
@@ -106,7 +132,13 @@ class TestCreateFireSupportCoordinationMeasuresLinesLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["measure_type", "affiliation", "status", "length_km"]
+            [
+                "measure_type",
+                "affiliation",
+                "status",
+                "unique_designation",
+                "length_km",
+            ]
         )
 
 
@@ -137,43 +169,127 @@ class TestCreateFireSupportCoordinationMeasuresLinesLayer(QgisTestCase):
         )
 
 
-    def test_end_labelled_lines_use_the_expected_fixed_characters(self):
+    def test_line_labels_place_the_designation_per_the_template(self):
 
+        # 2026-08-12, from the maintainer's own live testing. FSCL puts
+        # the designation FIRST - its template reads "[T] FSCL" and its
+        # example "MND(S) FSCL" - while NFL/BCL/RFL/CFL all put it LAST
+        # ("NFL [T]", example "NFL II CORPS"). MFP has no Field T box in
+        # its template at all. Getting these backwards is invisible
+        # until someone reads the map, so each is pinned separately.
         layer = create_fire_support_coordination_measures_lines_layer()
 
         cases = {
-            "fscl": "FSCL",
-            "nfl": "NFL",
-            "bcl": "BCL",
-            "rfl": "RFL",
+            "fscl": "MND(S) FSCL",
+            "nfl": "NFL II CORPS",
+            "bcl": "BCL III MEF",
+            "rfl": "RFL II CORPS",
+            "cfl": "CFL 52ID (M)",
+            "mfp": "MFP",
         }
 
-        for measure_type, character in cases.items():
+        designations = {
+            "fscl": "MND(S)",
+            "nfl": "II CORPS",
+            "bcl": "III MEF",
+            "rfl": "II CORPS",
+            "cfl": "52ID (M)",
+            "mfp": "IGNORED",
+        }
+
+        for measure_type, expected in cases.items():
 
             with self.subTest(measure_type=measure_type):
 
-                symbol = _rule_symbol_for(layer, measure_type)
-
-                self.assertEqual(symbol.symbolLayerCount(), 3)
-
-                for i in (1, 2):
-
-                    label_layer = symbol.symbolLayer(i)
-
-                    self.assertIsInstance(label_layer, QgsMarkerLineSymbolLayer)
-
-                    font_layer = label_layer.subSymbol().symbolLayer(0)
-
-                    self.assertEqual(font_layer.character(), character)
+                self.assertEqual(
+                    self._evaluate_label(
+                        layer, measure_type, designations[measure_type]
+                    ),
+                    expected
+                )
 
 
-    def test_centred_labelled_lines_use_the_expected_labels(self):
+    def test_a_blank_designation_leaves_no_trailing_space(self):
+
+        # trim() in _line_label_expression(): without it a blank field
+        # gives "NFL " / " FSCL", and the mask would then cut a hole in
+        # the line for the trailing space.
+        layer = create_fire_support_coordination_measures_lines_layer()
+
+        for measure_type, expected in (
+            ("fscl", "FSCL"),
+            ("nfl", "NFL"),
+            ("bcl", "BCL"),
+            ("rfl", "RFL"),
+            ("cfl", "CFL"),
+        ):
+
+            with self.subTest(measure_type=measure_type):
+
+                self.assertEqual(
+                    self._evaluate_label(layer, measure_type),
+                    expected
+                )
+
+
+    def test_designations_are_upper_cased_per_h_5_4(self):
 
         layer = create_fire_support_coordination_measures_lines_layer()
 
-        cases = {"cfl": "CFL", "mfp": "MFP"}
+        self.assertEqual(
+            self._evaluate_label(layer, "nfl", "ii corps"),
+            "NFL II CORPS"
+        )
 
-        for measure_type, expected in cases.items():
+
+    def test_end_labelled_lines_label_both_ends_clear_of_the_line(self):
+
+        # These four used to draw their abbreviation as a pair of fixed-
+        # character font markers, which could never carry a per-feature
+        # designation (a marker's character is fixed at build time). They
+        # are real PAL labels now: one anchored on the line's own start
+        # vertex, one on its end. AboveRight/AboveLeft rather than a
+        # plain Above at both, so a long designation is pushed INWARD
+        # from each end instead of hanging off past it.
+        layer = create_fire_support_coordination_measures_lines_layer()
+
+        start_rule, end_rule = self._label_rules(layer)[:2]
+
+        expected_filter = (
+            '"measure_type" = \'fscl\' OR "measure_type" = \'nfl\''
+            ' OR "measure_type" = \'bcl\' OR "measure_type" = \'rfl\''
+        )
+
+        for rule in (start_rule, end_rule):
+
+            self.assertEqual(rule.filterExpression(), expected_filter)
+
+        start_settings = start_rule.settings()
+
+        self.assertEqual(
+            start_settings.placement, Qgis.LabelPlacement.OverPoint
+        )
+        self.assertTrue(start_settings.geometryGeneratorEnabled)
+        self.assertEqual(
+            start_settings.geometryGenerator, "start_point($geometry)"
+        )
+        self.assertEqual(
+            start_settings.quadOffset,
+            Qgis.LabelQuadrantPosition.AboveRight
+        )
+
+        end_settings = end_rule.settings()
+
+        self.assertEqual(
+            end_settings.geometryGenerator, "end_point($geometry)"
+        )
+        self.assertEqual(
+            end_settings.quadOffset,
+            Qgis.LabelQuadrantPosition.AboveLeft
+        )
+
+        # The old font-marker pair is gone - a plain line, nothing else.
+        for measure_type in ("fscl", "nfl", "bcl", "rfl"):
 
             with self.subTest(measure_type=measure_type):
 
@@ -181,10 +297,74 @@ class TestCreateFireSupportCoordinationMeasuresLinesLayer(QgisTestCase):
 
                 self.assertEqual(symbol.symbolLayerCount(), 1)
 
-                self.assertEqual(
-                    self._evaluate_label(layer, measure_type),
-                    expected
+
+    def test_cfl_sits_above_the_centre_and_mfp_stays_on_the_line(self):
+
+        # CFL's own draw rules: "the line information will be posted
+        # once at the center of the line" - and the maintainer asked for
+        # it above the line specifically. MFP was already placed
+        # correctly and only needed the mask, so it keeps the shared
+        # OnLine default its template draws.
+        layer = create_fire_support_coordination_measures_lines_layer()
+
+        cfl_rule, mfp_rule = self._label_rules(layer)[2:]
+
+        self.assertEqual(cfl_rule.filterExpression(), '"measure_type" = \'cfl\'')
+        self.assertEqual(mfp_rule.filterExpression(), '"measure_type" = \'mfp\'')
+
+        cfl_settings = cfl_rule.settings()
+
+        self.assertEqual(cfl_settings.placement, Qgis.LabelPlacement.Line)
+        self.assertEqual(
+            cfl_settings.lineSettings().placementFlags(),
+            Qgis.LabelLinePlacementFlag.AboveLine
+        )
+
+        mfp_settings = mfp_rule.settings()
+
+        self.assertEqual(mfp_settings.placement, Qgis.LabelPlacement.Line)
+        self.assertEqual(
+            mfp_settings.lineSettings().placementFlags(),
+            Qgis.LabelLinePlacementFlag.OnLine
+        )
+
+
+    def test_every_line_label_masks_its_own_line(self):
+
+        # "not overlapping line" for the end-labelled four, and the
+        # maintainer's only ask for MFP ("needs to be masked so that
+        # line is not overlapping it"). All four rules must declare the
+        # SAME list - masking is per QGIS layer, and differing lists
+        # make QGIS keep one arbitrarily and log a warning.
+        layer = create_fire_support_coordination_measures_lines_layer()
+
+        declared = []
+
+        for rule in self._label_rules(layer):
+
+            settings = rule.settings()
+
+            text_format = settings.format()
+
+            mask = text_format.mask()
+
+            self.assertTrue(mask.enabled())
+
+            declared.append(
+                sorted(
+                    reference.symbolLayerIdV2()
+                    for reference in mask.maskedSymbolLayers()
                 )
+            )
+
+        self.assertEqual(
+            declared[0],
+            ["cfl_line", "fscl_family_line", "mfp_line"]
+        )
+
+        for other in declared[1:]:
+
+            self.assertEqual(other, declared[0])
 
 
     def test_cfl_is_always_dashed(self):

@@ -1072,11 +1072,25 @@ Airspace Control Measures' own Weapons Free Zone — **Restricted Fire
 Area (RFA)**, **Position Area For Artillery (PAA)** (Rectangle/Circle
 only, no Irregular variant in the standard's own table).
 
-**Lines** offers 6 types. Four repeat their abbreviation at both ends —
+**Lines** offers 6 types. Four repeat their label at both ends —
 **Fire Support Coordination Line (FSCL)**, **No Fire Line (NFL)**,
 **Battlefield Coordination Line (BCL)**, **Restrictive Fire Line
-(RFL)**. Two show a single label centred along the line instead —
-**Coordinated Fire Line (CFL)** and **Munition Flight Path (MFP)**.
+(RFL)**. Two show a single label instead — **Coordinated Fire Line
+(CFL)**, above the centre of its line, and **Munition Flight Path
+(MFP)**, on the line at its centre (its own note: "'MFP' shall be
+displayed once at the approximate center").
+
+Every one of those labels takes the feature's optional **unique
+designation**, and where it goes relative to the abbreviation follows
+the standard per type: FSCL puts it **first** ("MND(S) FSCL"), while
+NFL, BCL, RFL and CFL put it **last** ("NFL II CORPS", "BCL III MEF",
+"CFL 52ID (M)"). MFP has no designation box in the standard and ignores
+the field. Leave the field blank and you get the bare abbreviation.
+
+All of these labels **mask the line**, so it breaks cleanly around the
+text rather than striking through it, and the both-ends labels sit
+above the line and inboard from each end rather than overhanging it.
+
 **CFL is also always drawn dashed**, a fixed property of the code
 itself (not a present/planned distinction) — its own template and
 example both show it dashed with no solid variant.

@@ -5328,6 +5328,56 @@ tested, not claimed as done here.
 
   780 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XVI (Fire Support Coordination Measures) lines
+  reviewed.** Four points from the maintainer's own live testing, all
+  on labelling. Every one is confirmed against the table's own template
+  pictures (printed pages 521-523) as well as the report.
+
+  - **Every line label now carries the feature's unique designation**,
+    and WHERE it goes is per-type, read off each template rather than
+    assumed uniform: FSCL draws "[T] FSCL" with the designation FIRST
+    (its own example, "MND(S) FSCL"), while NFL/BCL/RFL/CFL all draw
+    "NFL [T]" with it LAST ("NFL II CORPS", "BCL III MEF", "CFL 52ID
+    (M)"). MFP has no Field T box at all. Getting prefix and suffix
+    backwards is invisible until someone reads the map, so each is
+    pinned by its own test.
+
+    A blank designation collapses to the bare abbreviation via trim() -
+    without it "NFL " keeps a trailing space and the mask cuts a hole in
+    the line for it.
+
+  - **FSCL/NFL/BCL/RFL label BOTH ENDS, above the line and inboard.**
+    This is what forced the rework: they had been a pair of fixed-
+    character font markers via _end_label_layer(), and **a marker's
+    character is set when the symbol is built and cannot read the
+    feature's own fields** - so there was nowhere for a per-feature
+    designation to come from. They are two real PAL rules now, anchored
+    on `start_point($geometry)` and `end_point($geometry)`.
+
+    AboveRight at the start and AboveLeft at the end, not a plain Above
+    at both: Above centres the text ON the end vertex, which left half
+    of "MND(S) FSCL" hanging off past the end of the line entirely
+    (caught by render, not by reading the code).
+
+  - **CFL labels once above the centre** - its own draw rules say "the
+    line information will be posted once at the center of the line", and
+    the maintainer asked for above specifically. Line placement with the
+    AboveLine flag.
+
+  - **MFP was already placed correctly and only needed the mask**, so it
+    keeps the OnLine default its own template draws.
+
+  All four rules mask the line, and all four declare the SAME masked-id
+  list - masking is per QGIS layer, not per rule, so differing lists
+  make QGIS keep one arbitrarily and log a warning. All three line
+  symbol builders needed a stable setId() for this.
+
+  The layer moved from QgsVectorLayerSimpleLabeling to
+  QgsRuleBasedLabeling, since the six types no longer share one
+  placement.
+
+  784 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---
