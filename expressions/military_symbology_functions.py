@@ -554,47 +554,34 @@ def _serrated_ring_points(ring_points, tooth_count, outward=True):
 
 
 # The repeating glyphs of Table H-XIX's own wire-obstacle family
-# (290301-290309), drawn as paths in a 100x100 box so a marker line can
-# repeat them at a fixed millimetre size.
+# (290301-290309). Only TWO shapes exist across all nine - a cross and
+# an oval - which is the maintainer's own reading of the manual:
+# every measure type is "a series of Xs" or "a series of 0s", varying
+# only in the spacing and in which straight lines run through them.
 #
-# Inline SVG rather than QgsFontMarkerSymbolLayer: the glyphs are an X,
-# a six-pointed asterisk and a loop, and a font marker would tie all
-# three to whatever glyphs the host machine's fonts happen to contain -
-# on a standard this project renders against template pictures, that is
-# not good enough. Same technique as mct_decoy_chevron_svg().
-_WIRE_GLYPH_PATHS = {
-    # A plain cross - Unspecified Wire Obstacle and Low Wire Fence.
-    "cross": ["M 18,18 L 82,82", "M 82,18 L 18,82"],
-    # Six-pointed asterisk - the fence family's own barb.
-    "star": ["M 18,18 L 82,82", "M 82,18 L 18,82", "M 50,10 L 50,90"],
-    # Two barbs side by side - Double Fence.
-    "double_star": [
-        "M 4,22 L 44,78", "M 44,22 L 4,78", "M 24,14 L 24,86",
-        "M 56,22 L 96,78", "M 96,22 L 56,78", "M 76,14 L 76,86",
-    ],
-    # A single loop of wire - Single Concertina and High Wire Fence.
-    "loop": ["M 50,88 C 12,88 12,12 50,12 C 88,12 88,88 50,88 Z"],
-    # Double Apron Fence: a barb with a stay running out to each side,
-    # which is what the "apron" is - distinct from the plain Single
-    # Fence barb it was first (wrongly) sharing.
-    "apron_star": [
-        "M 26,26 L 74,74", "M 74,26 L 26,74", "M 50,16 L 50,84",
-        "M 50,50 L 8,88", "M 50,50 L 92,88",
-    ],
-    # Triple Strand Concertina draws squared-off loops in its own
-    # template, not the round ones its single-strand sibling uses.
-    "square_loop": ["M 20,86 L 20,14 L 80,14 L 80,86 Z"],
-}
-
-_WIRE_GLYPH_ROWS = {
-    "double_loop": 2,
-    "triple_loop": 3,
-}
-
-# Which base shape each stacked kind repeats.
-_WIRE_GLYPH_STACK_BASE = {
-    "double_loop": "loop",
-    "triple_loop": "square_loop",
+# Inline SVG rather than QgsFontMarkerSymbolLayer: a font marker would
+# tie the shapes to whatever glyphs the host machine's fonts happen to
+# contain, on a standard this project renders against template
+# pictures.
+#
+# "double_cross" is one marker holding TWO crosses, because Double
+# Fence spaces the pair (0.5 of a cross width) differently from the gap
+# between pairs (3 widths) - a marker line has only one interval, so
+# the pair has to be a single glyph. Its viewBox is 250 wide against
+# the others' 100, so the caller sizes it 2.5x to keep each cross the
+# same size as its siblings'.
+_WIRE_GLYPH_GEOMETRY = {
+    "cross": (100, ["M 16,16 L 84,84", "M 84,16 L 16,84"]),
+    "double_cross": (
+        250,
+        [
+            "M 16,16 L 84,84", "M 84,16 L 16,84",
+            "M 166,16 L 234,84", "M 234,16 L 166,84",
+        ],
+    ),
+    # An OVAL, not a circle - the maintainer was explicit that the
+    # concertina glyph is a "0" rather than an "O".
+    "oval": (100, ["M 50,12 C 22,12 22,88 50,88 C 78,88 78,12 50,12 Z"]),
 }
 
 
@@ -606,51 +593,31 @@ def mct_wire_glyph_svg(values, feature=None, parent=None):
 
     """
     One wire-obstacle glyph as an inline "base64:<...>" SVG path.
-
-    `kind` picks the shape (see _WIRE_GLYPH_PATHS, plus "double_loop"
-    and "triple_loop", which stack the loop 2 or 3 times for the
-    multi-strand concertinas). `colour` is the obstacle's own green or
-    black.
+    `kind` is a key of _WIRE_GLYPH_GEOMETRY; `colour` is the obstacle's
+    own green or black.
     """
 
     kind = str(values[0]) if values else "cross"
     colour = str(values[1]) if len(values) > 1 and values[1] else "rgb(0,155,0)"
 
-    rows = _WIRE_GLYPH_ROWS.get(kind, 1)
+    geometry = _WIRE_GLYPH_GEOMETRY.get(kind)
 
-    base_kind = _WIRE_GLYPH_STACK_BASE.get(kind, kind)
-
-    paths = _WIRE_GLYPH_PATHS.get(base_kind)
-
-    if paths is None:
+    if geometry is None:
         return ""
 
-    height = 100 * rows
+    width, paths = geometry
 
-    drawn = []
-
-    for row in range(rows):
-
-        offset = row * 100
-
-        drawn.append(
-            '<g transform="translate(0,{})">{}</g>'.format(
-                offset,
-                "".join(
-                    '<path d="{}" fill="none" stroke="{}"'
-                    ' stroke-width="11" stroke-linecap="round"/>'.format(
-                        path, colour
-                    )
-                    for path in paths
-                )
-            )
-        )
+    body = "".join(
+        '<path d="{}" fill="none" stroke="{}" stroke-width="11"'
+        ' stroke-linecap="round"/>'.format(path, colour)
+        for path in paths
+    )
 
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg"'
-        ' viewBox="0 0 100 {height}" width="100" height="{height}">'
+        ' viewBox="0 0 {width} 100" width="{width}" height="100">'
         "{body}</svg>"
-    ).format(height=height, body="".join(drawn))
+    ).format(width=width, body=body)
 
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 

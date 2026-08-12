@@ -160,6 +160,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
+from collections import namedtuple
+
 from qgis.PyQt.QtCore import QMetaType, QPointF, Qt
 from qgis.PyQt.QtGui import QColor
 
@@ -2369,121 +2371,174 @@ WIRE_MEASURE_TYPE_CODES = {
     "triple_strand_concertina": "290309",
 }
 
-# All nine are one construction - a line carrying a repeating glyph -
-# so they share ONE symbol, with the glyph and the line chosen by
-# expression rather than nine near-identical symbol builders.
-_WIRE_GLYPH_KINDS = {
-    "unspecified_wire_obstacle": "cross",
-    "single_fence": "star",
-    "double_fence": "double_star",
-    "double_apron_fence": "apron_star",
-    "low_wire_fence": "cross",
-    "high_wire_fence": "loop",
-    "single_concertina": "loop",
-    "double_strand_concertina": "double_loop",
-    "triple_strand_concertina": "triple_loop",
+# The maintainer's own reading of the manual, which is far simpler
+# than the first build assumed. Every one of the nine is "a series of
+# Xs" (or of 0s), and they differ ONLY in three things:
+#
+#   glyph    - a cross, a pair of crosses, or an oval
+#   gap      - the space between glyphs, in multiples of a glyph width
+#   lines    - which straight lines run through the series, given as
+#              offsets in half-glyph-heights: 0 is through the middle,
+#              +1 along the bottom of the glyphs, -1 along their top
+#
+# The first build guessed at nine separate shapes from the template
+# pictures and got several wrong. This table is the maintainer's own
+# description, transcribed, and is the single source of truth for all
+# nine symbols.
+_WireSpec = namedtuple("_WireSpec", "glyph gap lines")
+
+_WIRE_SPECS = {
+    # A series of crosses, nothing else.
+    "unspecified_wire_obstacle": _WireSpec("cross", 1.5, ()),
+    # Widely spaced crosses with a line through their middle.
+    "single_fence": _WireSpec("cross", 4.0, (0,)),
+    # Pairs of crosses - 0.5 apart within a pair, 3 between pairs -
+    # with a line through the middle. The gap here is between PAIRS;
+    # the 0.5 inside a pair is baked into the double_cross glyph.
+    "double_fence": _WireSpec("double_cross", 3.0, (0,)),
+    # The unspecified series, with a line through it.
+    "double_apron_fence": _WireSpec("cross", 1.5, (0,)),
+    # The unspecified series sitting ON a line.
+    "low_wire_fence": _WireSpec("cross", 1.5, (1,)),
+    # The unspecified series between two lines.
+    "high_wire_fence": _WireSpec("cross", 1.5, (-1, 1)),
+    # Low Wire Fence with ovals instead of crosses.
+    "single_concertina": _WireSpec("oval", 1.5, (1,)),
+    # ...plus a second line through the middle of the ovals.
+    "double_strand_concertina": _WireSpec("oval", 1.5, (0, 1)),
+    # High Wire Fence with ovals instead of crosses.
+    "triple_strand_concertina": _WireSpec("oval", 1.5, (-1, 1)),
 }
 
-# Single Concertina hangs its loops ABOVE the line; High Wire Fence
-# centres the same loop ON it. That offset is the only thing
-# distinguishing the two in the standard's own templates - they were
-# identical until a render put them side by side.
-_WIRE_TYPES_WITH_RAISED_GLYPH = ("single_concertina",)
-
-# Unspecified Wire Obstacle draws its crosses with NO line between
-# them - read off its own template, where the other eight all carry a
-# drawn line.
-_WIRE_TYPES_WITHOUT_A_LINE = ("unspecified_wire_obstacle",)
-
+# The width (and height) of a single cross or oval.
 _WIRE_GLYPH_SIZE_MM = 3.0
-_WIRE_GLYPH_INTERVAL_MM = 4.6
+
+# double_cross is one marker holding two crosses in a 250-wide viewBox,
+# and QGIS sizes an SVG marker by its WIDTH - so it is drawn 2.5x to
+# keep each cross the same size as every other glyph here.
+_WIRE_GLYPH_WIDTH_MULTIPLIERS = {"double_cross": 2.5}
+
+# How much of each end of the line the glyphs leave clear.
+_WIRE_END_TRIM = 0.04
 
 
-def _wire_glyph_expression():
-
-    cases = " ".join(
-        f"WHEN \"measure_type\" = '{measure_type}' THEN '{kind}'"
-        for measure_type, kind in _WIRE_GLYPH_KINDS.items()
-    )
-
-    return (
-        "mct_wire_glyph_svg(CASE " + cases + " ELSE 'cross' END, "
-        + _POINT_MONO_COLOR_EXPRESSION + ")"
-    )
-
-
-def _wire_obstacle_symbol():
+def _wire_obstacle_symbol(measure_type):
 
     """
-    Every wire obstacle in one symbol: a status-driven line with a
-    repeating glyph riding it.
+    One wire obstacle, built from its own _WireSpec.
 
-    The glyph is an SVG marker whose path is data-defined, so nine
-    measure types share one symbol rather than nine builders that would
-    drift apart - the same reasoning as the mine-type field in B3.
+    A symbol per measure type rather than one shared symbol: the number
+    of straight lines genuinely varies (none, one, or two), and that is
+    a different set of symbol layers, not a different expression.
     """
 
-    line_layer = QgsSimpleLineSymbolLayer()
+    spec = _WIRE_SPECS[measure_type]
 
-    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+    width_multiplier = _WIRE_GLYPH_WIDTH_MULTIPLIERS.get(spec.glyph, 1.0)
 
-    _apply_obstacle_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor],
-        _AREA_OUTLINE_COLOR_EXPRESSION
-    )
+    glyph_width_mm = _WIRE_GLYPH_SIZE_MM * width_multiplier
 
-    no_line = " OR ".join(
-        f"\"measure_type\" = '{t}'" for t in _WIRE_TYPES_WITHOUT_A_LINE
-    )
+    symbol = QgsLineSymbol()
 
-    line_layer.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(
-            f"CASE WHEN {no_line} THEN 'no'"
-            f" ELSE {_STATUS_LINE_STYLE_EXPRESSION} END"
+    first = True
+
+    for line_offset in spec.lines:
+
+        line_layer = QgsSimpleLineSymbolLayer()
+
+        line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+        # Offsets are in half-glyph-heights, so +1 puts the line along
+        # the bottom of the glyphs and -1 along their top.
+        line_layer.setOffset(line_offset * _WIRE_GLYPH_SIZE_MM * 0.5)
+        line_layer.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+        _apply_obstacle_color(
+            line_layer,
+            [QgsSymbolLayer.Property.StrokeColor],
+            _AREA_OUTLINE_COLOR_EXPRESSION
         )
-    )
+
+        line_layer.setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeStyle,
+            QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+        )
+
+        if first:
+            symbol.changeSymbolLayer(0, line_layer)
+            first = False
+        else:
+            symbol.appendSymbolLayer(line_layer)
 
     glyph = QgsSvgMarkerSymbolLayer("")
 
-    glyph.setSize(_WIRE_GLYPH_SIZE_MM)
+    glyph.setSize(glyph_width_mm)
 
     glyph.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
-        QgsProperty.fromExpression(_wire_glyph_expression())
-    )
-
-    raised = " OR ".join(
-        f"\"measure_type\" = '{t}'" for t in _WIRE_TYPES_WITH_RAISED_GLYPH
-    )
-
-    glyph.setDataDefinedProperty(
-        QgsSymbolLayer.Property.Offset,
         QgsProperty.fromExpression(
-            f"CASE WHEN {raised}"
-            f" THEN format('0,%1', {-_WIRE_GLYPH_SIZE_MM * 0.5})"
-            " ELSE '0,0' END"
+            f"mct_wire_glyph_svg('{spec.glyph}', "
+            + _POINT_MONO_COLOR_EXPRESSION + ")"
         )
     )
 
     marker_line = QgsMarkerLineSymbolLayer()
 
-    marker_line.setInterval(_WIRE_GLYPH_INTERVAL_MM)
+    # Centre-to-centre: one glyph width plus the gap the manual gives.
+    interval_mm = glyph_width_mm + spec.gap * _WIRE_GLYPH_SIZE_MM
+
+    marker_line.setInterval(interval_mm)
+
+    marker_line.setIntervalUnit(Qgis.RenderUnit.Millimeters)
 
     marker_line.setSubSymbol(QgsMarkerSymbol([glyph]))
 
-    symbol = QgsLineSymbol()
+    # The glyphs run along a TRIMMED copy of the line while the
+    # straight lines above are drawn on the full geometry, so the line
+    # always extends beyond the first and last glyph - the maintainer's
+    # own note, "the line should always be longer or extend beyond the
+    # Xs or 0s".
+    #
+    # offsetAlongLine was tried first and is not enough: it insets the
+    # FIRST glyph only, and a render showed Single Fence still ending
+    # flush, because markers land at fixed intervals from the start and
+    # the last one can fall exactly on the final vertex. Trimming the
+    # geometry bounds both ends by construction.
+    #
+    # The trim is a fraction of the line's own length rather than a
+    # millimetre distance, because line_substring() works in layer
+    # units - so it stays proportionate at any scale.
+    trimmed = QgsGeometryGeneratorSymbolLayer.create({})
 
-    symbol.changeSymbolLayer(0, line_layer)
+    trimmed.setSymbolType(QgsSymbol.SymbolType.Line)
 
-    symbol.appendSymbolLayer(marker_line)
+    trimmed.setGeometryExpression(
+        f"line_substring($geometry, length($geometry) * {_WIRE_END_TRIM},"
+        f" length($geometry) * {1.0 - _WIRE_END_TRIM})"
+    )
+
+    glyph_line_symbol = QgsLineSymbol()
+
+    glyph_line_symbol.changeSymbolLayer(0, marker_line)
+
+    trimmed.setSubSymbol(glyph_line_symbol)
+
+    if first:
+        # Unspecified Wire Obstacle draws no line at all, so the glyph
+        # series IS the symbol rather than an addition to it - and with
+        # no line to overhang them, it keeps the full geometry.
+        trimmed.setGeometryExpression("$geometry")
+        symbol.changeSymbolLayer(0, trimmed)
+    else:
+        symbol.appendSymbolLayer(trimmed)
 
     return symbol
 
 
 _LINE_SYMBOL_BUILDERS = {
-    measure_type: _wire_obstacle_symbol
+    measure_type: (
+        lambda measure_type=measure_type: _wire_obstacle_symbol(measure_type)
+    )
     for measure_type in WIRE_MEASURE_TYPE_LABELS
 }
 

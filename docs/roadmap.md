@@ -6278,6 +6278,43 @@ tested, not claimed as done here.
 
     875 tests passing on both QGIS versions.
 
+- **The wire family, rebuilt from the maintainer's own description**
+  (2026-08-12). The first pass read the nine shapes off the template
+  pictures and got several wrong. The maintainer then wrote out the
+  construction directly, and it is far simpler than that pass assumed:
+  every one of the nine is "a series of Xs" (or of 0s - an OVAL, they
+  were explicit, not a circle), varying only in three things.
+
+  So the module now carries a `_WIRE_SPECS` table with exactly those
+  three axes - glyph, gap between glyphs in glyph-widths, and which
+  straight lines run through the series - transcribed from that
+  description, which is the single source of truth for all nine. Two
+  shapes replace the six the first pass invented.
+
+  A symbol per measure type replaces the earlier one-shared-symbol
+  design, because the NUMBER of straight lines genuinely varies (none,
+  one, or two) and that is a different set of symbol layers rather than
+  a different expression.
+
+  Double Fence's pair is one marker holding two crosses: a marker line
+  has a single interval, and that measure type spaces the pair (0.5 of
+  a width) differently from the gap between pairs (3 widths). Its
+  viewBox is 250 wide against the others' 100, so it is drawn 2.5x -
+  QGIS sizes an SVG marker by WIDTH, the same trap as Pop-Up Point,
+  Fire Support Station and the directional mine.
+
+  **"The line should always be longer or extend beyond the Xs or 0s."**
+  offsetAlongLine was the first attempt and is not enough - it insets
+  the FIRST glyph only, and a render showed Single Fence still ending
+  flush, because markers land at fixed intervals from the start and the
+  last can fall on the final vertex. The glyphs now run along a TRIMMED
+  copy of the line (line_substring) while the straight lines are drawn
+  on the full geometry, which bounds both ends by construction. The
+  trim is a fraction of the line's own length, since line_substring
+  works in layer units.
+
+    879 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

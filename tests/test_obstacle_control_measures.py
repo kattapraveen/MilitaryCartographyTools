@@ -2157,76 +2157,94 @@ class TestWireObstacles(QgisTestCase):
         )
 
 
-    def test_every_wire_type_draws_a_distinguishable_glyph(self):
+    def test_no_two_wire_types_look_alike(self):
 
-        # Two pairs shipped IDENTICAL in the first build - Double Apron
-        # Fence against Single Fence, and High Wire Fence against
-        # Single Concertina - and only a render caught it. This asserts
-        # that no two measure types resolve to the same glyph AND
-        # offset, which is what "distinguishable" actually means here.
+        # Two pairs shipped IDENTICAL in the first build and only a
+        # render caught it. The signature is the whole construction -
+        # glyph, spacing and which lines run through it - because that
+        # is exactly what the manual varies between these nine.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_SPECS,
             WIRE_MEASURE_TYPE_LABELS,
-            create_obstacle_control_measures_lines_layer,
         )
 
-        layer = create_obstacle_control_measures_lines_layer()
+        self.assertEqual(set(_WIRE_SPECS), set(WIRE_MEASURE_TYPE_LABELS))
 
-        seen = {}
+        signatures = {}
 
-        for measure_type in WIRE_MEASURE_TYPE_LABELS:
+        for measure_type, spec in _WIRE_SPECS.items():
 
-            feature = QgsFeature(layer.fields())
-            feature.setAttribute("measure_type", measure_type)
-            feature.setAttribute("colour", GREEN)
-            feature.setAttribute("status", "present")
-
-            context = layer.createExpressionContext()
-            context.setFeature(feature)
-
-            symbol = None
-
-            for rule in layer.renderer().rootRule().children():
-
-                if rule.label() == measure_type:
-                    symbol = rule.symbol()
-                    break
-
-            self.assertIsNotNone(symbol, measure_type)
-
-            marker = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
-
-            properties = marker.dataDefinedProperties()
-
-            glyph, _ = properties.valueAsString(
-                QgsSymbolLayer.Property.Name, context, ""
-            )
-
-            offset, _ = properties.valueAsString(
-                QgsSymbolLayer.Property.Offset, context, ""
-            )
-
-            # The LINE is part of what distinguishes these, not just
-            # the glyph: Unspecified Wire Obstacle and Low Wire Fence
-            # both repeat a cross, and the standard tells them apart by
-            # Unspecified drawing no line at all. An earlier version of
-            # this test omitted the line and failed on that pair - the
-            # test was wrong there, not the symbol.
-            style, _ = symbol.symbolLayer(0).dataDefinedProperties(
-            ).valueAsString(
-                QgsSymbolLayer.Property.StrokeStyle, context, ""
-            )
-
-            signature = (glyph, offset, style)
+            signature = (spec.glyph, spec.gap, tuple(spec.lines))
 
             self.assertNotIn(
-                signature, seen,
-                f"{measure_type} draws the same as {seen.get(signature)}"
+                signature, signatures,
+                f"{measure_type} is identical to {signatures.get(signature)}"
             )
 
-            seen[signature] = measure_type
+            signatures[signature] = measure_type
 
 
-    def test_only_the_unspecified_obstacle_omits_its_line(self):
+    def test_the_specs_match_the_manual_as_the_maintainer_read_it(self):
+
+        # Transcribed from the maintainer's own description, which is
+        # the source of truth for these nine - the first build guessed
+        # the shapes from the template pictures and got several wrong.
+        #
+        # Lines are offsets in half-glyph-heights: 0 through the middle,
+        # +1 along the bottom, -1 along the top.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_SPECS,
+        )
+
+        expected = {
+            "unspecified_wire_obstacle": ("cross", 1.5, ()),
+            "single_fence": ("cross", 4.0, (0,)),
+            "double_fence": ("double_cross", 3.0, (0,)),
+            "double_apron_fence": ("cross", 1.5, (0,)),
+            "low_wire_fence": ("cross", 1.5, (1,)),
+            "high_wire_fence": ("cross", 1.5, (-1, 1)),
+            "single_concertina": ("oval", 1.5, (1,)),
+            "double_strand_concertina": ("oval", 1.5, (0, 1)),
+            "triple_strand_concertina": ("oval", 1.5, (-1, 1)),
+        }
+
+        self.assertEqual(
+            {
+                name: (spec.glyph, spec.gap, tuple(spec.lines))
+                for name, spec in _WIRE_SPECS.items()
+            },
+            expected
+        )
+
+
+    def test_only_the_unspecified_obstacle_draws_no_line(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_SPECS,
+        )
+
+        without_lines = {
+            name for name, spec in _WIRE_SPECS.items() if not spec.lines
+        }
+
+        self.assertEqual(without_lines, {"unspecified_wire_obstacle"})
+
+
+    def test_the_paired_glyph_is_drawn_wide_enough_to_stay_square(self):
+
+        # QGIS sizes an SVG marker by WIDTH, and double_cross holds two
+        # crosses in a 250-wide viewBox - so without the 2.5 multiplier
+        # each of its crosses would render at 40% of its siblings'.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_GLYPH_WIDTH_MULTIPLIERS,
+        )
+
+        self.assertEqual(
+            _WIRE_GLYPH_WIDTH_MULTIPLIERS.get("double_cross"), 2.5
+        )
+
+
+    def test_every_wire_symbol_builds(self):
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             WIRE_MEASURE_TYPE_LABELS,
@@ -2235,29 +2253,51 @@ class TestWireObstacles(QgisTestCase):
 
         layer = create_obstacle_control_measures_lines_layer()
 
-        for measure_type in WIRE_MEASURE_TYPE_LABELS:
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
 
-            feature = QgsFeature(layer.fields())
-            feature.setAttribute("measure_type", measure_type)
-            feature.setAttribute("status", "present")
+        self.assertEqual(labels, set(WIRE_MEASURE_TYPE_LABELS))
 
-            context = layer.createExpressionContext()
-            context.setFeature(feature)
 
-            for rule in layer.renderer().rootRule().children():
+    def test_the_line_always_extends_beyond_the_glyphs(self):
 
-                if rule.label() != measure_type:
-                    continue
+        # "the line should always be longer or extend beyond the Xs or
+        # 0s". Guaranteed by running the glyphs along a TRIMMED copy of
+        # the line, not by offsetAlongLine - that insets the first glyph
+        # only, and a render caught Single Fence still ending flush
+        # because markers land at fixed intervals from the start.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_END_TRIM,
+            _WIRE_SPECS,
+            create_obstacle_control_measures_lines_layer,
+        )
 
-                style, _ = rule.symbol().symbolLayer(
-                    0
-                ).dataDefinedProperties().valueAsString(
-                    QgsSymbolLayer.Property.StrokeStyle, context, ""
-                )
+        self.assertGreater(_WIRE_END_TRIM, 0)
 
-                with self.subTest(measure_type=measure_type):
+        layer = create_obstacle_control_measures_lines_layer()
 
-                    if measure_type == "unspecified_wire_obstacle":
-                        self.assertEqual(style, "no")
-                    else:
-                        self.assertNotEqual(style, "no")
+        for rule in layer.renderer().rootRule().children():
+
+            symbol = rule.symbol()
+
+            expressions = [
+                getattr(
+                    symbol.symbolLayer(index), "geometryExpression",
+                    lambda: ""
+                )()
+                for index in range(symbol.symbolLayerCount())
+            ]
+
+            trimmed = [e for e in expressions if "line_substring" in e]
+
+            with self.subTest(measure_type=rule.label()):
+
+                if _WIRE_SPECS[rule.label()].lines:
+                    # Has a line to overhang the glyphs, so the glyph
+                    # series must be trimmed back from both ends.
+                    self.assertEqual(len(trimmed), 1)
+                else:
+                    # No line at all - nothing to overhang, so the
+                    # glyphs keep the full geometry.
+                    self.assertEqual(trimmed, [])
