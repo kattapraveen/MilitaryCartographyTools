@@ -1223,6 +1223,118 @@ class TestMinefieldsLayer(QgisTestCase):
             self.assertIn(combined_clause, expression)
 
 
+    def test_eny_sits_on_the_box_side_not_clear_of_it(self):
+
+        # The maintainer's own B3 correction: "the ENY is on the
+        # vertical lines, not outside the lines". So the offset is
+        # EXACTLY half the box width - no clearance gap - and the box
+        # is masked so its side breaks through the text.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _MASKED_MINEFIELD_BOX_LAYER_ID,
+            _MINEFIELD_ENEMY_BOX_WIDTH_MM,
+            create_obstacle_control_measures_minefields_layer,
+        )
+
+        layer = create_obstacle_control_measures_minefields_layer()
+
+        offsets = set()
+
+        masked_ids = set()
+
+        for rule in layer.labeling().rootRule().children():
+
+            # Each accessor held in its OWN variable. QgsPalLayerSettings
+            # .settings()/.format() return BY VALUE, and chaining off
+            # them (settings.format().mask()...) lets the temporary's
+            # C++ object be collected mid-expression - which segfaulted
+            # the interpreter when this very test was first written
+            # that way.
+            settings = rule.settings()
+
+            offsets.add(round(settings.xOffset, 6))
+
+            text_format = settings.format()
+
+            mask = text_format.mask()
+
+            for masked_layer in mask.maskedSymbolLayers():
+
+                masked_ids.add(masked_layer.symbolLayerIdV2())
+
+        self.assertIn(_MASKED_MINEFIELD_BOX_LAYER_ID, masked_ids)
+
+        half_width = round(_MINEFIELD_ENEMY_BOX_WIDTH_MM * 0.5, 6)
+
+        self.assertIn(half_width, offsets)
+        self.assertIn(-half_width, offsets)
+
+
+    def test_the_enemy_variants_draw_a_wider_box(self):
+
+        # Needed so "ENY" riding the sides does not reach in over the
+        # outer mine glyphs - caught by render at the standard width.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _MINEFIELD_BOX_WIDTH_MM,
+            _MINEFIELD_ENEMY_BOX_WIDTH_MM,
+            _MINEFIELD_ENEMY_TYPES,
+            create_obstacle_control_measures_minefields_layer,
+        )
+
+        self.assertGreater(
+            _MINEFIELD_ENEMY_BOX_WIDTH_MM, _MINEFIELD_BOX_WIDTH_MM
+        )
+
+        layer = create_obstacle_control_measures_minefields_layer()
+
+        for rule in layer.renderer().rootRule().children():
+
+            box = rule.symbol().symbolLayer(0)
+
+            expression = box.dataDefinedProperties().property(
+                QgsSymbolLayer.Property.Width
+            ).expressionString()
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("measure_type", rule.label())
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            expected = (
+                _MINEFIELD_ENEMY_BOX_WIDTH_MM
+                if rule.label() in _MINEFIELD_ENEMY_TYPES
+                else _MINEFIELD_BOX_WIDTH_MM
+            )
+
+            with self.subTest(measure_type=rule.label()):
+
+                self.assertAlmostEqual(
+                    QgsExpression(expression).evaluate(context),
+                    expected,
+                    places=6
+                )
+
+
+    def test_mine_glyphs_carry_the_same_thicker_stroke_as_b1(self):
+
+        # "the anti-personnel mine's ears ... as well as unknown mine
+        # ... increase their stroke width in line with B1". These draw
+        # at 5mm against a B1 marker's 8mm, so a thin stroke reads
+        # fainter still.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _THICKER_STROKE_FACTOR,
+            _mine_glyph_sidc_expression,
+            _minefield_glyph_sidc_expression,
+        )
+
+        for expression in (
+            _mine_glyph_sidc_expression(0),
+            _minefield_glyph_sidc_expression(0),
+        ):
+
+            self.assertIn(str(_THICKER_STROKE_FACTOR), expression)
+
+
     def test_minefields_layer_is_created_and_added(self):
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (

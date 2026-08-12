@@ -1732,6 +1732,12 @@ def _mine_glyph_sidc_expression(slot):
     Returns an empty string when this mine type has no glyph for that
     slot - a single-type field leaves slot 1 empty - which the caller
     turns into a zero-size marker rather than a broken symbol.
+
+    Carries the same stroke thickening B1's own outline icons got: the
+    maintainer found the Antipersonnel Mine's "ears" and the Unspecified
+    Mine's circle too faint here too, and asked for them "in line with
+    B1". These glyphs draw smaller than a B1 marker (5mm against 8mm),
+    so the thin strokes read fainter still.
     """
 
     cases = []
@@ -1754,7 +1760,8 @@ def _mine_glyph_sidc_expression(slot):
         " ELSE mct_sidc_svg(mct_build_sidc("
         "\"affiliation\", " + entity_expression + ","
         " 'control_measure', 'unspecified', 'present', false),"
-        " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ") END"
+        " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ","
+        f" {_THICKER_STROKE_FACTOR}) END"
     )
 
 
@@ -1888,7 +1895,16 @@ _MINEFIELD_ENEMY_TYPES = ("minefield_known_enemy", "minefield_suspected")
 # dashes encode here, and Dummy/Known Enemy are drawn solid.
 _MINEFIELD_ALWAYS_DASHED = ("minefield_suspected",)
 
+_MASKED_MINEFIELD_BOX_LAYER_ID = "minefield_box"
+
 _MINEFIELD_BOX_WIDTH_MM = 15.0
+
+# The two enemy variants draw a WIDER box. Their "ENY" fields sit on
+# the vertical sides, and at the standard width the text reached inward
+# far enough to cover the outer mine glyphs (caught by render). The
+# standard's own picture shows the same thing - its enemy box is wider
+# than the plain one, for exactly this reason.
+_MINEFIELD_ENEMY_BOX_WIDTH_MM = 21.0
 _MINEFIELD_BOX_HEIGHT_MM = 6.5
 
 # Three glyphs in a row inside the box, as every one of the standard's
@@ -1924,7 +1940,8 @@ def _minefield_glyph_sidc_expression(slot):
         " ELSE mct_sidc_svg(mct_build_sidc("
         "\"affiliation\", " + entity_expression + ","
         " 'control_measure', 'unspecified', 'present', false),"
-        " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ") END"
+        " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ","
+        f" {_THICKER_STROKE_FACTOR}) END"
     )
 
 
@@ -1944,10 +1961,27 @@ def _minefield_box_layer():
 
     box_layer = QgsEllipseSymbolLayer()
 
+    # The id the "ENY" labels mask against - they sit ON the box's own
+    # vertical sides, so the line has to break through them.
+    box_layer.setId(_MASKED_MINEFIELD_BOX_LAYER_ID)
+
     box_layer.setShape(QgsEllipseSymbolLayer.Shape.Rectangle)
 
     box_layer.setSymbolWidth(_MINEFIELD_BOX_WIDTH_MM)
     box_layer.setSymbolHeight(_MINEFIELD_BOX_HEIGHT_MM)
+
+    enemy_clause = " OR ".join(
+        f"\"measure_type\" = '{t}'" for t in _MINEFIELD_ENEMY_TYPES
+    )
+
+    box_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Width,
+        QgsProperty.fromExpression(
+            f"CASE WHEN {enemy_clause}"
+            f" THEN {_MINEFIELD_ENEMY_BOX_WIDTH_MM}"
+            f" ELSE {_MINEFIELD_BOX_WIDTH_MM} END"
+        )
+    )
 
     box_layer.setFillColor(QColor(0, 0, 0, 0))
     box_layer.setStrokeWidth(_AREA_OUTLINE_WIDTH_MM)
@@ -2071,27 +2105,41 @@ def _configure_minefields_labeling(layer):
     """
 
     half_height = _MINEFIELD_BOX_HEIGHT_MM * 0.5
-    half_width = _MINEFIELD_BOX_WIDTH_MM * 0.5
 
+    # The ENY labels ride the enemy box's own (wider) sides; H and W
+    # are centred so the width does not matter to them.
+    half_width = _MINEFIELD_ENEMY_BOX_WIDTH_MM * 0.5
+
+    # "ENY" sits ON each vertical side of the box, centred over the
+    # line rather than clear of it - the maintainer's own correction
+    # after smoke-testing B3, and what the template draws: the box's
+    # own side is interrupted where the field sits. So the offset is
+    # exactly half the width (no clearance gap) and the quadrant is
+    # Over, with the box masked so the line breaks through the text.
     rules = (
         (_MINEFIELD_FIELD_H_EXPRESSION, Qgis.LabelQuadrantPosition.Above,
          0.0, -(half_height + 1.6)),
         (_MINEFIELD_FIELD_W_EXPRESSION, Qgis.LabelQuadrantPosition.Below,
          0.0, half_height + 1.6),
-        (_MINEFIELD_ENY_EXPRESSION, Qgis.LabelQuadrantPosition.Left,
-         -(half_width + 1.2), 0.0),
-        (_MINEFIELD_ENY_EXPRESSION, Qgis.LabelQuadrantPosition.Right,
-         half_width + 1.2, 0.0),
+        (_MINEFIELD_ENY_EXPRESSION, Qgis.LabelQuadrantPosition.Over,
+         -half_width, 0.0),
+        (_MINEFIELD_ENY_EXPRESSION, Qgis.LabelQuadrantPosition.Over,
+         half_width, 0.0),
     )
 
     root_rule = QgsRuleBasedLabeling.Rule(None)
 
     for expression, quadrant, x_offset, y_offset in rules:
 
+        # One shared mask list on EVERY rule, not just the two that
+        # need it: masking is configured per LAYER, and rules declaring
+        # different lists make QGIS keep one arbitrarily. It is a
+        # harmless no-op for the H and W labels, which sit clear.
         settings = _build_pal_layer_settings(
             layer,
             Qgis.LabelPlacement.OverPoint,
             expression,
+            masked_symbol_layer_ids=[_MASKED_MINEFIELD_BOX_LAYER_ID],
             quadrant=quadrant
         )
 

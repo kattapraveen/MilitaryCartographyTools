@@ -6100,6 +6100,40 @@ tested, not claimed as done here.
 
     856 tests passing on both QGIS versions.
 
+- **B3 correction and a second faintness report** (2026-08-12).
+
+  **"ENY" belongs ON the box's vertical sides, not clear of them** -
+  the maintainer's correction after smoke-testing B3, and what the
+  template draws: the box's own side is interrupted where the field
+  sits. So the offset is exactly half the box width with no clearance
+  gap, the quadrant is Over, and the box carries an id the labels mask
+  against so its line breaks through the text. One shared mask list on
+  every rule, including the H and W labels that do not need it, because
+  masking is configured per LAYER and rules declaring different lists
+  make QGIS keep one arbitrarily.
+
+  Moving it there immediately showed why the box had to grow: at 15mm
+  the ENY text reached inward over the outer mine glyphs. The two enemy
+  variants now draw a 21mm box through a data-defined width, which is
+  also what the standard's own picture shows - its enemy box is wider
+  than the plain one, for exactly this reason.
+
+  **The mine glyphs needed B1's stroke thickening too.** The maintainer
+  found the Antipersonnel Mine's "ears" and the Unspecified Mine's
+  circle faint again, this time as the glyphs drawn inside areas and
+  minefield boxes - which the B1 change had not touched, because those
+  go through their own SIDC expressions. They also draw at 5mm against
+  a B1 marker's 8mm, so the same thin stroke reads fainter still. Both
+  glyph expressions now pass the same 1.8 factor.
+
+  **The by-value segfault caught its author.** The first version of the
+  new ENY test chained `settings.format().mask().maskedSymbolLayers()`
+  and killed the interpreter mid-run - the exact trap this project has
+  documented for months, in a test written to guard against regressions.
+  Each accessor now lands in its own variable.
+
+    859 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
