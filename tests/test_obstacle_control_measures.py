@@ -2172,7 +2172,8 @@ class TestWireObstacles(QgisTestCase):
         )
 
         self.assertEqual(
-            set(_WIRE_SPECS) | {"abatis"}, set(LINE_MEASURE_TYPE_LABELS)
+            set(_WIRE_SPECS) | {"abatis", "antitank_ditch_reinforced"},
+            set(LINE_MEASURE_TYPE_LABELS)
         )
 
         signatures = {}
@@ -2248,6 +2249,7 @@ class TestWireObstacles(QgisTestCase):
                 "antitank_ditch_under_construction",
                 "antitank_ditch_completed",
                 "antitank_wall",
+                "obstacle_line",
             }
         )
 
@@ -2275,6 +2277,7 @@ class TestWireObstacles(QgisTestCase):
                 "antitank_ditch_under_construction",
                 "antitank_ditch_completed",
                 "antitank_wall",
+                "obstacle_line",
             }
         )
 
@@ -2462,14 +2465,17 @@ class TestWireObstacles(QgisTestCase):
             # first anchor point, then straight line - not a repeating
             # glyph at all, so it has its own builder rather than a
             # _WireSpec. The maintainer's own correction.
-            if measure_type == "abatis":
+            # Abatis (a single kink) and the reinforced ditch (two
+            # interleaved glyph series) each need their own builder -
+            # neither is one glyph at one interval.
+            if measure_type in ("abatis", "antitank_ditch_reinforced"):
                 self.assertNotIn(measure_type, _WIRE_SPECS)
             else:
                 self.assertIn(measure_type, _WIRE_SPECS)
 
         self.assertEqual(
             set(TOOTHED_MEASURE_TYPE_CODES.values()),
-            {"280100", "290201", "290202", "290204"}
+            {"280100", "290100", "290201", "290202", "290203", "290204"}
         )
 
 

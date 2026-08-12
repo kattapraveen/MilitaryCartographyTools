@@ -584,6 +584,9 @@ _WIRE_GLYPH_GEOMETRY = {
     # ON the line (y=100) and it points away from it.
     "ditch_tooth": (100, ["M 0,100 L 100,100 L 50,6 Z"], False),
     "ditch_tooth_filled": (100, ["M 0,100 L 100,100 L 50,6 Z"], True),
+    # The same filled tooth pointing DOWN, for the reinforced ditch,
+    # whose triangles hang below its line.
+    "ditch_tooth_filled_down": (100, ["M 0,0 L 100,0 L 50,94 Z"], True),
     # Antitank Wall: "--v--v--v--", one CONTINUOUS path that runs
     # flat, dips into a V and comes back up. The line joins the edges
     # of the Vs; it does not run past them, and the Vs do not hang off
@@ -597,6 +600,11 @@ _WIRE_GLYPH_GEOMETRY = {
     # The flats sit at the box's VERTICAL CENTRE, so the glyph needs no
     # offset: centred on the line, its flats land on the geometry.
     "wall_vee": (100, ["M 0,50 L 25,50 L 50,93.3 L 75,50 L 100,50"], False),
+    # Obstacle Line: the antitank wall's own profile with the triangles
+    # the other way up - the maintainer's own description. Same tiling
+    # and same spacing, mirrored about the flats.
+    "obstacle_line_vee": (100, ["M 0,50 L 25,50 L 50,6.7 L 75,50 L 100,50"],
+                          False),
     # Abatis: a single hump on an otherwise straight line, its legs
     # meeting the line - "_^____", in the maintainer's own notation.
     # Placed once near the start, NOT repeated.

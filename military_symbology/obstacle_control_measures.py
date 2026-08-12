@@ -2364,6 +2364,9 @@ WIRE_MEASURE_TYPE_LABELS = {
 # by the same code rather than by a parallel mechanism.
 TOOTHED_MEASURE_TYPE_LABELS = {
     "abatis": "Abatis",
+    "obstacle_line": "Obstacle Line",
+    "antitank_ditch_reinforced":
+        "Antitank Ditch Reinforced with Antitank Mines",
     "antitank_ditch_under_construction": "Antitank Ditch - Under Construction",
     "antitank_ditch_completed": "Antitank Ditch - Completed",
     "antitank_wall": "Antitank Wall",
@@ -2371,6 +2374,8 @@ TOOTHED_MEASURE_TYPE_LABELS = {
 
 TOOTHED_MEASURE_TYPE_CODES = {
     "abatis": "280100",
+    "obstacle_line": "290100",
+    "antitank_ditch_reinforced": "290203",
     "antitank_ditch_under_construction": "290201",
     "antitank_ditch_completed": "290202",
     "antitank_wall": "290204",
@@ -2447,6 +2452,10 @@ _WIRE_SPECS = {
     # gap 0, so no separate line layer. See the glyph's own comment for
     # how the tile keeps one side length of flat between Vs.
     "antitank_wall": _WireSpec("wall_vee", 0.0, ()),
+    # The antitank wall's profile inverted - triangles up instead of
+    # down. It also carries Field T below the line (see
+    # _configure_lines_labeling).
+    "obstacle_line": _WireSpec("obstacle_line_vee", 0.0, ()),
 }
 
 # The width (and height) of a single cross or oval.
@@ -2542,6 +2551,96 @@ def _abatis_symbol():
     symbol = QgsLineSymbol()
 
     symbol.changeSymbolLayer(0, generator)
+
+    return symbol
+
+
+# Antitank Ditch Reinforced with Antitank Mines: "a line with filled
+# triangles pointing downward, the triangles alternating with anti-tank
+# mine" - the maintainer's own description. Two interleaved series, so
+# it cannot be a _WireSpec (which has one glyph and one interval).
+_REINFORCED_PITCH_MM = 3.0
+
+
+def _antitank_ditch_reinforced_symbol():
+
+    symbol = QgsLineSymbol()
+
+    # Unlike the plain ditches, this one DOES draw a line - "a line
+    # with filled triangles pointing downward, the triangles
+    # alternating with anti-tank mine".
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol.changeSymbolLayer(0, line_layer)
+
+    first = False
+
+    for offset_along, glyph_expression, size in (
+        (
+            0.0,
+            "mct_wire_glyph_svg('ditch_tooth_filled_down', "
+            + _POINT_MONO_COLOR_EXPRESSION + ")",
+            _WIRE_GLYPH_SIZE_MM,
+        ),
+        (
+            _REINFORCED_PITCH_MM,
+            # A real milsymbol antitank mine, the same icon batch B1
+            # draws as a point - not a hand-drawn lookalike. Fixed
+            # standard identity for the same reason the mine glyphs in
+            # B2/B3 use one: this layer's affiliation vocabulary
+            # includes "unspecified", which is not a SIDC value.
+            "mct_sidc_svg(mct_build_sidc('"
+            + _MINE_GLYPH_AFFILIATION + "', 'antitank_mine',"
+            " 'control_measure', 'unspecified', 'present', false),"
+            " '', '', " + _POINT_MONO_COLOR_EXPRESSION + ", "
+            + str(_THICKER_STROKE_FACTOR) + ")",
+            _WIRE_GLYPH_SIZE_MM * 1.4,
+        ),
+    ):
+
+        glyph = QgsSvgMarkerSymbolLayer("")
+
+        glyph.setSize(size)
+
+        glyph.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Name,
+            QgsProperty.fromExpression(glyph_expression)
+        )
+
+        # The triangles hang below the line, so their base sits on it.
+        glyph.setOffset(QPointF(0.0, _WIRE_GLYPH_SIZE_MM * 0.5))
+        glyph.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+        marker_line = QgsMarkerLineSymbolLayer()
+
+        # Both series share one pitch and are half a pitch apart, which
+        # is what makes them alternate.
+        marker_line.setInterval(_REINFORCED_PITCH_MM * 2)
+        marker_line.setIntervalUnit(Qgis.RenderUnit.Millimeters)
+
+        marker_line.setOffsetAlongLine(offset_along)
+        marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
+
+        marker_line.setSubSymbol(QgsMarkerSymbol([glyph]))
+
+        if first:
+            symbol.changeSymbolLayer(0, marker_line)
+            first = False
+        else:
+            symbol.appendSymbolLayer(marker_line)
 
     return symbol
 
@@ -2681,8 +2780,6 @@ def _wire_obstacle_symbol(measure_type):
 
 # STILL TO BUILD in B4, and deliberately absent rather than guessed:
 #
-#   290100 Obstacle Line                     - template not yet read
-#   290203 Antitank Ditch Reinforced w/Mines - template not yet read
 #   290400 Mine Cluster                      - construction known (a
 #           dashed straight line between two points plus a dashed
 #           semicircle over it, radius half that line), needs its own
@@ -2707,10 +2804,57 @@ _LINE_SYMBOL_BUILDERS = {
         lambda measure_type=measure_type: _wire_obstacle_symbol(measure_type)
     )
     for measure_type in LINE_MEASURE_TYPE_LABELS
-    if measure_type != "abatis"
+    if measure_type not in ("abatis", "antitank_ditch_reinforced")
 }
 
 _LINE_SYMBOL_BUILDERS["abatis"] = _abatis_symbol
+_LINE_SYMBOL_BUILDERS["antitank_ditch_reinforced"] = (
+    _antitank_ditch_reinforced_symbol
+)
+
+
+def _line_default_colour_expression():
+
+    cases = []
+
+    for measure_type, code in LINE_MEASURE_TYPE_CODES.items():
+
+        entry = TABLE_H_XIX_INVENTORY[code]
+
+        colour = BLACK if entry["colour"] == BLACK else GREEN
+
+        cases.append(
+            f"WHEN \"measure_type\" = '{measure_type}' THEN '{colour}'"
+        )
+
+    return "CASE " + " ".join(cases) + f" ELSE '{GREEN}' END"
+
+
+# Obstacle Line is the one line obstacle carrying Field T, and the
+# audit's "OT" applies: outline green, TEXT BLACK.
+_OBSTACLE_LINE_LABEL_EXPRESSION = (
+    "CASE WHEN \"measure_type\" = 'obstacle_line'"
+    " THEN upper(coalesce(\"unique_designation\", '')) ELSE '' END"
+)
+
+
+def _configure_lines_labeling(layer):
+
+    settings = _build_pal_layer_settings(
+        layer,
+        Qgis.LabelPlacement.Line,
+        _OBSTACLE_LINE_LABEL_EXPRESSION,
+        line_placement_flags=Qgis.LabelLinePlacementFlag.BelowLine
+    )
+
+    settings.dataDefinedProperties().setProperty(
+        QgsPalLayerSettings.Property.Color,
+        QgsProperty.fromExpression("color_rgb(0, 0, 0)")
+    )
+
+    layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+
+    layer.setLabelsEnabled(True)
 
 
 def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
@@ -2763,8 +2907,13 @@ def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
         QgsDefaultValue("'unspecified_wire_obstacle'")
     )
 
+    # Derived from TABLE_H_XIX_INVENTORY, like the Areas layer's own -
+    # this batch is another with MIXED defaults (the antitank wall and
+    # the reinforced ditch are black in the maintainer's audit, the
+    # rest green).
     layer.setDefaultValueDefinition(
-        fields.indexOf("colour"), QgsDefaultValue(f"'{GREEN}'")
+        fields.indexOf("colour"),
+        QgsDefaultValue(_line_default_colour_expression(), True)
     )
 
     layer.setDefaultValueDefinition(
@@ -2775,6 +2924,8 @@ def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
     layer.setRenderer(
         _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
     )
+
+    _configure_lines_labeling(layer)
 
     return layer
 
