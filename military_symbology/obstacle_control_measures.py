@@ -2649,13 +2649,16 @@ def _mine_cluster_symbol():
 def _trip_wire_symbol():
 
     """
-    Trip Wire (290500) - one continuous path (mct_trip_wire_geometry):
-    the horizontal segment (PT3 to PT1), the vertical segment (PT1 to
-    PT2), then a 90 degree arc at the bottom. Unlike Mine Cluster, the
-    standard's own draw rules carry no "always dashed" note for this
-    symbol, so it follows the ordinary H.5.1.1.3 present/planned rule
-    like the rest of the wire family - solid when present, dashed when
-    planned.
+    Trip Wire (290500) - two clicked anchor points (PT1, PT2), built
+    from the maintainer's own dictated construction rather than the
+    standard's own template picture (see mct_trip_wire_geometry's own
+    docstring for the exact wording and why it replaced an earlier,
+    3-point reading): the main PT1-PT2 line, two perpendicular
+    crossbars at 1/7 and 1/2 of the way along it, and a 90 degree
+    anticlockwise arc at PT2. Unlike Mine Cluster, the standard's own
+    draw rules carry no "always dashed" note for this symbol, so it
+    follows the ordinary H.5.1.1.3 present/planned rule like the rest
+    of the wire family - solid when present, dashed when planned.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
