@@ -126,7 +126,34 @@ owns it.
 Military Cartography Tools
 """
 
-from qgis.core import QgsProperty
+from qgis.core import (
+    QgsDefaultValue,
+    QgsEditorWidgetSetup,
+    QgsField,
+    QgsMarkerSymbol,
+    QgsProject,
+    QgsProperty,
+    QgsSingleSymbolRenderer,
+    QgsSvgMarkerSymbolLayer,
+    QgsSymbolLayer,
+    QgsVectorLayer,
+)
+
+from qgis.PyQt.QtCore import QMetaType
+
+from qgis.core import Qgis
+
+from ._control_measure_shared import (
+    AFFILIATION_LABELS,
+    STATUS_LABELS,
+    _build_pal_layer_settings,
+    _configure_affiliation_field,
+    _configure_status_field,
+    _value_map,
+    add_layer_if_absent,
+)
+
+from qgis.core import QgsPalLayerSettings, QgsVectorLayerSimpleLabeling
 
 
 # Table H-XIX draws in green rather than in the affiliation hue - see
@@ -364,3 +391,228 @@ def buildable_inventory():
         for code, entry in TABLE_H_XIX_INVENTORY.items()
         if entry["geometry"] != PARENT
     }
+
+
+# --------------------------------------------------------------------
+# Points (batch B1) - Table H-XIX's own protection points, rendered
+# through milsymbol like every other Points layer in this pass.
+# --------------------------------------------------------------------
+
+POINTS_LAYER_NAME = "Obstacle Control Measures (Points)"
+
+# The 13 point entries B1 owns. Abatis (280100) and Overhead Wire
+# (282003) are NOT here despite their 28xxxx codes - both are lines
+# (see the module docstring) and belong to B4 and B7. Abatis stays on
+# the shared control_measure_points.py layer meanwhile, so it does not
+# vanish from every dropdown between batches; B4 removes it there when
+# it builds the line version.
+POINT_ENTITY_LABELS = {
+    "antipersonnel_mine": "Antipersonnel Mine",
+    "antipersonnel_mine_directional": "Antipersonnel Mine with Directional Effects",
+    "antitank_mine": "Antitank Mine",
+    "antitank_mine_anti_handling": "Antitank Mine with Anti-handling Device",
+    "wide_area_antitank_mine": "Wide Area Antitank Mine",
+    "unspecified_mine": "Unspecified Mine",
+    "booby_trap": "Booby Trap",
+    "engineer_regulating_point": "Engineer Regulating Point",
+    "obstacle_fixed_prefabricated": "Fixed and Prefabricated Obstacle",
+    "obstacle_movable": "Movable Obstacle",
+    "obstacle_movable_prefabricated": "Movable and Prefabricated Obstacle",
+    "tower_low": "Tower, Low",
+    "tower_high": "Tower, High",
+}
+
+# Per the maintainer: obstacles are green by default, but "user should
+# have the ability to change colour to black if he wants to". So colour
+# is a per-FEATURE field, not a per-measure-type constant - the default
+# comes from the inventory, the user can override it on any feature.
+COLOUR_LABELS = {
+    GREEN: "Green (default)",
+    BLACK: "Black",
+}
+
+_OBSTACLE_GREEN_RGB = "rgb(0,155,0)"
+_OBSTACLE_BLACK_RGB = "rgb(0,0,0)"
+
+# milsymbol owns a point icon's own colour and applies H.5.3's
+# affiliation rule to it, so the obstacle points cannot take the
+# data-defined colour the hand-built lines and areas use. Its own
+# `monoColor` option recolours the whole icon instead - confirmed by
+# probe to change stroke AND fill, needing no post-processing - which
+# lets the points follow the same per-feature choice as everything else
+# in this table rather than being the one exception.
+# The same green/black choice as a real colour, for the label engine.
+_POINT_LABEL_COLOR_EXPRESSION = (
+    f"CASE WHEN \"colour\" = '{BLACK}' THEN color_rgb(0, 0, 0)"
+    " ELSE color_rgb(0, 155, 0) END"
+)
+
+_POINT_MONO_COLOR_EXPRESSION = (
+    f"CASE WHEN \"colour\" = '{BLACK}' THEN '{_OBSTACLE_BLACK_RGB}'"
+    f" ELSE '{_OBSTACLE_GREEN_RGB}' END"
+)
+
+_POINTS_SIDC_EXPRESSION = (
+    "mct_sidc_svg(mct_build_sidc("
+    "\"affiliation\",\"entity\",'control_measure','unspecified',"
+    "\"status\",false),"
+    "upper(coalesce(\"unique_designation\",'')),"
+    "'uniqueDesignation',"
+    + _POINT_MONO_COLOR_EXPRESSION +
+    ")"
+)
+
+_POINTS_DEFAULT_MARKER_SIZE_MM = 8.0
+
+
+def _configure_points_attribute_form(layer):
+
+    fields = layer.fields()
+
+    entity_idx = fields.indexOf("entity")
+    colour_idx = fields.indexOf("colour")
+
+    layer.setEditorWidgetSetup(
+        entity_idx,
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(POINT_ENTITY_LABELS)})
+    )
+
+    layer.setEditorWidgetSetup(
+        colour_idx,
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(COLOUR_LABELS)})
+    )
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        entity_idx, QgsDefaultValue("'antipersonnel_mine'")
+    )
+
+    # Every B1 entry is green in the inventory, so a plain default is
+    # right here. A batch with mixed defaults should drive this from
+    # TABLE_H_XIX_INVENTORY's own "colour" instead.
+    layer.setDefaultValueDefinition(colour_idx, QgsDefaultValue(f"'{GREEN}'"))
+
+
+def _build_points_renderer():
+
+    symbol = QgsMarkerSymbol()
+
+    svg_layer = QgsSvgMarkerSymbolLayer("")
+
+    svg_layer.setSize(_POINTS_DEFAULT_MARKER_SIZE_MM)
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(_POINTS_SIDC_EXPRESSION)
+    )
+
+    symbol.changeSymbolLayer(0, svg_layer)
+
+    return QgsSingleSymbolRenderer(symbol)
+
+
+# Tower, Low (282001) and Tower, High (282002) both REQUIRE a unique
+# designation per the maintainer's own audit - and milsymbol has no
+# text slot for either icon at all. Probed all six of its text options
+# against both codes: none is accepted, and their rendered SVG contains
+# no <text> element to hang one on. So unlike every other Points layer
+# in this pass, the designation cannot ride inside the icon here and
+# needs a real PAL label beside it.
+#
+# Engineer Regulating Point (280800) also requires one but DOES accept
+# `uniqueDesignation`, so it keeps the normal in-icon route and is
+# deliberately excluded from this label - otherwise it would show its
+# designation twice.
+_NO_TEXT_SLOT_ENTITIES = ("tower_low", "tower_high")
+
+_TOWER_DESIGNATION_LABEL_EXPRESSION = (
+    "CASE WHEN \"entity\" IN ("
+    + ", ".join(f"'{e}'" for e in _NO_TEXT_SLOT_ENTITIES)
+    + ") THEN upper(coalesce(\"unique_designation\",'')) ELSE '' END"
+)
+
+
+def _configure_points_labeling(layer):
+
+    """
+    Draws the unique designation beside the two Tower icons, which
+    milsymbol gives no text slot for - see
+    _TOWER_DESIGNATION_LABEL_EXPRESSION. Every other entity here returns
+    an empty string and so is not labelled.
+    """
+
+    settings = _build_pal_layer_settings(
+        layer,
+        Qgis.LabelPlacement.OverPoint,
+        _TOWER_DESIGNATION_LABEL_EXPRESSION,
+        quadrant=Qgis.LabelQuadrantPosition.Right
+    )
+
+    # _build_pal_layer_settings() colours every label it builds by
+    # AFFILIATION - made unconditional back in H-XII, when the
+    # maintainer's instruction was "do it for all". Obstacles are the
+    # first group where that is wrong: this label has to follow the
+    # feature's own green/black choice like the icon beside it, not turn
+    # blue because the feature is friendly. Overridden after the fact
+    # rather than by adding another flag to the shared helper, so no
+    # existing caller changes.
+    settings.dataDefinedProperties().setProperty(
+        QgsPalLayerSettings.Property.Color,
+        QgsProperty.fromExpression(_POINT_LABEL_COLOR_EXPRESSION)
+    )
+
+    # Push the text clear of the icon. The Right quadrant alone anchors
+    # it at the feature's own point, which put it straight over an 8mm
+    # marker (caught by render). NOTE this needs xOffset, not dist -
+    # `dist` is the radius for AroundPoint placement and is ignored by
+    # OverPoint, which is why setting it moved nothing.
+    settings.xOffset = _POINTS_DEFAULT_MARKER_SIZE_MM * 0.62
+    settings.offsetUnits = Qgis.RenderUnit.Millimeters
+
+    layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+
+    layer.setLabelsEnabled(True)
+
+
+def create_obstacle_control_measures_points_layer(name=POINTS_LAYER_NAME):
+
+    """
+    A fresh, empty point layer for Table H-XIX's own protection points
+    (batch B1) - see POINT_ENTITY_LABELS for the 13 entries and for the
+    two 28xxxx codes that are lines and live elsewhere.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"Point?crs={crs.authid()}", name, "memory")
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("entity", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("colour", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+        ]
+    )
+
+    layer.updateFields()
+
+    _configure_points_attribute_form(layer)
+
+    layer.setRenderer(_build_points_renderer())
+
+    _configure_points_labeling(layer)
+
+    return layer
+
+
+def add_obstacle_control_measures_points_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        POINTS_LAYER_NAME,
+        create_obstacle_control_measures_points_layer
+    )

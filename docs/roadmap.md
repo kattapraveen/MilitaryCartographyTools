@@ -5687,6 +5687,54 @@ tested, not claimed as done here.
 
   806 tests passing on both QGIS versions.
 
+- **2026-08-12, Table H-XIX batch B1 - protection points.** The first
+  obstacle symbols, and the first layer in the module B0 scaffolded.
+  13 point entries: the mine family and its variants, Booby Trap,
+  Engineer Regulating Point, Tetrahedrons/Dragons Teeth, and the two
+  Towers. Eight codes were new to sidc.py.
+
+  **The colour question B0 flagged as blocking answered itself.**
+  Obstacles draw green, but the points come through milsymbol, which
+  owns their colour and applies H.5.3's affiliation rule - so the
+  points looked set to be the one part of this table stuck on the wrong
+  colouring. milsymbol's own `monoColor` option turns out to recolour
+  the whole icon, stroke and fill, confirmed by probe. So
+  mct_sidc_svg() gained an optional FOURTH argument (additive, default
+  off, no existing caller affected) and the points follow exactly the
+  same per-feature green/black choice as the hand-built lines and areas
+  will. No decision needed after all.
+
+  **Colour is a per-FEATURE field**, per the maintainer: "user should
+  have the ability to change colour to black if he wants to". The
+  layer's own Colour dropdown defaults to green and drives both the
+  icon and its label.
+
+  **A real gap between the audit and milsymbol**: both Towers REQUIRE a
+  unique designation, and milsymbol has no text slot for either icon -
+  probed all six of its text options against both codes, none accepted,
+  and neither rendered SVG has a <text> element to hang one on. Unlike
+  every other Points layer in this pass, the designation needs a real
+  PAL label beside the icon. Engineer Regulating Point also requires
+  one but DOES accept `uniqueDesignation`, so it keeps the in-icon
+  route and is excluded from that label - otherwise it would show its
+  designation twice.
+
+  Two render-caught mistakes on that label, neither visible in code:
+  it came out BLUE, because _build_pal_layer_settings() colours every
+  label by affiliation (made unconditional in H-XII when the
+  instruction was "do it for all") - obstacles are the first group
+  where that is wrong, overridden after the fact rather than by adding
+  another flag to the shared helper. And it sat on top of the glyph:
+  `dist` is the radius for AroundPoint placement and is ignored by
+  OverPoint, so pushing the text clear needs `xOffset`.
+
+  **Abatis stays on the shared Control Measure Points layer for now**,
+  deliberately. It is a line, not a point, so it belongs to B4 - but
+  removing it here before B4 builds it would make it vanish from every
+  dropdown in between.
+
+  816 tests passing on both QGIS versions.
+
     739 tests passing on both QGIS versions.
 
 ---

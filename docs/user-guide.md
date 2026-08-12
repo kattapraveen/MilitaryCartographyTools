@@ -1153,6 +1153,33 @@ area, which stays) and **Target-Recorded** (Table H-XVII). If you had
 already placed either, the feature keeps its attribute value but no
 longer appears in the dropdown.
 
+### Obstacle Control Measures
+
+MIL-STD-2525D Appendix H.5.21 (Table H-XIX) — the largest table in the
+standard's control-measure appendix, being built in batches. **Only the
+points exist so far**; the much larger line and area families follow.
+
+**Obstacles draw green**, not in the affiliation colour every other
+control measure uses. Each feature has its own **Colour** field so you
+can switch any single obstacle to black — a few types are black by
+convention in the standard, and the field lets you follow that or your
+own unit's practice.
+
+**Points** offers 13 entries: **Antipersonnel Mine** and its
+**Directional Effects** variant, **Antitank Mine** and its
+**Anti-handling Device** variant, **Wide Area Antitank Mine**,
+**Unspecified Mine**, **Booby Trap**, **Engineer Regulating Point**,
+the Tetrahedrons/Dragons Teeth family (**Fixed and Prefabricated**,
+**Movable**, **Movable and Prefabricated**), and **Tower, Low** /
+**Tower, High**.
+
+Both Towers take a **unique designation** drawn beside the icon.
+Engineer Regulating Point takes one too, drawn inside its own symbol.
+
+Note that **Abatis** is not here despite being an obstacle: it is a
+line, not a point, and stays on the Control Measure Points layer until
+its line version is built.
+
 ### Target Acquisition Control Measures
 
 MIL-STD-2525D Appendix H.5.20 (Table H-XVIII) — 12 area types, all the

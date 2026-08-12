@@ -132,7 +132,8 @@ _ENTITY_LABELS = {
     # POINT_ENTITY_LABELS, offensive_control_measures.py's own
     # POINT_ENTITY_LABELS, airspace_control_measures.py's own
     # POINT_ENTITY_LABELS, maritime_control_measures.py's own
-    # POINT_ENTITY_LABELS, and target_control_measures.py's own
+    # POINT_ENTITY_LABELS, target_control_measures.py's own
+    # POINT_ENTITY_LABELS, and obstacle_control_measures.py's own
     # POINT_ENTITY_LABELS respectively - at the project maintainer's own
     # request (2026-08-10, and again 2026-08-12 for the airspace family:
     # "all symbols related to points, I think they are in control
@@ -143,13 +144,14 @@ _ENTITY_LABELS = {
     # here - the underlying sidc.py entities are untouched, so any
     # already-digitized feature keeps rendering fine regardless of which
     # layer's dropdown offers them.
-    # Protection (obstacles, mines, shelters, CBRN events)
+    # Protection (obstacles, mines, shelters, CBRN events).
+    # Table H-XIX's own protection points moved to
+    # obstacle_control_measures.py 2026-08-12 (batch B1). Abatis is
+    # deliberately still here: it is a LINE, not a point, and its line
+    # version arrives with batch B4 - leaving it meanwhile means it
+    # does not vanish from every dropdown between batches. B4 removes
+    # it from here.
     "abatis": "Abatis",
-    "antipersonnel_mine": "Antipersonnel Mine",
-    "antitank_mine": "Antitank Mine",
-    "unspecified_mine": "Unspecified Mine",
-    "booby_trap": "Booby Trap",
-    "engineer_regulating_point": "Engineer Regulating Point",
     "shelter": "Shelter",
     "shelter_above_ground": "Shelter, Above Ground",
     "shelter_below_ground": "Shelter, Below Ground",

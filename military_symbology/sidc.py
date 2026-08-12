@@ -943,10 +943,21 @@ ENTITIES = {
         # Protection (obstacles, mines, shelters, CBRN events)
         "abatis": "280100",
         "antipersonnel_mine": "280200",
+        "antipersonnel_mine_directional": "280201",
         "antitank_mine": "280300",
+        "antitank_mine_anti_handling": "280400",
+        "wide_area_antitank_mine": "280500",
         "unspecified_mine": "280600",
         "booby_trap": "280700",
         "engineer_regulating_point": "280800",
+        # Tetrahedrons/Dragons Teeth (281900 is the parent
+        # heading row, template "N/A") and Vertical
+        # Obstructions (282000, likewise) - Table H-XIX.
+        "obstacle_fixed_prefabricated": "281901",
+        "obstacle_movable": "281902",
+        "obstacle_movable_prefabricated": "281903",
+        "tower_low": "282001",
+        "tower_high": "282002",
         "shelter": "280900",
         "shelter_above_ground": "281000",
         "shelter_below_ground": "281100",

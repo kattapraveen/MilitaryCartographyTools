@@ -13,6 +13,7 @@ Military Cartography Tools
 
 from .qgis_test_case import QgisTestCase
 
+from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
     AREA,
     BLACK,
@@ -21,10 +22,25 @@ from MilitaryCartographyTools.military_symbology.obstacle_control_measures impor
     OUTLINE_GREEN_TEXT_BLACK,
     PARENT,
     POINT,
+    POINTS_LAYER_NAME,
+    POINT_ENTITY_LABELS,
     TABLE_H_XIX_INVENTORY,
+    add_obstacle_control_measures_points_layer,
     buildable_inventory,
+    create_obstacle_control_measures_points_layer,
     inventory_for_batch,
 )
+from MilitaryCartographyTools.military_symbology.control_measure_points import (
+    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
+)
+from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
+
+from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
+                       QgsFeature, QgsProject, QgsSymbolLayer)
+
+from .qgis_test_case import FakeIface
+
+WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
 
 # Every code row on printed pages 573-603, extracted from the standard
@@ -251,3 +267,198 @@ class TestTableHXIXInventory(QgisTestCase):
                 "282002",  # Tower, High
             }
         )
+
+
+class TestObstaclePointsLayer(QgisTestCase):
+
+    """Batch B1 - Table H-XIX's own protection points."""
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+
+    def test_offers_exactly_the_point_entries_b1_owns(self):
+
+        # Driven from the inventory rather than restated, so a batch
+        # boundary moving in B0 cannot silently desync from the layer.
+        expected = {
+            entry["name"]: code
+            for code, entry in inventory_for_batch("B1").items()
+        }
+
+        self.assertEqual(len(POINT_ENTITY_LABELS), len(expected))
+
+        for entity in POINT_ENTITY_LABELS:
+
+            self.assertIn(entity, ENTITIES["control_measure"])
+
+
+    def test_excludes_the_two_28xxxx_codes_that_are_lines(self):
+
+        # Abatis (280100) and Overhead Wire (282003) carry 28xxxx codes
+        # but are lines - they belong to B4 and B7. Abatis deliberately
+        # stays on the shared Control Measure Points layer until B4
+        # builds its line version, so it does not disappear from every
+        # dropdown in between.
+        codes = {
+            ENTITIES["control_measure"][entity]
+            for entity in POINT_ENTITY_LABELS
+        }
+
+        self.assertNotIn("280100", codes)
+        self.assertNotIn("282003", codes)
+
+        self.assertIn("abatis", _CONTROL_MEASURE_POINT_ENTITY_LABELS)
+
+
+    def test_the_relocated_points_left_the_shared_layer(self):
+
+        overlap = set(POINT_ENTITY_LABELS) & set(
+            _CONTROL_MEASURE_POINT_ENTITY_LABELS
+        )
+
+        self.assertEqual(overlap, set())
+
+
+    def test_has_a_per_feature_colour_field_defaulting_to_green(self):
+
+        # "user should have the ability to change colour to black if he
+        # wants to" - so colour is per FEATURE, not per measure type.
+        layer = create_obstacle_control_measures_points_layer()
+
+        self.assertEqual(
+            [field.name() for field in layer.fields()],
+            ["affiliation", "entity", "status", "colour", "unique_designation"]
+        )
+
+        idx = layer.fields().indexOf("colour")
+
+        self.assertEqual(
+            layer.defaultValueDefinition(idx).expression(), "'green'"
+        )
+
+        self.assertEqual(
+            set(layer.editorWidgetSetup(idx).config()["map"].values()),
+            {"green", "black"}
+        )
+
+
+    def test_colour_reaches_the_rendered_icon_via_monocolor(self):
+
+        # milsymbol owns a point icon's colour and applies H.5.3's
+        # affiliation rule, so the obstacle points cannot take the
+        # data-defined colour the hand-built lines and areas use. Its
+        # own monoColor option recolours the whole icon instead. Checked
+        # by decoding the rendered SVG, not by trusting the expression.
+        import base64
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        def rendered(colour):
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("entity", "antipersonnel_mine")
+            feature.setAttribute("status", "present")
+            feature.setAttribute("colour", colour)
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            path, ok = svg_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Name, context, ""
+            )
+
+            self.assertTrue(ok)
+
+            return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+        self.assertIn("rgb(0,155,0)", rendered("green"))
+        self.assertNotIn("rgb(0,155,0)", rendered("black"))
+        self.assertIn("rgb(0,0,0)", rendered("black"))
+
+
+    def test_every_entity_resolves_to_a_real_rendered_symbol(self):
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        for entity in POINT_ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("affiliation", "friend")
+                feature.setAttribute("entity", entity)
+                feature.setAttribute("status", "present")
+                feature.setAttribute("colour", "green")
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                path, ok = svg_layer.dataDefinedProperties().valueAsString(
+                    QgsSymbolLayer.Property.Name, context, ""
+                )
+
+                self.assertTrue(ok)
+                self.assertTrue(path.startswith("base64:"))
+
+
+    def test_points_layer_is_created_and_added(self):
+
+        layer = add_obstacle_control_measures_points_layer(FakeIface())
+
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)), 1
+        )
+
+
+    def test_towers_get_a_real_label_because_milsymbol_has_no_slot(self):
+
+        # Both Towers require a unique designation per the audit, and
+        # milsymbol has NO text slot for either icon - probed all six of
+        # its text options against both codes, none accepted, and their
+        # rendered SVG has no <text> element to hang one on. So the
+        # designation needs a PAL label beside the icon, unlike every
+        # other Points layer in this pass.
+        #
+        # Engineer Regulating Point also requires one but DOES accept
+        # uniqueDesignation, so it must NOT be labelled here or it would
+        # show the designation twice.
+        layer = create_obstacle_control_measures_points_layer()
+
+        settings = layer.labeling().settings()
+
+        expression = QgsExpression(settings.fieldName)
+
+        def label_for(entity):
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("entity", entity)
+            feature.setAttribute("unique_designation", "n7")
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            return expression.evaluate(context)
+
+        self.assertEqual(label_for("tower_low"), "N7")
+        self.assertEqual(label_for("tower_high"), "N7")
+
+        self.assertEqual(label_for("engineer_regulating_point"), "")
+        self.assertEqual(label_for("antipersonnel_mine"), "")

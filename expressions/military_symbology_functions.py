@@ -124,10 +124,30 @@ def mct_sidc_svg(values, feature=None, parent=None):
     text = values[1] if len(values) > 1 else None
     slot = str(values[2]) if len(values) > 2 and values[2] else "uniqueDesignation"
 
-    if text:
-        return render_symbol_base64_path(sidc, {slot: str(text)})
+    # Optional FOURTH argument: a single colour for the whole icon, via
+    # milsymbol's own `monoColor` option. Added 2026-08-12 for Table
+    # H-XIX (Obstacles), whose symbols draw GREEN rather than in the
+    # affiliation hue H.5.3 gives every other control measure - see
+    # military_symbology/obstacle_control_measures.py. Without it the
+    # obstacle POINTS would be the one part of that table stuck on
+    # milsymbol's own affiliation colouring while its hand-built lines
+    # and areas followed the green rule.
+    #
+    # Additive and default-off: every existing caller omits it and is
+    # unaffected. Confirmed by probe that monoColor recolours stroke
+    # AND fill across the whole icon, so it needs no post-processing of
+    # the returned SVG.
+    mono_color = str(values[3]) if len(values) > 3 and values[3] else None
 
-    return render_symbol_base64_path(sidc)
+    options = {}
+
+    if text:
+        options[slot] = str(text)
+
+    if mono_color:
+        options["monoColor"] = mono_color
+
+    return render_symbol_base64_path(sidc, options or None)
 
 
 # ============================================================

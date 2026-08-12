@@ -76,6 +76,9 @@ from .military_symbology.fire_support_coordination_measures import (
     add_fire_support_coordination_measures_lines_layer,
     add_fire_support_coordination_measures_areas_layer,
 )
+from .military_symbology.obstacle_control_measures import (
+    add_obstacle_control_measures_points_layer,
+)
 from .military_symbology.target_control_measures import (
     add_target_control_measures_lines_layer,
     add_target_control_measures_points_layer,
@@ -166,6 +169,7 @@ class MilitaryCartographyTools:
         self.offensive_control_measures_action = None
         self.maneuver_control_measures_2_action = None
         self.airspace_control_measures_action = None
+        self.obstacle_control_measures_action = None
         self.maritime_control_measures_action = None
         self.deception_control_measures_action = None
         self.fire_support_coordination_measures_action = None
@@ -1137,6 +1141,28 @@ class MilitaryCartographyTools:
             self.target_control_measures_action
         )
 
+        self.obstacle_control_measures_action = QAction(
+            "Obstacle Control Measures",
+            self.control_measures_menu
+        )
+
+        self.obstacle_control_measures_action.setToolTip(
+            "Add an Obstacle Control Measures (Points) layer "
+            "(MIL-STD-2525D Appendix H.5.21, Table H-XIX: mines, booby "
+            "trap, engineer regulating point, tetrahedrons/dragons "
+            "teeth, towers). Obstacles draw green by default, with a "
+            "per-feature switch to black. The table's lines and areas "
+            "are being built in later batches."
+        )
+
+        self.obstacle_control_measures_action.triggered.connect(
+            self.create_obstacle_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.obstacle_control_measures_action
+        )
+
         self.target_acquisition_control_measures_action = QAction(
             "Target Acquisition Control Measures",
             self.control_measures_menu
@@ -1555,6 +1581,7 @@ class MilitaryCartographyTools:
         self.offensive_control_measures_action = None
         self.maneuver_control_measures_2_action = None
         self.airspace_control_measures_action = None
+        self.obstacle_control_measures_action = None
         self.maritime_control_measures_action = None
         self.deception_control_measures_action = None
         self.fire_support_coordination_measures_action = None
@@ -2152,6 +2179,25 @@ class MilitaryCartographyTools:
         )
 
         add_target_control_measures_points_layer(
+            self.iface
+        )
+
+
+    def create_obstacle_control_measures(self):
+        """
+        Add an Obstacle Control Measures (Points) layer - Table H-XIX's
+        own protection points (MIL-STD-2525D Appendix H.5.21), ready for
+        digitizing with QGIS's own native point tool.
+
+        Obstacles draw GREEN rather than in the affiliation hue every
+        other control measure uses, with a per-feature Colour field to
+        switch any one to black. Only the points exist so far; the
+        table's much larger line and area families arrive in later
+        batches - see obstacle_control_measures.py's own docstring for
+        the full inventory and batch plan.
+        """
+
+        add_obstacle_control_measures_points_layer(
             self.iface
         )
 
