@@ -2163,12 +2163,15 @@ class TestWireObstacles(QgisTestCase):
         # render caught it. The signature is the whole construction -
         # glyph, spacing and which lines run through it - because that
         # is exactly what the manual varies between these nine.
+        # Covers EVERY line obstacle, not just the wire nine - the
+        # toothed family shares the same construction, so it is the
+        # same invariant and the same way of getting it wrong.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _WIRE_SPECS,
-            WIRE_MEASURE_TYPE_LABELS,
+            LINE_MEASURE_TYPE_LABELS,
         )
 
-        self.assertEqual(set(_WIRE_SPECS), set(WIRE_MEASURE_TYPE_LABELS))
+        self.assertEqual(set(_WIRE_SPECS), set(LINE_MEASURE_TYPE_LABELS))
 
         signatures = {}
 
@@ -2208,10 +2211,15 @@ class TestWireObstacles(QgisTestCase):
             "triple_strand_concertina": ("oval", 1.5, (-1, 1)),
         }
 
+        # Scoped to the nine WIRE types: this asserts the maintainer's
+        # own transcription of the manual, and the toothed obstacles
+        # that later joined _WIRE_SPECS came from the standard's own
+        # templates instead.
         self.assertEqual(
             {
                 name: (spec.glyph, spec.gap, tuple(spec.lines))
                 for name, spec in _WIRE_SPECS.items()
+                if name in expected
             },
             expected
         )
@@ -2255,7 +2263,7 @@ class TestWireObstacles(QgisTestCase):
     def test_every_wire_symbol_builds(self):
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            WIRE_MEASURE_TYPE_LABELS,
+            LINE_MEASURE_TYPE_LABELS,
             create_obstacle_control_measures_lines_layer,
         )
 
@@ -2265,7 +2273,7 @@ class TestWireObstacles(QgisTestCase):
             rule.label() for rule in layer.renderer().rootRule().children()
         }
 
-        self.assertEqual(labels, set(WIRE_MEASURE_TYPE_LABELS))
+        self.assertEqual(labels, set(LINE_MEASURE_TYPE_LABELS))
 
 
     def test_the_line_always_extends_beyond_the_glyphs(self):
@@ -2368,3 +2376,51 @@ class TestWireObstacles(QgisTestCase):
                 self.assertAlmostEqual(
                     marker_lines[0].interval(), expected, places=6
                 )
+
+
+    def test_the_toothed_obstacles_reuse_the_wire_construction(self):
+
+        # Abatis, both antitank ditches and the antitank wall are the
+        # same thing as the wire family - a line carrying a repeating
+        # glyph - so they are built by the same code rather than by a
+        # parallel mechanism that would drift from it.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            TOOTHED_MEASURE_TYPE_CODES,
+            TOOTHED_MEASURE_TYPE_LABELS,
+            _WIRE_SPECS,
+        )
+
+        self.assertEqual(
+            set(TOOTHED_MEASURE_TYPE_CODES),
+            set(TOOTHED_MEASURE_TYPE_LABELS)
+        )
+
+        for measure_type in TOOTHED_MEASURE_TYPE_LABELS:
+
+            self.assertIn(measure_type, _WIRE_SPECS)
+
+            self.assertIn(measure_type, LINE_MEASURE_TYPE_CODES)
+
+        self.assertEqual(
+            set(TOOTHED_MEASURE_TYPE_CODES.values()),
+            {"280100", "290201", "290202", "290204"}
+        )
+
+
+    def test_the_two_ditches_differ_only_by_their_fill(self):
+
+        # Under Construction is hollow, Completed is solid - that is
+        # the whole difference in the standard's own templates.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_SPECS,
+        )
+
+        under = _WIRE_SPECS["antitank_ditch_under_construction"]
+        completed = _WIRE_SPECS["antitank_ditch_completed"]
+
+        self.assertEqual(under.gap, completed.gap)
+        self.assertEqual(under.lines, completed.lines)
+
+        self.assertEqual(under.glyph, "ditch_tooth")
+        self.assertEqual(completed.glyph, "ditch_tooth_filled")

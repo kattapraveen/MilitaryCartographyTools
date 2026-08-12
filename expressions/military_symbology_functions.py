@@ -570,11 +570,27 @@ def _serrated_ring_points(ring_points, tooth_count, outward=True):
 # glyph. Its viewBox is wider than the others' 100, so the caller sizes
 # it up to keep each cross the same size as its siblings' (see
 # _double_cross_geometry, which derives both from one number).
+# Each entry is (viewBox width, paths, filled). The glyph box is 100
+# tall; a marker line rotates these to follow the line, so "up" in the
+# box is the side of the line the tooth points to.
 _WIRE_GLYPH_GEOMETRY = {
-    "cross": (100, ["M 16,16 L 84,84", "M 84,16 L 16,84"]),
+    "cross": (100, ["M 16,16 L 84,84", "M 84,16 L 16,84"], False),
     # An OVAL, not a circle - the maintainer was explicit that the
     # concertina glyph is a "0" rather than an "O".
-    "oval": (100, ["M 50,12 C 22,12 22,88 50,88 C 78,88 78,12 50,12 Z"]),
+    "oval": (100, ["M 50,12 C 22,12 22,88 50,88 C 78,88 78,12 50,12 Z"],
+             False),
+    # Antitank Ditch: a triangular tooth standing off the line, hollow
+    # while under construction and solid once completed. Its base sits
+    # ON the line (y=100) and it points away from it.
+    "ditch_tooth": (100, ["M 0,100 L 100,100 L 50,6 Z"], False),
+    "ditch_tooth_filled": (100, ["M 0,100 L 100,100 L 50,6 Z"], True),
+    # Antitank Wall: a V-notch dropped below the line rather than a
+    # tooth raised above it.
+    "wall_notch": (100, ["M 0,0 L 50,92 L 100,0"], False),
+    # Abatis: felled trees across a route - a tooth with a stem, drawn
+    # as a chevron on a short stalk.
+    "abatis_tooth": (100, ["M 6,96 L 50,20 L 94,96", "M 50,20 L 50,100"],
+                     False),
 }
 
 _CROSS_PATHS = _WIRE_GLYPH_GEOMETRY["cross"][1]
@@ -600,7 +616,7 @@ def _double_cross_geometry(pair_gap):
         "M {},16 L {},84".format(second + 84, second + 16),
     ]
 
-    return 100 * (2 + pair_gap), paths
+    return 100 * (2 + pair_gap), paths, False
 
 
 @qgsfunction(
@@ -628,11 +644,13 @@ def mct_wire_glyph_svg(values, feature=None, parent=None):
     if geometry is None:
         return ""
 
-    width, paths = geometry
+    width, paths, filled = geometry
 
     body = "".join(
-        '<path d="{}" fill="none" stroke="{}" stroke-width="11"'
-        ' stroke-linecap="round"/>'.format(path, colour)
+        '<path d="{}" fill="{}" stroke="{}" stroke-width="11"'
+        ' stroke-linecap="round" stroke-linejoin="round"/>'.format(
+            path, colour if filled else "none", colour
+        )
         for path in paths
     )
 

@@ -2359,6 +2359,23 @@ WIRE_MEASURE_TYPE_LABELS = {
     "triple_strand_concertina": "Triple Strand Concertina",
 }
 
+# The toothed-line obstacles, which share the wire family's own
+# construction - a line carrying a repeating glyph - and so are built
+# by the same code rather than by a parallel mechanism.
+TOOTHED_MEASURE_TYPE_LABELS = {
+    "abatis": "Abatis",
+    "antitank_ditch_under_construction": "Antitank Ditch - Under Construction",
+    "antitank_ditch_completed": "Antitank Ditch - Completed",
+    "antitank_wall": "Antitank Wall",
+}
+
+TOOTHED_MEASURE_TYPE_CODES = {
+    "abatis": "280100",
+    "antitank_ditch_under_construction": "290201",
+    "antitank_ditch_completed": "290202",
+    "antitank_wall": "290204",
+}
+
 WIRE_MEASURE_TYPE_CODES = {
     "unspecified_wire_obstacle": "290301",
     "single_fence": "290302",
@@ -2408,6 +2425,21 @@ _WIRE_SPECS = {
     "double_strand_concertina": _WireSpec("oval", 1.5, (0, 1)),
     # High Wire Fence with ovals instead of crosses.
     "triple_strand_concertina": _WireSpec("oval", 1.5, (-1, 1)),
+
+    # The toothed obstacles. Their glyph sits ON the line rather than
+    # straddling it, so the line offset is 0 and the tooth's own
+    # geometry does the standing-off - see _WIRE_GLYPH_GEOMETRY, where
+    # each tooth's base is at the bottom of its box.
+    #
+    # "The teeth point toward enemy forces" (the standard's own note on
+    # both ditches and the wall): a marker line rotates its glyph to
+    # follow the line, so which side they point to follows the order
+    # the anchor points were digitized in - exactly what the standard's
+    # own Orientation rule says.
+    "abatis": _WireSpec("abatis_tooth", 1.2, (0,)),
+    "antitank_ditch_under_construction": _WireSpec("ditch_tooth", 1.0, (0,)),
+    "antitank_ditch_completed": _WireSpec("ditch_tooth_filled", 1.0, (0,)),
+    "antitank_wall": _WireSpec("wall_notch", 1.0, (0,)),
 }
 
 # The width (and height) of a single cross or oval.
@@ -2559,11 +2591,34 @@ def _wire_obstacle_symbol(measure_type):
     return symbol
 
 
+# STILL TO BUILD in B4, and deliberately absent rather than guessed:
+#
+#   290100 Obstacle Line                     - template not yet read
+#   290203 Antitank Ditch Reinforced w/Mines - template not yet read
+#   290400 Mine Cluster                      - construction known (a
+#           dashed straight line between two points plus a dashed
+#           semicircle over it, radius half that line), needs its own
+#           geometry function rather than a marker line
+#   290500 Trip Wire                         - construction known (PT1-
+#           PT2 vertical, PT3 sets the horizontal extent, and the
+#           distance from the PT1-PT2 line to PT3 is the radius of a 90
+#           degree arc at the bottom); the one the maintainer flagged
+#           as awkward, and it needs its own geometry function too
+#
+# The four here are the ones whose construction was read off the
+# standard directly - the rest are left out so the layer never offers
+# a measure type it cannot draw correctly.
+LINE_MEASURE_TYPE_LABELS = dict(WIRE_MEASURE_TYPE_LABELS)
+LINE_MEASURE_TYPE_LABELS.update(TOOTHED_MEASURE_TYPE_LABELS)
+
+LINE_MEASURE_TYPE_CODES = dict(WIRE_MEASURE_TYPE_CODES)
+LINE_MEASURE_TYPE_CODES.update(TOOTHED_MEASURE_TYPE_CODES)
+
 _LINE_SYMBOL_BUILDERS = {
     measure_type: (
         lambda measure_type=measure_type: _wire_obstacle_symbol(measure_type)
     )
-    for measure_type in WIRE_MEASURE_TYPE_LABELS
+    for measure_type in LINE_MEASURE_TYPE_LABELS
 }
 
 
@@ -2597,7 +2652,7 @@ def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
     layer.setEditorWidgetSetup(
         fields.indexOf("measure_type"),
         QgsEditorWidgetSetup(
-            "ValueMap", {"map": _value_map(WIRE_MEASURE_TYPE_LABELS)}
+            "ValueMap", {"map": _value_map(LINE_MEASURE_TYPE_LABELS)}
         )
     )
 
