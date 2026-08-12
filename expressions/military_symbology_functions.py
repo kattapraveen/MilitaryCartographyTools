@@ -777,30 +777,40 @@ def mct_abatis_line(values, feature=None, parent=None):
 def mct_mine_cluster_arc(values, feature=None, parent=None):
 
     """
-    Table H-XIX's own Mine Cluster (290400): the dashed semicircle
-    drawn OVER the dashed straight line between the feature's own two
-    clicked points - the maintainer's own construction in their own
-    words: "user clicks two points, connect it with a dashed line,
-    make a semi-circle over it, radius 1/3... of the line connecting
-    the two points" (a same-day correction of an initial 1/2 reading).
+    Table H-XIX's own Mine Cluster (290400): a dashed arc drawn OVER the
+    dashed straight line between the feature's own two clicked points -
+    the maintainer's own construction, corrected twice the same day.
+    First: "make a semi-circle over it, radius 1/3... of the line" (not
+    1/2, the standard's own printed figure). Then: "you are trimming
+    the line instead of extending the semi-circle, the user when he
+    clicks pt1 and pt2 expects the mine cluster to span that much, not
+    reduce" - i.e. the arc's own SPAN must reach both clicked points,
+    which a true 1/3-radius semicircle cannot do without leaving the
+    line's own ends bare (the previous build's fix for THAT was to
+    trim the line down to the arc's shorter span instead - exactly the
+    "reduce" the maintainer rejected here).
+
+    Reconciling both: this is a half-ELLIPSE, not a true semicircle.
+    Its horizontal semi-axis is locked to exactly half the PT1-PT2
+    span, so it touches both clicked points with nothing trimmed or
+    left bare; "radius 1/3" is honoured as the vertical semi-axis (the
+    dome's own height), which is flatter than a true semicircle (whose
+    height would equal the full half-span) rather than narrower than
+    one.
 
     The straight line is the feature's own digitized geometry, drawn
-    separately (see _mine_cluster_symbol); this returns only the arc.
-    Real generated geometry rather than a fixed-size marker, so it
-    scales with however far apart the two clicks are, the same reason
-    mct_abatis_line and mct_decoy_chevron are geometry rather than
-    markers.
+    separately and at its full length (see _mine_cluster_symbol); this
+    returns only the arc. Real generated geometry rather than a
+    fixed-size marker, so it scales with however far apart the two
+    clicks are, the same reason mct_abatis_line and mct_decoy_chevron
+    are geometry rather than markers.
 
-    The semicircle's DIAMETER sits ON the line, centred at its
-    midpoint - since the radius is only a third of the line's own
-    length, a length/3 stretch of bare straight line is left at each
-    end rather than the arc spanning the full line. The arc bulges to
-    the LEFT of the PT1->PT2 direction of travel (rotate the direction
-    vector 90 degrees counterclockwise), which reads as "above" a
-    left-to-right line on a normally-oriented map. The standard does
-    not mandate a side, so this is a placement call rather than a
-    measurement - the one part of this construction to re-check against
-    a live smoke test.
+    The dome bulges to the LEFT of the PT1->PT2 direction of travel
+    (rotate the direction vector 90 degrees counterclockwise), which
+    reads as "above" a left-to-right line on a normally-oriented map.
+    The standard does not mandate a side, so this is a placement call
+    rather than a measurement - the one part of this construction to
+    re-check against a live smoke test.
     """
 
     if len(values) < 1:
@@ -811,7 +821,7 @@ def mct_mine_cluster_arc(values, feature=None, parent=None):
     if geometry is None or geometry.isEmpty():
         return geometry
 
-    radius_fraction = float(values[1]) if len(values) > 1 else (1.0 / 3.0)
+    height_fraction = float(values[1]) if len(values) > 1 else (1.0 / 3.0)
     segments = int(values[2]) if len(values) > 2 else 24
 
     length = geometry.length()
@@ -841,7 +851,11 @@ def mct_mine_cluster_arc(values, feature=None, parent=None):
     mid_x = (start.x() + end.x()) / 2.0
     mid_y = (start.y() + end.y()) / 2.0
 
-    radius = length * radius_fraction
+    # Horizontal semi-axis is HALF THE SPAN itself, not a fraction of
+    # it - this is what makes the dome touch PT1/PT2 exactly, whatever
+    # the height fraction is set to.
+    half_span = span / 2.0
+    height = length * height_fraction
 
     points = []
 
@@ -851,12 +865,145 @@ def mct_mine_cluster_arc(values, feature=None, parent=None):
 
         points.append(
             QgsPointXY(
-                mid_x + radius * (math.cos(theta) * ux + math.sin(theta) * nx),
-                mid_y + radius * (math.cos(theta) * uy + math.sin(theta) * ny),
+                mid_x + half_span * math.cos(theta) * ux
+                + height * math.sin(theta) * nx,
+                mid_y + half_span * math.cos(theta) * uy
+                + height * math.sin(theta) * ny,
             )
         )
 
     return QgsGeometry.fromPolylineXY(points)
+
+
+@qgsfunction(
+    'mct_trip_wire_geometry',
+    group='Military Cartography Tools'
+)
+def mct_trip_wire_geometry(values, feature=None, parent=None):
+
+    """
+    Table H-XIX's own Trip Wire (290500, printed page 598) - the one
+    the maintainer flagged in advance as "slightly complex, we will
+    figure it out when it comes to that". Read directly off the
+    standard's own template/draw-rules text.
+
+    Three clicked anchor points, taken from the feature's own digitized
+    vertices in order (NOT the raw PT1-PT2-PT3 polyline the digitizing
+    tool connects them into - like mct_abatis_line and
+    mct_mine_cluster_arc, this reinterprets the anchor POSITIONS rather
+    than drawing the raw segments between them):
+
+    - PT1, PT2: "Points 1 and 2 define the vertical straight line
+      portion of the symbol." Drawn as a plain straight segment.
+    - PT3: "defines an end of the horizontal line" - the OTHER end is
+      PT1 itself (the only anchor left once PT2 is spent on the arc),
+      giving a right-angle "horizontal" segment off the TOP of the
+      vertical one, matching the template picture (the short segment
+      sits right at PT1, not partway down). "Horizontal" only in the
+      template's own axis-aligned example; here it is whatever
+      direction PT3 was actually clicked in.
+    - The template's own longer, unlabelled line running further down
+      and past the vertical line is the same convention already caught
+      once in this appendix (Light Line, H2): an EXAMPLE-column
+      explanatory addition - here it links to a mine glyph the picture
+      uses to show the trip wire's PURPOSE - not part of the control
+      measure's own geometry, and not drawn here.
+
+    "The distance between the line connecting points 1 and 2 and point
+    3 is the radius of the 90 degree arc at the bottom of the symbol" -
+    the PERPENDICULAR distance from PT3 to the infinite line through
+    PT1-PT2, general enough to keep working even if PT3 is not clicked
+    exactly perpendicular to PT1-PT2. The arc starts at PT2 tangent to
+    the PT1->PT2 direction (continuing the vertical line's own way of
+    travel) and curves 90 degrees to end tangent AWAY from PT3's own
+    side - the hook in the template curls opposite the horizontal
+    segment, not underneath it.
+
+    Returned as ONE connected polyline (PT3 -> PT1 -> PT2 -> arc),
+    since every segment genuinely shares an endpoint with the next.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    segments = int(values[1]) if len(values) > 1 else 12
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1 = QgsPointXY(vertices[0])
+    pt2 = QgsPointXY(vertices[1])
+    pt3 = QgsPointXY(vertices[2])
+
+    dx = pt2.x() - pt1.x()
+    dy = pt2.y() - pt1.y()
+
+    span = math.hypot(dx, dy)
+
+    if span == 0:
+        return geometry
+
+    # u: unit vector along PT1->PT2, the direction the arc continues
+    # travelling in as it leaves PT2.
+    ux, uy = dx / span, dy / span
+
+    # Perpendicular distance from PT3 to the infinite line through
+    # PT1-PT2, via the standard vector projection - not just
+    # |PT3.x - PT1.x|, so an off-axis PT3 still resolves sensibly.
+    to_pt3_x = pt3.x() - pt1.x()
+    to_pt3_y = pt3.y() - pt1.y()
+
+    along = to_pt3_x * ux + to_pt3_y * uy
+
+    foot_x = pt1.x() + along * ux
+    foot_y = pt1.y() + along * uy
+
+    perp_x = pt3.x() - foot_x
+    perp_y = pt3.y() - foot_y
+
+    radius = math.hypot(perp_x, perp_y)
+
+    if radius == 0:
+        # PT3 sits ON the PT1-PT2 line - no side to curl toward, so the
+        # arc collapses to a point at PT2 rather than guessing a side.
+        return QgsGeometry.fromPolylineXY([pt3, pt1, pt2])
+
+    # n: unit vector from the PT1-PT2 line TOWARD PT3. The arc curls in
+    # the OPPOSITE direction (-n), away from the horizontal segment,
+    # matching the template's own hook.
+    nx, ny = perp_x / radius, perp_y / radius
+
+    center_x = pt2.x() - radius * nx
+    center_y = pt2.y() - radius * ny
+
+    arc_points = []
+
+    for index in range(segments + 1):
+
+        # Sweeps from the radius vector pointing along +n (PT2's own
+        # position relative to the centre) to +u (continuing PT1->PT2's
+        # own direction) - a quarter turn, derived rather than assumed,
+        # since n and u are perpendicular by construction.
+        t = (index / segments) * (math.pi / 2.0)
+
+        dir_x = nx * math.cos(t) + ux * math.sin(t)
+        dir_y = ny * math.cos(t) + uy * math.sin(t)
+
+        arc_points.append(
+            QgsPointXY(
+                center_x + radius * dir_x,
+                center_y + radius * dir_y,
+            )
+        )
+
+    return QgsGeometry.fromPolylineXY([pt3, pt1, pt2] + arc_points[1:])
 
 
 @qgsfunction(
@@ -2717,6 +2864,7 @@ _FUNCTIONS = [
     mct_scatter_points,
     mct_abatis_line,
     mct_mine_cluster_arc,
+    mct_trip_wire_geometry,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,

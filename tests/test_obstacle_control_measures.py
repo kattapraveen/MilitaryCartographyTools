@@ -2173,7 +2173,8 @@ class TestWireObstacles(QgisTestCase):
 
         self.assertEqual(
             set(_WIRE_SPECS) | {
-                "abatis", "antitank_ditch_reinforced", "mine_cluster"
+                "abatis", "antitank_ditch_reinforced", "mine_cluster",
+                "trip_wire"
             },
             set(LINE_MEASURE_TYPE_LABELS)
         )
@@ -2512,8 +2513,12 @@ class TestMineClusterObstacle(QgisTestCase):
     Mine Cluster (290400) - "user clicks two points, connect it with a
     dashed line, make a semi-circle over it, radius 1/3... of the line
     connecting the two points" - the maintainer's own construction,
-    given the same day the radius fraction was corrected from an
-    initial 1/2 reading.
+    corrected twice the same day: the height fraction (1/3, not the
+    standard's own printed 1/2), then the span itself ("the user...
+    expects the mine cluster to span that much, not reduce" - so the
+    dome now touches both clicked points exactly, as a half-ellipse
+    rather than a true semicircle; see mct_mine_cluster_arc's own
+    docstring for the full reasoning).
     """
 
     def setUp(self):
@@ -2532,7 +2537,7 @@ class TestMineClusterObstacle(QgisTestCase):
         super().tearDown()
 
 
-    def _arc(self, wkt, radius_fraction=None, segments=None):
+    def _arc(self, wkt, height_fraction=None, segments=None):
 
         from qgis.core import QgsGeometry
 
@@ -2540,8 +2545,8 @@ class TestMineClusterObstacle(QgisTestCase):
             QgsGeometry.fromWkt(wkt).asWkt()
         )
 
-        if radius_fraction is not None:
-            arguments += ", {}".format(radius_fraction)
+        if height_fraction is not None:
+            arguments += ", {}".format(height_fraction)
 
         if segments is not None:
             arguments += ", {}".format(segments)
@@ -2557,49 +2562,54 @@ class TestMineClusterObstacle(QgisTestCase):
         return result
 
 
-    def test_default_radius_is_a_third_of_the_line_not_half(self):
+    def test_default_height_is_a_third_of_the_line_not_half(self):
 
         # The maintainer's own correction: "radius 1/3 and not 1/2 of
-        # the line connecting the two points".
+        # the line connecting the two points" - now the dome's HEIGHT,
+        # not a true semicircle's radius (see class docstring).
         arc = self._arc("LINESTRING(0 0, 300 0)")
 
         box = arc.boundingBox()
 
-        # Bulges perpendicular to the line by exactly the radius.
         self.assertAlmostEqual(box.height(), 300 * (1.0 / 3.0), places=6)
 
 
-    def test_the_arcs_diameter_sits_on_the_line_centred_at_its_midpoint(self):
+    def test_the_arc_touches_both_clicked_points_exactly(self):
 
+        # "the user... expects the mine cluster to span that much, not
+        # reduce" - the dome's own horizontal extent must match the
+        # full PT1-PT2 line, not a fraction of it.
         arc = self._arc("LINESTRING(0 0, 300 0)")
 
         vertices = arc.asPolyline()
 
-        radius = 300 * (1.0 / 3.0)
-
-        # First and last points of the semicircle are its own diameter
-        # ends - ON the line (y == 0), radius either side of the
-        # midpoint (150). Parametrized starting at the PT2 end (theta
-        # == 0) and finishing at the PT1 end (theta == pi).
-        self.assertAlmostEqual(vertices[0].x(), 150 + radius, places=6)
+        # Parametrized starting at the PT2 end (theta == 0) and
+        # finishing at the PT1 end (theta == pi).
+        self.assertAlmostEqual(vertices[0].x(), 300, places=6)
         self.assertAlmostEqual(vertices[0].y(), 0, places=6)
 
-        self.assertAlmostEqual(vertices[-1].x(), 150 - radius, places=6)
+        self.assertAlmostEqual(vertices[-1].x(), 0, places=6)
         self.assertAlmostEqual(vertices[-1].y(), 0, places=6)
 
         # The apex, at the arc's own midpoint, is directly above the
-        # line's own midpoint at exactly one radius.
+        # line's own midpoint at exactly the height fraction.
         apex = vertices[len(vertices) // 2]
 
         self.assertAlmostEqual(apex.x(), 150, places=2)
-        self.assertAlmostEqual(apex.y(), radius, places=2)
+        self.assertAlmostEqual(apex.y(), 300 * (1.0 / 3.0), places=2)
 
 
-    def test_a_custom_radius_fraction_is_honoured(self):
+    def test_a_custom_height_fraction_is_honoured(self):
 
-        arc = self._arc("LINESTRING(0 0, 100 0)", radius_fraction=0.2)
+        arc = self._arc("LINESTRING(0 0, 100 0)", height_fraction=0.2)
 
         self.assertAlmostEqual(arc.boundingBox().height(), 20, places=6)
+
+        # The touching-endpoints behaviour is independent of height.
+        vertices = arc.asPolyline()
+
+        self.assertAlmostEqual(vertices[0].x(), 100, places=6)
+        self.assertAlmostEqual(vertices[-1].x(), 0, places=6)
 
 
     def test_diagonal_line_still_bulges_perpendicular_to_it(self):
@@ -2610,7 +2620,7 @@ class TestMineClusterObstacle(QgisTestCase):
 
         length = (300 ** 2 + 300 ** 2) ** 0.5
 
-        radius = length * (1.0 / 3.0)
+        height = length * (1.0 / 3.0)
 
         vertices = arc.asPolyline()
 
@@ -2623,7 +2633,13 @@ class TestMineClusterObstacle(QgisTestCase):
         offset = ((apex.x() - midpoint_x) ** 2
                   + (apex.y() - midpoint_y) ** 2) ** 0.5
 
-        self.assertAlmostEqual(offset, radius, places=4)
+        self.assertAlmostEqual(offset, height, places=4)
+
+        # Still touches the endpoints even off-axis.
+        self.assertAlmostEqual(vertices[0].x(), 300, places=4)
+        self.assertAlmostEqual(vertices[0].y(), 300, places=4)
+        self.assertAlmostEqual(vertices[-1].x(), 0, places=4)
+        self.assertAlmostEqual(vertices[-1].y(), 0, places=4)
 
 
     def test_mine_cluster_is_offered_on_the_lines_layer(self):
@@ -2646,23 +2662,24 @@ class TestMineClusterObstacle(QgisTestCase):
         self.assertIn("mine_cluster", labels)
 
 
-    def test_mine_cluster_symbol_has_a_generated_straight_line_and_a_generated_arc(self):
+    def test_mine_cluster_symbol_has_a_plain_line_and_a_generated_arc(self):
 
-        # Both layers are geometry generators now, not one plain line
-        # plus one generator: the straight portion must be TRIMMED to
-        # match the arc's own span, so it needs generating too.
+        # The straight portion is the feature's own RAW geometry now -
+        # no trimming - so it needs no generator; only the arc does.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _mine_cluster_symbol,
         )
 
-        from qgis.core import QgsGeometryGeneratorSymbolLayer
+        from qgis.core import (
+            QgsGeometryGeneratorSymbolLayer, QgsSimpleLineSymbolLayer
+        )
 
         symbol = _mine_cluster_symbol()
 
         self.assertEqual(symbol.symbolLayerCount(), 2)
 
         self.assertIsInstance(
-            symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer
+            symbol.symbolLayer(0), QgsSimpleLineSymbolLayer
         )
         self.assertIsInstance(
             symbol.symbolLayer(1), QgsGeometryGeneratorSymbolLayer
@@ -2674,36 +2691,29 @@ class TestMineClusterObstacle(QgisTestCase):
         )
 
 
-    def test_the_straight_line_is_trimmed_to_match_the_arcs_own_span(self):
+    def test_the_straight_line_is_drawn_at_its_full_clicked_length(self):
 
-        # "the line should not extend beyond the semicircle or the
-        # semicircle should touch the end points of the line" - the
-        # maintainer's own correction. The line's own trim fractions
-        # (mid +/- radius) must match the arc's radius fraction exactly,
-        # not just be close, or the two ends drift apart at some sizes.
+        # No line_substring trimming any more (regression guard for the
+        # rejected "trim the line" fix) - the straight layer is a plain
+        # QgsSimpleLineSymbolLayer with no geometry expression at all,
+        # so it necessarily draws the feature's own digitized geometry
+        # as-is, full length.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _MINE_CLUSTER_ARC_RADIUS_FRACTION,
             _mine_cluster_symbol,
         )
 
         symbol = _mine_cluster_symbol()
 
-        expression = symbol.symbolLayer(0).geometryExpression()
-
-        self.assertIn("line_substring($geometry,", expression)
-
-        expected_start = 0.5 - _MINE_CLUSTER_ARC_RADIUS_FRACTION
-        expected_end = 0.5 + _MINE_CLUSTER_ARC_RADIUS_FRACTION
-
-        self.assertIn(f"length($geometry) * {expected_start}", expression)
-        self.assertIn(f"length($geometry) * {expected_end}", expression)
+        self.assertFalse(
+            hasattr(symbol.symbolLayer(0), "geometryExpression")
+        )
 
 
-    def test_trimmed_line_and_arc_share_the_same_endpoints(self):
+    def test_the_line_and_arc_share_the_same_endpoints(self):
 
-        # The claim the expressions above only imply: evaluate both
-        # against a real feature and check the trimmed line's own
-        # endpoints coincide with the arc's diameter endpoints.
+        # The claim the above only implies: evaluate the arc against a
+        # real feature and check its own endpoints coincide with the
+        # feature's raw PT1/PT2, not a shrunk or extended version.
         from qgis.core import QgsFeature, QgsGeometry, QgsPointXY
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
@@ -2726,26 +2736,17 @@ class TestMineClusterObstacle(QgisTestCase):
         context = layer.createExpressionContext()
         context.setFeature(feature)
 
-        line = QgsExpression(
-            "line_substring($geometry, length($geometry) * (1.0/6.0),"
-            " length($geometry) * (5.0/6.0))"
-        ).evaluate(context)
-
         arc = QgsExpression(
             "mct_mine_cluster_arc($geometry, {})".format(1.0 / 3.0)
         ).evaluate(context)
 
-        line_vertices = line.asPolyline()
         arc_vertices = arc.asPolyline()
 
-        line_ends = {
-            round(line_vertices[0].x(), 6), round(line_vertices[-1].x(), 6)
-        }
         arc_ends = {
             round(arc_vertices[0].x(), 6), round(arc_vertices[-1].x(), 6)
         }
 
-        self.assertEqual(line_ends, arc_ends)
+        self.assertEqual(arc_ends, {0.0, 300.0})
 
 
     def test_both_layers_of_the_symbol_are_dashed_regardless_of_status(self):
@@ -2763,11 +2764,13 @@ class TestMineClusterObstacle(QgisTestCase):
 
         symbol = _mine_cluster_symbol()
 
-        for index in (0, 1):
+        straight = symbol.symbolLayer(0)
 
-            with self.subTest(symbol_layer=index):
+        arc_inner = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
 
-                inner = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+        for label, inner in (("straight", straight), ("arc", arc_inner)):
+
+            with self.subTest(symbol_layer=label):
 
                 self.assertTrue(inner.useCustomDashPattern())
 
@@ -2847,3 +2850,262 @@ class TestMineClusterObstacle(QgisTestCase):
         self.assertAlmostEqual(
             arc.boundingBox().height(), 300 * (1.0 / 3.0), places=6
         )
+
+
+class TestTripWireObstacle(QgisTestCase):
+
+    """
+    Trip Wire (290500) - three anchor points reinterpreted into a
+    horizontal segment, a vertical segment and a 90 degree arc, read
+    directly off the standard's own template/draw-rules text (printed
+    page 598) rather than off any earlier paraphrase.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _path(self, pt1, pt2, pt3, segments=None):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        wkt = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(*pt1), QgsPointXY(*pt2), QgsPointXY(*pt3)]
+        ).asWkt()
+
+        arguments = "geom_from_wkt('{}')".format(wkt)
+
+        if segments is not None:
+            arguments += ", {}".format(segments)
+
+        expression = QgsExpression(f"mct_trip_wire_geometry({arguments})")
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_too_few_vertices_returns_the_geometry_unchanged(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        two_point = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 0), QgsPointXY(0, -10)]
+        )
+
+        expression = QgsExpression(
+            "mct_trip_wire_geometry(geom_from_wkt('{}'))".format(
+                two_point.asWkt()
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.asWkt(), two_point.asWkt())
+
+
+    def test_path_starts_pt3_then_pt1_then_pt2(self):
+
+        # "Points 1 and 2 define the vertical straight line portion";
+        # "Point 3 defines an end of the horizontal line" - the OTHER
+        # end being PT1, the only anchor left. The raw digitized
+        # geometry connects PT1->PT2->PT3 (click order); this function
+        # must reinterpret it, not just re-emit it.
+        path = self._path((0, 0), (0, -10), (5, 0))
+
+        vertices = path.asPolyline()
+
+        self.assertAlmostEqual(vertices[0].x(), 5)
+        self.assertAlmostEqual(vertices[0].y(), 0)
+
+        self.assertAlmostEqual(vertices[1].x(), 0)
+        self.assertAlmostEqual(vertices[1].y(), 0)
+
+        self.assertAlmostEqual(vertices[2].x(), 0)
+        self.assertAlmostEqual(vertices[2].y(), -10)
+
+
+    def test_arc_radius_is_the_perpendicular_distance_to_pt3(self):
+
+        # PT3 level with PT1 (the template's own axis-aligned example):
+        # radius is simply the horizontal offset, 5.
+        path = self._path((0, 0), (0, -10), (5, 0))
+
+        vertices = path.asPolyline()
+
+        arc = vertices[2:]
+
+        # The arc's own end point is exactly one radius from PT2,
+        # diagonally - see the module's own worked derivation:
+        # centre = PT2 - r*n, end = PT2 + r*(u - n).
+        end = arc[-1]
+
+        self.assertAlmostEqual(end.x(), -5, places=6)
+        self.assertAlmostEqual(end.y(), -15, places=6)
+
+
+    def test_arc_curls_away_from_pt3_not_toward_it(self):
+
+        # PT3 is to the right (+x) of the vertical line; the hook must
+        # curl LEFT (-x), matching the template picture - not toward
+        # PT3's own side.
+        path = self._path((0, 0), (0, -10), (5, 0))
+
+        vertices = path.asPolyline()
+
+        arc_midpoint = vertices[2 + len(vertices[2:]) // 2]
+
+        self.assertLess(arc_midpoint.x(), 0)
+
+
+    def test_perpendicular_distance_used_for_an_off_axis_pt3(self):
+
+        # PT3 need not be exactly level with PT1 - the radius is the
+        # PERPENDICULAR distance to the infinite PT1-PT2 line, not the
+        # straight-line distance to PT1.
+        path = self._path((0, 0), (0, -10), (5, -3))
+
+        vertices = path.asPolyline()
+
+        # The "horizontal" segment now runs PT3 -> PT1, i.e. not
+        # horizontal at all - confirms this isn't hard-coded to an
+        # axis-aligned reading.
+        self.assertAlmostEqual(vertices[0].x(), 5)
+        self.assertAlmostEqual(vertices[0].y(), -3)
+
+        end = vertices[-1]
+
+        # Perpendicular distance from (5, -3) to the vertical line
+        # x=0 is still exactly 5, regardless of the y offset.
+        self.assertAlmostEqual(end.x(), -5, places=6)
+        self.assertAlmostEqual(end.y(), -15, places=6)
+
+
+    def test_pt3_on_the_line_collapses_the_arc_rather_than_guessing(self):
+
+        path = self._path((0, 0), (0, -10), (0, -4))
+
+        vertices = path.asPolyline()
+
+        self.assertEqual(len(vertices), 3)
+
+        self.assertAlmostEqual(vertices[-1].x(), 0)
+        self.assertAlmostEqual(vertices[-1].y(), -10)
+
+
+    def test_trip_wire_is_offered_on_the_lines_layer(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        self.assertEqual(LINE_MEASURE_TYPE_CODES["trip_wire"], "290500")
+        self.assertEqual(LINE_MEASURE_TYPE_LABELS["trip_wire"], "Trip Wire")
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        self.assertIn("trip_wire", labels)
+
+
+    def test_trip_wire_symbol_is_one_generated_geometry_layer(self):
+
+        from qgis.core import QgsGeometryGeneratorSymbolLayer
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _trip_wire_symbol,
+        )
+
+        symbol = _trip_wire_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 1)
+
+        self.assertIsInstance(
+            symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer
+        )
+
+        self.assertIn(
+            "mct_trip_wire_geometry($geometry)",
+            symbol.symbolLayer(0).geometryExpression()
+        )
+
+
+    def test_trip_wire_follows_status_unlike_mine_cluster(self):
+
+        # No "always dashed" note on Trip Wire's own draw rules -
+        # ordinary present/planned styling, the same as the rest of
+        # the wire family and unlike Mine Cluster's fixed dash.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _trip_wire_symbol,
+        )
+
+        symbol = _trip_wire_symbol()
+
+        inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
+
+        self.assertTrue(
+            inner_line.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.StrokeStyle
+            )
+        )
+
+
+    def test_trip_wire_geometry_evaluates_against_a_real_feature(self):
+
+        from qgis.core import QgsFeature, QgsGeometry, QgsPointXY
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setGeometry(
+            QgsGeometry.fromPolylineXY(
+                [QgsPointXY(0, 0), QgsPointXY(0, -10), QgsPointXY(5, 0)]
+            )
+        )
+
+        feature.setAttribute("measure_type", "trip_wire")
+        feature.setAttribute("colour", "green")
+        feature.setAttribute("status", "present")
+
+        expression = QgsExpression("mct_trip_wire_geometry($geometry)")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        path = expression.evaluate(context)
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+        self.assertFalse(path.isEmpty())
+        self.assertGreaterEqual(len(path.asPolyline()), 3)

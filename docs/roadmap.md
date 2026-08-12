@@ -6577,6 +6577,67 @@ tested, not claimed as done here.
 
   898 tests passing on both QGIS versions.
 
+- **Trip Wire (290500) built** (2026-08-13), closing out B4 at 17 of
+  17 - all of H-XIX's line obstacles now built. The one the maintainer
+  flagged in advance as needing to be worked out at build time.
+
+  Read directly off the standard's own template/draw-rules text
+  (printed page 598, rendered and read rather than trusted from an
+  earlier paraphrase - the two disagreed on exactly which lines are
+  part of the symbol). Three clicked anchor points, reinterpreted
+  (like Abatis and Mine Cluster before it) rather than drawn as the
+  raw PT1-PT2-PT3 polyline a digitizing tool connects them into:
+  PT1-PT2 is a plain straight segment; PT3 "defines an end of the
+  horizontal line", the other end being PT1 itself (the only anchor
+  left once PT2 is spent on the arc); the template's own longer,
+  unlabelled line running further down and past the vertical one is
+  the same convention already caught once in this appendix (Light
+  Line, H2) - an EXAMPLE-column explanatory addition (linking to a
+  mine glyph to show the trip wire's purpose), not part of the control
+  measure's own geometry, and not drawn.
+
+  The arc: "the distance between the line connecting points 1 and 2
+  and point 3 is the radius of the 90 degree arc at the bottom" - built
+  as the PERPENDICULAR distance from PT3 to the infinite line through
+  PT1-PT2 (not just the axis-aligned offset), so an off-axis PT3 still
+  resolves sensibly; verified with a non-perpendicular PT3 specifically,
+  not just the template's own axis-aligned example. The arc starts at
+  PT2 tangent to the PT1->PT2 direction and curves 90 degrees to end
+  tangent away from PT3's own side, matching the template's hook.
+
+  Follows the ordinary H.5.1.1.3 present/planned rule (solid/dashed by
+  status), unlike Mine Cluster - the standard's own draw rules carry no
+  "always dashed" note here.
+
+  Render-compared side by side against the standard's own template
+  picture; matches.
+
+  908 tests passing on both QGIS versions.
+
+- **Mine Cluster's arc rebuilt as a half-ellipse touching both clicked
+  points** (2026-08-13), superseding the previous day's "trim the line"
+  fix. The maintainer's own correction: "you are trimming the line
+  instead of extending the semi-circle, the user when he clicks pt1
+  and pt2 expects the mine cluster to span that much, not reduce."
+
+  A true semicircle at radius 1/3 of the line cannot span the full
+  line without leaving its own ends bare - that gap was what motivated
+  trimming the line down to match in the first place, which is exactly
+  the "reduce" the maintainer rejected. Reconciled as a half-ELLIPSE
+  instead: horizontal semi-axis locked to exactly half the PT1-PT2
+  span (so it touches both points, full length, nothing trimmed),
+  vertical semi-axis (the dome's own height) kept at the maintainer's
+  own 1/3. `mct_mine_cluster_arc`'s `radius_fraction` argument is
+  renamed `height_fraction` to match what it now actually controls.
+  The straight line is back to a plain, undecorated
+  `QgsSimpleLineSymbolLayer` over the feature's raw geometry - the
+  `line_substring` trimming and the geometry-generator wrapper it
+  needed are both gone.
+
+  908 tests passing on both QGIS versions - the Mine Cluster suite was
+  rewritten in place for the new construction rather than grown, so the
+  total is unchanged from Trip Wire's own entry above.
+
 ---
 
 ## Suggested near-term order
