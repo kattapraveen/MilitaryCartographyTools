@@ -19,6 +19,11 @@ milsymbol-3.0.4/
 # against the standard's own text/diagrams.
 reference/
 
+# QGIS-generated Processing user directory - empty scaffolding
+# (models/, scripts/, grassaddons/) recreated by Processing.initialize()
+# on every headless test run, not part of the plugin.
+processing/
+
 # QGIS-generated local style database - created by headless/GUI QGIS runs,
 # empty and not part of the plugin.
 symbology-style.db

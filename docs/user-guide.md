@@ -998,25 +998,22 @@ leave it blank and nothing is drawn. Note the standard puts this box
 just *above* the end point — below-right is a deliberate choice here.
 
 **Points** carries the table's whole point vocabulary — all 105 usable
-symbols from printed pages 474–501. Because that is far too many for one
-flat list, every entry is **prefixed with the group it belongs to in the
-standard's own table**, so the dropdown clusters by group and answers to
-type-ahead: type "Routes" and you land on the eight route entries. The
-groups are **General**, **Sub-Surface Warfare**, **Search**,
-**Sonobuoys**, **Reference Points**, **Subsurface Stations**, **Surface
-Stations**, **Routes**, **Emergency**, **Hazard**, and **Sea Subsurface
-Returns**.
+symbols from printed pages 474–501. That is far too many for one flat
+list, so the form asks for them in two steps: **pick a Group first, and
+the Entity dropdown offers only that group's own symbols.** The groups
+are the standard's own sub-headings — **General**, **Sub-Surface
+Warfare**, **Search**, **Sonobuoys**, **Reference Points**, **Subsurface
+Stations**, **Surface Stations**, **Routes**, **Emergency**, **Hazard**,
+and **Sea Subsurface Returns** — which brings the longest list you ever
+face down to 17 entries, and most of them to under 10.
 
-There is also a real **Group** field on the layer, but you never fill it
-in — it derives itself from whichever entity you pick, and re-derives if
-you change it. It's there so you can filter, select and style by group in
-the attribute table, not as a second thing to keep in sync.
+Change the Group after choosing an Entity and the Entity list re-filters,
+but your old choice stays in the field. That combination is rejected on
+save, with the message *"The entity must be one of the chosen group's own
+entries"* — pick an entity from the new group's list and it clears.
 
-(QGIS's attribute form has no genuinely nested dropdown. The one
-mechanism that would filter the entity list down to a chosen group is a
-cascading value-relation, which this plugin removed years back after it
-proved able to crash QGIS outright — so the prefix-plus-derived-field
-approach is used instead.)
+The Group field is also a real attribute, so you can filter, select and
+style by group in the attribute table.
 
 **Five codes on pages 474–501 are deliberately not offered**: the
 table's own "Maritime Control Points" parent row (its template column
