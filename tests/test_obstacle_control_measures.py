@@ -2301,3 +2301,59 @@ class TestWireObstacles(QgisTestCase):
                     # No line at all - nothing to overhang, so the
                     # glyphs keep the full geometry.
                     self.assertEqual(trimmed, [])
+
+
+    def test_the_gap_scale_tunes_spacing_without_rewriting_the_specs(self):
+
+        # The maintainer asked to reduce every gap by 40% after seeing
+        # the render. Applied as one factor so _WIRE_SPECS stays a
+        # faithful transcription of their description of the manual -
+        # test_the_specs_match_the_manual_as_the_maintainer_read_it
+        # still asserts the untouched numbers.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _WIRE_GAP_SCALE,
+            _WIRE_GLYPH_SIZE_MM,
+            _WIRE_SPECS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        self.assertAlmostEqual(_WIRE_GAP_SCALE, 0.6)
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        for rule in layer.renderer().rootRule().children():
+
+            spec = _WIRE_SPECS[rule.label()]
+
+            symbol = rule.symbol()
+
+            marker_lines = []
+
+            for index in range(symbol.symbolLayerCount()):
+
+                sub_symbol = symbol.symbolLayer(index).subSymbol()
+
+                if sub_symbol is None:
+                    continue
+
+                for sub_index in range(sub_symbol.symbolLayerCount()):
+
+                    candidate = sub_symbol.symbolLayer(sub_index)
+
+                    if hasattr(candidate, "interval"):
+                        marker_lines.append(candidate)
+
+            self.assertEqual(len(marker_lines), 1, rule.label())
+
+            width_multiplier = 2.5 if spec.glyph == "double_cross" else 1.0
+
+            expected = (
+                _WIRE_GLYPH_SIZE_MM * width_multiplier
+                + spec.gap * _WIRE_GAP_SCALE * _WIRE_GLYPH_SIZE_MM
+            )
+
+            with self.subTest(measure_type=rule.label()):
+
+                self.assertAlmostEqual(
+                    marker_lines[0].interval(), expected, places=6
+                )

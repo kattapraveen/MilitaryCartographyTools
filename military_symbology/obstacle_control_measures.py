@@ -2421,6 +2421,18 @@ _WIRE_GLYPH_WIDTH_MULTIPLIERS = {"double_cross": 2.5}
 # How much of each end of the line the glyphs leave clear.
 _WIRE_END_TRIM = 0.04
 
+# Every gap in _WIRE_SPECS is multiplied by this before it is drawn -
+# the maintainer asked to "reduce the gap between the Xs and 0s across
+# the board by 40%" after seeing them rendered.
+#
+# Applied as ONE factor rather than by editing the nine numbers,
+# deliberately: those numbers are a transcription of the maintainer's
+# own description of the manual and a test asserts they still match it,
+# so tuning how it looks must not quietly rewrite what it says. The
+# 0.5 spacing WITHIN a Double Fence pair is not scaled - that one was
+# specified as an explicit figure and is baked into the paired glyph.
+_WIRE_GAP_SCALE = 0.6
+
 
 def _wire_obstacle_symbol(measure_type):
 
@@ -2485,7 +2497,10 @@ def _wire_obstacle_symbol(measure_type):
     marker_line = QgsMarkerLineSymbolLayer()
 
     # Centre-to-centre: one glyph width plus the gap the manual gives.
-    interval_mm = glyph_width_mm + spec.gap * _WIRE_GLYPH_SIZE_MM
+    interval_mm = (
+        glyph_width_mm
+        + spec.gap * _WIRE_GAP_SCALE * _WIRE_GLYPH_SIZE_MM
+    )
 
     marker_line.setInterval(interval_mm)
 

@@ -6315,6 +6315,23 @@ tested, not claimed as done here.
 
     879 tests passing on both QGIS versions.
 
+- **Wire glyph spacing tightened 40%** (2026-08-12), on the
+  maintainer's word after the rebuilt render: "reduce the gap between
+  the Xs and 0s across the board by 40%".
+
+  Applied as a single `_WIRE_GAP_SCALE` factor rather than by editing
+  the nine numbers in `_WIRE_SPECS`. Those numbers are a transcription
+  of the maintainer's own description of the manual, and a test asserts
+  they still match it - so tuning how the symbols LOOK must not quietly
+  rewrite what the table SAYS. The two concerns now have separate
+  knobs.
+
+  The 0.5 spacing inside a Double Fence pair is deliberately not
+  scaled: it was given as an explicit figure and is baked into the
+  paired glyph's own geometry. Flagged rather than assumed.
+
+    880 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
