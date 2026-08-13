@@ -46,6 +46,9 @@ from MilitaryCartographyTools.military_symbology.c2_measures import (
 from MilitaryCartographyTools.military_symbology.field_fortification import (
     POINT_ENTITY_LABELS as _FIELD_FORTIFICATION_POINT_ENTITY_LABELS,
 )
+from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+    POINT_ENTITY_LABELS as _CBRN_POINT_ENTITY_LABELS,
+)
 from MilitaryCartographyTools.military_symbology.defensive_control_measures import (
     POINT_ENTITY_LABELS as _DEFENSIVE_POINT_ENTITY_LABELS,
 )
@@ -130,7 +133,8 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
             | set(_C2_POINT_ENTITY_LABELS)
             | set(_DEFENSIVE_POINT_ENTITY_LABELS)
             | set(_OFFENSIVE_POINT_ENTITY_LABELS)
-            | set(_FIELD_FORTIFICATION_POINT_ENTITY_LABELS),
+            | set(_FIELD_FORTIFICATION_POINT_ENTITY_LABELS)
+            | set(_CBRN_POINT_ENTITY_LABELS),
             set(ENTITIES["control_measure"]) - self._NOT_POINT_ENTITIES
         )
 

@@ -163,6 +163,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "Fire Support Coordination Measures", "Target Control Measures",
                     "Obstacle Control Measures",
                     "Field Fortification Control Measures",
+                    "CBRN Defense Control Measures",
                     "Target Acquisition Control Measures", "Control Measure Points",
                 ]
             )

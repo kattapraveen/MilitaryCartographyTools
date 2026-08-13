@@ -151,12 +151,9 @@ _ENTITY_LABELS = {
     # (Mini-Phase H17). Abatis went with neither: it is a LINE, and it
     # was kept here only so it would not vanish from every dropdown
     # between batches - B4 built its line version and should have taken
-    # it out, which H17 finally did. The CBRN events below are next to
-    # move, with Table H-XXI (Mini-Phase H18).
-    "chemical_event": "Chemical Event",
-    "biological_event": "Biological Event",
-    "nuclear_event": "Nuclear Event",
-    "radiological_event": "Radiological Event",
+    # it out, which H17 finally did. The four CBRN events moved with
+    # their own Table H-XXI 2026-08-13 (Mini-Phase H18,
+    # cbrn_defense.py), which also added that table's other 14 points.
     # Sustainment, supply, casualty & personnel handling
     "ambulance_exchange_point": "Ambulance Exchange Point",
     "ammunition_supply_point": "Ammunition Supply Point",

@@ -7280,6 +7280,54 @@ tested, not claimed as done here.
 
   1019 tests passing on both QGIS versions.
 
+- **Mini-Phase H18 - Table H-XXI (CBRN defense), POINTS built**
+  (2026-08-13). 18 of the table's 27 rows; the other nine are areas
+  and lines and are audited but deliberately not built - see below.
+
+  **The split is a real seam, not an arbitrary stopping place.** Every
+  one of the 18 point codes (281300-281809) is backed by a real
+  milsymbol icon, checked entry by entry against milsymbol's own
+  `src/numbersidc/sidc/control-measure.js` rather than inferred from
+  the code prefix. NONE of the nine area/line codes (271700-272200)
+  is, which is exactly what you would expect - milsymbol has no line or
+  polygon support, so every line and area in this appendix has always
+  been hand-built. So the points are mechanical and the areas are new
+  drawing work, and the table divides precisely there.
+
+  Four of the 18 (Chemical/Biological/Nuclear/Radiological Event) were
+  already in `sidc.py` and are RELOCATED off the shared Control Measure
+  Points layer with the rest of their table; the other **14 are new
+  vocabulary**. All 18 were then rendered and checked to be real,
+  distinct glyphs - a batch that adds 14 entities at once gives the
+  "present in sidc.py but renders as the unknown icon" defect fourteen
+  chances to slip in.
+
+  **One quirk pinned rather than left to be reported as a bug**:
+  Nuclear Event (281500) and Nuclear Fallout Producing Event (281600)
+  are two codes the standard names and numbers separately but that
+  milsymbol draws with the SAME icon. A test asserts that this is the
+  ONLY glyph collision among the 18, so the known case is recorded and
+  any accidental one still fails loudly.
+
+  **The nine unbuilt rows, and what each needs.** The seven
+  contaminated areas share one construction - freeform outline of 3+
+  points, yellow hatched fill, and a centred inverted-triangle glyph
+  carrying a letter (B/C/N/R) with an optional "T" beneath for the
+  Toxic Industrial Material variants. Outline, fill and anchor rules
+  are all fully specified; **the triangle glyph's own proportions are
+  not, and it does not exist in milsymbol**, so it has to be drawn.
+  That is the single open question, and on this appendix's own track
+  record it is worth asking about rather than guessing at. Minimum Safe
+  Distance Zone (272100) is the one of the nine that IS fully numbered
+  - a centre point plus a radius point - and could be built without
+  asking anything. Radiation Dose Rate Contour Line (272200) is a
+  plain line with a dose-rate label at each end, the same shape as
+  Boundary's own labelling from H0. All nine are recorded in
+  `cbrn_defense.py`'s own TABLE_H_XXI_REMAINING, and a test asserts
+  18 + 9 = 27 so the gap cannot quietly become a loss.
+
+  1026 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

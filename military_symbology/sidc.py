@@ -962,10 +962,31 @@ ENTITIES = {
         "shelter_above_ground": "281000",
         "shelter_below_ground": "281100",
         "fort": "281200",
+        # CBRN defense - Table H-XXI (Mini-Phase H18). Every one of
+        # these 18 is backed by a real milsymbol icon, verified against
+        # its own src/numbersidc/sidc/control-measure.js entry rather
+        # than assumed from the code alone.
         "chemical_event": "281300",
+        "chemical_toxic_industrial_material": "281301",
         "biological_event": "281400",
+        "biological_toxic_industrial_material": "281401",
         "nuclear_event": "281500",
+        # 281600 shares milsymbol's own TP.NUCLEAR EVENT icon with
+        # 281500 - two distinct codes, one glyph, which is the
+        # standard's own doing rather than a mapping error here.
+        "nuclear_fallout_producing_event": "281600",
         "radiological_event": "281700",
+        "radiological_toxic_industrial_material": "281701",
+        "decontamination_point": "281800",
+        "decontamination_point_alternate": "281801",
+        "decontamination_point_equipment": "281802",
+        "decontamination_point_troops": "281803",
+        "decontamination_point_equipment_troops": "281804",
+        "decontamination_point_operational": "281805",
+        "decontamination_point_thorough": "281806",
+        "decontamination_point_main_equipment": "281807",
+        "decontamination_point_forward_troop": "281808",
+        "decontamination_point_wounded_personnel": "281809",
         # Sustainment, supply, casualty & personnel handling
         "ambulance_exchange_point": "320100",
         "ammunition_supply_point": "320200",

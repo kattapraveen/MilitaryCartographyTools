@@ -76,6 +76,9 @@ from .military_symbology.fire_support_coordination_measures import (
     add_fire_support_coordination_measures_lines_layer,
     add_fire_support_coordination_measures_areas_layer,
 )
+from .military_symbology.cbrn_defense import (
+    add_cbrn_defense_points_layer,
+)
 from .military_symbology.field_fortification import (
     add_field_fortification_lines_layer,
     add_field_fortification_points_layer,
@@ -178,6 +181,7 @@ class MilitaryCartographyTools:
         self.airspace_control_measures_action = None
         self.obstacle_control_measures_action = None
         self.field_fortification_action = None
+        self.cbrn_defense_action = None
         self.maritime_control_measures_action = None
         self.deception_control_measures_action = None
         self.fire_support_coordination_measures_action = None
@@ -1202,6 +1206,29 @@ class MilitaryCartographyTools:
             self.field_fortification_action
         )
 
+        self.cbrn_defense_action = QAction(
+            "CBRN Defense Control Measures",
+            self.control_measures_menu
+        )
+
+        self.cbrn_defense_action.setToolTip(
+            "Add the CBRN Defense (Points) layer (MIL-STD-2525D "
+            "Appendix H.5.23, Table H-XXI): the chemical, biological, "
+            "nuclear and radiological event points, their Toxic "
+            "Industrial Material variants, and the eleven "
+            "decontamination point/site types. The table's own "
+            "contaminated AREAS and its dose-rate contour line are not "
+            "built yet."
+        )
+
+        self.cbrn_defense_action.triggered.connect(
+            self.create_cbrn_defense
+        )
+
+        self.control_measures_menu.addAction(
+            self.cbrn_defense_action
+        )
+
         self.target_acquisition_control_measures_action = QAction(
             "Target Acquisition Control Measures",
             self.control_measures_menu
@@ -2221,6 +2248,21 @@ class MilitaryCartographyTools:
             self.iface
         )
 
+
+    def create_cbrn_defense(self):
+        """
+        Add the CBRN Defense (Points) layer - Table H-XXI
+        (MIL-STD-2525D Appendix H.5.23).
+
+        Points only so far: the table's seven contaminated areas, its
+        Minimum Safe Distance Zone and its dose-rate contour line are
+        audited but not built - see cbrn_defense.py's own
+        TABLE_H_XXI_REMAINING for what each needs.
+        """
+
+        add_cbrn_defense_points_layer(
+            self.iface
+        )
 
     def create_field_fortification(self):
         """

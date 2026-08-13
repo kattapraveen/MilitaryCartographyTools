@@ -1227,6 +1227,27 @@ above the line. The standard only says the front "typically faces
 enemy forces", which two points cannot express on their own, so this
 plugin fixes a consistent convention instead.
 
+### CBRN Defense Control Measures
+
+MIL-STD-2525D Appendix H.5.23 (Table H-XXI) — **points only so far.**
+The table's seven contaminated areas, its Minimum Safe Distance Zone
+and its radiation dose-rate contour line are not built yet.
+
+**Points** offers 18: the **Chemical**, **Biological**, **Nuclear** and
+**Radiological** event markers, a **Toxic Industrial Material** variant
+of the chemical, biological and radiological ones, a **Nuclear Fallout
+Producing Event**, and eleven decontamination point/site types
+(general, alternate, equipment, troops, equipment and troops,
+operational, thorough, main equipment, forward troop, and wounded
+personnel).
+
+The four CBRN event markers moved here out of the general Control
+Measure Points layer, so they are no longer in that dropdown.
+
+Note that **Nuclear Event** and **Nuclear Fallout Producing Event**
+draw the same icon. That is the standard's own doing — it gives them
+separate names and codes but no separate symbol.
+
 ### Target Acquisition Control Measures
 
 MIL-STD-2525D Appendix H.5.20 (Table H-XVIII) — 12 area types, all the
