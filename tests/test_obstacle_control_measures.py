@@ -2176,7 +2176,7 @@ class TestWireObstacles(QgisTestCase):
         self.assertEqual(
             set(_WIRE_SPECS) | {
                 "abatis", "antitank_ditch_reinforced", "mine_cluster",
-                "trip_wire", "block", "turn",
+                "trip_wire", "block", "disrupt", "fix", "turn",
             },
             set(LINE_MEASURE_TYPE_LABELS)
         )
@@ -3309,9 +3309,14 @@ class TestBlockObstacleEffect(QgisTestCase):
 class TestTurnObstacleEffect(QgisTestCase):
 
     """
-    Turn (270504) - fully specified by the standard's own text (page
-    578): PT1-PT2 connected by a true 90 degree circular arc, PT3
-    picking which side it bulges toward.
+    Turn (270504) - rebuilt 2026-08-13 to the maintainer's own dictated
+    construction (their exact words are quoted in mct_turn_arc's own
+    docstring), replacing a first reading of the standard's own
+    draw-rules text (a true 90 degree circular arc between only
+    PT1/PT2, PT3 as a side-selector) after two reported problems:
+    "rendering in the opposite direction of the points, and the line
+    is getting trimmed instead of being from PT1 to PT3". Now: a
+    quadratic Bezier curve, PT1 start, PT2 control point, PT3 end.
     """
 
     def setUp(self):
@@ -3330,7 +3335,7 @@ class TestTurnObstacleEffect(QgisTestCase):
         super().tearDown()
 
 
-    def _arc(self, pt1, pt2, pt3, segments=None):
+    def _curve(self, pt1, pt2, pt3, segments=None):
 
         from qgis.core import QgsGeometry, QgsPointXY
 
@@ -3375,11 +3380,11 @@ class TestTurnObstacleEffect(QgisTestCase):
         self.assertEqual(result.asWkt(), two_point.asWkt())
 
 
-    def test_arc_starts_at_pt1_and_ends_at_pt2(self):
+    def test_curve_starts_at_pt1_and_ends_at_pt3(self):
 
-        arc = self._arc((0, 0), (10, 0), (5, 5))
+        curve = self._curve((0, 0), (5, 10), (10, 0))
 
-        vertices = arc.asPolyline()
+        vertices = curve.asPolyline()
 
         self.assertAlmostEqual(vertices[0].x(), 0, places=6)
         self.assertAlmostEqual(vertices[0].y(), 0, places=6)
@@ -3387,38 +3392,39 @@ class TestTurnObstacleEffect(QgisTestCase):
         self.assertAlmostEqual(vertices[-1].y(), 0, places=6)
 
 
-    def test_apex_height_matches_the_worked_90_degree_relation(self):
+    def test_curve_bulges_toward_the_control_point_pt2(self):
 
-        # Hand-derived: chord d=10 -> radius r = d/sqrt(2) = 7.0711,
-        # setback h = d/2 = 5, apex height = r - h = 2.0711.
-        arc = self._arc((0, 0), (10, 0), (5, 5))
+        # A quadratic Bezier's own midpoint (t=0.5) sits at the average
+        # of the two chord endpoints and the control point, weighted
+        # 1:1:2 - (PT1 + 2*PT2 + PT3) / 4 - not exactly AT PT2, but
+        # pulled toward it, away from the straight PT1-PT3 chord.
+        curve = self._curve((0, 0), (5, 10), (10, 0))
 
-        vertices = arc.asPolyline()
+        vertices = curve.asPolyline()
 
-        apex = vertices[len(vertices) // 2]
+        midpoint = vertices[len(vertices) // 2]
 
-        self.assertAlmostEqual(apex.x(), 5, places=3)
-        self.assertAlmostEqual(apex.y(), 10 / math.sqrt(2) - 5, places=3)
+        expected_x = (0 + 2 * 5 + 10) / 4.0
+        expected_y = (0 + 2 * 10 + 0) / 4.0
 
-
-    def test_pt3_below_the_chord_bulges_the_arc_downward(self):
-
-        arc = self._arc((0, 0), (10, 0), (5, -5))
-
-        vertices = arc.asPolyline()
-
-        apex = vertices[len(vertices) // 2]
-
-        self.assertLess(apex.y(), 0)
+        self.assertAlmostEqual(midpoint.x(), expected_x, places=3)
+        self.assertAlmostEqual(midpoint.y(), expected_y, places=3)
 
 
-    def test_pt3_exactly_on_the_chord_does_not_error(self):
+    def test_control_point_off_to_one_side_curves_that_way(self):
 
-        # Degenerate side selection - must resolve to SOME arc rather
-        # than raising, even though the "side" is undefined.
-        arc = self._arc((0, 0), (10, 0), (5, 0))
+        # Not hard-coded to a symmetric control point - the curve must
+        # follow wherever PT2 actually is.
+        curve = self._curve((0, 0), (2, 8), (10, 0))
 
-        self.assertFalse(arc.isEmpty())
+        vertices = curve.asPolyline()
+
+        # Every interior point should lean toward the PT2 side (x < 5,
+        # the straight chord's own midpoint) more than a symmetric
+        # curve would, since the control point itself sits at x=2.
+        midpoint = vertices[len(vertices) // 2]
+
+        self.assertLess(midpoint.x(), 5)
 
 
     def test_turn_is_offered_on_the_lines_layer(self):
@@ -3441,7 +3447,7 @@ class TestTurnObstacleEffect(QgisTestCase):
         self.assertIn("turn", labels)
 
 
-    def test_turn_symbol_has_a_generated_arc_and_an_arrowhead_marker(self):
+    def test_turn_symbol_has_a_generated_curve_and_an_arrowhead_marker(self):
 
         from qgis.core import (
             Qgis, QgsGeometryGeneratorSymbolLayer, QgsMarkerLineSymbolLayer
@@ -3469,8 +3475,8 @@ class TestTurnObstacleEffect(QgisTestCase):
 
         # The arrowhead's own marker line lives INSIDE the second
         # generator's subSymbol, not as a sibling layer - it must
-        # follow the arc's own last point, not the feature's raw
-        # geometry (see _turn_symbol's own comment on why).
+        # follow the curve's own last point (PT3), not the feature's
+        # raw geometry (see _turn_symbol's own comment on why).
         chevron_marker_line = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
 
         self.assertIsInstance(chevron_marker_line, QgsMarkerLineSymbolLayer)
@@ -3488,6 +3494,469 @@ class TestTurnObstacleEffect(QgisTestCase):
         )
 
         symbol = _turn_symbol()
+
+        inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
+
+        self.assertTrue(
+            inner_line.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.StrokeStyle
+            )
+        )
+
+
+class TestDisruptObstacleEffect(QgisTestCase):
+
+    """
+    Disrupt (270502) - the maintainer's own dictated construction
+    (quoted in full in mct_disrupt_geometry's own docstring), replacing
+    a first reading of the standard's own template (pixel-measured
+    only, never trusted as an exact ratio).
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _parts(self, pt1, pt2, pt3, arrows_only=False):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        wkt = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(*pt1), QgsPointXY(*pt2), QgsPointXY(*pt3)]
+        ).asWkt()
+
+        function = (
+            "mct_disrupt_arrow_tips" if arrows_only else "mct_disrupt_geometry"
+        )
+
+        expression = QgsExpression(
+            f"{function}(geom_from_wkt('{wkt}'))"
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.wkbType().name, "MultiLineString")
+
+        return result.asMultiPolyline()
+
+
+    def test_too_few_vertices_returns_the_geometry_unchanged(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        two_point = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 20), QgsPointXY(0, -20)]
+        )
+
+        expression = QgsExpression(
+            "mct_disrupt_geometry(geom_from_wkt('{}'))".format(
+                two_point.asWkt()
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.asWkt(), two_point.asWkt())
+
+
+    def test_returns_base_plus_three_arrows(self):
+
+        parts = self._parts((0, 20), (0, -20), (30, 0))
+
+        self.assertEqual(len(parts), 4)
+
+
+    def test_base_is_pt1_to_pt2_unmodified(self):
+
+        base, _a, _b, _c = self._parts((0, 20), (0, -20), (30, 0))
+
+        self.assertAlmostEqual(base[0].x(), 0)
+        self.assertAlmostEqual(base[0].y(), 20)
+        self.assertAlmostEqual(base[1].x(), 0)
+        self.assertAlmostEqual(base[1].y(), -20)
+
+
+    def test_arrow_from_pt2_runs_the_full_perpendicular_distance(self):
+
+        _base, arrow_a, _b, _c = self._parts((0, 20), (0, -20), (30, 0))
+
+        self.assertAlmostEqual(arrow_a[0].x(), 0)
+        self.assertAlmostEqual(arrow_a[0].y(), -20)
+        self.assertAlmostEqual(arrow_a[1].x(), 30, places=6)
+        self.assertAlmostEqual(arrow_a[1].y(), -20, places=6)
+
+
+    def test_arrow_from_pt1_is_half_the_length(self):
+
+        _base, _a, arrow_b, _c = self._parts((0, 20), (0, -20), (30, 0))
+
+        self.assertAlmostEqual(arrow_b[0].x(), 0)
+        self.assertAlmostEqual(arrow_b[0].y(), 20)
+        self.assertAlmostEqual(arrow_b[1].x(), 15, places=6)
+        self.assertAlmostEqual(arrow_b[1].y(), 20, places=6)
+
+
+    def test_middle_arrow_tip_is_the_average_of_the_other_two(self):
+
+        # "halfway as compared to the tips of the other two arrows" -
+        # average of 30 (full) and 15 (half) is 22.5.
+        _base, _a, _b, arrow_c = self._parts((0, 20), (0, -20), (30, 0))
+
+        self.assertAlmostEqual(arrow_c[1].x(), 22.5, places=6)
+        self.assertAlmostEqual(arrow_c[1].y(), 0, places=6)
+
+
+    def test_middle_arrow_extends_symmetrically_past_the_base(self):
+
+        # "extend the shaft below the base, length same as base to the
+        # tip of the arrow" - the tail is the SAME distance on the
+        # opposite side.
+        _base, _a, _b, arrow_c = self._parts((0, 20), (0, -20), (30, 0))
+
+        self.assertAlmostEqual(arrow_c[0].x(), -22.5, places=6)
+        self.assertAlmostEqual(arrow_c[0].y(), 0, places=6)
+
+
+    def test_arrow_tips_function_excludes_the_base(self):
+
+        arrows = self._parts((0, 20), (0, -20), (30, 0), arrows_only=True)
+
+        self.assertEqual(len(arrows), 3)
+
+        # None of the three arrows should equal the base's own
+        # endpoints exactly as a PAIR (the base itself must not be
+        # among them).
+        base_pair = [(0.0, 20.0), (0.0, -20.0)]
+
+        for arrow in arrows:
+
+            pair = [(round(p.x(), 6), round(p.y(), 6)) for p in arrow]
+
+            self.assertNotEqual(pair, base_pair)
+
+
+    def test_pt3_on_the_base_line_collapses_rather_than_guessing(self):
+
+        base, arrow_a, arrow_b, arrow_c = self._parts(
+            (0, 20), (0, -20), (0, 5)
+        )
+
+        # Degenerate: every arrow collapses to a single point rather
+        # than picking an arbitrary side.
+        self.assertEqual(arrow_a[0], arrow_a[1])
+        self.assertEqual(arrow_b[0], arrow_b[1])
+        self.assertEqual(arrow_c[0], arrow_c[1])
+
+
+    def test_disrupt_is_offered_on_the_lines_layer(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        self.assertEqual(LINE_MEASURE_TYPE_CODES["disrupt"], "270502")
+        self.assertEqual(LINE_MEASURE_TYPE_LABELS["disrupt"], "Disrupt")
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        self.assertIn("disrupt", labels)
+
+
+    def test_disrupt_symbol_has_two_generators_and_an_arrowhead_marker(self):
+
+        from qgis.core import (
+            Qgis, QgsGeometryGeneratorSymbolLayer, QgsMarkerLineSymbolLayer
+        )
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _disrupt_symbol,
+        )
+
+        symbol = _disrupt_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        self.assertIsInstance(
+            symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer
+        )
+        self.assertIn(
+            "mct_disrupt_geometry($geometry)",
+            symbol.symbolLayer(0).geometryExpression()
+        )
+
+        self.assertIsInstance(
+            symbol.symbolLayer(1), QgsGeometryGeneratorSymbolLayer
+        )
+        self.assertIn(
+            "mct_disrupt_arrow_tips($geometry)",
+            symbol.symbolLayer(1).geometryExpression()
+        )
+
+        chevron_marker_line = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
+
+        self.assertIsInstance(chevron_marker_line, QgsMarkerLineSymbolLayer)
+
+        self.assertEqual(
+            chevron_marker_line.placements(),
+            Qgis.MarkerLinePlacement.LastVertex
+        )
+
+
+    def test_disrupt_symbol_follows_present_planned_status(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _disrupt_symbol,
+        )
+
+        symbol = _disrupt_symbol()
+
+        inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
+
+        self.assertTrue(
+            inner_line.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.StrokeStyle
+            )
+        )
+
+
+class TestFixObstacleEffect(QgisTestCase):
+
+    """
+    Fix (270503) - the maintainer's own dictated construction, at their
+    own explicit instruction different from the standard's own
+    template ("I know it is slightly different from what manual
+    suggests, go with it").
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _path(self, pt1, pt2, pt3):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        wkt = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(*pt1), QgsPointXY(*pt2), QgsPointXY(*pt3)]
+        ).asWkt()
+
+        expression = QgsExpression(
+            "mct_fix_geometry(geom_from_wkt('{}'))".format(wkt)
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_too_few_vertices_returns_the_geometry_unchanged(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        two_point = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 0), QgsPointXY(100, 0)]
+        )
+
+        expression = QgsExpression(
+            "mct_fix_geometry(geom_from_wkt('{}'))".format(two_point.asWkt())
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.asWkt(), two_point.asWkt())
+
+
+    def test_path_starts_at_pt1_and_ends_at_pt2(self):
+
+        path = self._path((0, 0), (100, 0), (50, 10))
+
+        vertices = path.asPolyline()
+
+        self.assertAlmostEqual(vertices[0].x(), 0)
+        self.assertAlmostEqual(vertices[0].y(), 0)
+        self.assertAlmostEqual(vertices[-1].x(), 100)
+        self.assertAlmostEqual(vertices[-1].y(), 0)
+
+
+    def test_exact_multiple_of_tooth_length_matches_the_worked_example(self):
+
+        # Hand-derived: L=10 (perpendicular distance from PT3 to the
+        # PT1-PT2 line), total=100, usable=80, 8 complete teeth, no
+        # leftover - flat runs of exactly L at each end.
+        path = self._path((0, 0), (100, 0), (50, 10))
+
+        vertices = path.asPolyline()
+
+        self.assertAlmostEqual(vertices[1].x(), 10, places=6)
+        self.assertAlmostEqual(vertices[1].y(), 0, places=6)
+
+        self.assertAlmostEqual(vertices[-2].x(), 90, places=6)
+        self.assertAlmostEqual(vertices[-2].y(), 0, places=6)
+
+        # First tooth apex: half a tooth further, at full height.
+        expected_height = 10 * math.sqrt(3.0) / 2.0
+
+        self.assertAlmostEqual(vertices[2].x(), 15, places=6)
+        self.assertAlmostEqual(vertices[2].y(), expected_height, places=6)
+
+
+    def test_teeth_alternate_above_and_below_the_base_line(self):
+
+        path = self._path((0, 0), (100, 0), (50, 10))
+
+        vertices = path.asPolyline()
+
+        # Every apex (odd-positioned interior vertex) alternates sign.
+        apexes = [v.y() for v in vertices if abs(v.y()) > 1e-6]
+
+        self.assertGreater(len(apexes), 2)
+
+        for first, second in zip(apexes, apexes[1:]):
+
+            self.assertLess(first * second, 0)
+
+
+    def test_a_shorter_line_still_returns_something_sensible(self):
+
+        # total_length < 2*L: no room for any complete teeth, but the
+        # function must still return PT1-PT2 rather than erroring.
+        path = self._path((0, 0), (5, 0), (2.5, 10))
+
+        self.assertFalse(path.isEmpty())
+
+        vertices = path.asPolyline()
+
+        self.assertAlmostEqual(vertices[0].x(), 0)
+        self.assertAlmostEqual(vertices[-1].x(), 5, places=6)
+
+
+    def test_pt3_on_the_line_falls_back_to_a_plain_segment(self):
+
+        path = self._path((0, 0), (100, 0), (50, 0))
+
+        self.assertEqual(path.asWkt(), "LineString (0 0, 100 0)")
+
+
+    def test_fix_is_offered_on_the_lines_layer(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        self.assertEqual(LINE_MEASURE_TYPE_CODES["fix"], "270503")
+        self.assertEqual(LINE_MEASURE_TYPE_LABELS["fix"], "Fix")
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        self.assertIn("fix", labels)
+
+
+    def test_fix_symbol_has_a_generated_path_and_a_filled_arrowhead(self):
+
+        # "end the line segment at PT2 with an arrowhead... filled
+        # arrowhead" - the maintainer's own correction to the earlier
+        # no-arrowhead reading.
+        from qgis.core import (
+            Qgis, QgsGeometryGeneratorSymbolLayer, QgsMarkerLineSymbolLayer,
+            QgsSimpleMarkerSymbolLayerBase,
+        )
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _fix_symbol,
+        )
+
+        symbol = _fix_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        for index in (0, 1):
+
+            with self.subTest(symbol_layer=index):
+
+                self.assertIsInstance(
+                    symbol.symbolLayer(index), QgsGeometryGeneratorSymbolLayer
+                )
+                self.assertIn(
+                    "mct_fix_geometry($geometry)",
+                    symbol.symbolLayer(index).geometryExpression()
+                )
+
+        arrow_marker_line = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
+
+        self.assertIsInstance(arrow_marker_line, QgsMarkerLineSymbolLayer)
+
+        self.assertEqual(
+            arrow_marker_line.placements(),
+            Qgis.MarkerLinePlacement.LastVertex
+        )
+
+        arrow_marker_shape = arrow_marker_line.subSymbol().symbolLayer(0)
+
+        self.assertEqual(
+            arrow_marker_shape.shape(),
+            QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHeadFilled
+        )
+
+
+    def test_fix_symbol_follows_present_planned_status(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _fix_symbol,
+        )
+
+        symbol = _fix_symbol()
 
         inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
 

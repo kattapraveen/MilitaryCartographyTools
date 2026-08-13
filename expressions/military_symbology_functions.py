@@ -1130,21 +1130,31 @@ def mct_block_geometry(values, feature=None, parent=None):
 def mct_turn_arc(values, feature=None, parent=None):
 
     """
-    Table H-XIX's own Turn (270504, printed page 578): "points 1 and 2
-    are connected by a 90 degree arc. Point 3 indicates on which side
-    of the line the arc is placed." Point 1 is the rear (no arrowhead),
-    point 2 the arrowhead's own tip - the arrowhead itself is drawn by
-    the caller (see _turn_symbol), this returns only the arc's own
-    path.
+    Table H-XIX's own Turn (270504). Rebuilt 2026-08-13 to the
+    maintainer's own dictated construction, replacing a first reading
+    of the standard's own draw-rules text (a true 90 degree circular
+    arc between only PT1/PT2, with PT3 as a side-selector) after two
+    reported problems with it: "rendering in the opposite direction of
+    the points, and the line is getting trimmed instead of being from
+    PT1 to PT3" - the old construction never reached PT3 at all, since
+    PT3 only picked a bulge side rather than being an endpoint, which
+    reads as "trimmed" next to a curve that should run the symbol's
+    full length.
 
-    Geometry, not guesswork: a chord of length d subtending a 90 degree
-    arc has radius r = d / sqrt(2) and its centre sits h = d/2 from the
-    chord's own midpoint, on the side AWAY from the bulge (standard
-    circular-segment relations, sin(45)=cos(45)=sqrt(2)/2 so both
-    reduce to the same d/sqrt(2)/d/2 pair). PT3 only picks which of the
-    two possible sides that is - the same "distance from a line, signed
-    by a third point" idea mct_trip_wire_geometry and mct_block_geometry
-    both use, just resolved to a side rather than a length here.
+    The maintainer's own words: "User clicks three points PT1, PT2 and
+    PT3 - just connect the three with a curved line, something like
+    [a] bezier curve from PT1 to PT3." Built as exactly that - a
+    quadratic Bezier with PT1 as the start, PT2 as the CONTROL point
+    (not a second endpoint), PT3 as the end - reusing
+    _quadratic_bezier_points(), already used elsewhere in this module
+    for Main Attack's own criss-crossing ribbon curve.
+
+    The arrowhead (drawn by the caller, _turn_symbol) sits at the
+    curve's own LAST point, i.e. PT3 - "the rear of the symbol
+    identifies the enemy's location and the arrow points in the
+    direction the obstacle should force the enemy to turn" still
+    holds, just with the tip moved from PT2 to PT3 to match the new
+    3-point curve.
     """
 
     if len(values) < 1:
@@ -1155,7 +1165,7 @@ def mct_turn_arc(values, feature=None, parent=None):
     if geometry is None or geometry.isEmpty():
         return geometry
 
-    segments = int(values[1]) if len(values) > 1 else 12
+    segments = int(values[1]) if len(values) > 1 else 16
 
     vertices = geometry.asPolyline()
 
@@ -1166,61 +1176,321 @@ def mct_turn_arc(values, feature=None, parent=None):
     pt2 = QgsPointXY(vertices[1])
     pt3 = QgsPointXY(vertices[2])
 
+    points = _quadratic_bezier_points(pt1, pt2, pt3, segments)
+
+    return QgsGeometry.fromPolylineXY(points)
+
+
+def _perpendicular_projection(pt1, pt2, pt3):
+
+    """
+    Shared by mct_block_geometry, mct_disrupt_geometry and
+    mct_fix_geometry: the perpendicular distance from PT3 to the
+    infinite line through PT1-PT2, plus u (unit vector along PT1->PT2)
+    and n (unit vector from that line TOWARD PT3). Returns
+    (u, n, length) - length is 0.0 if PT3 sits on the line, same
+    degenerate case every caller already needs to handle.
+    """
+
     dx = pt2.x() - pt1.x()
     dy = pt2.y() - pt1.y()
 
-    chord = math.hypot(dx, dy)
+    span = math.hypot(dx, dy)
 
-    if chord == 0:
+    if span == 0:
+        return None
+
+    ux, uy = dx / span, dy / span
+
+    to_pt3_x = pt3.x() - pt1.x()
+    to_pt3_y = pt3.y() - pt1.y()
+
+    along = to_pt3_x * ux + to_pt3_y * uy
+
+    foot_x = pt1.x() + along * ux
+    foot_y = pt1.y() + along * uy
+
+    perp_x = pt3.x() - foot_x
+    perp_y = pt3.y() - foot_y
+
+    length = math.hypot(perp_x, perp_y)
+
+    if length == 0:
+        return (ux, uy), (0.0, 0.0), 0.0
+
+    nx, ny = perp_x / length, perp_y / length
+
+    return (ux, uy), (nx, ny), length
+
+
+def _disrupt_arrows(pt1, pt2, pt3):
+
+    """
+    The three "arrows" Disrupt (270502) is built from, per the
+    maintainer's own dictated construction (quoted in full in
+    mct_disrupt_geometry's own docstring). Returns
+    (base, arrow_a, arrow_b, arrow_c), each a [start, tip] pair (arrow_c
+    is [tail, tip], tail being the shaft's own extension past the
+    base) - shared between mct_disrupt_geometry (every part, for the
+    plain line) and mct_disrupt_arrow_tips (the three arrows only, tail
+    end first, for arrowhead placement), so the geometry is computed
+    once, not twice.
+    """
+
+    base = [pt1, pt2]
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        # Degenerate: PT1==PT2, or PT3 sits on the base line - no
+        # perpendicular direction to build the arrows from. Collapse
+        # every arrow to its own start point rather than guessing.
+        return base, [pt1, pt1], [pt2, pt2], [pt1, pt1]
+
+    (ux, uy), (nx, ny), length = projection
+
+    midpoint = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0,
+        (pt1.y() + pt2.y()) / 2.0,
+    )
+
+    def offset(point, distance):
+
+        return QgsPointXY(
+            point.x() + distance * nx,
+            point.y() + distance * ny,
+        )
+
+    # "Draw an arrow from PT2 to PT3... shift PT3 accordingly to get a
+    # perpendicular" - PT2's own arrow runs the full perpendicular
+    # distance.
+    arrow_a = [pt2, offset(pt2, length)]
+
+    # "Draw another arrow from PT1 parallel to the arrow PT2 to PT3,
+    # half of the length."
+    arrow_b = [pt1, offset(pt1, length / 2.0)]
+
+    # "At the midpoint... length adjusted such that the tip of the
+    # arrow is halfway as compared to the tips of the other two arrows"
+    # - halfway between the full-length and half-length tips is 0.75x.
+    # "Extend the shaft below the base, length same as base to the tip
+    # of the arrow" - the same 0.75x again, on the OPPOSITE side, so
+    # the middle shaft is symmetric about the base.
+    middle_length = (length + length / 2.0) / 2.0
+
+    arrow_c = [offset(midpoint, -middle_length), offset(midpoint, middle_length)]
+
+    return base, arrow_a, arrow_b, arrow_c
+
+
+@qgsfunction(
+    'mct_disrupt_geometry',
+    group='Military Cartography Tools'
+)
+def mct_disrupt_geometry(values, feature=None, parent=None):
+
+    """
+    Table H-XIX's own Disrupt (270502). Rebuilt 2026-08-13 to the
+    maintainer's own dictated construction, replacing a first reading
+    of the standard's own template picture (a vertical spine with three
+    arrows of an inexact, only-pixel-measured proportion - see this
+    project's own roadmap for that measurement and why it wasn't
+    trusted). The maintainer's own words:
+
+    "user clicks three points PT1, PT2 and PT3; Connect PT1 and PT2,
+    call it base. Draw an arrow from PT2 to PT3 - this arrow should be
+    perpendicular to the base so Shift PT3 accordingly to get a
+    perpendicular. Draw another arrow from PT1 parallel to the arrow
+    PT2 to PT3, half of the length of PT2-PT3 arrow. Now at the
+    midpoint of base, draw another arrow parallel to the other two
+    arrows, length adjusted such that the tip of the arrow is halfway
+    as compared to the tips of the other two arrows from the base,
+    extend the shaft below the base, length same as base to the tip of
+    the arrow."
+
+    All four parts (base, 3 arrows) computed once in _disrupt_arrows()
+    and shared with mct_disrupt_arrow_tips(), which returns only the
+    three arrows (for arrowhead placement) - the base itself has no
+    arrowhead.
+
+    Returned as a MultiLineString, since the base and the three arrows
+    only share single points (PT1, PT2, the midpoint), not a
+    continuous path.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
         return geometry
 
-    mid_x = (pt1.x() + pt2.x()) / 2.0
-    mid_y = (pt1.y() + pt2.y()) / 2.0
+    vertices = geometry.asPolyline()
 
-    # One perpendicular to the chord, then flipped (if needed) to point
-    # toward PT3's own side - the side the arc must bulge toward.
-    px, py = -dy / chord, dx / chord
+    if len(vertices) < 3:
+        return geometry
 
-    to_pt3_x = pt3.x() - mid_x
-    to_pt3_y = pt3.y() - mid_y
+    pt1 = QgsPointXY(vertices[0])
+    pt2 = QgsPointXY(vertices[1])
+    pt3 = QgsPointXY(vertices[2])
 
-    if (to_pt3_x * px + to_pt3_y * py) < 0:
-        px, py = -px, -py
+    base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(pt1, pt2, pt3)
 
-    radius = chord / math.sqrt(2.0)
-    setback = chord / 2.0
+    return QgsGeometry.fromMultiPolylineXY(
+        [base, arrow_a, arrow_b, arrow_c]
+    )
 
-    center_x = mid_x - setback * px
-    center_y = mid_y - setback * py
 
-    v1x, v1y = pt1.x() - center_x, pt1.y() - center_y
-    v2x, v2y = pt2.x() - center_x, pt2.y() - center_y
+@qgsfunction(
+    'mct_disrupt_arrow_tips',
+    group='Military Cartography Tools'
+)
+def mct_disrupt_arrow_tips(values, feature=None, parent=None):
 
-    angle1 = math.atan2(v1y, v1x)
-    angle2 = math.atan2(v2y, v2x)
+    """
+    The three "arrows" from mct_disrupt_geometry, WITHOUT the base -
+    used by _disrupt_symbol's own arrowhead marker layer, so an
+    arrowhead lands on each arrow's own tip and not (via a stray
+    LastVertex on the base's own final point, PT2) an extra one at the
+    base's own end too.
+    """
 
-    delta = angle2 - angle1
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
 
-    # Normalised to (-pi, pi] so the interpolation below always sweeps
-    # the SHORT way round - the 90 degree arc this construction built,
-    # not the 270 degree long way.
-    while delta <= -math.pi:
-        delta += 2.0 * math.pi
-    while delta > math.pi:
-        delta -= 2.0 * math.pi
+    geometry = values[0]
 
-    points = []
+    if geometry is None or geometry.isEmpty():
+        return geometry
 
-    for index in range(segments + 1):
+    vertices = geometry.asPolyline()
 
-        angle = angle1 + delta * (index / segments)
+    if len(vertices) < 3:
+        return geometry
 
-        points.append(
-            QgsPointXY(
-                center_x + radius * math.cos(angle),
-                center_y + radius * math.sin(angle),
-            )
+    pt1 = QgsPointXY(vertices[0])
+    pt2 = QgsPointXY(vertices[1])
+    pt3 = QgsPointXY(vertices[2])
+
+    _base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(pt1, pt2, pt3)
+
+    return QgsGeometry.fromMultiPolylineXY([arrow_a, arrow_b, arrow_c])
+
+
+@qgsfunction(
+    'mct_fix_geometry',
+    group='Military Cartography Tools'
+)
+def mct_fix_geometry(values, feature=None, parent=None):
+
+    """
+    Table H-XIX's own Fix (270503). Rebuilt 2026-08-13 to the
+    maintainer's own dictated construction, replacing the standard's
+    own zigzag template (whose exact proportions the draw rules never
+    numbered - see this project's own roadmap for the pixel measurement
+    that wasn't trusted) with a deliberately different, simpler shape,
+    at the maintainer's own explicit instruction ("I know it is
+    slightly different from what manual suggests, go with it"):
+
+    "Simplest build - user clicks three points PT1, PT2 and PT3: Draw a
+    line segment followed by upright open triangle, inverted triangle -
+    continue alternate triangles, end with a line segment, the length
+    of line segment and the sides of the open triangle is the
+    perpendicular distance between a line joining PT1-PT2 and PT3."
+
+    PT1-PT2 is the symbol's own full run (not a separate base the
+    teeth are added to, unlike Block/Disrupt - the teeth themselves
+    replace the straight line for however much of PT1-PT2 they cover).
+    PT3 sets ONE length, L (the perpendicular distance to the PT1-PT2
+    line), that both the flat end segments AND each triangle's own two
+    sides are built from.
+
+    The dictation fixes side length but not the triangle's own APEX
+    ANGLE - not stated, only shown as "open triangle" (two sides, no
+    base). Built at 60 degrees/equilateral proportions (half-span L/2,
+    height L*sqrt(3)/2), reusing the exact proportions this project's
+    own antitank wall/obstacle line "vee" tiles already settled on for
+    the same kind of open-triangle tooth - a placement call, not a
+    measurement, the one part of this construction to check.
+
+    Complete teeth (each consuming a horizontal span of L) are packed
+    between two flat runs of at least L each; since PT1-PT2's own
+    length is unlikely to be an exact multiple of L, any leftover
+    distance is split evenly between the two flat runs so the whole
+    tooothed pattern sits centred on the line rather than jammed
+    against one end.
+
+    No arrowhead - the maintainer's own construction doesn't have one,
+    unlike the standard's own template.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1 = QgsPointXY(vertices[0])
+    pt2 = QgsPointXY(vertices[1])
+    pt3 = QgsPointXY(vertices[2])
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None:
+        return geometry
+
+    (ux, uy), (nx, ny), tooth_length = projection
+
+    total_length = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
+
+    if tooth_length == 0 or total_length <= 0:
+        return QgsGeometry.fromPolylineXY([pt1, pt2])
+
+    half_span = tooth_length / 2.0
+    height = tooth_length * math.sqrt(3.0) / 2.0
+
+    usable = total_length - 2.0 * tooth_length
+
+    tooth_count = max(0, int(usable // tooth_length)) if usable > 0 else 0
+
+    leftover = usable - tooth_count * tooth_length if usable > 0 else 0.0
+
+    start_flat = tooth_length + (leftover / 2.0 if usable > 0 else 0.0)
+
+    def point_at(distance, height_sign=0.0):
+
+        return QgsPointXY(
+            pt1.x() + distance * ux + height_sign * height * nx,
+            pt1.y() + distance * uy + height_sign * height * ny,
         )
+
+    points = [pt1]
+
+    cursor = min(start_flat, total_length)
+
+    points.append(point_at(cursor))
+
+    sign = 1.0
+
+    for _tooth in range(tooth_count):
+
+        cursor += half_span
+        points.append(point_at(cursor, sign))
+
+        cursor += half_span
+        points.append(point_at(cursor))
+
+        sign = -sign
+
+    points.append(pt2)
 
     return QgsGeometry.fromPolylineXY(points)
 
@@ -3086,6 +3356,9 @@ _FUNCTIONS = [
     mct_trip_wire_geometry,
     mct_block_geometry,
     mct_turn_arc,
+    mct_disrupt_geometry,
+    mct_disrupt_arrow_tips,
+    mct_fix_geometry,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,

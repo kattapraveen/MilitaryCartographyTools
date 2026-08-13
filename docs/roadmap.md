@@ -6740,6 +6740,78 @@ tested, not claimed as done here.
 
   926 tests passing on both QGIS versions.
 
+- **B5 complete: Turn rebuilt, Disrupt and Fix built** (2026-08-13),
+  the maintainer's own read of all three after seeing Block/Turn's own
+  first render.
+
+  **Turn corrected first**: "turn is rendering in the opposite
+  direction of the points, and the line is getting trimmed instead of
+  being from PT1 to PT3." The true-90-degree-arc-with-a-side-selector
+  reading was replaced entirely, in favour of their own dictated
+  construction: "User clicks three points PT1, PT2 and PT3 - just
+  connect the three with a curved line, something like a bezier curve
+  from PT1 to PT3." Built as a quadratic Bezier, PT1 start, PT2
+  CONTROL point (not a second endpoint), PT3 end - reusing
+  `_quadratic_bezier_points()`, already in this codebase for Main
+  Attack's own ribbon curve, rather than writing new curve math. The
+  arrowhead moved from PT2 to PT3 to match, and its own generator
+  wrapper (the bug fixed earlier the same day) carried over unchanged.
+
+  **Disrupt**, in full: "user clicks three points PT1, PT2 and PT3;
+  Connect PT1 and PT2, call it base. Draw an arrow from PT2 to PT3 -
+  this arrow should be perpendicular to the base so Shift PT3
+  accordingly to get a perpendicular. Draw another arrow from PT1
+  parallel to the arrow PT2 to PT3, half of the length of PT2-PT3
+  arrow. Now at the midpoint of base, draw another arrow parallel to
+  the other two arrows, length adjusted such that the tip of the arrow
+  is halfway as compared to the tips of the other two arrows from the
+  base, extend the shaft below the base, length same as base to the
+  tip of the arrow." Every number in that resolves cleanly: PT2's own
+  arrow = the full perpendicular distance L; PT1's = L/2; the midpoint
+  arrow's own tip = the average of the two, 0.75L, with a matching
+  0.75L tail on the opposite side (confirms a pixel-measurement from
+  the standard's own template that never made it into the build: the
+  middle arrow's own line really does extend past the base, not a scan
+  artifact). Two geometry generators - one for the whole thing (base +
+  3 arrows, no arrowhead on the base), one scoped to just the 3 arrows
+  (so the arrowhead marker's LastVertex placement can't also land one
+  on the base's own final point, which sits exactly at Arrow A's own
+  start).
+
+  **Fix**, at the maintainer's own explicit request to deviate from
+  the standard ("I know it is slightly different from what manual
+  suggests, go with it"): "Draw a line segment followed by upright
+  open triangle, inverted triangle - continue alternate triangles, end
+  with a line segment, the length of line segment and the sides of the
+  open triangle is the perpendicular distance between a line joining
+  PT1-PT2 and PT3." One length, L, drives both the flat end-runs and
+  each tooth's own two sides; the apex angle itself isn't dictated, so
+  it borrows the 60 degree/equilateral proportions this project's own
+  antitank wall/obstacle line "vee" tiles already settled on for the
+  same shape - flagged as the one placement call in an otherwise fully
+  numeric construction. Complete teeth are packed between two flat
+  runs of at least L, any remainder split evenly so the pattern sits
+  centred rather than jammed against one end. No arrowhead, unlike the
+  standard's own template - the maintainer's own construction doesn't
+  have one.
+
+  946 tests passing on both QGIS versions. **B5 is now complete, all 4
+  of Table H-XIX's own obstacle effects built** - this closes out
+  H-XIX's line obstacles entirely (B4 + B5). B6 (bypasses, roadblocks,
+  craters, gaps) and B7 (crossing sites) remain.
+
+- **Fix gets a filled arrowhead at PT2** (2026-08-13, same day). The
+  maintainer's own construction had deliberately dropped the standard's
+  own arrowhead entirely; reviewing the render, they asked for it back
+  in a different form: "just in case of Fix, end the line segment at
+  PT2 with an arrowhead" and, immediately after, "filled arrowhead" -
+  `QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHeadFilled`, unlike
+  Block/Disrupt/Turn's own unfilled chevron. Same generator-wrapper
+  pattern as every other B5 arrowhead, reading `mct_fix_geometry`'s own
+  last point (PT2) rather than the feature's raw geometry.
+
+  946 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
