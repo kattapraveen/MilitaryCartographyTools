@@ -162,6 +162,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "Maritime Control Measures", "Deception Control Measures",
                     "Fire Support Coordination Measures", "Target Control Measures",
                     "Obstacle Control Measures",
+                    "Field Fortification Control Measures",
                     "Target Acquisition Control Measures", "Control Measure Points",
                 ]
             )

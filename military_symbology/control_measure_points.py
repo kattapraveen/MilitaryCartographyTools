@@ -146,16 +146,13 @@ _ENTITY_LABELS = {
     # layer's dropdown offers them.
     # Protection (obstacles, mines, shelters, CBRN events).
     # Table H-XIX's own protection points moved to
-    # obstacle_control_measures.py 2026-08-12 (batch B1). Abatis is
-    # deliberately still here: it is a LINE, not a point, and its line
-    # version arrives with batch B4 - leaving it meanwhile means it
-    # does not vanish from every dropdown between batches. B4 removes
-    # it from here.
-    "abatis": "Abatis",
-    "shelter": "Shelter",
-    "shelter_above_ground": "Shelter, Above Ground",
-    "shelter_below_ground": "Shelter, Below Ground",
-    "fort": "Fort",
+    # obstacle_control_measures.py 2026-08-12 (batch B1); Table H-XX's
+    # own four shelters/fort moved to field_fortification.py 2026-08-13
+    # (Mini-Phase H17). Abatis went with neither: it is a LINE, and it
+    # was kept here only so it would not vanish from every dropdown
+    # between batches - B4 built its line version and should have taken
+    # it out, which H17 finally did. The CBRN events below are next to
+    # move, with Table H-XXI (Mini-Phase H18).
     "chemical_event": "Chemical Event",
     "biological_event": "Biological Event",
     "nuclear_event": "Nuclear Event",

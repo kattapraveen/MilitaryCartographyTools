@@ -342,10 +342,7 @@ class TestObstaclePointsLayer(QgisTestCase):
     def test_excludes_the_two_28xxxx_codes_that_are_lines(self):
 
         # Abatis (280100) and Overhead Wire (282003) carry 28xxxx codes
-        # but are lines - they belong to B4 and B7. Abatis deliberately
-        # stays on the shared Control Measure Points layer until B4
-        # builds its line version, so it does not disappear from every
-        # dropdown in between.
+        # but are lines - they belong to B4 and B7.
         codes = {
             ENTITIES["control_measure"][entity]
             for entity in POINT_ENTITY_LABELS
@@ -354,7 +351,17 @@ class TestObstaclePointsLayer(QgisTestCase):
         self.assertNotIn("280100", codes)
         self.assertNotIn("282003", codes)
 
-        self.assertIn("abatis", _CONTROL_MEASURE_POINT_ENTITY_LABELS)
+        # Abatis sat on the shared Control Measure Points layer only so
+        # it would not vanish from every dropdown between batches. B4
+        # built its line version and should have taken it out; that was
+        # missed and finally done in H17. It is now offered as a LINE
+        # and by no points dropdown at all.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_LABELS,
+        )
+
+        self.assertNotIn("abatis", _CONTROL_MEASURE_POINT_ENTITY_LABELS)
+        self.assertIn("abatis", LINE_MEASURE_TYPE_LABELS)
 
 
     def test_the_relocated_points_left_the_shared_layer(self):

@@ -7231,6 +7231,55 @@ tested, not claimed as done here.
 
   1005 tests passing on both QGIS versions.
 
+- **Mini-Phase H17 - Table H-XX (Field fortification) built**
+  (2026-08-13). Six entries over printed pages 603-605, in two new
+  layers, and the first table since H-XIX opened that needed no
+  correction round on its own construction.
+
+  **Points (4)** - Shelter (280900), Above Ground Shelter (281000),
+  Below Ground Shelter (281100), Fort (281200). All four already
+  existed in `sidc.py` and are RELOCATED here out of the shared
+  `control_measure_points.py` layer, the same move Tables H-VI, H-IX,
+  H-XIII and H-XIX's own points already made. Each was verified to
+  render a real glyph through milsymbol BEFORE the module was written,
+  rather than after - the "present in sidc.py but renders as the
+  unknown icon" defect has cost this project three debugging rounds.
+
+  **Lines (2)** - Fortified Line (290900), a crenellated rampart tiled
+  along however many anchor points the user clicks, and Fortified
+  Position (291000), whose two points are its front corners with a leg
+  trailing back from each.
+
+  **Colour is affiliation, not green.** The green is H.5.21.1's own
+  explicit exception for obstacles; H.5.22 claims nothing like it, so
+  this table takes ordinary H.5.3 colouring.
+
+  Both lines say their symbol "varies only in length" - the standard's
+  own way of saying the CROSS-SECTION is fixed, which is exactly the
+  principle the maintainer applied to Bridge or Gap. So both
+  cross-sections are fixed MILLIMETRES and neither is generated
+  geometry: Fortified Line is a tiled glyph, and Fortified Position is
+  a two-point front bar plus a millimetre leg glyph on each corner.
+
+  **Three things the standard does not number**, built as this pass's
+  own call and flagged for smoke test rather than presented as read off
+  the page: the rampart tile's size and merlon proportions; Fortified
+  Position's leg depth; and **which side the front faces**. That last
+  one matters most - both entries carry only a "typically faces/points
+  toward enemy forces" note, which two anchor points cannot express.
+  Both templates draw the front on the LEFT of PT1->PT2 travel, so
+  that is the convention used for both, consistently.
+
+  **A stale leftover from B4 fixed in passing**: Abatis was still
+  offered as a POINT on the shared Control Measure Points layer, though
+  B4 built it as a line and its own code comment said "B4 removes it
+  from here". It never did. Abatis is now offered only as a line, and
+  the shared layer's coverage test grew an explicit
+  `_NOT_POINT_ENTITIES` exclusion so a line entity can no longer hide
+  in a points dropdown unnoticed.
+
+  1019 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

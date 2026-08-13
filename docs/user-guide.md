@@ -1202,6 +1202,31 @@ Assault Crossing** and **Lane / Raft Site**.
 clicks — it draws a pylon at *every* vertex, so a multi-segment run
 gets a tower at each bend.
 
+### Field Fortification Control Measures
+
+MIL-STD-2525D Appendix H.5.22 (Table H-XX) — six entries in two
+layers. Affiliation-coloured like most control measures; the green used
+for obstacles is that table's own exception and does not apply here.
+
+**Points** offers the four static icons, each centred on a single
+click: **Shelter**, **Shelter, Above Ground**, **Shelter, Below
+Ground** and **Fort**. These moved here out of the general Control
+Measure Points layer, so they are no longer in that dropdown.
+
+**Lines** offers two:
+
+- **Fortified Line** — a crenellated rampart profile. Click as many
+  points as you like; the ramparts follow every bend.
+- **Fortified Position** — your two clicks are the two *front corners*,
+  and a leg of fixed depth trails back from each. Only the distance
+  between your two points changes the symbol; its depth never does.
+
+Both lines put their **front on the left of the direction you
+digitize** — so click left-to-right along the front with the enemy
+above the line. The standard only says the front "typically faces
+enemy forces", which two points cannot express on their own, so this
+plugin fixes a consistent convention instead.
+
 ### Target Acquisition Control Measures
 
 MIL-STD-2525D Appendix H.5.20 (Table H-XVIII) — 12 area types, all the

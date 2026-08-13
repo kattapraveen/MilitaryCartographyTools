@@ -76,6 +76,10 @@ from .military_symbology.fire_support_coordination_measures import (
     add_fire_support_coordination_measures_lines_layer,
     add_fire_support_coordination_measures_areas_layer,
 )
+from .military_symbology.field_fortification import (
+    add_field_fortification_lines_layer,
+    add_field_fortification_points_layer,
+)
 from .military_symbology.obstacle_control_measures import (
     add_obstacle_control_measures_areas_layer,
     add_obstacle_control_measures_lines_layer,
@@ -173,6 +177,7 @@ class MilitaryCartographyTools:
         self.maneuver_control_measures_2_action = None
         self.airspace_control_measures_action = None
         self.obstacle_control_measures_action = None
+        self.field_fortification_action = None
         self.maritime_control_measures_action = None
         self.deception_control_measures_action = None
         self.fire_support_coordination_measures_action = None
@@ -1170,6 +1175,31 @@ class MilitaryCartographyTools:
 
         self.control_measures_menu.addAction(
             self.obstacle_control_measures_action
+        )
+
+        self.field_fortification_action = QAction(
+            "Field Fortification Control Measures",
+            self.control_measures_menu
+        )
+
+        self.field_fortification_action.setToolTip(
+            "Add Field Fortification (Points) and (Lines) layers "
+            "(MIL-STD-2525D Appendix H.5.22, Table H-XX). Points: "
+            "Shelter, Above Ground Shelter, Below Ground Shelter and "
+            "Fort, each a static icon centred on one clicked point. "
+            "Lines: Fortified Line, a crenellated rampart profile that "
+            "accepts as many points as you want, and Fortified "
+            "Position, whose two points are its front corners. Both "
+            "lines put their front on the LEFT of the direction you "
+            "digitize."
+        )
+
+        self.field_fortification_action.triggered.connect(
+            self.create_field_fortification
+        )
+
+        self.control_measures_menu.addAction(
+            self.field_fortification_action
         )
 
         self.target_acquisition_control_measures_action = QAction(
@@ -2191,6 +2221,26 @@ class MilitaryCartographyTools:
             self.iface
         )
 
+
+    def create_field_fortification(self):
+        """
+        Add the Field Fortification (Points) and (Lines) layers - Table
+        H-XX (MIL-STD-2525D Appendix H.5.22), ready for digitizing with
+        QGIS's own native tools.
+
+        Affiliation-coloured, not green: the green rule is H.5.21.1's
+        own exception for obstacles, and H.5.22 claims nothing like it.
+        See field_fortification.py's own docstring for the three
+        proportions the standard leaves unnumbered here.
+        """
+
+        add_field_fortification_points_layer(
+            self.iface
+        )
+
+        add_field_fortification_lines_layer(
+            self.iface
+        )
 
     def create_obstacle_control_measures(self):
         """

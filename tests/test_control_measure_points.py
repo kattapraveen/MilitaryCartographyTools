@@ -43,6 +43,9 @@ from MilitaryCartographyTools.military_symbology.obstacle_control_measures impor
 from MilitaryCartographyTools.military_symbology.c2_measures import (
     POINT_ENTITY_LABELS as _C2_POINT_ENTITY_LABELS,
 )
+from MilitaryCartographyTools.military_symbology.field_fortification import (
+    POINT_ENTITY_LABELS as _FIELD_FORTIFICATION_POINT_ENTITY_LABELS,
+)
 from MilitaryCartographyTools.military_symbology.defensive_control_measures import (
     POINT_ENTITY_LABELS as _DEFENSIVE_POINT_ENTITY_LABELS,
 )
@@ -94,6 +97,17 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
         )
 
 
+    # Entities that are in sidc.py's control_measure vocabulary but are
+    # NOT point symbols, so no Points dropdown should offer them.
+    #
+    # Abatis is the only one: it is a LINE (Table H-XIX, 280100), built
+    # in batch B4 and offered on the Obstacle Control Measures (Lines)
+    # layer as a measure_type. It sat in the shared points dropdown for
+    # a while purely so it would not vanish between batches, which B4
+    # should have undone and H17 finally did.
+    _NOT_POINT_ENTITIES = frozenset({"abatis"})
+
+
     def test_entity_labels_cover_every_control_measure_entity(self):
 
         # Not a full match against ENTITIES["control_measure"] on its
@@ -115,8 +129,9 @@ class TestVocabularyLabelsMatchSidc(QgisTestCase):
             | set(_OBSTACLE_POINT_ENTITY_LABELS)
             | set(_C2_POINT_ENTITY_LABELS)
             | set(_DEFENSIVE_POINT_ENTITY_LABELS)
-            | set(_OFFENSIVE_POINT_ENTITY_LABELS),
-            set(ENTITIES["control_measure"])
+            | set(_OFFENSIVE_POINT_ENTITY_LABELS)
+            | set(_FIELD_FORTIFICATION_POINT_ENTITY_LABELS),
+            set(ENTITIES["control_measure"]) - self._NOT_POINT_ENTITIES
         )
 
 
