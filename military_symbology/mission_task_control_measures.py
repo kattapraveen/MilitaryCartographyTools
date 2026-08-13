@@ -52,6 +52,29 @@ POINT_ENTITY_CODES = {
     "neutralize_point": "341600",
 }
 
+# **All three draw smaller than the box-shaped points on the other
+# Appendix H layers, and that is milsymbol's bounding boxes, not this
+# module.**
+#
+# Each of these icons is a wide, low pair of crossed lines whose
+# declared box is 208x128 - the widest in the whole control-measure
+# set. QGIS sizes an SVG marker by its WIDTH, so at one marker size
+# they render at 8/208 mm per icon unit against a supply point's
+# 8/88: about 42% of the scale, and visibly small beside them.
+#
+# Their number: 30%, asked for directly and matching the bump Table
+# H-XXI's own events got for the same reason ("mission task points -
+# increase size by 30% like cbrn events"). Worth being plain that this
+# is a legibility call rather than a normalisation - closing the gap to
+# the supply points outright would be 208/88, about 136% - so it stays
+# the maintainer's to revisit. See cbrn_defense.py, which carries the
+# same note.
+_MISSION_TASK_MARKER_SIZE_SCALE = 1.30
+
+POINT_MARKER_SIZE_SCALES = {
+    entity: _MISSION_TASK_MARKER_SIZE_SCALE for entity in POINT_ENTITY_CODES
+}
+
 # --- Audited, NOT built. ---
 #
 # The 26 remaining rows of Table H-XXIV. 340000 is the section's own
@@ -114,6 +137,7 @@ def create_mission_task_points_layer(name=POINTS_LAYER_NAME):
         "destroy_point",
         include_echelon=False,
         include_headquarters=False,
+        entity_marker_size_scales=POINT_MARKER_SIZE_SCALES,
     )
 
 

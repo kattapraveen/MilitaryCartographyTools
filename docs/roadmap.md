@@ -7607,6 +7607,23 @@ harmless, and removed.
 
 1064 tests passing on both QGIS versions.
 
+- **Mission Task Points bumped 30%** (2026-08-14, same day), on the
+  maintainer's own instruction: "mission task points - increase size by
+  30% like cbrn events". Same cause as Table H-XXI's own events, at the
+  extreme end of it - all three icons are a wide, low pair of crossed
+  lines whose milsymbol box is 208x128, the WIDEST in the entire
+  control-measure set, so at one marker size they drew at 8/208 mm per
+  icon unit against a supply point's 8/88: about 42% of the scale.
+  Reused `entity_marker_size_scales`, added for the CBRN events, with no
+  new mechanism. As there, worth being plain that 30% is a legibility
+  call rather than a normalisation - closing the gap to the supply
+  points outright would be about 136% - and the module says so. A test
+  measures millimetres of page per icon unit and confirms the bump
+  composes with the amplifier compensation, so a designation still does
+  not resize the glyph.
+
+  1067 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

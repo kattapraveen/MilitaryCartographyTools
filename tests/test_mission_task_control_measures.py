@@ -9,8 +9,11 @@ Military Cartography Tools
 
 import base64
 
+import re
+
 from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
-                       QgsProject)
+                       QgsExpressionContext, QgsFeature, QgsProject,
+                       QgsSymbolLayer)
 
 from .qgis_test_case import FakeIface, QgisTestCase
 
@@ -19,6 +22,7 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     POINTS_LAYER_NAME,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
+    POINT_MARKER_SIZE_SCALES,
     TABLE_H_XXIV_REMAINING,
     add_mission_task_points_layer,
     create_mission_task_points_layer,
@@ -194,3 +198,121 @@ class TestMissionTaskPointsLayer(QgisTestCase):
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0].id(), first.id())
         self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+class TestMissionTaskMarkerSize(QgisTestCase):
+
+    """
+    "mission task points - increase size by 30% like cbrn events."
+
+    All three icons are a wide, low 208x128 - the widest box in the
+    whole control-measure set - and QGIS sizes an SVG marker by its
+    WIDTH, so they drew at about 42% of a supply point's scale.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _drawn_icon_scale(self, layer, entity, designation=""):
+
+        """
+        Millimetres of page per milsymbol icon unit - size / width,
+        both taken from the renderer's own evaluated properties rather
+        than restated.
+        """
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("entity", entity)
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("status", "present")
+        feature.setAttribute("unique_designation", designation)
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        properties = layer.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties()
+
+        size, ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Size, context, 0.0
+        )
+
+        self.assertTrue(ok)
+
+        path, ok = properties.valueAsString(
+            QgsSymbolLayer.Property.Name, context, ""
+        )
+
+        self.assertTrue(ok)
+
+        markup = base64.b64decode(
+            path[len("base64:"):]
+        ).decode("utf-8")
+
+        width = float(
+            re.search(r'viewBox="\S+ \S+ (\S+) \S+"', markup).group(1)
+        )
+
+        return size / width
+
+
+    def test_all_three_are_scaled_and_nothing_else_is(self):
+
+        self.assertEqual(set(POINT_MARKER_SIZE_SCALES), set(POINT_ENTITY_CODES))
+
+        self.assertEqual(set(POINT_MARKER_SIZE_SCALES.values()), {1.30})
+
+
+    def test_each_icon_is_drawn_thirty_percent_larger(self):
+
+        layer = create_mission_task_points_layer()
+
+        for entity in POINT_ENTITY_LABELS:
+
+            plain_width = QgsExpression(
+                "mct_sidc_svg_width('{}')".format(
+                    QgsExpression(
+                        "mct_build_sidc('friend', '{}', 'control_measure', "
+                        "'unspecified', 'present', false)".format(entity)
+                    ).evaluate()
+                )
+            ).evaluate(QgsExpressionContext())
+
+            self.assertAlmostEqual(
+                self._drawn_icon_scale(layer, entity),
+                1.30 * 8.0 / plain_width,
+                places=6,
+                msg=entity,
+            )
+
+
+    def test_the_bump_survives_a_designation(self):
+
+        # It has to compose with the amplifier compensation, which
+        # scales the marker the other way to hold the icon still.
+        layer = create_mission_task_points_layer()
+
+        for entity in POINT_ENTITY_LABELS:
+
+            scales = [
+                self._drawn_icon_scale(layer, entity, designation)
+                for designation in ("", "A", "LONGER")
+            ]
+
+            for scale in scales[1:]:
+
+                self.assertAlmostEqual(scale, scales[0], places=6, msg=entity)
