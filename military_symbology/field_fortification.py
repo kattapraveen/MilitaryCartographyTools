@@ -82,10 +82,7 @@ from ._control_measure_shared import (
     add_layer_if_absent,
 )
 
-from ._point_symbol_layer import (
-    add_single_domain_point_layer,
-    build_single_domain_point_layer,
-)
+from ._point_symbol_layer import build_single_domain_point_layer
 
 from qgis.core import QgsEditorWidgetSetup, QgsField
 
@@ -338,7 +335,7 @@ def create_field_fortification_points_layer(name=POINTS_LAYER_NAME):
 
 def add_field_fortification_points_layer(iface):
 
-    return add_single_domain_point_layer(
+    return add_layer_if_absent(
         iface,
         POINTS_LAYER_NAME,
         create_field_fortification_points_layer,

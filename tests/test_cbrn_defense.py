@@ -8,14 +8,16 @@ nine area/line rows it deliberately leaves unbuilt).
 Military Cartography Tools
 """
 
-from .qgis_test_case import QgisTestCase
+from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+    POINTS_LAYER_NAME,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
     SHARED_GLYPH_CODES,
     TABLE_H_XXI_REMAINING,
+    add_cbrn_defense_points_layer,
     create_cbrn_defense_points_layer,
 )
 from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
@@ -176,3 +178,59 @@ class TestCbrnPointsLayer(QgisTestCase):
         self.assertEqual(
             set(POINT_ENTITY_LABELS) & set(_SHARED), set()
         )
+
+
+class TestCbrnLayerInsertion(QgisTestCase):
+
+    """
+    Actually CALL add_cbrn_defense_points_layer(iface).
+
+    See test_field_fortification.py's own class of the same shape for
+    why: both H17 and H18 shipped their add_* entry point calling the
+    wrong helper with the wrong arity, and no test in either module
+    ever ran the function the menu item is wired to.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.iface = FakeIface()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_adding_the_points_layer_inserts_exactly_one(self):
+
+        layer = add_cbrn_defense_points_layer(self.iface)
+
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)),
+            1
+        )
+
+
+    def test_a_second_add_warns_instead_of_replacing(self):
+
+        first = add_cbrn_defense_points_layer(self.iface)
+
+        self.assertIsNone(add_cbrn_defense_points_layer(self.iface))
+
+        matching = QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)
+
+        self.assertEqual(len(matching), 1)
+
+        self.assertEqual(matching[0].id(), first.id())
+
+        self.assertEqual(len(self.iface.messageBar().calls), 1)

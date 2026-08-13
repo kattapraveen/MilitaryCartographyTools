@@ -40,10 +40,9 @@ and it is pinned by a test so it reads as a known fact rather than a
 duplication defect.
 """
 
-from ._point_symbol_layer import (
-    add_single_domain_point_layer,
-    build_single_domain_point_layer,
-)
+from ._control_measure_shared import add_layer_if_absent
+
+from ._point_symbol_layer import build_single_domain_point_layer
 
 
 POINTS_LAYER_NAME = "CBRN Defense Points"
@@ -168,7 +167,7 @@ def create_cbrn_defense_points_layer(name=POINTS_LAYER_NAME):
 
 def add_cbrn_defense_points_layer(iface):
 
-    return add_single_domain_point_layer(
+    return add_layer_if_absent(
         iface,
         POINTS_LAYER_NAME,
         create_cbrn_defense_points_layer,

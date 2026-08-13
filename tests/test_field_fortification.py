@@ -10,15 +10,19 @@ Military Cartography Tools
 import base64
 import re
 
-from .qgis_test_case import QgisTestCase
+from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology import field_fortification
 from MilitaryCartographyTools.military_symbology.field_fortification import (
+    LINES_LAYER_NAME,
     LINE_MEASURE_TYPE_CODES,
     LINE_MEASURE_TYPE_LABELS,
+    POINTS_LAYER_NAME,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
+    add_field_fortification_lines_layer,
+    add_field_fortification_points_layer,
     create_field_fortification_lines_layer,
     create_field_fortification_points_layer,
 )
@@ -374,3 +378,78 @@ class TestFieldFortificationLines(QgisTestCase):
                 QgsSymbolLayer.Property.StrokeStyle
             )
         )
+
+
+class TestFieldFortificationLayerInsertion(QgisTestCase):
+
+    """
+    Actually CALL both add_*_layer(iface) entry points.
+
+    Every test above this class builds its layer through create_*(),
+    which is why this module shipped with add_field_fortification_
+    points_layer() calling the wrong helper with the wrong arity - the
+    suite never once ran the function the menu item is wired to, so a
+    plain TypeError only surfaced on the maintainer's own restart of
+    QGIS. Both new H17/H18 modules had it; both are covered now.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.iface = FakeIface()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_adding_the_points_layer_inserts_exactly_one(self):
+
+        layer = add_field_fortification_points_layer(self.iface)
+
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)),
+            1
+        )
+
+
+    def test_adding_the_lines_layer_inserts_exactly_one(self):
+
+        layer = add_field_fortification_lines_layer(self.iface)
+
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(LINES_LAYER_NAME)),
+            1
+        )
+
+
+    def test_a_second_add_warns_instead_of_replacing(self):
+
+        for add, name in (
+            (add_field_fortification_points_layer, POINTS_LAYER_NAME),
+            (add_field_fortification_lines_layer, LINES_LAYER_NAME),
+        ):
+
+            first = add(self.iface)
+
+            self.assertIsNone(add(self.iface))
+
+            matching = QgsProject.instance().mapLayersByName(name)
+
+            self.assertEqual(len(matching), 1)
+
+            self.assertEqual(matching[0].id(), first.id())
+
+        self.assertEqual(len(self.iface.messageBar().calls), 2)

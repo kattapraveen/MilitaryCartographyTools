@@ -7328,6 +7328,33 @@ tested, not claimed as done here.
 
   1026 tests passing on both QGIS versions.
 
+- **H17 and H18's own menu items were dead on arrival** (2026-08-13,
+  same day), found by the maintainer's first restart of QGIS for the
+  smoke test - both `add_field_fortification_points_layer()` and
+  `add_cbrn_defense_points_layer()` called
+  `add_single_domain_point_layer(iface, name, create_fn)`, but that
+  helper's own signature is `(iface, name, symbol_set, entity_labels,
+  default_entity, ...)`. A plain `TypeError: missing 2 required
+  positional arguments`, raised the moment either menu item was
+  clicked. Both now call `add_layer_if_absent(iface, name, create_fn)`
+  instead - the same guard-and-insert, but it takes the FACTORY, which
+  is what these two modules wanted all along and what
+  `field_fortification.py`'s own Lines layer was already doing three
+  functions further down. Every other caller of
+  `add_single_domain_point_layer()` was checked and passes the right
+  arity.
+
+  **Why 1026 green tests missed it.** Both modules' tests built their
+  layers through `create_*()` exclusively; neither ever called the
+  function the menu item is actually wired to, so an arity error in
+  the one line between them was invisible. Fixed at the root, not just
+  patched: `TestFieldFortificationLayerInsertion` and
+  `TestCbrnLayerInsertion` now call each `add_*_layer(iface)` for real
+  through the shared `FakeIface`, asserting one layer lands and a
+  second click warns instead of replacing - the same pair of tests
+  every older layer module has had all along, and precisely why none
+  of them shipped this bug. 1031 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
