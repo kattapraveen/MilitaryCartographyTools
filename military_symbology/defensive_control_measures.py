@@ -288,8 +288,14 @@ _ENEMY_RED = QColor(255, 0, 0)
 # offensive_control_measures.py).
 _CONTAIN_ARROW_SYMBOL_LAYER_ID = "contain_arrow"
 
-# The two arcs carry ids for the same reason: the "C" and "R" sit ON
-# the perimeter and cut their own gap in it.
+# The two arcs carry ids because "C" and "R" sit ON the perimeter and
+# cut their own gap in it.
+#
+# The TICKS do not, and are not masked: at both letters' own position a
+# tick lands exactly there too, and masking them was tried first and
+# did not take where masking the arc does. The tick is simply left out
+# instead (see _radial_teeth's own `skip_deg`) - deterministic, and
+# what Retain's template draws anyway.
 _CONTAIN_ARC_SYMBOL_LAYER_ID = "contain_arc"
 _RETAIN_ARC_SYMBOL_LAYER_ID = "retain_arc"
 
@@ -304,7 +310,10 @@ _RETAIN_ARC_SYMBOL_LAYER_ID = "retain_arc"
 _ARROWHEAD_MM = 4.5
 
 # How far the masked letters/text cut back the line they sit on.
-_LABEL_MASK_MM = 0.6
+# 0.6 left the shaft showing through the gap BETWEEN two letters of
+# "ENY"; the mask follows each glyph's own outline, so it has to be
+# wide enough to bridge inter-letter spacing as well.
+_LABEL_MASK_MM = 1.1
 
 # Stand-in layer id, replaced with the real one the moment the layer
 # exists - see _bind_label_masks_to_layer().
@@ -937,7 +946,7 @@ def create_defensive_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     return layer
 
 
-def _arc_label_rule(measure_type, text, position_function, mask_id,
+def _arc_label_rule(measure_type, text, position_function, mask_ids,
                     colour=None):
 
     """
@@ -972,6 +981,21 @@ def _arc_label_rule(measure_type, text, position_function, mask_id,
             )
         )
 
+    # **A data-defined position anchors the label by its BOTTOM-LEFT
+    # corner, not its centre.** Without these two, all three labels sat
+    # up and to the right of the point they were given - "ENY is also
+    # above the line, it should be on the arrow shaft", and the same
+    # for "C" and "R" against their own perimeter. Hali/Vali are the
+    # documented pair for this, and QGIS only honours them when a fixed
+    # position is set, which is exactly this case.
+    for prop, alignment in (
+        (QgsPalLayerSettings.Property.Hali, "Center"),
+        (QgsPalLayerSettings.Property.Vali, "Half"),
+    ):
+        settings.dataDefinedProperties().setProperty(
+            prop, QgsProperty.fromValue(alignment)
+        )
+
     text_format = build_text_format(LABEL_FONT_SIZE)
 
     if colour is None:
@@ -997,7 +1021,10 @@ def _arc_label_rule(measure_type, text, position_function, mask_id,
     mask.setSizeUnit(Qgis.RenderUnit.Millimeters)
 
     mask.setMaskedSymbolLayers(
-        [QgsSymbolLayerReference(_MASK_LAYER_ID_PLACEHOLDER, mask_id)]
+        [
+            QgsSymbolLayerReference(_MASK_LAYER_ID_PLACEHOLDER, mask_id)
+            for mask_id in mask_ids
+        ]
     )
 
     text_format.setMask(mask)
@@ -1031,15 +1058,15 @@ def _configure_lines_labeling(layer):
     for rule in (
         _arc_label_rule(
             "contain", "ENY", "mct_contain_arrow_midpoint",
-            _CONTAIN_ARROW_SYMBOL_LAYER_ID, _ENEMY_RED,
+            [_CONTAIN_ARROW_SYMBOL_LAYER_ID], _ENEMY_RED,
         ),
         _arc_label_rule(
             "contain", "C", "mct_contain_letter_point",
-            _CONTAIN_ARC_SYMBOL_LAYER_ID,
+            [_CONTAIN_ARC_SYMBOL_LAYER_ID],
         ),
         _arc_label_rule(
             "retain", "R", "mct_retain_letter_point",
-            _RETAIN_ARC_SYMBOL_LAYER_ID,
+            [_RETAIN_ARC_SYMBOL_LAYER_ID],
         ),
     ):
         rules.appendChild(rule)

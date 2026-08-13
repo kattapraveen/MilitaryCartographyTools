@@ -1014,8 +1014,9 @@ class TestContainAndRetain(QgisTestCase):
 
         # 180 degrees at 18-degree spacing, INCLUSIVE of both ends -
         # "the last tooth in contain on both ends should be at pt1 and
-        # pt2, not slightly inside".
-        self.assertEqual(len(teeth), 11)
+        # pt2, not slightly inside" - which would be 11, less the one
+        # at 90 degrees left out to make room for the "C".
+        self.assertEqual(len(teeth), 10)
 
         for end, tooth in ((10.0, teeth[0]), (-10.0, teeth[-1])):
 
@@ -1101,8 +1102,12 @@ class TestContainAndRetain(QgisTestCase):
             "mct_retain_teeth", self._RETAIN
         ).asMultiPolyline()
 
-        # 300 degrees at 15-degree spacing, inclusive of both ends.
-        self.assertEqual(len(teeth), 21)
+        # 300 degrees at 15-degree spacing inclusive of both ends is
+        # 21, less two: the one at 180 degrees makes room for the "R",
+        # and the last is dropped because it sits under the arrowhead
+        # ("the last tooth near the arrow head can be dropped, it is
+        # confusing").
+        self.assertEqual(len(teeth), 19)
 
         for inner, outer in teeth:
 
@@ -1416,3 +1421,91 @@ class TestArrowheadsAreOpen(QgisTestCase):
             )
 
             self.assertEqual(head.fillColor().alpha(), 0, builder.__name__)
+
+
+class TestLetterTicksAreOmittedNotMasked(QgisTestCase):
+
+    """
+    Both letters land exactly on a tick - 180 degrees is a whole number
+    of steps for both spacings - so something has to give. Masking the
+    ticks was tried and did not take where masking the ARC does, so the
+    tick is simply left out. That is also what Retain's own template
+    draws: its "R" sits in a plain gap in the tick sequence.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _teeth(self, function, wkt):
+
+        expression = QgsExpression(
+            "{}(geom_from_wkt('{}'))".format(function, wkt)
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result.asMultiPolyline()
+
+
+    def test_no_tick_lands_where_a_letter_sits(self):
+
+        for teeth_function, letter_function, wkt in (
+            ("mct_contain_teeth", "mct_contain_letter_point",
+             "LineString(0 10, 0 -10, 25 0)"),
+            ("mct_retain_teeth", "mct_retain_letter_point",
+             "LineString(0 0, 0 10)"),
+        ):
+
+            letter = QgsExpression(
+                "{}(geom_from_wkt('{}'))".format(letter_function, wkt)
+            ).evaluate().asPoint()
+
+            for tooth in self._teeth(teeth_function, wkt):
+
+                # The tick's own foot on the perimeter, which is where
+                # the letter sits too.
+                foot = tooth[0]
+
+                self.assertGreater(
+                    math.hypot(
+                        foot.x() - letter.x(), foot.y() - letter.y()
+                    ),
+                    1.0,
+                    teeth_function
+                )
+
+
+    def test_retain_has_no_tick_under_its_arrowhead(self):
+
+        wkt = "LineString(0 0, 0 10)"
+
+        arc = QgsExpression(
+            "mct_retain_arc(geom_from_wkt('{}'))".format(wkt)
+        ).evaluate().asPolyline()
+
+        end = arc[-1]
+
+        for tooth in self._teeth("mct_retain_teeth", wkt):
+
+            foot = tooth[0]
+
+            self.assertGreater(
+                math.hypot(foot.x() - end.x(), foot.y() - end.y()), 1.0
+            )

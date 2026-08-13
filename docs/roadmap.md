@@ -7679,7 +7679,26 @@ chaining `layer.labeling().settings().dataDefinedProperties()`. Every
 such accessor is now held in its own variable, and the test that hit it
 says why.
 
-1084 tests passing on both QGIS versions.
+**A second review round, same day**, took four more corrections:
+
+- **Retain's last tick is dropped** - it sat under the arrowhead and
+  read as part of it.
+- **All three labels sat above their own point.** A data-defined label
+  position anchors by the text's BOTTOM-LEFT corner, not its centre;
+  Hali/Vali are the documented pair that fixes it, and QGIS only
+  honours them when a fixed position is set. Worth knowing generally -
+  every future data-defined label in this project needs both.
+- **The mask has to bridge inter-letter spacing.** It follows each
+  glyph's own outline, so at 0.6 mm the arrow shaft showed through the
+  gap between "N" and "Y". Widened to 1.1.
+- **The tick where each letter sits is left out rather than masked.**
+  Both letters land exactly on a tick (180 degrees is a whole number
+  of steps for both spacings). Masking the ticks was tried first and
+  did not take, where masking the ARC does - so the tick is simply
+  omitted, which is deterministic, needs no mask, and is what Retain's
+  own template draws anyway.
+
+1086 tests passing on both QGIS versions.
 
 ---
 

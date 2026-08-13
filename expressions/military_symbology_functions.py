@@ -2473,7 +2473,7 @@ def _arc_points(centre, radius, start_rad, sweep_rad, segments):
 
 
 def _radial_teeth(centre, radius, start_rad, sweep_rad, step_deg,
-                  length, inward):
+                  length, inward, drop_last=False, skip_deg=None):
 
     """
     Ticks along an arc, every `step_deg` of sweep, INCLUSIVE of both
@@ -2485,6 +2485,19 @@ def _radial_teeth(centre, radius, start_rad, sweep_rad, step_deg,
     contain on both ends should be at pt1 and pt2, not slightly
     inside", and Retain's template draws a tick hard against each end
     of its opening too.
+
+    `drop_last` leaves the final one off. Retain needs it: its arc ends
+    under the arrowhead, and a tick there reads as part of the arrow -
+    "the last tooth near the arrow head can be dropped, it is
+    confusing".
+
+    `skip_deg` leaves out the one tick at that offset along the sweep,
+    making room for the "C"/"R". Both letters land exactly on a tick -
+    180 degrees is a whole number of steps for both - and masking the
+    ticks was tried first and did not take, where masking the ARC
+    does. Leaving the tick out is deterministic, needs no mask at all,
+    and is what Retain's own template draws: its "R" sits in a plain
+    gap in the tick sequence.
     """
 
     step = math.radians(step_deg) * (1 if sweep_rad >= 0 else -1)
@@ -2496,7 +2509,10 @@ def _radial_teeth(centre, radius, start_rad, sweep_rad, step_deg,
 
     teeth = []
 
-    for i in range(count + 1):
+    for i in range(count + (0 if drop_last else 1)):
+
+        if skip_deg is not None and abs(i * step_deg - skip_deg) < 1e-6:
+            continue
 
         angle = start_rad + step * i
 
@@ -2633,6 +2649,7 @@ def mct_contain_teeth(values, feature=None, parent=None):
             _CONTAIN_TOOTH_STEP_DEG,
             radius * _CONTAIN_TOOTH_LENGTH_RATIO,
             inward=True,
+            skip_deg=90.0,
         )
     )
 
@@ -2849,6 +2866,8 @@ def mct_retain_teeth(values, feature=None, parent=None):
             _RETAIN_TOOTH_STEP_DEG,
             radius * _RETAIN_TOOTH_LENGTH_RATIO,
             inward=False,
+            drop_last=True,
+            skip_deg=180.0,
         )
     )
 
