@@ -7728,6 +7728,54 @@ ungapped tail (`mct_retain_arc_end`) instead.
 
 1089 tests passing on both QGIS versions.
 
+### Table H-XXV: the Intelligence Coordination Line (2026-08-14)
+
+The first of the six remaining line/area units, and the one that
+closes an entire Appendix H section. **H.5.27 is two rows**: 300000
+names the group and draws nothing (TEMPLATE and EXAMPLE both "N/A"),
+and 300100 is the Intelligence Coordination Line. One symbol, printed
+page 656, the whole section.
+
+**Built to the maintainer's own instruction: "it is same as
+battlefield coordination line or restrictive fire line in fire support
+coordination measures, except for BCL or RFL, it will be ICL".** The
+template picture confirms it exactly - a plain line carrying its
+abbreviation plus Field T at both ends, above the line, with the
+standard's own example reading "ICL EUSTIS": abbreviation first,
+designation last, which is the NFL/BCL/RFL order and the opposite of
+FSCL's own designation-first one.
+
+So this is deliberately not a fresh construction. `intelligence_
+control_measures.py` reuses the exact pattern
+`fire_support_coordination_measures.py` already carries for that
+family, down to the details that were only learned by rendering it:
+
+- **AboveRight at the start vertex, AboveLeft at the end**, not a
+  plain Above at both. Above centres the text ON the end vertex, so
+  half of a long designation hangs off past the end of the line.
+- **The label masks the line.** "Above" and "clear of the line" are
+  not the same thing on a near-vertical run, which the render check
+  here included on purpose - the mask is what keeps the text readable
+  there.
+- `trim()` on the label, so a blank designation gives "ICL" rather
+  than "ICL " with a trailing space for the mask to cut a hole for.
+
+**What is not drawn**: the two W-W1 boxes below the line (effective
+times, Field W/W1) - this appendix's own standing tolerance of keeping
+the abbreviation and dropping the extra descriptive info boxes, the
+same call made for the whole Fire Support family. And the up-arrows at
+PT1/PT2 in the TEMPLATE column are annotation pointers, not geometry -
+the convention first confirmed for Light Line and since then for
+Boundary, H-XIX's roadblocks and H-VIII's Contain/Retain arrowheads.
+
+New layer and new menu entry, "Intelligence Control Measures", per the
+one-layer-per-table convention. 1101 tests passing on both QGIS
+versions; render-verified across designated/undesignated, all three
+line colours, present and planned, a multi-vertex bend and a steep
+diagonal.
+
+**Five units, 52 symbols left in Appendix H.**
+
 ---
 
 ## Suggested near-term order
@@ -7750,9 +7798,12 @@ ungapped tail (`mct_retain_arc_end`) instead.
 ## Appendix H — what is left to construct (audited 2026-08-14)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **53 symbols in 6 units**, and every one of them is a LINE or an
+is **52 symbols in 5 units**, and every one of them is a LINE or an
 AREA - not a coincidence, since milsymbol renders points and nothing
 else, so the whole remainder is hand-built QGIS symbology.
+
+Unit 5, H-XXV's own Intelligence Coordination Line, was built
+2026-08-14 and its table is closed - see that entry above.
 
 | Unit | Table | Left | What |
 |---|---|---|---|
@@ -7760,8 +7811,7 @@ else, so the whole remainder is hand-built QGIS symbology.
 | 2 | H-XXIII Supply | 17 | 7 holding/support areas; 10 lines (Moving/Halted Convoy, MSR and ASR each with three traffic variants) |
 | 3 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line |
 | 4 | H-XVIII Target Acquisition | 2 | Weapon/Sensor Range Fan - Circular, Sector |
-| 5 | H-XXV Intelligence | 1 | Intelligence Coordination Line |
-| 6 | H-XIV Maritime | 1 | Navigational (218400), a two-vertex hooked line |
+| 5 | H-XIV Maritime | 1 | Navigational (218400), a two-vertex hooked line |
 
 Each module records its own unbuilt rows by CODE, with a test asserting
 built + unbuilt equals the printed table's own count:

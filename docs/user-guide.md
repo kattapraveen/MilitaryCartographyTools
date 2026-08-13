@@ -1340,6 +1340,29 @@ holding/support areas and eleven convoy and supply-route lines are not
 built — see `military_symbology/supply_points.py` for the full audit of
 what remains.
 
+### Intelligence Control Measures
+
+One layer, one symbol: the **Intelligence Coordination Line (ICL)**,
+Table H-XXV, the whole of Appendix H.5.27. The table's only other row
+names the group and draws nothing.
+
+Draw it with QGIS's own **Add Line Feature** tool — two clicks for a
+straight line, or as many as you like to bend it. The line carries
+`ICL` plus its own unique designation at **both ends**, above the line
+and pushed inward from each end vertex, and the label cuts a real gap
+in the line so the text stays readable wherever it lands. The
+standard's own example reads "ICL EUSTIS": abbreviation first,
+designation last.
+
+It is deliberately the same construction as the **Battlefield
+Coordination Line** and **Restrictive Fire Line** on the Fire Support
+Coordination Measures layer — same both-ends label, same mask, same
+status-driven solid/dashed line, same affiliation colouring. Only the
+abbreviation differs.
+
+The effective-times boxes the template draws below the line (Field
+W/W1) are not modelled, the same as everywhere else in this appendix.
+
 
 ---
 

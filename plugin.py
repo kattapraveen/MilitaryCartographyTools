@@ -44,6 +44,9 @@ from .military_symbology.supply_points import (
 from .military_symbology.mission_task_control_measures import (
     add_mission_task_points_layer,
 )
+from .military_symbology.intelligence_control_measures import (
+    add_intelligence_control_measures_lines_layer,
+)
 from .military_symbology.c2_measures import (
     add_c2_measures_lines_layer,
     add_c2_measures_areas_layer,
@@ -196,6 +199,7 @@ class MilitaryCartographyTools:
         self.sustainment_points_action = None
         self.supply_points_action = None
         self.mission_task_points_action = None
+        self.intelligence_control_measures_action = None
 
         self.sub_grid_menu = None
         self.sub_grid_group = None
@@ -1315,6 +1319,27 @@ class MilitaryCartographyTools:
             self.mission_task_points_action
         )
 
+        self.intelligence_control_measures_action = QAction(
+            "Intelligence Control Measures",
+            self.control_measures_menu
+        )
+
+        self.intelligence_control_measures_action.setToolTip(
+            "Add an Intelligence Control Measures (Lines) layer "
+            "(MIL-STD-2525D Appendix H.5.27, Table H-XXV: the "
+            "Intelligence Coordination Line, labelled \"ICL\" plus "
+            "its own designation at both ends - the same construction "
+            "as the Battlefield and Restrictive Fire Lines)"
+        )
+
+        self.intelligence_control_measures_action.triggered.connect(
+            self.create_intelligence_control_measures
+        )
+
+        self.control_measures_menu.addAction(
+            self.intelligence_control_measures_action
+        )
+
 
     def _setup_toolbar_groups(self):
 
@@ -1701,6 +1726,7 @@ class MilitaryCartographyTools:
         self.sustainment_points_action = None
         self.supply_points_action = None
         self.mission_task_points_action = None
+        self.intelligence_control_measures_action = None
 
         # sub_grid_menu/group, control_measures_menu, and every
         # group_menus entry ARE parented to the toolbar (see
@@ -2421,6 +2447,21 @@ class MilitaryCartographyTools:
         """
 
         add_mission_task_points_layer(
+            self.iface
+        )
+
+
+    def create_intelligence_control_measures(self):
+        """
+        Add an Intelligence Control Measures (Lines) layer - the
+        Intelligence Coordination Line, the only drawable entry in
+        Table H-XXV (MIL-STD-2525D Appendix H.5.27). Constructed
+        exactly like the Battlefield and Restrictive Fire Lines of
+        Table H-XVI; see intelligence_control_measures.py's own
+        docstring.
+        """
+
+        add_intelligence_control_measures_lines_layer(
             self.iface
         )
 
