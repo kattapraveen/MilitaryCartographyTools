@@ -7744,3 +7744,54 @@ ungapped tail (`mct_retain_arc_end`) instead.
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
 12. 🟡 Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology) — NOT yet complete. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix. **Update 2026-08-09/10**: H0-H14 built and tested headlessly; live hands-on QGIS smoke-testing by the project maintainer (started 2026-08-09, table-by-table henceforth via a dedicated tracker artifact) found and fixed real construction defects in H3 (FLOT/Line of Contact/Phase Line/FEBA/Principal Direction of Fire/Fortified Area, plus building the previously-skipped Limited Access Area) and H4 (echelon placement, Strong Point tick direction/masking, Battle Position's "prepared" line style) - see both dated entries above for the full list. Also, at the maintainer's own request, Table H-VI and Table H-IX's point-type entries moved out of the shared `control_measure_points.py` layer into their own dedicated Points layers (C2 Measures/Defensive Control Measures respectively), matching every other H.5.x group's own "own layer(s)" convention - the remaining groups' own points (Airspace/Maritime control points; everything under the not-yet-built H15-H22) are scoped to move the same way once each group's own mini-phase is built, not preemptively. H15-H22 remain pending. 696 tests passing on both QGIS versions as of 2026-08-10.
+
+---
+
+## Appendix H — what is left to construct (audited 2026-08-14)
+
+Every Appendix H table is now built or explicitly closed. What remains
+is **53 symbols in 6 units**, and every one of them is a LINE or an
+AREA - not a coincidence, since milsymbol renders points and nothing
+else, so the whole remainder is hand-built QGIS symbology.
+
+| Unit | Table | Left | What |
+|---|---|---|---|
+| 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
+| 2 | H-XXIII Supply | 17 | 7 holding/support areas; 10 lines (Moving/Halted Convoy, MSR and ASR each with three traffic variants) |
+| 3 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line |
+| 4 | H-XVIII Target Acquisition | 2 | Weapon/Sensor Range Fan - Circular, Sector |
+| 5 | H-XXV Intelligence | 1 | Intelligence Coordination Line |
+| 6 | H-XIV Maritime | 1 | Navigational (218400), a two-vertex hooked line |
+
+Each module records its own unbuilt rows by CODE, with a test asserting
+built + unbuilt equals the printed table's own count:
+`TABLE_H_XXI_REMAINING`, `TABLE_H_XXIII_REMAINING`,
+`TABLE_H_XXIV_REMAINING`.
+
+**Two sub-groups need a decision before they can start.** The seven
+CBRN contaminated areas are blocked on the unnumbered centred triangle
+glyph (B/C/N/R, optional "T" beneath), which does not exist in
+milsymbol and whose proportions the standard never gives. And unit 4
+was deferred for the same reason Contain/Retain were until
+2026-08-14 - it needs genuinely computed geometry (concentric rings, or
+a sector with an azimuth centreline and left/right limits) rather than
+a digitized polygon. Contain and Retain became buildable the moment the
+maintainer expressed every dimension as a FRACTION OF THE RADIUS, which
+is scale-free; the same trick may or may not apply to the range fans.
+
+**Closed, not pending** (so they never come back as apparent gaps):
+
+- **H-VII** Occupied Assembly Area with Offset Unit/Units (150301/
+  150302) - out of scope at the maintainer's own instruction,
+  2026-08-14.
+- **AEGIS-only symbols** throughout: maritime 211000/211200/211300 and
+  the whole 200xxx overlay family (printed 467-473), target 240603 and
+  240804. A standing curation rule.
+- **217300** (PIM Route) - broken in milsymbol itself, which maps it to
+  the wrong icon under its own `##### FIX TODO #######` comment.
+- **Every table's parent row** whose TEMPLATE and EXAMPLE both read
+  "N/A" - they name a group, they do not draw.
+- **Tables H-XXVI and H-XXVII** - abbreviation and acronym lists, not
+  symbol tables. They feed Boundary's own Field T labelling, built in
+  H0.
+

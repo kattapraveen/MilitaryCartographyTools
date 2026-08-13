@@ -137,7 +137,6 @@ from qgis.core import (
     QgsEditorWidgetSetup,
     QgsField,
     QgsFillSymbol,
-    QgsFontMarkerSymbolLayer,
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
@@ -288,14 +287,14 @@ _ENEMY_RED = QColor(255, 0, 0)
 # offensive_control_measures.py).
 _CONTAIN_ARROW_SYMBOL_LAYER_ID = "contain_arrow"
 
-# The arcs and ticks carry ids only so the symbol tree is readable;
-# nothing masks them. See _configure_lines_labeling() for what does and
-# does not get a painted mask here, and the expression module's own
-# _LETTER_GAP_DEG for how the "C"/"R" gap is cut instead.
+# Stable ids on the two arcs, so the symbol tree reads as something
+# other than four anonymous generators - and so a test can name the
+# layer it is checking. NOTHING masks them: see
+# _configure_lines_labeling() for why only the arrow can be, and the
+# expression module's own _LETTER_GAP_DEG for how the "C"/"R" gap is
+# cut into the geometry instead.
 _CONTAIN_ARC_SYMBOL_LAYER_ID = "contain_arc"
-_CONTAIN_TEETH_SYMBOL_LAYER_ID = "contain_teeth"
 _RETAIN_ARC_SYMBOL_LAYER_ID = "retain_arc"
-_RETAIN_TEETH_SYMBOL_LAYER_ID = "retain_teeth"
 
 # **Both arrowheads are OPEN, not filled.** Read off the templates at
 # 480 dpi after the maintainer reported Retain's: the only filled black
@@ -419,10 +418,7 @@ def _contain_symbol():
     )
 
     symbol.appendSymbolLayer(
-        _arc_generator_layer(
-            "mct_contain_teeth($geometry)",
-            symbol_layer_id=_CONTAIN_TEETH_SYMBOL_LAYER_ID,
-        )
+        _arc_generator_layer("mct_contain_teeth($geometry)")
     )
 
     symbol.appendSymbolLayer(
@@ -463,10 +459,7 @@ def _retain_symbol():
     )
 
     symbol.appendSymbolLayer(
-        _arc_generator_layer(
-            "mct_retain_teeth($geometry)",
-            symbol_layer_id=_RETAIN_TEETH_SYMBOL_LAYER_ID,
-        )
+        _arc_generator_layer("mct_retain_teeth($geometry)")
     )
 
     arrowhead = _arrowhead_layer(

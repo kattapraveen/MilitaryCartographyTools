@@ -807,10 +807,9 @@ this plugin's control-measure layers don't support yet.
 
 ### Defensive Control Measures
 
-The **Defensive Control Measures** entry adds an "Areas" layer (MIL-
-STD-2525D Appendix H.5.12.1, Table H-VIII - this section has no
-line-type control measures at all) and a "Points" layer (H.5.12.2,
-Table H-IX).
+The **Defensive Control Measures** entry adds an "Areas" layer and a
+"Lines" layer (both MIL-STD-2525D Appendix H.5.12.1, Table H-VIII) and
+a "Points" layer (H.5.12.2, Table H-IX).
 
 **Battle Position** and **Strong Point** both carry an optional
 **Echelon** field (the same Table D-III amplifier Boundary uses under
@@ -829,10 +828,26 @@ you digitized the polygon. **Engagement Area (EA)** is a plain outline
 with an "EA" + optional name label, the same pattern as C2 Measures' own
 AO/NAI/TAI.
 
-**Contain** and **Retain** are deliberately not built - both are
-defined by a center point and a radius (a computed circle with a
-directional gap, not a freeform boundary), which doesn't fit this
-plugin's polygon-digitizing model the way every other area here does.
+**Contain** and **Retain** are on the **Lines** layer, not Areas -
+neither is a boundary you digitize, so neither fits the
+polygon-per-symbol model every area here uses.
+
+- **Contain** takes **three** clicks. Points 1 and 2 are the two ends
+  of the semicircle's opening (so the line between them is its
+  diameter), and point 3 sets how long the arrow is and which side the
+  opening faces. The arc always bulges away from point 3, ticks point
+  inward, and a red arrow runs down the perpendicular through the
+  arc's centre with a red "ENY" set into its shaft.
+- **Retain** takes **two**. Point 1 is the centre; point 2 is both the
+  radius and where the arc starts. It sweeps 300° clockwise from
+  there, leaving a 60° opening, with an arrowhead at the far end,
+  ticks pointing outward, and an "R" half way round.
+
+Both scale entirely with the radius - tick length is a third of it for
+Contain and a fifth for Retain - so the symbol keeps its proportions
+whatever size you draw it. The "C" and "R" sit in a real gap in the
+perimeter, and the tick behind each is shortened rather than removed,
+matching the standard's own templates.
 
 **Defensive Control Measures' own Points layer** (Table H-IX) offers
 **Observation Post/Outpost** and its own Reconnaissance/Forward

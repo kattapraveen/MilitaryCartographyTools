@@ -123,8 +123,6 @@ def render_symbol_svg(sidc, options=None):
 
 _TEXT_PATTERN = re.compile(r"<text\b[^>]*>")
 
-_DOMINANT_BASELINE_PATTERN = re.compile(r'\s*dominant-baseline="middle"')
-
 _FONT_SIZE_PATTERN = re.compile(r'font-size="([\d.]+)"')
 
 _TEXT_Y_PATTERN = re.compile(r'\by="(-?[\d.]+)"')
