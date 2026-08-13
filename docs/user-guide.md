@@ -1153,14 +1153,16 @@ longer appears in the dropdown.
 ### Obstacle Control Measures
 
 MIL-STD-2525D Appendix H.5.21 (Table H-XIX) — the largest table in the
-standard's control-measure appendix, being built in batches. **Only the
-points exist so far**; the much larger line and area families follow.
+standard's control-measure appendix, and now complete. It spans **four
+layers**: Points, Areas, Minefields and Lines.
 
 **Obstacles draw green**, not in the affiliation colour every other
 control measure uses. Each feature has its own **Colour** field so you
 can switch any single obstacle to black — a few types are black by
 convention in the standard, and the field lets you follow that or your
-own unit's practice.
+own unit's practice. The green marks an obstacle specifically, so the
+**water crossing sites default to black**: a crossing is the opposite
+of an obstacle.
 
 **Points** offers 13 entries: **Antipersonnel Mine** and its
 **Directional Effects** variant, **Antitank Mine** and its
@@ -1173,9 +1175,32 @@ the Tetrahedrons/Dragons Teeth family (**Fixed and Prefabricated**,
 Both Towers take a **unique designation** drawn beside the icon.
 Engineer Regulating Point takes one too, drawn inside its own symbol.
 
-Note that **Abatis** is not here despite being an obstacle: it is a
-line, not a point, and stays on the Control Measure Points layer until
-its line version is built.
+**Areas** covers the four serrated obstacle zones (**Belt**, **Zone**,
+**Free Zone**, **Restricted Zone**), the mined-area family (**Mined
+Area**, **Decoy Mined Area** and its **Fenced** variant), **UXO Area**,
+and the two freeform dynamic minefields.
+
+**Minefields** holds the box-and-mine-glyph family — **Completed /
+Planned**, **Known Enemy**, **Suspected or Templated Enemy** and
+**Dummy** — each offering a mine type (antipersonnel, antitank,
+unknown, or a combined field that alternates both).
+
+**Lines** is the largest of the four and carries everything else: the
+nine wire obstacles, both antitank ditches, the antitank wall, Obstacle
+Line, Abatis, Mine Cluster and Trip Wire; the four obstacle effects
+(**Block**, **Disrupt**, **Fix**, **Turn**); the three **Obstacle
+Bypass** variants, **Bridge or Gap** and the four **Roadblock** states;
+and the water crossing sites — **Bridge / Assault Crossing**, **Ford
+Easy**, **Ford Difficult**, **Lane / Raft Site**, **Ferry** and
+**Overhead Wire**.
+
+Two entries in that list are deliberately one dropdown item covering
+two SIDCs, because the standard draws them identically: **Bridge /
+Assault Crossing** and **Lane / Raft Site**.
+
+**Overhead Wire** is the one line here that accepts more than two
+clicks — it draws a pylon at *every* vertex, so a multi-segment run
+gets a tower at each bend.
 
 ### Target Acquisition Control Measures
 
