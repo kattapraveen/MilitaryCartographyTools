@@ -265,14 +265,27 @@ class TestFieldFortificationLines(QgisTestCase):
 
         symbol = _fortified_line_symbol()
 
-        # The profile IS the line - no straight line underneath it.
-        self.assertEqual(symbol.symbolLayerCount(), 1)
-
-        marker_line = symbol.symbolLayer(0)
+        # Four marker lines, and NONE of them a plain line under the
+        # whole profile - the profile IS the line, and a continuous
+        # underlay would close every merlon into a box. The other three
+        # are the corner bridge and the two end runs, each placed only
+        # where tiling cannot reach; see _RAMPART_CORNER_CONNECTOR_MM.
+        self.assertEqual(symbol.symbolLayerCount(), 4)
 
         self.assertEqual(
-            marker_line.placements(), Qgis.MarkerLinePlacement.Interval
+            [
+                symbol.symbolLayer(index).placements()
+                for index in range(symbol.symbolLayerCount())
+            ],
+            [
+                Qgis.MarkerLinePlacement.InnerVertices,
+                Qgis.MarkerLinePlacement.Interval,
+                Qgis.MarkerLinePlacement.FirstVertex,
+                Qgis.MarkerLinePlacement.LastVertex,
+            ]
         )
+
+        marker_line = symbol.symbolLayer(1)
         self.assertAlmostEqual(
             marker_line.interval(),
             _RAMPART_TILE_MM - _RAMPART_TILE_OVERLAP_MM

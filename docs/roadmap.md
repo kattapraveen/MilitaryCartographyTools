@@ -7498,6 +7498,46 @@ tested, not claimed as done here.
 
   1049 tests passing on both QGIS versions.
 
+- **Second H-XX/H-XXI review round** (2026-08-13, same day).
+
+  **Fortified Line's corners.** A marker line lays each tile down
+  straight and rotated to the local bearing, so a tile spanning a bend
+  is drawn across it - a notch outside the corner, an overlap inside.
+  Two tempting fixes are both wrong and were ruled out before building:
+  a plain line under the whole profile would close every merlon into a
+  box (the standard's template is a bare square wave, no baseline under
+  a merlon), and generating the profile as real geometry needs page
+  units inside a geometry generator, where `@map_scale` is confirmed
+  not to behave - re-probed here rather than taken on trust, since
+  `offensive_control_measures.py` had already paid for that lesson
+  once. So the connector goes only where it is needed:
+  `mct_rampart_connector_svg()` at InnerVertices, half a tile long.
+  A full tile was tried first and reached far enough to close the
+  merlon sitting on the corner; half bridges the joint and stops.
+
+  **The end runs are doubled**, as asked. A quarter of that comes from
+  the tile's own ends and cannot grow without changing the merlon
+  rhythm already signed off, so the tiling is pushed a quarter tile
+  inward (`setOffsetAlongLine`) and the same connector glyph fills what
+  it vacates, at FirstVertex and LastVertex.
+
+  **An icon no longer shrinks when Field T is typed into it.** The new
+  `unique_designation` wiring exposed the other half of the bounding-box
+  problem: milsymbol widens an icon's own box to take in its amplifier
+  text, and QGIS sizes an SVG marker by WIDTH, so adding a designation
+  visibly shrank the symbol it belonged to - "inconsistent from a UI
+  point of view", and it was. New `mct_sidc_svg_width()` reports the
+  width of exactly the SVG `mct_sidc_svg()` returns for the same
+  arguments, and the shared point-layer renderer now scales the marker
+  by amplified-width / plain-width. That cancels the shrink exactly:
+  the icon holds its size and the text hangs outside it, which is how
+  the standard draws amplifiers anyway. Applies to every layer built
+  through the shared builder, not just H-XXI, and composes with the
+  per-entity 30% event bump. Pinned by a test that measures millimetres
+  of page per icon unit across five designation lengths.
+
+  1053 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

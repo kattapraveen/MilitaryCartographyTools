@@ -159,6 +159,80 @@ _RAMPART_TILE_MM = 3.0
 # in Table H-XIX (see _WIRE_TILE_OVERLAP_MM there).
 _RAMPART_TILE_OVERLAP_MM = 0.12
 
+# --- What tiling alone cannot do, and the two glyphs that cover it ---
+#
+# A marker line lays each tile down straight and rotated to the local
+# bearing, so a tile that happens to span a bend is drawn across it -
+# leaving a notch on the outside of the corner and an overlap on the
+# inside. It also has no idea where the whole line ends. Both showed up
+# in the maintainer's 2026-08-13 smoke test.
+#
+# The obvious fix - draw a plain line under the whole profile - is
+# wrong: the profile has no baseline UNDER a merlon (the standard's own
+# template is a bare square wave), so a continuous underlay would close
+# every merlon into a box. Generating the profile as real geometry is
+# also out: it would need page units inside a geometry generator, and
+# `@map_scale` is confirmed NOT to behave there (see
+# offensive_control_measures.py's own note, where that cost a round).
+#
+# So the connector is placed only where it is needed. One tile long at
+# an inner vertex, which is enough to bridge the bend without reaching
+# the next merlon.
+_RAMPART_CORNER_CONNECTOR_MM = _RAMPART_TILE_MM / 2.0
+
+# The level run the profile opens and closes with. The tile's own ends
+# contribute a quarter tile each; the maintainer asked for twice that
+# ("the beginning and end line segment - increase the length by a
+# factor of 2"), and the rest cannot come from the tile without
+# changing the merlon rhythm they already signed off. So the tiling is
+# pushed a quarter tile inward and this glyph fills what it vacates.
+_RAMPART_END_RUN_MM = _RAMPART_TILE_MM / 2.0
+
+_RAMPART_TILING_INSET_MM = _RAMPART_TILE_MM / 4.0
+
+def _rampart_connector_layer(placement, length_mm, offset_along_line_mm=0.0):
+
+    """
+    One level-segment glyph on a marker line - see
+    _RAMPART_CORNER_CONNECTOR_MM for what these are for.
+    """
+
+    glyph = QgsSvgMarkerSymbolLayer("")
+
+    glyph.setSize(length_mm)
+
+    glyph.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_rampart_connector_svg({colour}, {length}, {stroke})".format(
+                colour=_RAMPART_GLYPH_COLOR_EXPRESSION,
+                length=length_mm,
+                stroke=_LINE_WIDTH_MM,
+            )
+        )
+    )
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, glyph)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(placement)
+
+    marker_line.setRotateSymbols(True)
+
+    if offset_along_line_mm:
+
+        marker_line.setOffsetAlongLine(offset_along_line_mm)
+
+        marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
+
+    return marker_line
+
+
 def _fortified_line_symbol():
 
     """
@@ -171,12 +245,26 @@ def _fortified_line_symbol():
     Tiled rather than generated, because the standard lets this symbol
     run over as many anchor points as the user wants ("additional
     points can be defined to extend the line") and a marker line
-    follows a multi-segment path for free.
+    follows a multi-segment path for free - with two gaps that tiling
+    alone leaves, covered by connector glyphs at the inner vertices and
+    at the two ends. See _RAMPART_CORNER_CONNECTOR_MM.
 
     Ramparts rise on the LEFT of PT1->PT2 travel, which is how the
     template draws them - see the module docstring on why that is a
     convention rather than a reading.
     """
+
+    symbol = QgsLineSymbol()
+
+    # Corner bridges first, so a merlon that lands on a bend still
+    # draws over its connector rather than under it.
+    symbol.changeSymbolLayer(
+        0,
+        _rampart_connector_layer(
+            Qgis.MarkerLinePlacement.InnerVertices,
+            _RAMPART_CORNER_CONNECTOR_MM,
+        )
+    )
 
     marker = QgsMarkerSymbol()
 
@@ -205,13 +293,26 @@ def _fortified_line_symbol():
 
     marker_line.setIntervalUnit(Qgis.RenderUnit.Millimeters)
 
+    # Pushed inward so the opening level run comes out twice the
+    # quarter-tile the glyph alone gives.
+    marker_line.setOffsetAlongLine(_RAMPART_TILING_INSET_MM)
+
+    marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
+
     # Follow the line's own bearing, or the ramparts stay square to the
     # screen instead of to the rampart.
     marker_line.setRotateSymbols(True)
 
-    symbol = QgsLineSymbol()
+    symbol.appendSymbolLayer(marker_line)
 
-    symbol.changeSymbolLayer(0, marker_line)
+    for placement in (
+        Qgis.MarkerLinePlacement.FirstVertex,
+        Qgis.MarkerLinePlacement.LastVertex,
+    ):
+
+        symbol.appendSymbolLayer(
+            _rampart_connector_layer(placement, _RAMPART_END_RUN_MM)
+        )
 
     return symbol
 

@@ -407,3 +407,126 @@ class TestCbrnSmokeTestFixes(QgisTestCase):
                 )
             )
         )
+
+
+class TestCbrnIconSizeIsHeldStill(QgisTestCase):
+
+    """
+    "now the symbol size is reducing when the Field T is added -
+    inconsistent from a UI point of view. can we have the size of the
+    main symbol remaining same?"
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _drawn_icon_scale(self, layer, entity, designation):
+
+        """
+        Millimetres of page per milsymbol icon unit - the thing that
+        has to stay constant. Marker size is in mm and QGIS fits it to
+        the SVG's WIDTH, so this is size / width, both taken from the
+        renderer's own evaluated properties rather than restated.
+        """
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("entity", entity)
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("status", "present")
+        feature.setAttribute("unique_designation", designation)
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        properties = layer.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties()
+
+        size, ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Size, context, 0.0
+        )
+
+        self.assertTrue(ok)
+
+        path, ok = properties.valueAsString(
+            QgsSymbolLayer.Property.Name, context, ""
+        )
+
+        self.assertTrue(ok)
+
+        markup = base64.b64decode(
+            path[len("base64:"):]
+        ).decode("utf-8")
+
+        width = float(
+            re.search(r'viewBox="\S+ \S+ (\S+) \S+"', markup).group(1)
+        )
+
+        return size / width
+
+
+    def test_the_icon_keeps_its_size_whatever_the_designation(self):
+
+        layer = create_cbrn_defense_points_layer()
+
+        for entity in ("chemical_event", "decontamination_point"):
+
+            scales = [
+                self._drawn_icon_scale(layer, entity, designation)
+                for designation in (None, "", "A", "LONGER", "A VERY LONG ONE")
+            ]
+
+            for scale in scales[1:]:
+
+                self.assertAlmostEqual(scale, scales[0], places=6, msg=entity)
+
+
+    def test_the_thirty_percent_event_bump_survives_a_designation(self):
+
+        # The two size adjustments compose: an event is drawn 30%
+        # larger than the same icon would be at the layer's plain
+        # marker size, designation or not.
+        #
+        # Note what this is NOT: 30% is applied to the MARKER SIZE, not
+        # to the drawn scale relative to the decontamination points.
+        # Those still come out larger, because milsymbol boxes them
+        # 88 wide against the events' 158 - closing that gap entirely
+        # would take about 80%, which is recorded in cbrn_defense.py as
+        # the maintainer's to revisit.
+        layer = create_cbrn_defense_points_layer()
+
+        plain_event_width = QgsExpression(
+            "mct_sidc_svg_width('{}')".format(
+                build_sidc(
+                    "friend",
+                    "chemical_event",
+                    symbol_set="control_measure",
+                    echelon="unspecified",
+                    status="present",
+                )
+            )
+        ).evaluate(QgsExpressionContext())
+
+        expected = 1.30 * 8.0 / plain_event_width
+
+        for designation in ("", "LONGER"):
+
+            self.assertAlmostEqual(
+                self._drawn_icon_scale(layer, "chemical_event", designation),
+                expected,
+                places=6,
+                msg=designation,
+            )

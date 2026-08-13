@@ -8,6 +8,7 @@ for Military Cartography Tools
 import base64
 import math
 import random
+import re
 
 from qgis.core import (
     QgsDistanceArea,
@@ -20,7 +21,11 @@ from qgis.core import (
 )
 
 from ..military_symbology.sidc import build_sidc
-from ..military_symbology.symbol_engine import render_symbol_base64_path
+from ..military_symbology.symbol_engine import (
+    render_symbol_base64_path,
+    render_symbol_svg,
+    scale_svg_stroke_width,
+)
 
 
 def _distance_area():
@@ -153,6 +158,68 @@ def mct_sidc_svg(values, feature=None, parent=None):
     return render_symbol_base64_path(
         sidc, options or None, stroke_scale
     )
+
+
+@qgsfunction(
+    'mct_sidc_svg_width',
+    group='Military Cartography Tools'
+)
+def mct_sidc_svg_width(values, feature=None, parent=None):
+
+    """
+    The rendered WIDTH, in milsymbol's own icon units, of exactly the
+    symbol mct_sidc_svg() would return for the same arguments.
+
+    Exists so a marker's size can compensate for its own bounding box.
+    QGIS sizes an SVG marker by its width, and milsymbol widens an
+    icon's box to take in whatever amplifier text it carries - so at a
+    fixed marker size, adding a unique designation SHRINKS the icon
+    it belongs to. The maintainer's own report, on Table H-XXI: "now
+    the symbol size is reducing when the Field T is added -
+    inconsistent from a UI point of view. can we have the size of the
+    main symbol remaining same?"
+
+    Dividing the amplified width by the plain one gives exactly the
+    factor that holds the icon still and lets the text hang outside it,
+    which is how the standard's own examples draw amplifiers anyway
+    (Table H-XIV's sonobuoys put "99" and "HOT" clear of the circle;
+    Table H-XXI puts Field T to the right of the box).
+
+    Takes mct_sidc_svg's own argument list so the two can be called
+    side by side with the same expression text.
+    """
+
+    if len(values) < 1:
+        return 0.0
+
+    sidc = str(values[0])
+
+    text = values[1] if len(values) > 1 else None
+    slot = (
+        str(values[2])
+        if len(values) > 2 and values[2]
+        else "uniqueDesignation"
+    )
+
+    mono_color = str(values[3]) if len(values) > 3 and values[3] else None
+    stroke_scale = float(values[4]) if len(values) > 4 and values[4] else None
+
+    options = {}
+
+    if text:
+        options[slot] = str(text)
+
+    if mono_color:
+        options["monoColor"] = mono_color
+
+    svg = scale_svg_stroke_width(
+        render_symbol_svg(sidc, options or None),
+        stroke_scale
+    )
+
+    match = re.search(r'viewBox="\S+ \S+ (\S+) \S+"', svg)
+
+    return float(match.group(1)) if match else 0.0
 
 
 # ============================================================
@@ -2342,6 +2409,61 @@ def mct_rampart_svg(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_rampart_connector_svg',
+    group='Military Cartography Tools'
+)
+def mct_rampart_connector_svg(values, feature=None, parent=None):
+
+    """
+    A plain level segment of Fortified Line's own baseline (290900), as
+    an inline "base64:<...>" SVG for a marker.
+
+    Two jobs, both of which fall out of the rampart profile being TILED
+    rather than generated - a marker line lays each tile down straight
+    and rotated, so it cannot follow a bend inside a tile, and it has
+    no idea where the whole line ends:
+
+    - At an inner vertex it bridges the corner. The maintainer's own
+      report: "in a multi-line or poly-line, at the corners, there is a
+      slight break in pattern, at times a gap - maybe add a simple line
+      segment to connect them?"
+    - At the two ends it lengthens the level run the profile opens and
+      closes with, which the tile alone can only make a quarter of a
+      tile long without changing the merlon rhythm.
+
+    The viewBox is symmetric about the origin so the glyph centres on
+    whatever point the marker line puts it at, and one viewBox unit is
+    one millimetre (QGIS sizes an SVG marker by its WIDTH, so the
+    caller sets the marker size to `length_mm`).
+    """
+
+    colour = str(values[0]) if values and values[0] else "rgb(0,0,0)"
+    length = float(values[1]) if len(values) > 1 and values[1] else 1.5
+    stroke = float(values[2]) if len(values) > 2 and values[2] else 0.4
+
+    if length <= 0:
+        return ""
+
+    half = length / 2.0
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+        ' viewBox="{minx:.4f} {minx:.4f} {size:.4f} {size:.4f}"'
+        ' width="{size:.4f}" height="{size:.4f}">'
+        '<path d="M {minx:.4f},0 L {half:.4f},0" fill="none"'
+        ' stroke="{colour}" stroke-width="{stroke:.4f}"'
+        ' stroke-linecap="butt"/></svg>'
+    ).format(
+        minx=-half, size=length, half=half,
+        colour=colour, stroke=stroke,
+    )
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
+@qgsfunction(
     'mct_ford_zigzag_svg',
     group='Military Cartography Tools'
 )
@@ -4269,6 +4391,7 @@ def mct_attack_by_fire_shaft(values, feature=None, parent=None):
 
 _FUNCTIONS = [
     mct_sidc_svg,
+    mct_sidc_svg_width,
     mct_build_sidc,
     mct_area_km2,
     mct_perimeter_km,
@@ -4297,6 +4420,7 @@ _FUNCTIONS = [
     mct_bridge_or_gap_geometry,
     mct_bridge_flare_svg,
     mct_ford_zigzag_svg,
+    mct_rampart_connector_svg,
     mct_rampart_svg,
     mct_overhead_wire_tower_svg,
     mct_wire_glyph_svg,

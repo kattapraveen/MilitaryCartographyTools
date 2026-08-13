@@ -346,15 +346,19 @@ def _build_renderer(
     # argument, which would blank the icon rather than just its text.
     # An empty string is treated as "no designation" inside
     # mct_sidc_svg, so an untouched field costs nothing.
-    expression = (
-        'mct_sidc_svg(mct_build_sidc('
+    sidc_expression = (
+        'mct_build_sidc('
         f'"affiliation","entity",{symbol_set_expr},'
         f'{echelon_expr},"status",{headquarters_expr},'
         f'{sector1_expr},{sector2_expr}'
-        '),'
-        'upper(coalesce("unique_designation", \'\')),'
-        "'uniqueDesignation'"
         ')'
+    )
+
+    designation_expression = 'upper(coalesce("unique_designation", \'\'))'
+
+    expression = (
+        f"mct_sidc_svg({sidc_expression}, {designation_expression}, "
+        "'uniqueDesignation')"
     )
 
     symbol = QgsMarkerSymbol()
@@ -376,12 +380,37 @@ def _build_renderer(
             for entity, scale in entity_marker_size_scales.items()
         )
 
-        svg_layer.setDataDefinedProperty(
-            QgsSymbolLayer.Property.Size,
-            QgsProperty.fromExpression(
-                f"CASE {clauses} ELSE {marker_size_mm:g} END"
+        base_size_expression = f"CASE {clauses} ELSE {marker_size_mm:g} END"
+
+    else:
+
+        base_size_expression = f"{marker_size_mm:g}"
+
+    # **Hold the ICON still when a designation is added.** Same root
+    # cause as above, from the other direction: milsymbol widens an
+    # icon's own box to take in whatever amplifier text it carries, so
+    # at a fixed marker size a symbol SHRANK the moment someone typed a
+    # unique designation into it. The maintainer's own report on Table
+    # H-XXI: "now the symbol size is reducing when the Field T is added
+    # - inconsistent from a UI point of view. can we have the size of
+    # the main symbol remaining same?"
+    #
+    # Scaling the marker by (amplified width / plain width) cancels
+    # that exactly - the icon keeps the size it has with no text, and
+    # the text hangs outside it, which is how the standard's own
+    # examples draw amplifiers anyway (Table H-XXI puts Field T to the
+    # right of the box, not inside it).
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Size,
+        QgsProperty.fromExpression(
+            "({base}) * mct_sidc_svg_width({sidc}, {text}, "
+            "'uniqueDesignation') / mct_sidc_svg_width({sidc})".format(
+                base=base_size_expression,
+                sidc=sidc_expression,
+                text=designation_expression,
             )
         )
+    )
 
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,

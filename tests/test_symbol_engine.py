@@ -376,3 +376,91 @@ class TestSonobuoyViewboxCorrection(QgisTestCase):
             set(symbol_engine._VIEWBOX_CORRECTIONS),
             {"213510", "213511", "213512", "213513", "213514", "213515"}
         )
+
+
+class TestSidcSvgWidth(QgisTestCase):
+
+    """
+    mct_sidc_svg_width() must report the width of exactly the symbol
+    mct_sidc_svg() returns for the same arguments - the two are always
+    called side by side to hold an icon's drawn size still while its
+    amplifier text hangs outside (see _point_symbol_layer.py).
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _evaluate(self, text):
+
+        sidc = build_sidc(
+            "friend",
+            "decontamination_point",
+            symbol_set="control_measure",
+            echelon="unspecified",
+            status="present",
+        )
+
+        width = QgsExpression(
+            "mct_sidc_svg_width('{}', '{}', 'uniqueDesignation')".format(
+                sidc, text
+            )
+        )
+
+        svg = QgsExpression(
+            "mct_sidc_svg('{}', '{}', 'uniqueDesignation')".format(
+                sidc, text
+            )
+        )
+
+        context = QgsExpressionContext()
+
+        return width.evaluate(context), svg.evaluate(context)
+
+
+    def test_it_reports_the_width_of_the_very_svg_that_is_drawn(self):
+
+        for text in ("", "A", "LONGER"):
+
+            width, path = self._evaluate(text)
+
+            markup = base64.b64decode(
+                path.split("base64:", 1)[1]
+            ).decode("utf-8")
+
+            self.assertAlmostEqual(
+                width,
+                float(
+                    re.search(
+                        r'viewBox="\S+ \S+ (\S+) \S+"', markup
+                    ).group(1)
+                ),
+                places=6,
+                msg=text,
+            )
+
+
+    def test_longer_amplifier_text_widens_the_box(self):
+
+        # The premise the size compensation rests on. If milsymbol ever
+        # stopped widening, the ratio would be 1 and the compensation a
+        # harmless no-op - but it would also mean this defect is gone,
+        # and that is worth knowing rather than assuming.
+        plain, _ = self._evaluate("")
+        short, _ = self._evaluate("A")
+        long_, _ = self._evaluate("LONGER")
+
+        self.assertGreater(short, plain)
+        self.assertGreater(long_, short)
