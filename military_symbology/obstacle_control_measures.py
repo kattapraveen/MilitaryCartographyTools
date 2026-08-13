@@ -172,6 +172,11 @@ from qgis.PyQt.QtGui import QColor
 
 from qgis.core import Qgis
 
+from ..expressions.military_symbology_functions import (
+    _TOWER_VIEWBOX_HEIGHT,
+    _TOWER_VIEWBOX_WIDTH,
+)
+
 from ._control_measure_shared import (
     POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
@@ -3906,24 +3911,33 @@ def _ferry_symbol():
     return _shaft_with_end_arrows_symbol(filled=True)
 
 
-# Overhead Wire's own pylons. The standard draws a transmission tower
-# at each end and numbers nothing about it, so no glyph is invented
-# here - one is reused from the SIDC vocabulary, which the maintainer's
-# own question surfaced ("is there any sidc for tower?"). Their pick
-# after seeing both candidates was Land Installation's
-# Telecommunications Tower (121203) over this table's own Tower High
-# (282002) - it is the pylon this symbol actually means.
+# Overhead Wire's own pylons - the maintainer's own drawing, supplied
+# as SVG and used verbatim (see mct_overhead_wire_tower_svg). It
+# replaced a borrowed SIDC glyph, Land Installation's
+# Telecommunications Tower (121203): that rendered correctly once its
+# affiliation bug was fixed, but it is an INSTALLATION symbol, so it
+# arrived with a frame to strip and an installation indicator bar that
+# could not be.
 #
-# NOTE the symbol set travels with the entity: 121203 is a
-# land_installation code, not a control_measure one, so build_sidc has
-# to be told which set to use or it produces a valid-looking SIDC for
-# the wrong symbol.
-_OVERHEAD_WIRE_TOWER_ENTITY = "telecommunications_tower"
-_OVERHEAD_WIRE_TOWER_SYMBOL_SET = "land_installation"
+# The tower is 6mm TALL, the maintainer's own figure. QGIS sizes an SVG
+# marker by its WIDTH, and the glyph's viewBox is 100x160, so the
+# marker size is that height scaled by the aspect ratio - derived here
+# rather than restated, since writing "3.75" separately is exactly how
+# a viewBox and its multiplier drift apart (this module has done it
+# before, on the double_cross wire glyph).
+_OVERHEAD_WIRE_TOWER_HEIGHT_MM = 6.0
 
-# The same size the Points layer draws its own tower icons at, rather
-# than a number of this symbol's own.
-_OVERHEAD_WIRE_TOWER_MM = _POINTS_DEFAULT_MARKER_SIZE_MM
+_OVERHEAD_WIRE_TOWER_MM = (
+    _OVERHEAD_WIRE_TOWER_HEIGHT_MM
+    * _TOWER_VIEWBOX_WIDTH / _TOWER_VIEWBOX_HEIGHT
+)
+
+# The pylon is CENTRED on the vertex the user clicked - "the tower
+# center should be the vertex point clicked by user i.e. pt1 pt2 etc".
+# An SVG marker already centres on its own point, so this needs no
+# offset at all; a first cut shifted the glyph down so the wire met
+# its crossbar instead, which put the clicked point at the top of the
+# tower rather than at its middle.
 
 
 def _overhead_wire_tower_layer():
@@ -3943,30 +3957,17 @@ def _overhead_wire_tower_layer():
 
     svg_layer.setSize(_OVERHEAD_WIRE_TOWER_MM)
 
-    # Affiliation and status are FIXED literals, NOT this layer's own
-    # fields. That was the bug in the first cut: the Lines layer's
-    # affiliation vocabulary includes "unspecified" (and defaults to
-    # it), which build_sidc rejects outright - it returns an error
-    # STRING rather than a SIDC, so every tower rendered as garbage.
-    # The glyph is structural and takes its colour from the obstacle
-    # colour expression anyway, so it has no business reading an
-    # affiliation. Same fixed-literal pattern the mine glyphs already
-    # use (_MINE_GLYPH_AFFILIATION).
+    # A drawn glyph, so no SIDC and therefore none of the affiliation
+    # trouble the borrowed one had: the Lines layer's own affiliation
+    # vocabulary includes "unspecified" (and defaults to it), which
+    # mct_build_sidc rejects outright - it returns an error STRING
+    # rather than a SIDC, which is why every tower rendered as garbage
+    # before. Only the obstacle colour is passed in here.
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
         QgsProperty.fromExpression(
-            # Trailing `false` drops milsymbol's own frame: 121203 is
-            # a Land Installation code and so renders framed, and a
-            # framed installation box at every vertex is not the bare
-            # pylon Table H-XIX's own Overhead Wire template draws.
-            "mct_sidc_svg(mct_build_sidc("
-            " '{affiliation}', '{entity}', '{symbol_set}',"
-            " 'unspecified', 'present', false), '', '',"
-            " {colour}, 1.0, false)".format(
-                affiliation=_MINE_GLYPH_AFFILIATION,
-                entity=_OVERHEAD_WIRE_TOWER_ENTITY,
-                symbol_set=_OVERHEAD_WIRE_TOWER_SYMBOL_SET,
-                colour=_POINT_MONO_COLOR_EXPRESSION,
+            "mct_overhead_wire_tower_svg({colour})".format(
+                colour=_POINT_MONO_COLOR_EXPRESSION
             )
         )
     )

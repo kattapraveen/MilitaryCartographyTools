@@ -2215,6 +2215,90 @@ def mct_bridge_flare_svg(values, feature=None, parent=None):
     return "base64:" + encoded
 
 
+# Overhead Wire's pylon, drawn by the maintainer themselves and used
+# verbatim - the path data below is theirs, not derived from anything.
+# It replaces a borrowed SIDC glyph (Land Installation's
+# Telecommunications Tower, 121203) which rendered correctly but came
+# with an installation frame and indicator bar that had to be stripped.
+#
+# The viewBox is 100 wide by 160 tall, and QGIS sizes an SVG marker by
+# its WIDTH - so a 6mm tower is a 3.75mm marker
+# (6 * 100/160), not a 6mm one. _OVERHEAD_WIRE_TOWER_MM derives that
+# rather than restating it, so the two cannot disagree.
+_TOWER_VIEWBOX_WIDTH = 100
+_TOWER_VIEWBOX_HEIGHT = 160
+
+# Where the wire itself meets the pylon: the crossbar, at viewBox
+# y=35. An SVG marker centres on its own point, so without this the
+# wire would cut through the tower's waist instead of landing on the
+# crossbar the way the standard's own template draws it.
+_TOWER_CROSSBAR_Y = 35
+
+_TOWER_PATHS = (
+    # Top vertical mast
+    "M50 8 L50 35",
+    # Horizontal crossbar
+    "M18 35 L82 35",
+    # Downturned ends of crossbar
+    "M18 35 L18 44",
+    "M82 35 L82 44",
+    # Main left leg
+    "M48 35 L32 148",
+    # Main right leg
+    "M52 35 L68 148",
+    # Internal horizontal brace
+    "M38 88 L62 88",
+    # Lower V brace
+    "M32 148 L50 122 L68 148",
+    # Right diagonal support
+    "M52 35 L91 124",
+)
+
+_TOWER_STROKE_WIDTH = 6
+
+
+@qgsfunction(
+    'mct_overhead_wire_tower_svg',
+    group='Military Cartography Tools'
+)
+def mct_overhead_wire_tower_svg(values, feature=None, parent=None):
+
+    """
+    Overhead Wire's own transmission pylon as an inline
+    "base64:<...>" SVG, for a marker on every vertex of the wire.
+
+    The geometry is the maintainer's own drawing, reproduced exactly;
+    only the stroke colour is parameterised, so the pylon follows the
+    obstacle colour field (green or black) like every other glyph in
+    this table.
+    """
+
+    colour = str(values[0]) if values and values[0] else "rgb(0,0,0)"
+
+    body = "".join(
+        '<path d="{}"/>'.format(path) for path in _TOWER_PATHS
+    )
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+        ' viewBox="0 0 {width} {height}"'
+        ' width="{width}" height="{height}">'
+        '<g fill="none" stroke="{colour}" stroke-width="{stroke}"'
+        ' stroke-linecap="round" stroke-linejoin="round">'
+        "{body}</g></svg>"
+    ).format(
+        width=_TOWER_VIEWBOX_WIDTH,
+        height=_TOWER_VIEWBOX_HEIGHT,
+        colour=colour,
+        stroke=_TOWER_STROKE_WIDTH,
+        body=body,
+    )
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
 @qgsfunction(
     'mct_ford_zigzag_svg',
     group='Military Cartography Tools'
@@ -4171,6 +4255,7 @@ _FUNCTIONS = [
     mct_bridge_or_gap_geometry,
     mct_bridge_flare_svg,
     mct_ford_zigzag_svg,
+    mct_overhead_wire_tower_svg,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,

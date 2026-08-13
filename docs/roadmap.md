@@ -7201,6 +7201,36 @@ tested, not claimed as done here.
 
   1005 tests passing on both QGIS versions.
 
+- **Overhead Wire's pylon replaced with the maintainer's own drawing**
+  (2026-08-13, same day). They supplied it as SVG - mast, crossbar with
+  downturned ends, two splayed legs, an internal brace, a lower V brace
+  and a diagonal support - and it is used verbatim, with only the
+  stroke colour parameterised so the pylon follows the obstacle colour
+  field like every other glyph in this table.
+
+  This retires the borrowed SIDC glyph entirely, and with it a whole
+  class of problem: Land Installation's Telecommunications Tower
+  (121203) rendered correctly once its affiliation bug was fixed, but
+  it is an INSTALLATION symbol, so it arrived with a frame that had to
+  be stripped and an installation indicator bar that could not be. A
+  drawn glyph has no SIDC, so no symbol set to keep straight and no
+  affiliation to get wrong.
+
+  Two sizing details worth keeping: the tower is **6mm TALL**, the
+  maintainer's own figure, but **QGIS sizes an SVG marker by its
+  WIDTH** - and the glyph's viewBox is 100x160, so the marker is
+  3.75mm. That is DERIVED from the viewBox rather than written down
+  separately, because a viewBox and a hand-copied multiplier drifting
+  apart is a mistake this module has already made once (the
+  double_cross wire glyph). And the pylon is **centred on the clicked
+  vertex** - "the tower center should be the vertex point clicked by
+  user i.e. pt1 pt2 etc". A first cut offset it downward so the wire
+  met the crossbar, which looked right but silently moved the anchor to
+  the top of the tower; an SVG marker centres on its own point, so the
+  correct answer was no offset at all.
+
+  1005 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

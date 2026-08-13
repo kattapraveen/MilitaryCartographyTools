@@ -5775,53 +5775,13 @@ class TestWaterCrossingSites(QgisTestCase):
         self.assertFalse(marker_line.rotateSymbols())
 
 
-    def test_overhead_wire_uses_the_telecom_tower_glyph(self):
+    def test_overhead_wire_uses_the_maintainers_own_pylon_glyph(self):
 
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _OVERHEAD_WIRE_TOWER_ENTITY,
-            _OVERHEAD_WIRE_TOWER_SYMBOL_SET,
-            _overhead_wire_symbol,
-        )
-        from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
-
-        self.assertEqual(
-            ENTITIES[_OVERHEAD_WIRE_TOWER_SYMBOL_SET][
-                _OVERHEAD_WIRE_TOWER_ENTITY
-            ],
-            "121203"
-        )
-
-        symbol = _overhead_wire_symbol()
-
-        marker_line = symbol.symbolLayer(1)
-
-        marker = marker_line.subSymbol()
-
-        expression = (
-            marker.symbolLayer(0)
-            .dataDefinedProperties()
-            .property(QgsSymbolLayer.Property.Name)
-            .expressionString()
-        )
-
-        self.assertIn(_OVERHEAD_WIRE_TOWER_ENTITY, expression)
-        self.assertIn(_OVERHEAD_WIRE_TOWER_SYMBOL_SET, expression)
-
-        # The symbol set has to travel WITH the entity - 121203 is a
-        # land_installation code, and building it against
-        # control_measure would yield a valid-looking SIDC for the
-        # wrong symbol.
-        self.assertNotIn("'control_measure'", expression)
-
-
-    def test_the_tower_glyph_does_not_read_this_layers_affiliation(self):
-
-        # The bug this replaced: the expression read "affiliation" from
-        # the Lines layer, whose vocabulary includes (and defaults to)
-        # "unspecified" - which build_sidc REJECTS, returning an error
-        # string rather than a SIDC, so every tower rendered as
-        # garbage. Structural glyphs take a fixed literal, like the
-        # mine glyphs already do.
+        # A drawn glyph, supplied by the maintainer as SVG and used
+        # verbatim. It replaced a borrowed SIDC symbol (Land
+        # Installation's Telecommunications Tower, 121203) which
+        # rendered correctly once its affiliation bug was fixed, but
+        # arrived with an installation frame and indicator bar.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _overhead_wire_symbol,
         )
@@ -5839,28 +5799,58 @@ class TestWaterCrossingSites(QgisTestCase):
             .expressionString()
         )
 
+        self.assertIn("mct_overhead_wire_tower_svg", expression)
+
+        # No SIDC anywhere in it any more - which is what removes the
+        # whole affiliation problem rather than working around it.
+        self.assertNotIn("mct_build_sidc", expression)
         self.assertNotIn('"affiliation"', expression)
         self.assertNotIn('"status"', expression)
 
 
-    def test_the_tower_glyph_drops_its_installation_frame(self):
+    def test_the_pylon_marker_is_sized_so_the_tower_is_six_mm_tall(self):
 
-        # 121203 is a Land Installation code and so renders FRAMED; a
-        # framed installation box at every vertex is not the bare pylon
-        # Table H-XIX's own Overhead Wire template draws.
-        from MilitaryCartographyTools.military_symbology.symbol_engine import (
-            render_symbol_svg,
+        # QGIS sizes an SVG marker by its WIDTH, and the glyph's
+        # viewBox is 100x160 - so a 6mm TALL tower is a 3.75mm marker.
+        # Asserted as DERIVED from the viewBox, because writing the
+        # multiplier separately is exactly how a viewBox and its size
+        # drift apart (this module has done it before).
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _TOWER_VIEWBOX_HEIGHT,
+            _TOWER_VIEWBOX_WIDTH,
+        )
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _OVERHEAD_WIRE_TOWER_HEIGHT_MM,
+            _OVERHEAD_WIRE_TOWER_MM,
+            _overhead_wire_symbol,
         )
 
-        sidc = "10032000001212030000"
+        self.assertAlmostEqual(_OVERHEAD_WIRE_TOWER_HEIGHT_MM, 6.0)
 
-        framed = render_symbol_svg(sidc, None)
-        unframed = render_symbol_svg(sidc, {"frame": False})
+        self.assertAlmostEqual(
+            _OVERHEAD_WIRE_TOWER_MM,
+            6.0 * _TOWER_VIEWBOX_WIDTH / _TOWER_VIEWBOX_HEIGHT
+        )
+        self.assertAlmostEqual(_OVERHEAD_WIRE_TOWER_MM, 3.75)
 
-        self.assertNotEqual(framed, unframed)
-        self.assertLess(len(unframed), len(framed))
+        symbol = _overhead_wire_symbol()
 
-        # And the symbol actually asks for it.
+        marker_line = symbol.symbolLayer(1)
+
+        marker = marker_line.subSymbol()
+
+        self.assertAlmostEqual(
+            marker.symbolLayer(0).size(), _OVERHEAD_WIRE_TOWER_MM
+        )
+
+
+    def test_the_pylon_is_centred_on_the_clicked_vertex(self):
+
+        # "the tower center should be the vertex point clicked by user
+        # i.e. pt1 pt2 etc". An SVG marker already centres on its own
+        # point, so this needs NO offset - a first cut shifted the
+        # glyph down so the wire met its crossbar, which put the
+        # clicked point at the top of the tower instead of its middle.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _overhead_wire_symbol,
         )
@@ -5871,43 +5861,34 @@ class TestWaterCrossingSites(QgisTestCase):
 
         marker = marker_line.subSymbol()
 
-        expression = (
-            marker.symbolLayer(0)
-            .dataDefinedProperties()
-            .property(QgsSymbolLayer.Property.Name)
-            .expressionString()
-        )
+        svg_layer = marker.symbolLayer(0)
 
-        self.assertTrue(expression.rstrip().endswith("false)"))
+        self.assertAlmostEqual(svg_layer.offset().x(), 0.0)
+        self.assertAlmostEqual(svg_layer.offset().y(), 0.0)
 
 
-    def test_the_overhead_wire_tower_resolves_to_a_real_glyph(self):
+    def test_the_pylon_glyph_renders_and_takes_the_obstacle_colour(self):
 
-        # A bad entity/symbol-set pair silently produces the unknown
-        # icon - or, as it actually did here, an error string. Assert
-        # the whole chain end to end rather than the expression text.
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _OVERHEAD_WIRE_TOWER_ENTITY,
-            _OVERHEAD_WIRE_TOWER_SYMBOL_SET,
-        )
-
-        sidc = QgsExpression(
-            "mct_build_sidc('friend', '{}', '{}',"
-            " 'unspecified', 'present', false)".format(
-                _OVERHEAD_WIRE_TOWER_ENTITY,
-                _OVERHEAD_WIRE_TOWER_SYMBOL_SET,
-            )
-        ).evaluate()
-
-        # 20 digits, not an error message.
-        self.assertEqual(len(sidc), 20)
-        self.assertTrue(sidc.isdigit())
-
-        # Set B's entity occupies digits 11-16.
-        self.assertEqual(sidc[10:16], "121203")
+        import base64
 
         svg = QgsExpression(
-            "mct_sidc_svg('{}', '', '', 'rgb(0,155,0)', 1.0)".format(sidc)
+            "mct_overhead_wire_tower_svg('rgb(0,155,0)')"
         ).evaluate()
 
         self.assertTrue(svg.startswith("base64:"))
+
+        markup = base64.b64decode(svg[len("base64:"):]).decode("utf-8")
+
+        self.assertIn('stroke="rgb(0,155,0)"', markup)
+
+        # Black is the B7 default, so the two must actually differ.
+        black = QgsExpression(
+            "mct_overhead_wire_tower_svg('rgb(0,0,0)')"
+        ).evaluate()
+
+        self.assertNotEqual(svg, black)
+
+        # The maintainer's own path data, reproduced rather than
+        # redrawn - spot-check the mast and the lower V brace.
+        self.assertIn("M50 8 L50 35", markup)
+        self.assertIn("M32 148 L50 122 L68 148", markup)
