@@ -4085,8 +4085,12 @@ class TestObstacleBypassFamily(QgisTestCase):
         self.assertAlmostEqual(points[1].y(), -10)
 
 
-    def test_rear_difficult_zigzags_between_the_offset_ends(self):
+    def test_rear_difficult_is_flat_then_zigzag_then_flat(self):
 
+        # "from the arrows, initially start with a small line segment,
+        # the zig-zag, then another line segment to connect with the
+        # next arrow base" - the maintainer's own correction to a first
+        # build whose zigzag spanned the whole rear line.
         result = self._evaluate(
             "mct_obstacle_bypass_rear_difficult", self.PT1, self.PT2, self.PT3
         )
@@ -4095,25 +4099,36 @@ class TestObstacleBypassFamily(QgisTestCase):
 
         points = result.asPolyline()
 
-        # 7 vertices (6 segments): starts/ends on the plain rear axis
-        # (x=15), bulges to x=21 (depth 15 * amplitude ratio 0.4 = 6,
-        # so x = 15 + 6) at the odd interior vertices.
-        self.assertEqual(len(points), 7)
+        # 9 vertices: rear_top, the 7-vertex zigzag body, rear_bottom.
+        self.assertEqual(len(points), 9)
 
+        # Both ends sit exactly on the plain rear axis (x=15) at the
+        # arrow bases, so the flats really do reach the arrows.
         self.assertAlmostEqual(points[0].x(), 15)
         self.assertAlmostEqual(points[0].y(), 10)
+        self.assertAlmostEqual(points[-1].x(), 15)
+        self.assertAlmostEqual(points[-1].y(), -10)
 
-        self.assertAlmostEqual(points[1].x(), 21)
-        self.assertAlmostEqual(points[1].y(), 20.0 / 3.0)
+        # The zigzag body is inset by FLAT_RATIO (0.1) of the full
+        # 20-unit height at each end, so it runs y=8 to y=-8.
+        self.assertAlmostEqual(points[1].x(), 15)
+        self.assertAlmostEqual(points[1].y(), 8)
+        self.assertAlmostEqual(points[-2].x(), 15)
+        self.assertAlmostEqual(points[-2].y(), -8)
 
-        self.assertAlmostEqual(points[3].x(), 21)
-        self.assertAlmostEqual(points[3].y(), 0)
+        # Teeth bulge to x=18 (depth 15 * amplitude ratio 0.2 = 3) -
+        # half the first build's 0.4, per "the angle of the teeth
+        # should be more acute (reduce by 50%)".
+        self.assertAlmostEqual(points[2].x(), 18)
+        self.assertAlmostEqual(points[4].x(), 18)
+        self.assertAlmostEqual(points[6].x(), 18)
 
-        self.assertAlmostEqual(points[6].x(), 15)
-        self.assertAlmostEqual(points[6].y(), -10)
+        # Even-numbered body vertices stay on the axis.
+        self.assertAlmostEqual(points[3].x(), 15)
+        self.assertAlmostEqual(points[5].x(), 15)
 
 
-    def test_rear_impossible_is_two_independent_hooks(self):
+    def test_rear_impossible_is_two_independent_stubs_with_ticks(self):
 
         result = self._evaluate(
             "mct_obstacle_bypass_rear_impossible", self.PT1, self.PT2, self.PT3
@@ -4121,29 +4136,89 @@ class TestObstacleBypassFamily(QgisTestCase):
 
         self.assertEqual(result.wkbType().name, "MultiLineString")
 
-        top_hook, bottom_hook = result.asMultiPolyline()
+        # Four parts, not two: each tick meets its stub in a T, which
+        # no single polyline can trace. Nothing spans the gap between
+        # the two hooks - the standard's own template shows the opening
+        # fully closed off at each end.
+        stub_top, tick_top, stub_bottom, tick_bottom = (
+            result.asMultiPolyline()
+        )
 
-        # Not connected to each other - the standard's own template
-        # shows the opening fully closed off at each end, not spanned.
-        self.assertEqual(len(top_hook), 3)
-        self.assertEqual(len(bottom_hook), 3)
+        # The stub runs ALONG the rear axis (x stays 15) from the arrow
+        # base, height 20 * 0.325 = 6.5, so it ends at y=3.5.
+        self.assertAlmostEqual(stub_top[0].x(), 15)
+        self.assertAlmostEqual(stub_top[0].y(), 10)
+        self.assertAlmostEqual(stub_top[1].x(), 15)
+        self.assertAlmostEqual(stub_top[1].y(), 3.5)
 
-        # Top hook: rear_top (15,10) -> stub toward PT2 (height 20 *
-        # 0.25 = 5) -> tick toward PT3 (depth 15 * 0.35 = 5.25).
-        self.assertAlmostEqual(top_hook[0].x(), 15)
-        self.assertAlmostEqual(top_hook[0].y(), 10)
-        self.assertAlmostEqual(top_hook[1].x(), 15)
-        self.assertAlmostEqual(top_hook[1].y(), 5)
-        self.assertAlmostEqual(top_hook[2].x(), 20.25)
-        self.assertAlmostEqual(top_hook[2].y(), 5)
+        self.assertAlmostEqual(stub_bottom[0].x(), 15)
+        self.assertAlmostEqual(stub_bottom[0].y(), -10)
+        self.assertAlmostEqual(stub_bottom[1].x(), 15)
+        self.assertAlmostEqual(stub_bottom[1].y(), -3.5)
 
-        # Bottom hook mirrors it toward PT1's side.
-        self.assertAlmostEqual(bottom_hook[0].x(), 15)
-        self.assertAlmostEqual(bottom_hook[0].y(), -10)
-        self.assertAlmostEqual(bottom_hook[1].x(), 15)
-        self.assertAlmostEqual(bottom_hook[1].y(), -5)
-        self.assertAlmostEqual(bottom_hook[2].x(), 20.25)
-        self.assertAlmostEqual(bottom_hook[2].y(), -5)
+        # The tick crosses that end, depth 15 * 0.35 = 5.25 long,
+        # centred on x=15 so it runs 12.375 to 17.625.
+        self.assertAlmostEqual(tick_top[0].x(), 12.375)
+        self.assertAlmostEqual(tick_top[0].y(), 3.5)
+        self.assertAlmostEqual(tick_top[1].x(), 17.625)
+        self.assertAlmostEqual(tick_top[1].y(), 3.5)
+
+        self.assertAlmostEqual(tick_bottom[0].x(), 12.375)
+        self.assertAlmostEqual(tick_bottom[0].y(), -3.5)
+        self.assertAlmostEqual(tick_bottom[1].x(), 17.625)
+        self.assertAlmostEqual(tick_bottom[1].y(), -3.5)
+
+
+    def test_impossible_stubs_stay_straight_along_the_rear_axis(self):
+
+        # A first cut bent the elbow sideways to centre the tick, which
+        # turned the stub itself into a diagonal - caught by render,
+        # not by the numeric test that followed the same wrong model.
+        result = self._evaluate(
+            "mct_obstacle_bypass_rear_impossible", self.PT1, self.PT2, self.PT3
+        )
+
+        stub_top, _tick_top, stub_bottom, _tick_bottom = (
+            result.asMultiPolyline()
+        )
+
+        for stub in (stub_top, stub_bottom):
+
+            self.assertAlmostEqual(stub[0].x(), stub[1].x())
+
+
+    def test_impossible_ticks_straddle_the_rear_axis(self):
+
+        # "the center or middle of the stub should touch the
+        # perpendicular, presently the end is touching" - each tick's
+        # own MIDPOINT must land on x=15, not its near end.
+        result = self._evaluate(
+            "mct_obstacle_bypass_rear_impossible", self.PT1, self.PT2, self.PT3
+        )
+
+        _stub_top, tick_top, _stub_bottom, tick_bottom = (
+            result.asMultiPolyline()
+        )
+
+        for tick in (tick_top, tick_bottom):
+
+            self.assertAlmostEqual((tick[0].x() + tick[1].x()) / 2.0, 15)
+
+
+    def test_impossible_hook_gap_shrank_by_thirty_percent(self):
+
+        # "reduce the distance between the stubs by 30%, the stub
+        # length is fine" - the two stub ends were 10 apart (height 20
+        # - 2 * stub 5), and are now 7 (height 20 - 2 * stub 6.5).
+        result = self._evaluate(
+            "mct_obstacle_bypass_rear_impossible", self.PT1, self.PT2, self.PT3
+        )
+
+        stub_top, _tick_top, stub_bottom, _tick_bottom = (
+            result.asMultiPolyline()
+        )
+
+        self.assertAlmostEqual(stub_top[1].y() - stub_bottom[1].y(), 7)
 
 
     def test_all_three_variants_are_offered_and_black(self):
@@ -4246,9 +4321,11 @@ class TestObstacleBypassFamily(QgisTestCase):
 class TestBridgeOrGap(QgisTestCase):
 
     """
-    Bridge or Gap (271100) - the one line obstacle in this batch
-    needing four anchor points: "points 1 and 2 define one side of the
-    gap and points 3 and 4 define the opposite side."
+    Bridge or Gap (271100), rebuilt 2026-08-13 to the maintainer's own
+    correction: "user will click only two points PT1 and PT2, make two
+    parallel lines and require unique designation Field T, so the gap
+    between the lines will be slightly more than the text, wings or
+    flares at both ends, outwards at 30deg."
     """
 
     def setUp(self):
@@ -4267,38 +4344,12 @@ class TestBridgeOrGap(QgisTestCase):
         super().tearDown()
 
 
-    def test_too_few_vertices_returns_the_geometry_unchanged(self):
-
-        from qgis.core import QgsGeometry, QgsPointXY
-
-        three_point = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(0, 0), QgsPointXY(0, 10), QgsPointXY(5, 10)]
-        )
-
-        expression = QgsExpression(
-            "mct_bridge_or_gap_geometry(geom_from_wkt('{}'))".format(
-                three_point.asWkt()
-            )
-        )
-
-        result = expression.evaluate()
-
-        self.assertFalse(
-            expression.hasEvalError(), expression.evalErrorString()
-        )
-
-        self.assertEqual(result.asWkt(), three_point.asWkt())
-
-
-    def test_returns_two_independent_sides(self):
+    def _sides(self, pt1=(0, 0), pt2=(100, 0)):
 
         from qgis.core import QgsGeometry, QgsPointXY
 
         wkt = QgsGeometry.fromPolylineXY(
-            [
-                QgsPointXY(0, 10), QgsPointXY(0, -10),
-                QgsPointXY(20, 10), QgsPointXY(20, -10),
-            ]
+            [QgsPointXY(*pt1), QgsPointXY(*pt2)]
         ).asWkt()
 
         expression = QgsExpression(
@@ -4313,17 +4364,110 @@ class TestBridgeOrGap(QgisTestCase):
 
         self.assertEqual(result.wkbType().name, "MultiLineString")
 
-        side_a, side_b = result.asMultiPolyline()
+        return result.asMultiPolyline()
 
-        self.assertAlmostEqual(side_a[0].x(), 0)
-        self.assertAlmostEqual(side_a[0].y(), 10)
+
+    def test_a_single_point_returns_the_geometry_unchanged(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        one_point = QgsGeometry.fromPolylineXY([QgsPointXY(0, 0)])
+
+        expression = QgsExpression(
+            "mct_bridge_or_gap_geometry(geom_from_wkt('{}'))".format(
+                one_point.asWkt()
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result.asWkt(), one_point.asWkt())
+
+
+    def test_two_clicked_points_give_two_parallel_flared_sides(self):
+
+        # PT1-PT2 runs 100 units along +x, so half_width is
+        # 100 * 0.12 = 12 and each side sits at y = +/-12.
+        side_a, side_b = self._sides()
+
+        self.assertEqual(len(side_a), 4)
+        self.assertEqual(len(side_b), 4)
+
+        # Vertices 1 and 2 of each side are the straight run itself.
         self.assertAlmostEqual(side_a[1].x(), 0)
-        self.assertAlmostEqual(side_a[1].y(), -10)
+        self.assertAlmostEqual(side_a[1].y(), 12)
+        self.assertAlmostEqual(side_a[2].x(), 100)
+        self.assertAlmostEqual(side_a[2].y(), 12)
 
-        self.assertAlmostEqual(side_b[0].x(), 20)
-        self.assertAlmostEqual(side_b[0].y(), 10)
-        self.assertAlmostEqual(side_b[1].x(), 20)
-        self.assertAlmostEqual(side_b[1].y(), -10)
+        self.assertAlmostEqual(side_b[1].x(), 0)
+        self.assertAlmostEqual(side_b[1].y(), -12)
+        self.assertAlmostEqual(side_b[2].x(), 100)
+        self.assertAlmostEqual(side_b[2].y(), -12)
+
+
+    def test_the_two_sides_straddle_the_clicked_centreline(self):
+
+        side_a, side_b = self._sides()
+
+        # PT1-PT2 is the CENTRELINE, not one edge - the first build
+        # read it as one side of a 4-point gap.
+        self.assertAlmostEqual((side_a[1].y() + side_b[1].y()) / 2.0, 0)
+        self.assertAlmostEqual((side_a[2].y() + side_b[2].y()) / 2.0, 0)
+
+
+    def test_flares_bend_thirty_degrees_outward_at_both_ends(self):
+
+        side_a, _side_b = self._sides()
+
+        # Flare length is 100 * 0.15 = 15, at 30 degrees from the
+        # centreline direction, bending AWAY from it - so each flare
+        # rises 15*sin(30) = 7.5 further out in y, and runs
+        # 15*cos(30) past the straight run's own end in x.
+        run = 15 * math.cos(math.radians(30))
+
+        self.assertAlmostEqual(side_a[0].x(), -run)
+        self.assertAlmostEqual(side_a[0].y(), 12 + 7.5)
+
+        self.assertAlmostEqual(side_a[3].x(), 100 + run)
+        self.assertAlmostEqual(side_a[3].y(), 12 + 7.5)
+
+
+    def test_both_sides_flare_away_from_each_other(self):
+
+        side_a, side_b = self._sides()
+
+        # Side A sits above the centreline and flares further up; side
+        # B sits below and flares further down.
+        self.assertGreater(side_a[0].y(), side_a[1].y())
+        self.assertLess(side_b[0].y(), side_b[1].y())
+
+
+    def test_a_unique_designation_is_required_not_optional(self):
+
+        # "require unique designation Field T" - the one line obstacle
+        # where Field T is mandatory rather than freeform-optional.
+        from qgis.core import QgsFieldConstraints
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        index = layer.fields().indexOf("unique_designation")
+
+        self.assertIn("bridge_or_gap", layer.constraintExpression(index))
+
+        self.assertEqual(
+            layer.fieldConstraintsAndStrength(index).get(
+                QgsFieldConstraints.Constraint.ConstraintExpression
+            ),
+            QgsFieldConstraints.ConstraintStrength.ConstraintStrengthHard
+        )
 
 
     def test_is_offered_black_with_field_t(self):
@@ -4460,25 +4604,164 @@ class TestRoadblockFamily(QgisTestCase):
         self.assertAlmostEqual(points[1].y(), -10)
 
 
-    def test_complete_geometry_crosses_to_the_opposite_offset_point(self):
+    def test_complete_draws_the_ordinary_pair_first(self):
 
+        # "another set of parallel lines" - the FIRST set is the same
+        # main-plus-parallel pair the other three variants draw, not a
+        # pair of diagonals (which is how the first build mis-read the
+        # standard's own picture).
         result = self._evaluate(
             "mct_roadblock_complete_geometry", self.PT1, self.PT2, self.PT3
         )
 
         self.assertEqual(result.wkbType().name, "MultiLineString")
 
-        line_to_pt1, line_to_pt2 = result.asMultiPolyline()
+        parts = result.asMultiPolyline()
 
-        self.assertAlmostEqual(line_to_pt1[0].x(), 15)
-        self.assertAlmostEqual(line_to_pt1[0].y(), -10)
-        self.assertAlmostEqual(line_to_pt1[1].x(), 0)
-        self.assertAlmostEqual(line_to_pt1[1].y(), 10)
+        self.assertEqual(len(parts), 4)
 
-        self.assertAlmostEqual(line_to_pt2[0].x(), 15)
-        self.assertAlmostEqual(line_to_pt2[0].y(), 10)
-        self.assertAlmostEqual(line_to_pt2[1].x(), 0)
-        self.assertAlmostEqual(line_to_pt2[1].y(), -10)
+        main, parallel = parts[0], parts[2]
+
+        # Main line, tip last (PT2 -> PT1), same as
+        # mct_roadblock_main_line's own convention.
+        self.assertAlmostEqual(main[0].x(), 0)
+        self.assertAlmostEqual(main[0].y(), -10)
+        self.assertAlmostEqual(main[1].x(), 0)
+        self.assertAlmostEqual(main[1].y(), 10)
+
+        self.assertAlmostEqual(parallel[0].x(), 15)
+        self.assertAlmostEqual(parallel[0].y(), 10)
+        self.assertAlmostEqual(parallel[1].x(), 15)
+        self.assertAlmostEqual(parallel[1].y(), -10)
+
+
+    def test_complete_draws_a_second_pair_rotated_fifty_degrees(self):
+
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _ROADBLOCK_COMPLETE_SECOND_SET_ANGLE_DEG,
+        )
+
+        self.assertEqual(_ROADBLOCK_COMPLETE_SECOND_SET_ANGLE_DEG, 50)
+
+        result = self._evaluate(
+            "mct_roadblock_complete_geometry", self.PT1, self.PT2, self.PT3
+        )
+
+        parts = result.asMultiPolyline()
+
+        # parts is [main, rotated_main, parallel, rotated_parallel].
+        for label, original, rotated in (
+            ("main", parts[0], parts[1]),
+            ("parallel", parts[2], parts[3]),
+        ):
+
+            with self.subTest(line=label):
+
+                # "of same dimensions" - each rotated copy is exactly
+                # as long as the line it came from.
+                original_length = math.hypot(
+                    original[1].x() - original[0].x(),
+                    original[1].y() - original[0].y(),
+                )
+                rotated_length = math.hypot(
+                    rotated[1].x() - rotated[0].x(),
+                    rotated[1].y() - rotated[0].y(),
+                )
+
+                self.assertAlmostEqual(rotated_length, original_length)
+
+                original_angle = math.atan2(
+                    original[1].y() - original[0].y(),
+                    original[1].x() - original[0].x(),
+                )
+                rotated_angle = math.atan2(
+                    rotated[1].y() - rotated[0].y(),
+                    rotated[1].x() - rotated[0].x(),
+                )
+
+                turned = math.degrees(rotated_angle - original_angle) % 360
+
+                self.assertAlmostEqual(turned, 50, places=6)
+
+
+    def test_completes_second_pair_stays_parallel_to_itself(self):
+
+        # The rotated copy must remain a PAIR of parallel lines, not
+        # two independently-angled ones.
+        result = self._evaluate(
+            "mct_roadblock_complete_geometry", self.PT1, self.PT2, self.PT3
+        )
+
+        parts = result.asMultiPolyline()
+
+        rotated_main, rotated_parallel = parts[1], parts[3]
+
+        main_angle = math.atan2(
+            rotated_main[1].y() - rotated_main[0].y(),
+            rotated_main[1].x() - rotated_main[0].x(),
+        )
+        parallel_angle = math.atan2(
+            rotated_parallel[1].y() - rotated_parallel[0].y(),
+            rotated_parallel[1].x() - rotated_parallel[0].x(),
+        )
+
+        # They run opposite ways along the same axis (the parallel line
+        # is not reversed tip-last), so 180 degrees apart.
+        difference = math.degrees(parallel_angle - main_angle) % 180
+
+        self.assertAlmostEqual(difference, 0, places=6)
+
+
+    def test_complete_rotates_about_the_pairs_own_centre(self):
+
+        # Both pairs must share one centre, or the crossing reads as
+        # two separate symbols rather than one. Each PAIR's own two
+        # midpoints straddle that centre - the individual midpoints
+        # move under rotation, so it's their average that pins it.
+        result = self._evaluate(
+            "mct_roadblock_complete_geometry", self.PT1, self.PT2, self.PT3
+        )
+
+        parts = result.asMultiPolyline()
+
+        def midpoint(part):
+
+            return (
+                (part[0].x() + part[1].x()) / 2.0,
+                (part[0].y() + part[1].y()) / 2.0,
+            )
+
+        for label, main, parallel in (
+            ("first pair", parts[0], parts[2]),
+            ("rotated pair", parts[1], parts[3]),
+        ):
+
+            with self.subTest(pair=label):
+
+                main_x, main_y = midpoint(main)
+                parallel_x, parallel_y = midpoint(parallel)
+
+                self.assertAlmostEqual((main_x + parallel_x) / 2.0, 7.5)
+                self.assertAlmostEqual((main_y + parallel_y) / 2.0, 0)
+
+
+    def test_complete_arrowheads_are_scoped_to_the_two_main_lines(self):
+
+        # The parallel lines carry no arrowhead, same as in the other
+        # roadblock variants.
+        result = self._evaluate(
+            "mct_roadblock_complete_mains", self.PT1, self.PT2, self.PT3
+        )
+
+        self.assertEqual(result.wkbType().name, "MultiLineString")
+
+        mains = result.asMultiPolyline()
+
+        self.assertEqual(len(mains), 2)
+
+        # Tip last, so a LastVertex marker lands on PT1's own tip.
+        self.assertAlmostEqual(mains[0][1].x(), 0)
+        self.assertAlmostEqual(mains[0][1].y(), 10)
 
 
     def test_all_four_variants_are_offered_and_green(self):
@@ -4566,18 +4849,30 @@ class TestRoadblockFamily(QgisTestCase):
         self.assertEqual(parallel_line.penStyle(), Qt.PenStyle.SolidLine)
 
 
-    def test_each_state_variant_has_an_arrowhead_on_the_main_line_only(self):
+    def test_planned_draws_no_arrowhead_at_all(self):
+
+        # "there is no arrow, and it is a set of two parallel lines,
+        # dashed" - the maintainer's own correction to a first build
+        # that gave every state variant an arrowhead.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _roadblock_planned_symbol,
+        )
+
+        symbol = _roadblock_planned_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+
+    def test_the_two_readiness_variants_keep_an_arrowhead(self):
 
         from qgis.core import Qgis, QgsMarkerLineSymbolLayer
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _roadblock_planned_symbol,
             _roadblock_readiness_1_symbol,
             _roadblock_readiness_2_symbol,
         )
 
         for builder in (
-            _roadblock_planned_symbol,
             _roadblock_readiness_1_symbol,
             _roadblock_readiness_2_symbol,
         ):
@@ -4618,6 +4913,11 @@ class TestRoadblockFamily(QgisTestCase):
         symbol = _roadblock_complete_symbol()
 
         self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        self.assertIn(
+            "mct_roadblock_complete_mains($geometry)",
+            symbol.symbolLayer(1).geometryExpression()
+        )
 
         self.assertIsInstance(
             symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer

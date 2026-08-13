@@ -1595,15 +1595,18 @@ def mct_obstacle_bypass_rear_easy(values, feature=None, parent=None):
     return QgsGeometry.fromPolylineXY([rear_top, rear_bottom])
 
 
-# Obstacle Bypass Difficult's own zigzag amplitude, as a fraction of
-# `depth` (PT3's own perpendicular distance, which the plain Easy
-# variant uses as the rear line's fixed offset). The standard's own
-# draw rules give no number for this decoration - same situation as
-# Fix's own zigzag teeth before the maintainer's dictated construction
-# replaced it - so this is a placement call, not a measurement, sized
-# to look like the template's own "spring" motif rather than read off
-# it pixel by pixel. Flagged for the render-and-compare pass.
-_BYPASS_ZIGZAG_AMPLITUDE_RATIO = 0.4
+# Obstacle Bypass Difficult's own zigzag, corrected 2026-08-13 per the
+# maintainer's own render review: "from the arrows, initially start
+# with a small line segment, the zig-zag, then another line segment to
+# connect with the next arrow base" (flat runs at both ends, not a
+# zigzag spanning the full rear line) "make the teeth closer ie the
+# angle of the teeth should be more acute (reduce by 50%)" - halving
+# the amplitude makes each tooth's own apex angle more acute at a
+# fixed pitch, so AMPLITUDE_RATIO drops from the first build's 0.4 to
+# 0.2. FLAT_RATIO (of the symbol's own height) is a new placement call
+# for the two flat runs, which have no numbered draw rule either.
+_BYPASS_ZIGZAG_AMPLITUDE_RATIO = 0.2
+_BYPASS_ZIGZAG_FLAT_RATIO = 0.1
 _BYPASS_ZIGZAG_SEGMENTS = 6
 
 
@@ -1615,10 +1618,11 @@ def mct_obstacle_bypass_rear_difficult(values, feature=None, parent=None):
 
     """
     Obstacle Bypass Difficult (270602) - the rear line's own "spring"
-    zigzag, bulging toward PT3 and touching the plain rear-line axis at
-    its own start, end and every other vertex (see
-    _BYPASS_ZIGZAG_AMPLITUDE_RATIO's own comment for the assumed
-    proportion).
+    zigzag: a flat run from rear_top, then the zigzag body (bulging
+    toward PT3 and touching the flat run's own axis at every other
+    vertex), then a flat run into rear_bottom. See
+    _BYPASS_ZIGZAG_AMPLITUDE_RATIO/_BYPASS_ZIGZAG_FLAT_RATIO's own
+    comment for the assumed proportions.
     """
 
     if len(values) < 1:
@@ -1649,16 +1653,29 @@ def mct_obstacle_bypass_rear_difficult(values, feature=None, parent=None):
 
     amplitude = depth * _BYPASS_ZIGZAG_AMPLITUDE_RATIO
 
+    flat_start = QgsPointXY(
+        rear_top.x()
+        + _BYPASS_ZIGZAG_FLAT_RATIO * (rear_bottom.x() - rear_top.x()),
+        rear_top.y()
+        + _BYPASS_ZIGZAG_FLAT_RATIO * (rear_bottom.y() - rear_top.y()),
+    )
+    flat_end = QgsPointXY(
+        rear_top.x()
+        + (1 - _BYPASS_ZIGZAG_FLAT_RATIO) * (rear_bottom.x() - rear_top.x()),
+        rear_top.y()
+        + (1 - _BYPASS_ZIGZAG_FLAT_RATIO) * (rear_bottom.y() - rear_top.y()),
+    )
+
     segments = _BYPASS_ZIGZAG_SEGMENTS
 
-    points = []
+    points = [rear_top]
 
     for i in range(segments + 1):
 
         t = i / segments
 
-        base_x = rear_top.x() + t * (rear_bottom.x() - rear_top.x())
-        base_y = rear_top.y() + t * (rear_bottom.y() - rear_top.y())
+        base_x = flat_start.x() + t * (flat_end.x() - flat_start.x())
+        base_y = flat_start.y() + t * (flat_end.y() - flat_start.y())
 
         bulge = amplitude if (0 < i < segments and i % 2 == 1) else 0.0
 
@@ -1666,14 +1683,20 @@ def mct_obstacle_bypass_rear_difficult(values, feature=None, parent=None):
             QgsPointXY(base_x + bulge * nx, base_y + bulge * ny)
         )
 
+    points.append(rear_bottom)
+
     return QgsGeometry.fromPolylineXY(points)
 
 
 # Obstacle Bypass Impossible's own hook stubs, as fractions of the
 # symbol's own height (|PT1-PT2|, the stub) and depth (PT3's own
-# perpendicular distance, the cap tick). Same "placement call, not a
-# measurement" situation as the zigzag above.
-_BYPASS_HOOK_STUB_RATIO = 0.25
+# perpendicular distance, the cap tick). Corrected 2026-08-13 per the
+# maintainer's own render review: STUB_RATIO raised from 0.25 to 0.325
+# so the gap between the two hooks' own inner ends (previously
+# height * 0.5) shrinks by 30% (to height * 0.35) - "reduce the
+# distance between the stubs by 30%, the stub length is fine." Same
+# "placement call, not a measurement" situation as the zigzag above.
+_BYPASS_HOOK_STUB_RATIO = 0.325
 _BYPASS_HOOK_TICK_RATIO = 0.35
 
 
@@ -1685,12 +1708,19 @@ def mct_obstacle_bypass_rear_impossible(values, feature=None, parent=None):
 
     """
     Obstacle Bypass Impossible (270603) - the rear line is replaced by
-    two independent hook stubs (no connecting line between them,
+    two independent hooks (nothing spanning the gap between them,
     matching the standard's own template, which shows the opening as
-    fully closed off at each end rather than spanned): from PT1's own
-    rear point, a short stub toward PT2's side, capped with a
-    perpendicular tick back toward PT3; mirrored from PT2's own rear
-    point toward PT1's side.
+    fully closed off at each end rather than spanned). Each hook is a
+    stub running along the rear axis from its own arrow base, plus a
+    perpendicular tick crossing that stub's far end - so FOUR parts,
+    not two: the tick meets the stub in a T, which no single polyline
+    can trace.
+
+    The tick is CENTRED on the rear axis (corrected 2026-08-13 - "the
+    center or middle of the stub should touch the perpendicular,
+    presently the end is touching": it used to run from the stub's own
+    end outward, so only its near end sat on the axis; it now straddles
+    it, from -tick/2 to +tick/2).
     """
 
     if len(values) < 1:
@@ -1711,7 +1741,7 @@ def mct_obstacle_bypass_rear_impossible(values, feature=None, parent=None):
     projection = _perpendicular_projection(pt1, pt2, pt3)
 
     if projection is None or projection[2] == 0:
-        return QgsGeometry.fromMultiPolylineXY([[pt1, pt1], [pt1, pt1]])
+        return QgsGeometry.fromMultiPolylineXY([[pt1, pt1]])
 
     (ux, uy), (nx, ny), depth = projection
 
@@ -1722,26 +1752,32 @@ def mct_obstacle_bypass_rear_impossible(values, feature=None, parent=None):
     height = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
 
     stub = height * _BYPASS_HOOK_STUB_RATIO
-    tick = depth * _BYPASS_HOOK_TICK_RATIO
+    half_tick = depth * _BYPASS_HOOK_TICK_RATIO / 2.0
 
-    stub_top_end = QgsPointXY(
-        rear_top.x() + stub * ux, rear_top.y() + stub * uy
-    )
-    tick_top_end = QgsPointXY(
-        stub_top_end.x() + tick * nx, stub_top_end.y() + tick * ny
-    )
+    def hook(base, direction):
 
-    stub_bottom_end = QgsPointXY(
-        rear_bottom.x() - stub * ux, rear_bottom.y() - stub * uy
-    )
-    tick_bottom_end = QgsPointXY(
-        stub_bottom_end.x() + tick * nx, stub_bottom_end.y() + tick * ny
-    )
+        elbow = QgsPointXY(
+            base.x() + direction * stub * ux,
+            base.y() + direction * stub * uy,
+        )
 
-    top_hook = [rear_top, stub_top_end, tick_top_end]
-    bottom_hook = [rear_bottom, stub_bottom_end, tick_bottom_end]
+        tick = [
+            QgsPointXY(
+                elbow.x() - half_tick * nx, elbow.y() - half_tick * ny
+            ),
+            QgsPointXY(
+                elbow.x() + half_tick * nx, elbow.y() + half_tick * ny
+            ),
+        ]
 
-    return QgsGeometry.fromMultiPolylineXY([top_hook, bottom_hook])
+        return [base, elbow], tick
+
+    stub_top, tick_top = hook(rear_top, 1.0)
+    stub_bottom, tick_bottom = hook(rear_bottom, -1.0)
+
+    return QgsGeometry.fromMultiPolylineXY(
+        [stub_top, tick_top, stub_bottom, tick_bottom]
+    )
 
 
 def _roadblock_frame(pt1, pt2, pt3):
@@ -1837,6 +1873,70 @@ def mct_roadblock_parallel_line(values, feature=None, parent=None):
     return QgsGeometry.fromPolylineXY(parallel)
 
 
+def _rotate_point(point, center, angle_degrees):
+
+    """Rotate `point` about `center` by `angle_degrees`, counter-
+    clockwise in a standard (x right, y up) frame. Shared by Roadblock
+    Complete's own doubled X."""
+
+    angle = math.radians(angle_degrees)
+
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+
+    dx, dy = point.x() - center.x(), point.y() - center.y()
+
+    return QgsPointXY(
+        center.x() + dx * cos_a - dy * sin_a,
+        center.y() + dx * sin_a + dy * cos_a,
+    )
+
+
+# Roadblock Complete's own second pair of parallel lines, per the
+# maintainer's own render review: "add another set of parallel lines
+# of same dimensions at 50 deg angle to the first set" - "set" means
+# the SAME main-plus-parallel pair the other three roadblock variants
+# draw, copied and rotated about the pair's own centre, so the symbol
+# reads as two parallel pairs crossing (which is what the standard's
+# own template actually shows). This project's first build had
+# mis-read that template as a single X built from the pair's own
+# diagonals.
+_ROADBLOCK_COMPLETE_SECOND_SET_ANGLE_DEG = 50
+
+
+def _roadblock_complete_parts(pt1, pt2, pt3):
+
+    """
+    Roadblock Complete's four lines: the ordinary main/parallel pair,
+    plus that same pair rotated _ROADBLOCK_COMPLETE_SECOND_SET_ANGLE_DEG
+    about its own centre. Main lines come back tip-last (PT2 -> PT1) so
+    an arrowhead's own LastVertex placement lands on the tip, matching
+    mct_roadblock_main_line's own convention.
+
+    Returns (mains, parallels) - each a list of two [start, end] pairs,
+    so callers can scope arrowheads to the mains alone.
+    """
+
+    main, parallel, offset_pt1, offset_pt2 = _roadblock_frame(pt1, pt2, pt3)
+
+    center = QgsPointXY(
+        (pt1.x() + pt2.x() + offset_pt1.x() + offset_pt2.x()) / 4.0,
+        (pt1.y() + pt2.y() + offset_pt1.y() + offset_pt2.y()) / 4.0,
+    )
+
+    angle = _ROADBLOCK_COMPLETE_SECOND_SET_ANGLE_DEG
+
+    def rotated(pair):
+
+        return [_rotate_point(p, center, angle) for p in pair]
+
+    main_tip_last = [main[1], main[0]]
+
+    mains = [main_tip_last, rotated(main_tip_last)]
+    parallels = [list(parallel), rotated(parallel)]
+
+    return mains, parallels
+
+
 @qgsfunction(
     'mct_roadblock_complete_geometry',
     group='Military Cartography Tools'
@@ -1844,15 +1944,13 @@ def mct_roadblock_parallel_line(values, feature=None, parent=None):
 def mct_roadblock_complete_geometry(values, feature=None, parent=None):
 
     """
-    Roadblock Complete/Executed (271204) - the one variant that
-    doesn't draw two parallel lines. Its own template shows an "X":
-    one line from the parallel line's own PT2-side end up to PT1
-    (arrowhead at PT1), the other from the parallel line's own PT1-side
-    end down to PT2 (arrowhead at PT2), crossing in the middle. Read
-    off the standard's own picture rather than a numbered draw rule
-    (this entry is ASSUMED, not CONFIRMED, in the module's own audit) -
-    flagged for the render-and-compare pass same as every ASSUMED
-    entry.
+    Roadblock Complete/Executed (271204) - all four lines: the same
+    main-plus-parallel pair the other three roadblock variants draw,
+    plus that pair rotated 50 degrees about its own centre, so the two
+    pairs cross (see _ROADBLOCK_COMPLETE_SECOND_SET_ANGLE_DEG's own
+    comment). Still ASSUMED, not CONFIRMED - the standard's own draw
+    rules give no numbered angle, so 50 degrees is the maintainer's own
+    call rather than a measured one.
     """
 
     if len(values) < 1:
@@ -1863,16 +1961,95 @@ def mct_roadblock_complete_geometry(values, feature=None, parent=None):
     if points is None:
         return values[0]
 
-    pt1, pt2, pt3 = points
+    mains, parallels = _roadblock_complete_parts(*points)
 
-    _main, _parallel, offset_pt1, offset_pt2 = _roadblock_frame(
-        pt1, pt2, pt3
+    return QgsGeometry.fromMultiPolylineXY(mains + parallels)
+
+
+@qgsfunction(
+    'mct_roadblock_complete_mains',
+    group='Military Cartography Tools'
+)
+def mct_roadblock_complete_mains(values, feature=None, parent=None):
+
+    """
+    Just Roadblock Complete's two MAIN lines (tip last), for arrowhead
+    placement - the two parallel lines carry no arrowhead of their own,
+    exactly as in the other roadblock variants, so a LastVertex marker
+    over the full geometry would wrongly mark them too.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    points = _roadblock_vertices(values[0])
+
+    if points is None:
+        return values[0]
+
+    mains, _parallels = _roadblock_complete_parts(*points)
+
+    return QgsGeometry.fromMultiPolylineXY(mains)
+
+
+# Bridge or Gap (271100), rebuilt 2026-08-13 per the maintainer's own
+# correction to the first, standard-template-derived build: "user will
+# click only two points PT1 and PT2, make two parallel lines and
+# require unique designation Field T, so the gap between the lines
+# will be slightly more than the text, wings or flares at both ends,
+# outwards at 30deg." PT1-PT2 is now the CENTRELINE (not one side of a
+# 4-point gap), so the two drawn lines are offset half a gap-width to
+# each side, and "slightly more than the text" cannot literally be
+# measured from geometry alone (no text metrics at this layer) - sized
+# instead as a fraction of the centreline's own length, matching the
+# scale-invariant proportions this project's other decorations already
+# use (Mine Cluster's 1/3, Trip Wire's 1/5/1/7). Flagged as an
+# assumption for the render-and-compare pass, same as the flare length
+# below (the 30-degree flare ANGLE is the maintainer's own number; the
+# flare's own LENGTH is not, since nothing in the request states one).
+_BRIDGE_GAP_HALF_WIDTH_RATIO = 0.12
+_BRIDGE_FLARE_LENGTH_RATIO = 0.15
+_BRIDGE_FLARE_ANGLE_DEG = 30
+
+
+def _bridge_flared_side(pt1, pt2, ux, uy, side_nx, side_ny,
+                        half_width, flare_length, flare_angle_deg):
+
+    """
+    One of Bridge or Gap's two lines: PT1/PT2 offset by `half_width`
+    along (side_nx, side_ny), with a flare at each end bending
+    `flare_angle_deg` OUTWARD (further along (side_nx, side_ny)) from
+    the straight PT1-PT2 direction.
+    """
+
+    start = QgsPointXY(
+        pt1.x() + half_width * side_nx, pt1.y() + half_width * side_ny
+    )
+    end = QgsPointXY(
+        pt2.x() + half_width * side_nx, pt2.y() + half_width * side_ny
     )
 
-    line_to_pt1 = [offset_pt2, pt1]
-    line_to_pt2 = [offset_pt1, pt2]
+    angle = math.radians(flare_angle_deg)
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
 
-    return QgsGeometry.fromMultiPolylineXY([line_to_pt1, line_to_pt2])
+    # Rotate the "backward" direction (-u) by flare_angle toward this
+    # side's own outward normal - the flare at PT1's end continues
+    # roughly backward but bent away from the centreline.
+    back_x = -ux * cos_a + side_nx * sin_a
+    back_y = -uy * cos_a + side_ny * sin_a
+
+    flare_start = QgsPointXY(
+        start.x() + flare_length * back_x, start.y() + flare_length * back_y
+    )
+
+    fwd_x = ux * cos_a + side_nx * sin_a
+    fwd_y = uy * cos_a + side_ny * sin_a
+
+    flare_end = QgsPointXY(
+        end.x() + flare_length * fwd_x, end.y() + flare_length * fwd_y
+    )
+
+    return [flare_start, start, end, flare_end]
 
 
 @qgsfunction(
@@ -1882,9 +2059,11 @@ def mct_roadblock_complete_geometry(values, feature=None, parent=None):
 def mct_bridge_or_gap_geometry(values, feature=None, parent=None):
 
     """
-    Bridge or Gap (271100) - four anchor points: "points 1 and 2 define
-    one side of the gap and points 3 and 4 define the opposite side."
-    Returned as two independent line parts (PT1-PT2, PT3-PT4).
+    Bridge or Gap (271100) - two anchor points, PT1-PT2, the symbol's
+    own centreline. Two parallel lines are drawn, offset half a
+    gap-width to each side (see _BRIDGE_GAP_HALF_WIDTH_RATIO's own
+    comment), each with an outward-flared "wing" at both ends (see
+    _bridge_flared_side).
     """
 
     if len(values) < 1:
@@ -1897,12 +2076,36 @@ def mct_bridge_or_gap_geometry(values, feature=None, parent=None):
 
     vertices = geometry.asPolyline()
 
-    if len(vertices) < 4:
+    if len(vertices) < 2:
         return geometry
 
-    pt1, pt2, pt3, pt4 = (QgsPointXY(v) for v in vertices[:4])
+    pt1, pt2 = QgsPointXY(vertices[0]), QgsPointXY(vertices[1])
 
-    return QgsGeometry.fromMultiPolylineXY([[pt1, pt2], [pt3, pt4]])
+    length = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
+
+    if length == 0:
+        return geometry
+
+    ux, uy = (pt2.x() - pt1.x()) / length, (pt2.y() - pt1.y()) / length
+
+    # A fixed perpendicular choice (90 degrees CCW) - either side works
+    # since both are drawn, unlike the bypass/roadblock constructions
+    # where PT3 disambiguates a specific side.
+    nx, ny = -uy, ux
+
+    half_width = length * _BRIDGE_GAP_HALF_WIDTH_RATIO
+    flare_length = length * _BRIDGE_FLARE_LENGTH_RATIO
+
+    side_a = _bridge_flared_side(
+        pt1, pt2, ux, uy, nx, ny,
+        half_width, flare_length, _BRIDGE_FLARE_ANGLE_DEG
+    )
+    side_b = _bridge_flared_side(
+        pt1, pt2, ux, uy, -nx, -ny,
+        half_width, flare_length, _BRIDGE_FLARE_ANGLE_DEG
+    )
+
+    return QgsGeometry.fromMultiPolylineXY([side_a, side_b])
 
 
 @qgsfunction(
@@ -3776,6 +3979,7 @@ _FUNCTIONS = [
     mct_roadblock_main_line,
     mct_roadblock_parallel_line,
     mct_roadblock_complete_geometry,
+    mct_roadblock_complete_mains,
     mct_bridge_or_gap_geometry,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,

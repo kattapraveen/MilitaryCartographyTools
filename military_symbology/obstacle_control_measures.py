@@ -141,6 +141,7 @@ from qgis.core import (
     QgsEllipseSymbolLayer,
     QgsEditorWidgetSetup,
     QgsField,
+    QgsFieldConstraints,
     QgsFillSymbol,
     QgsFontMarkerSymbolLayer,
     QgsGeometryGeneratorSymbolLayer,
@@ -3414,13 +3415,17 @@ def _obstacle_bypass_impossible_symbol():
 def _bridge_or_gap_symbol():
 
     """
-    Bridge or Gap (271100) - two independent sides, PT1-PT2 and
-    PT3-PT4 (mct_bridge_or_gap_geometry), each a plain line. BLACK per
-    the module's own audit. The standard's own template shows small
-    flared/hooked end-caps on all four endpoints, whose proportions the
-    draw rules never number - skipped here, same call already made for
-    Overhead Wire's own tower icons (see this module's own docstring),
-    and can be added if the maintainer wants them.
+    Bridge or Gap (271100) - rebuilt 2026-08-13 per the maintainer's
+    own correction to the first build (which had read 4 independently-
+    clicked anchor points off the standard's own template): "user will
+    click only two points PT1 and PT2, make two parallel lines and
+    require unique designation Field T, so the gap between the lines
+    will be slightly more than the text, wings or flares at both ends,
+    outwards at 30deg." PT1-PT2 is now the centreline
+    (mct_bridge_or_gap_geometry), one geometry generator draws both
+    flared sides. BLACK per the module's own audit. Field T is now a
+    HARD requirement for this measure_type - see
+    _BRIDGE_OR_GAP_DESIGNATION_CONSTRAINT in the layer factory below.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -3475,14 +3480,17 @@ def _roadblock_line_layer(dashed):
     return layer
 
 
-def _roadblock_symbol(main_dashed, parallel_dashed):
+def _roadblock_symbol(main_dashed, parallel_dashed, with_arrowhead):
 
     """
-    Shared by Planned (271201, both lines dashed), Explosives State of
-    Readiness 1/Safe (271202, main solid with an arrowhead, parallel
-    dashed) and Explosives State of Readiness 2/Passable (271203, both
-    solid) - the standard's own three "state" variants of the same
-    two-line construction (mct_roadblock_main_line /
+    Shared by Planned (271201, both lines dashed, NO arrowhead - "there
+    is no arrow, and it is a set of two parallel lines, dashed", the
+    maintainer's own correction to the first build, which had given
+    every variant an arrowhead), Explosives State of Readiness 1/Safe
+    (271202, main solid with an arrowhead, parallel dashed) and
+    Explosives State of Readiness 2/Passable (271203, both solid, with
+    an arrowhead) - the standard's own three "state" variants of the
+    same two-line construction (mct_roadblock_main_line /
     mct_roadblock_parallel_line: "points 1 and 2 determine the
     centerline... point 3 determines its width"). Fixed dash per
     variant, not status-driven - the variant itself already encodes a
@@ -3524,37 +3532,49 @@ def _roadblock_symbol(main_dashed, parallel_dashed):
 
     symbol.appendSymbolLayer(parallel_generator)
 
-    symbol.appendSymbolLayer(
-        _obstacle_bypass_chevron_generator("mct_roadblock_main_line($geometry)")
-    )
+    if with_arrowhead:
+
+        symbol.appendSymbolLayer(
+            _obstacle_bypass_chevron_generator(
+                "mct_roadblock_main_line($geometry)"
+            )
+        )
 
     return symbol
 
 
 def _roadblock_planned_symbol():
 
-    return _roadblock_symbol(main_dashed=True, parallel_dashed=True)
+    return _roadblock_symbol(
+        main_dashed=True, parallel_dashed=True, with_arrowhead=False
+    )
 
 
 def _roadblock_readiness_1_symbol():
 
-    return _roadblock_symbol(main_dashed=False, parallel_dashed=True)
+    return _roadblock_symbol(
+        main_dashed=False, parallel_dashed=True, with_arrowhead=True
+    )
 
 
 def _roadblock_readiness_2_symbol():
 
-    return _roadblock_symbol(main_dashed=False, parallel_dashed=False)
+    return _roadblock_symbol(
+        main_dashed=False, parallel_dashed=False, with_arrowhead=True
+    )
 
 
 def _roadblock_complete_symbol():
 
     """
-    Roadblock Complete/Executed (271204) - an "X": two crossing lines,
-    each running to its own arrowhead
-    (mct_roadblock_complete_geometry). Read off the standard's own
+    Roadblock Complete/Executed (271204) - the ordinary roadblock pair
+    (main line + parallel line, both solid) PLUS that same pair
+    rotated 50 degrees about its own centre, so the two pairs cross
+    (mct_roadblock_complete_geometry). Arrowheads are scoped to
+    mct_roadblock_complete_mains - only the two main lines carry one,
+    matching the other roadblock variants. Read off the standard's own
     picture rather than a numbered draw rule (this entry is ASSUMED,
-    not CONFIRMED, in the module's own audit) - flagged for the
-    render-and-compare pass.
+    not CONFIRMED, in the module's own audit).
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -3585,7 +3605,7 @@ def _roadblock_complete_symbol():
 
     symbol.appendSymbolLayer(
         _obstacle_bypass_chevron_generator(
-            "mct_roadblock_complete_geometry($geometry)"
+            "mct_roadblock_complete_mains($geometry)"
         )
     )
 
@@ -3827,6 +3847,27 @@ def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
     layer.setDefaultValueDefinition(
         fields.indexOf("length_km"),
         QgsDefaultValue("mct_length_km($geometry)", True)
+    )
+
+    # "require unique designation Field T" - Bridge or Gap is the one
+    # line obstacle where the maintainer asked for Field T to be
+    # mandatory rather than freeform-optional (every other Field T
+    # entry, e.g. Obstacle Line, stays optional). Hard, so it blocks
+    # the save rather than only warning, same pattern as the Maritime
+    # Points layer's own group/entity constraint.
+    designation_idx = fields.indexOf("unique_designation")
+
+    layer.setConstraintExpression(
+        designation_idx,
+        "\"measure_type\" != 'bridge_or_gap'"
+        " OR (unique_designation IS NOT NULL AND unique_designation != '')",
+        "Bridge or Gap requires a unique designation (Field T)."
+    )
+
+    layer.setFieldConstraint(
+        designation_idx,
+        QgsFieldConstraints.Constraint.ConstraintExpression,
+        QgsFieldConstraints.ConstraintStrength.ConstraintStrengthHard
     )
 
     layer.setRenderer(

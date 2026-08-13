@@ -6871,6 +6871,75 @@ tested, not claimed as done here.
   8.** Only B7 (water crossing sites and the remaining lines) is left
   before H-XIX's line obstacles close out entirely.
 
+- **B6 corrected across all three families** (2026-08-13, same day),
+  from the maintainer's own review of the first render. Seven changes,
+  and the pattern in them is worth recording: **every single one was a
+  place the standard's own draw rules were silent and the first build
+  guessed**, which is the same lesson B4 and B5 each produced
+  independently. Where the rules were numeric, the first build was
+  right; where they weren't, it was wrong every time.
+
+  **Obstacle Bypass Difficult**: "from the arrows, initially start
+  with a small line segment, the zig-zag, then another line segment to
+  connect with the next arrow base" - the zigzag had spanned the whole
+  rear line, and now sits between two flat runs that reach the arrow
+  bases. Plus "make the teeth closer ie the angle of the teeth should
+  be more acute (reduce by 50%)" - amplitude halved (0.4 to 0.2 of
+  PT3's own perpendicular distance), which sharpens each tooth's own
+  apex at a fixed pitch.
+
+  **Obstacle Bypass Impossible**, two corrections, the second of which
+  exposed a real bug: "reduce the distance between the stubs by 30%"
+  (stub ratio 0.25 to 0.325, so the gap between the two hooks' own
+  ends drops from 0.5 to 0.35 of the symbol's height) and "the center
+  or middle of the stub should touch the perpendicular, presently the
+  end is touching." The first attempt at that second one centred the
+  tick by shifting the ELBOW sideways - which silently turned each
+  stub into a diagonal, since the stub and tick were one 3-vertex
+  polyline. **Caught by the render, not the test** (the numeric test
+  written alongside it asserted the same wrong model). The tick meets
+  the stub in a T, which no single polyline can trace, so the function
+  now returns FOUR parts - two stubs, two ticks - and carries a test
+  pinning the stubs straight.
+
+  **The Roadblock family**: "roadblock planned - there is no arrow,
+  and it is a set of two parallel lines, dashed" - the first build had
+  given all three state variants an arrowhead; Planned now has none,
+  Readiness 1 and 2 keep theirs. Readiness 1 and 2's own dash
+  patterns were already right and confirmed unchanged.
+
+  **Roadblock Complete** was the substantive mis-read: "add another
+  set of parallel lines of same dimensions at 50 deg angle to the
+  first set." The first build had read the standard's own template as
+  a single X built from the main/parallel pair's own DIAGONALS - the
+  maintainer's wording makes clear the first "set" is the same
+  main-plus-parallel pair every other roadblock variant draws, and
+  the second is a rotated copy of it, so the symbol reads as two
+  parallel PAIRS crossing. That is what the template actually shows;
+  rendering the diagonal reading made it obvious (it came out as a
+  four-armed star). Arrowheads are now scoped to a separate
+  `mct_roadblock_complete_mains` so only the two main lines carry one.
+
+  **Bridge or Gap** was rebuilt outright: "user will click only two
+  points PT1 and PT2, make two parallel lines and require unique
+  designation Field T, so the gap between the lines will be slightly
+  more than the text, wings or flares at both ends, outwards at
+  30deg." PT1-PT2 is now the CENTRELINE, not one side of a four-point
+  gap, and the two drawn lines straddle it - so the symbol went from
+  four clicked anchor points to two. The flares the first build had
+  deliberately skipped as unnumbered are now in, at the maintainer's
+  own 30 degrees. Field T became a HARD field constraint
+  (`ConstraintStrengthHard`, the same mechanism the Maritime Points
+  layer's own group/entity pair uses) - the first line obstacle where
+  a designation is mandatory rather than optional. One honest
+  limitation recorded in the code: "slightly more than the text"
+  cannot be measured from geometry alone (no text metrics available in
+  a geometry generator), so the channel is a fixed fraction of the
+  centreline's own length - scale-invariant like Mine Cluster's 1/3
+  and Trip Wire's 1/5, but not literally text-fitted.
+
+  978 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
