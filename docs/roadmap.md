@@ -7540,6 +7540,75 @@ tested, not claimed as done here.
 
 ---
 
+### Mini-Phases H19, H20, H21 and H22 — Tables H-XXII to H-XXVII (2026-08-14)
+
+Built at the maintainer's own instruction and to their own scope:
+"complete the remaining tables H-XXII to H-XXVII - all the point
+symbols derived from milsymbol.js". **37 point symbols across three
+new layers**, and the boundary of that scope turned out to be the
+standard's own, not a convenience - the audit that opened this pass
+checked every code in all four tables against milsymbol's own
+`src/numbersidc/sidc/control-measure.js` entry by entry, and the split
+falls exactly where point symbols end:
+
+| Table | Rows | Points with a milsymbol icon | Built |
+|---|---|---|---|
+| H-XXII (Sustainment) | 17 | 16 | **16** |
+| H-XXIII (Supply points) | 37 | 18 | **18** |
+| H-XXIV (Mission Tasks) | 29 | 3 | **3** |
+| H-XXV (Intelligence) | 2 | 0 | 0 |
+
+The rows with no icon are areas and lines - milsymbol has no line or
+polygon support at all, so every one of those in this appendix has
+always been hand-built here. Each module records its own unbuilt rows
+by CODE (`TABLE_H_XXIII_REMAINING`, `TABLE_H_XXIV_REMAINING`), with a
+test asserting built + unbuilt equals the printed table's own count so
+the gap cannot quietly become a loss. Tables H-XXVI and H-XXVII are
+abbreviation lists, not symbol tables, and Table H-XXV's two rows are
+both lines.
+
+**New vocabulary: the sixteen supply classes.** Table H-XXIII splits
+them by standard, not just by number - 321701-321706 are the NATO
+classes, each row citing its own STANAG 2961 definition, and
+321707-321716 are the US classes I through X. They share roman numerals
+and mean different things, so keys and labels both say which is which.
+NATO Multiple Supply Class Point (321706) draws the same plain box as
+General Supply Point, and that is the standard's own doing: its box
+carries no icon, only a user-typed A field ("I/III/V", or "ALL"). Pinned
+by a test as the only glyph collision among the 18, the same way Table
+H-XXI's own 281500/281600 pair is.
+
+**The shared Control Measure Points layer is retired.** It was always a
+holding pen for point entities whose own table module did not exist
+yet, and these three mini-phases took its last 21 entries - 16 to
+Sustainment, 2 to Supply, 3 to Mission Tasks. Leaving an empty layer
+behind would leave a dropdown nothing can populate, so the module, its
+menu entry and its test file are gone.
+
+**That retirement took two invariants with it, and both moved rather
+than disappearing.** Eleven separate per-table tests each asserted "my
+family left the shared points layer" - near-copies that could only ever
+see two layers at a time - and one test asserted that every
+control-measure entity was offered by SOME dropdown. Both are now one
+file, `tests/test_control_measure_point_vocabulary.py`: a pairwise
+sweep over all twelve point vocabularies, plus the union check.
+
+**It found a shipped bug on its first run.** `special_point` and
+`waypoint` were each defined TWICE in `sidc.py`'s control-measure
+vocabulary - once for Table H-VI (131700/131800) and again for Table
+H-XIV (213700/214800). A dict keeps the last one, so the two H-VI codes
+were silently overwritten and **the C2 Measures layer had been drawing
+MARITIME icons for its own Special Point and Waypoint**. The maritime
+keys now carry that module's own `_reference` group suffix, the way its
+Navigational Reference Point already did for exactly this reason. Five
+further maritime entries (Distressed Vessel, Downed Aircraft, Iceberg,
+Oil Rig, Sea Mine-Like Contact) were duplicated with the SAME code -
+harmless, and removed.
+
+1064 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

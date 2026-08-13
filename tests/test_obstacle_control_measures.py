@@ -32,9 +32,6 @@ from MilitaryCartographyTools.military_symbology.obstacle_control_measures impor
     create_obstacle_control_measures_points_layer,
     inventory_for_batch,
 )
-from MilitaryCartographyTools.military_symbology.control_measure_points import (
-    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
-)
 from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
 from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
@@ -351,26 +348,18 @@ class TestObstaclePointsLayer(QgisTestCase):
         self.assertNotIn("280100", codes)
         self.assertNotIn("282003", codes)
 
-        # Abatis sat on the shared Control Measure Points layer only so
-        # it would not vanish from every dropdown between batches. B4
-        # built its line version and should have taken it out; that was
-        # missed and finally done in H17. It is now offered as a LINE
-        # and by no points dropdown at all.
+        # Abatis sat on the old shared Control Measure Points layer
+        # only so it would not vanish from every dropdown between
+        # batches. B4 built its line version and should have taken it
+        # out; that was missed and finally done in H17. It is offered
+        # as a LINE and by no points dropdown at all - the second half
+        # of that is swept across every Points layer at once by
+        # tests/test_point_layer_affiliations.py.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             LINE_MEASURE_TYPE_LABELS,
         )
 
-        self.assertNotIn("abatis", _CONTROL_MEASURE_POINT_ENTITY_LABELS)
         self.assertIn("abatis", LINE_MEASURE_TYPE_LABELS)
-
-
-    def test_the_relocated_points_left_the_shared_layer(self):
-
-        overlap = set(POINT_ENTITY_LABELS) & set(
-            _CONTROL_MEASURE_POINT_ENTITY_LABELS
-        )
-
-        self.assertEqual(overlap, set())
 
 
     def test_has_a_per_feature_colour_field_defaulting_to_green(self):

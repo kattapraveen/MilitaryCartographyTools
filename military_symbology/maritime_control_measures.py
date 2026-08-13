@@ -572,7 +572,7 @@ _POINT_ENTITIES = {
     "vertical_line_array_directional_frequency_analysis_and_recording_sonobuoy": ("sonobuoys", "Vertical Line Array Directional Frequency Analysis and Recording (DIFAR) Sonobuoy"),
     # Reference Points
     "reference_point": ("reference_points", "Reference Point"),
-    "special_point": ("reference_points", "Special Point"),
+    "special_point_reference": ("reference_points", "Special Point"),
     "navigational_reference_point_reference": ("reference_points", "Navigational Reference Point"),
     "data_link_reference_point": ("reference_points", "Data Link Reference Point"),
     "vital_area_center": ("reference_points", "Vital Area Center"),
@@ -582,7 +582,7 @@ _POINT_ENTITIES = {
     "position_and_intended_movement": ("reference_points", "Position and Intended Movement (PIM)"),
     "pre_landfall_waypoint": ("reference_points", "Pre-Landfall Waypoint"),
     "estimated_position": ("reference_points", "Estimated Position (EP)"),
-    "waypoint": ("reference_points", "Waypoint"),
+    "waypoint_reference": ("reference_points", "Waypoint"),
     # Subsurface Stations
     "general_subsurface_station": ("subsurface_stations", "General Subsurface Station"),
     "submarine_subsurface_station": ("subsurface_stations", "Submarine Subsurface Station"),

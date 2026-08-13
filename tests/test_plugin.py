@@ -146,8 +146,9 @@ class TestPluginLifecycle(QgisTestCase):
             # "Control Measures" likewise nests as its own flyout inside
             # NATO Symbols (2026-08-09, at the maintainer's request) -
             # one entry per Appendix H logical group, growing as each
-            # H3-H22 mini-phase lands; only "C2 Measures" exists so far,
-            # alongside the pre-existing "Control Measure Points" layer.
+            # H3-H22 mini-phase lands. The flat "Control Measure Points"
+            # entry was retired on 2026-08-14 when H19/H20/H21 moved its
+            # last 21 entities out to their own three layers.
             control_measures_option_texts = [
                 action.text()
                 for action in plugin.control_measures_menu.actions()
@@ -164,7 +165,9 @@ class TestPluginLifecycle(QgisTestCase):
                     "Obstacle Control Measures",
                     "Field Fortification Control Measures",
                     "CBRN Defense Control Measures",
-                    "Target Acquisition Control Measures", "Control Measure Points",
+                    "Target Acquisition Control Measures",
+                    "Sustainment Points", "Supply Points",
+                    "Mission Task Points",
                 ]
             )
 
@@ -234,7 +237,9 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.fire_support_coordination_measures_action)
         self.assertIsNone(plugin.target_control_measures_action)
         self.assertIsNone(plugin.target_acquisition_control_measures_action)
-        self.assertIsNone(plugin.control_measure_points_action)
+        self.assertIsNone(plugin.sustainment_points_action)
+        self.assertIsNone(plugin.supply_points_action)
+        self.assertIsNone(plugin.mission_task_points_action)
         self.assertIsNone(plugin.control_measures_menu)
         self.assertIsNone(plugin.sub_grid_menu)
         self.assertIsNone(plugin.sub_grid_group)

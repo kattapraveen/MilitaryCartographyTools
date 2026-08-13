@@ -41,9 +41,6 @@ from MilitaryCartographyTools.military_symbology.target_control_measures import 
     create_target_control_measures_lines_layer,
     create_target_control_measures_points_layer,
 )
-from MilitaryCartographyTools.military_symbology.control_measure_points import (
-    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
-)
 from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
 
@@ -852,15 +849,6 @@ class TestCreateTargetControlMeasuresPointsLayer(QgisTestCase):
 
                 self.assertTrue(ok)
                 self.assertTrue(path.startswith("base64:"))
-
-
-    def test_the_target_family_left_the_shared_points_layer(self):
-
-        self.assertEqual(
-            set(POINT_ENTITY_LABELS)
-            & set(_CONTROL_MEASURE_POINT_ENTITY_LABELS),
-            set()
-        )
 
 
     def test_points_layer_is_created_and_added(self):

@@ -35,8 +35,14 @@ from .military_symbology.subsurface_layer import add_subsurface_layers
 from .military_symbology.activities_layer import add_activities_layer
 from .military_symbology.sigint_layer import add_sigint_layer
 from .military_symbology.cyberspace_layer import add_cyberspace_layer
-from .military_symbology.control_measure_points import (
-    add_control_measure_points_layer,
+from .military_symbology.sustainment_control_measures import (
+    add_sustainment_points_layer,
+)
+from .military_symbology.supply_points import (
+    add_supply_points_layer,
+)
+from .military_symbology.mission_task_control_measures import (
+    add_mission_task_points_layer,
 )
 from .military_symbology.c2_measures import (
     add_c2_measures_lines_layer,
@@ -166,12 +172,11 @@ class MilitaryCartographyTools:
         # Grid below) rather than a single QAction, since Appendix H's
         # ~17 H.5.x logical groups (C2 Measures, Maneuver, Defensive,
         # ...) each get their own entry as their own mini-phase lands -
-        # see _setup_control_measures_menu(). c2_measures_action is the
-        # first (only, so far) entry; control_measure_points_action is
-        # the pre-existing flat "Control Measure Points" layer, kept as
-        # its own entry rather than folded into C2 Measures since it
-        # spans many H.5.x sections at once and hasn't been split yet
-        # (see c2_measures.py's own docstring).
+        # see _setup_control_measures_menu(). Every entry is one H.5.x
+        # group's own layer; the flat "Control Measure Points" layer
+        # that used to sit alongside them - a holding pen for entities
+        # whose own table had not been built yet - was emptied and
+        # retired by H19/H20/H21 (2026-08-14).
         self.control_measures_menu = None
         self.c2_measures_action = None
         self.maneuver_control_measures_action = None
@@ -187,7 +192,9 @@ class MilitaryCartographyTools:
         self.fire_support_coordination_measures_action = None
         self.target_control_measures_action = None
         self.target_acquisition_control_measures_action = None
-        self.control_measure_points_action = None
+        self.sustainment_points_action = None
+        self.supply_points_action = None
+        self.mission_task_points_action = None
 
         self.sub_grid_menu = None
         self.sub_grid_group = None
@@ -921,12 +928,11 @@ class MilitaryCartographyTools:
         # mini-phase lands - see military_symbology/c2_measures.py's own
         # docstring for the full rationale. Each entry here is its own
         # H.5.x group, added only once that group's own mini-phase is
-        # actually built - "C2 Measures" (H0/H2) is the only one so far.
-        # "Control Measure Points" is the pre-existing flat layer
-        # covering many H.5.x sections' point-type control measures at
-        # once (military_symbology/control_measure_points.py) - kept as
-        # its own entry rather than folded into C2 Measures, since it
-        # hasn't been split by section yet (tracked separately).
+        # actually built. The flat "Control Measure Points" layer that
+        # used to sit alongside them held whichever point entities had
+        # no table module yet; H19/H20/H21 moved its last 21 entries
+        # out to Sustainment/Supply/Mission Task Points and it was
+        # retired (2026-08-14).
         self.control_measures_menu = QMenu(
             "Control Measures",
             self.toolbar
@@ -1251,23 +1257,61 @@ class MilitaryCartographyTools:
             self.target_acquisition_control_measures_action
         )
 
-        self.control_measure_points_action = QAction(
-            "Control Measure Points",
+        self.sustainment_points_action = QAction(
+            "Sustainment Points",
             self.control_measures_menu
         )
 
-        self.control_measure_points_action.setToolTip(
-            "Add a Control Measure Points layer (checkpoints, decision "
-            "points, observation posts, target points, supply points, "
-            "and similar point-type control measures)"
+        self.sustainment_points_action.setToolTip(
+            "Add a Sustainment Points layer (ambulance exchange, "
+            "ammunition supply, casualty and detainee collection, "
+            "traffic control post, and similar - Table H-XXII)"
         )
 
-        self.control_measure_points_action.triggered.connect(
-            self.create_control_measure_points
+        self.sustainment_points_action.triggered.connect(
+            self.create_sustainment_points
         )
 
         self.control_measures_menu.addAction(
-            self.control_measure_points_action
+            self.sustainment_points_action
+        )
+
+        self.supply_points_action = QAction(
+            "Supply Points",
+            self.control_measures_menu
+        )
+
+        self.supply_points_action.setToolTip(
+            "Add a Supply Points layer (general and medical supply "
+            "points plus the NATO and US supply classes - Table "
+            "H-XXIII)"
+        )
+
+        self.supply_points_action.triggered.connect(
+            self.create_supply_points
+        )
+
+        self.control_measures_menu.addAction(
+            self.supply_points_action
+        )
+
+        self.mission_task_points_action = QAction(
+            "Mission Task Points",
+            self.control_measures_menu
+        )
+
+        self.mission_task_points_action.setToolTip(
+            "Add a Mission Task Points layer (Destroy, Interdict and "
+            "Neutralize - the three point-type mission tasks of Table "
+            "H-XXIV)"
+        )
+
+        self.mission_task_points_action.triggered.connect(
+            self.create_mission_task_points
+        )
+
+        self.control_measures_menu.addAction(
+            self.mission_task_points_action
         )
 
 
@@ -1653,7 +1697,9 @@ class MilitaryCartographyTools:
         self.fire_support_coordination_measures_action = None
         self.target_control_measures_action = None
         self.target_acquisition_control_measures_action = None
-        self.control_measure_points_action = None
+        self.sustainment_points_action = None
+        self.supply_points_action = None
+        self.mission_task_points_action = None
 
         # sub_grid_menu/group, control_measures_menu, and every
         # group_menus entry ARE parented to the toolbar (see
@@ -2332,16 +2378,42 @@ class MilitaryCartographyTools:
         )
 
 
-    def create_control_measure_points(self):
+    def create_sustainment_points(self):
         """
-        Add a "Control Measure Points" layer (checkpoints, decision
-        points, observation posts, target points, supply points, and
-        similar point-type control measures spanning several Appendix H
-        sections), ready for placing with QGIS's own native point
-        editing tools.
+        Add a "Sustainment Points" layer - Table H-XXII's own sixteen
+        drawable point symbols (MIL-STD-2525D Appendix H.5.24), ready
+        for placing with QGIS's own native point editing tools.
         """
 
-        add_control_measure_points_layer(
+        add_sustainment_points_layer(
+            self.iface
+        )
+
+
+    def create_supply_points(self):
+        """
+        Add a "Supply Points" layer - Table H-XXIII's own eighteen
+        point symbols, general and medical supply points plus the NATO
+        and US supply classes (MIL-STD-2525D Appendix H.5.25). That
+        table's own areas and lines are not built; see
+        supply_points.py's own docstring.
+        """
+
+        add_supply_points_layer(
+            self.iface
+        )
+
+
+    def create_mission_task_points(self):
+        """
+        Add a "Mission Task Points" layer - Destroy, Interdict and
+        Neutralize, the three of Table H-XXIV's 29 rows that are point
+        symbols (MIL-STD-2525D Appendix H.5.26). The other 26 are
+        multi-anchor constructions; see
+        mission_task_control_measures.py's own docstring.
+        """
+
+        add_mission_task_points_layer(
             self.iface
         )
 

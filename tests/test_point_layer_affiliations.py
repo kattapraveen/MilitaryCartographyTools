@@ -61,12 +61,14 @@ from MilitaryCartographyTools.military_symbology import (
     airspace_control_measures,
     c2_measures,
     cbrn_defense,
-    control_measure_points,
+    mission_task_control_measures,
     defensive_control_measures,
     field_fortification,
     maritime_control_measures,
     obstacle_control_measures,
     offensive_control_measures,
+    supply_points,
+    sustainment_control_measures,
     target_control_measures,
 )
 
@@ -98,8 +100,8 @@ _POINT_LAYER_FACTORIES = (
         cbrn_defense.create_cbrn_defense_points_layer,
     ),
     (
-        "control_measure_points",
-        control_measure_points.create_control_measure_points_layer,
+        "mission_task",
+        mission_task_control_measures.create_mission_task_points_layer,
     ),
     (
         "defensive",
@@ -112,6 +114,14 @@ _POINT_LAYER_FACTORIES = (
     (
         "maritime",
         maritime_control_measures.create_maritime_control_measures_points_layer,
+    ),
+    (
+        "supply",
+        supply_points.create_supply_points_layer,
+    ),
+    (
+        "sustainment",
+        sustainment_control_measures.create_sustainment_points_layer,
     ),
     (
         "obstacle",
@@ -357,15 +367,15 @@ class TestEveryPointLayerBuildsValidSidcs(QgisTestCase):
 
         # Abatis (280100) is a LINE, so milsymbol has no point icon for
         # it and it renders as the unknown-icon fallback whatever the
-        # affiliation. It sat in this layer's own dropdown as a stopgap
-        # so it would not vanish between batches; B4 then built the
-        # line version and removed it, and this asserts it stayed
-        # removed rather than drifting back in.
+        # affiliation. It sat in the old shared Control Measure Points
+        # dropdown as a stopgap so it would not vanish between batches;
+        # B4 built the line version and removed it, and this asserts it
+        # has stayed out rather than drifting back into any layer.
         #
         # Both halves matter. The first pins WHY it may not be offered
         # - drop the second and the test would still pass if abatis
         # quietly reappeared.
-        layer = control_measure_points.create_control_measure_points_layer()
+        layer = mission_task_control_measures.create_mission_task_points_layer()
 
         feature = QgsFeature(layer.fields())
 

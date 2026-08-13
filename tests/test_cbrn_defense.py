@@ -181,17 +181,6 @@ class TestCbrnPointsLayer(QgisTestCase):
         self.assertEqual(collisions, {tuple(sorted(SHARED_GLYPH_CODES))})
 
 
-    def test_the_four_events_left_the_shared_points_layer(self):
-
-        from MilitaryCartographyTools.military_symbology.control_measure_points import (
-            _ENTITY_LABELS as _SHARED,
-        )
-
-        self.assertEqual(
-            set(POINT_ENTITY_LABELS) & set(_SHARED), set()
-        )
-
-
 class TestCbrnLayerInsertion(QgisTestCase):
 
     """

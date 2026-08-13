@@ -628,8 +628,8 @@ H gets built):
 
 - **C2 Measures** — adds a "Lines" layer, an "Areas" layer, and a
   "Points" layer (H.5.5/H.5.9/H.5.10, described below).
-- **Control Measure Points** — adds the "Control Measure Points" layer
-  (checkpoints, decision points, supply points, and similar - described
+- **Sustainment Points**, **Supply Points**, **Mission Task Points** —
+  three point layers, one per table (H.5.24/H.5.25/H.5.26, described
   further down this section).
 
 Each layer is created empty and ready to use immediately; there's no
@@ -645,8 +645,8 @@ Table H-IV and H.5.9/Table H-V, verified against the real MIL-STD-2525D
 template pictures 2026-08-09); its Points layer offers all 22 of Table H-VI's own
 command-and-control point types (Checkpoint, Contact/Coordination/
 Decision Point, Fly-To Point, Rally Point, and similar - added
-2026-08-10, moved out of the shared Control Measure Points layer below,
-see that layer's own section for why; two entries this layer briefly
+2026-08-10, moved out of the shared Control Measure Points layer that
+used to sit alongside these and has since been retired; two entries this layer briefly
 carried, Target Handover and Key Terrain, were removed again the same
 day once cross-checked against the real standard text and found not to
 exist in Table H-VI, or anywhere in MIL-STD-2525D at all) - every other
@@ -657,9 +657,11 @@ actually been checked. Further Appendix H logical groups (Maneuver,
 Defensive, Offensive, Airspace, Maritime, and the rest) get their own new
 dropdown entry and their own layer(s), freshly verified, as each group's
 own mini-phase gets its turn - see docs/roadmap.md's Phase 10 entry for
-progress. The Control Measure Points layer (below) still covers every
-H.5.x group that hasn't had its own point types split out into a
-dedicated layer yet - as of 2026-08-12 that's everything except Table
+progress. Every H.5.x group now has its own point layer: the shared
+Control Measure Points layer that used to hold whatever hadn't been
+split out yet was emptied and retired on 2026-08-14, when
+Sustainment/Supply/Mission Task Points took its last 21 entries. It
+had previously handed off Table
 H-VI (now on C2 Measures), Table H-IX (now on Defensive Control
 Measures), Table H-XI's Point of Departure (now on Offensive Control
 Measures), Table H-XIII (now on Airspace Control Measures), Table
@@ -751,8 +753,8 @@ text), but it's still a hand-built QGIS rendition, not a spec-exact one -
 see this section's own notes above for what's approximated and why.
 
 **C2 Measures' own Points layer** (Table H-VI, H.5.10) works the same
-way as the Control Measure Points layer described later in this section
-- pick an **Entity** from the dropdown (Unspecified Control Point,
+way as every other point layer in this section - pick an **Entity**
+from the dropdown (Unspecified Control Point,
 Amnesty Point, Checkpoint, Center of Main Effort, Contact/Coordination/
 Decision Point, Distress Call, Entry Control Point, Fly-To Point
 (Sonobuoy/Weapon/Normal), Linkup/Passage Point, Point of Interest (and
@@ -838,7 +840,8 @@ Observer/CBRN/Sensor-Listening/Combat Outpost variants, plus **Target
 Reference Point** - pick an **Entity** from the dropdown, then set
 **Affiliation** and **Status**, the same way as C2 Measures' own Points
 layer above. Moved here from the shared Control Measure Points layer on
-2026-08-10, since a flat ~90-entry dropdown made these 7 hard to find.
+2026-08-10 (that layer has since been retired), since a flat ~90-entry
+dropdown made these 7 hard to find.
 
 ### Offensive Control Measures
 
@@ -876,8 +879,8 @@ optional name" pattern.
 **Infiltration Lane** and **Point of Departure** are not built here -
 Infiltration Lane is another variable-width construction (like Axis of
 Advance, but as a "lane" a single line doesn't read well as an
-approximation of), and Point of Departure is a point symbol already
-available on the Control Measure Points layer.
+approximation of), and Point of Departure is a point symbol on this
+group's own Points layer.
 
 ### Maneuver Control Measures II
 
@@ -1111,7 +1114,8 @@ MIL-STD-2525D Appendix H.5.19 (Table H-XVII).
 **Points** offers this table's own nine entries — **Point/Single
 Target**, **Nuclear Target**, **Fire Support Station (FSS)**, and the Fires Points family (**Firing**,
 **Hide**, **Launch**, **Reload** and **Survey Control Point**). These
-were previously on the shared Control Measure Points layer.
+were previously on the shared Control Measure Points layer, since
+retired.
 
 Note that the five Fires Points draw *above* where you click — their
 anchor is the tip of the cone at the bottom, not the centre.
@@ -1267,42 +1271,60 @@ yet — both need genuinely computed geometry from a single anchor point
 azimuth centreline and left/right limits) rather than a boundary you
 directly digitize. They are on the list to build.
 
-### Control Measure Points
+### Sustainment, Supply and Mission Task Points
 
-The "Control Measure Points" layer covers whichever of MIL-STD-2525D
-Appendix H's own point-type control measures don't yet have their own
-dedicated layer (see the top of this section for which groups have split
-off so far) — maritime hazard/reference points, target and fire-support
-points, obstacle/mine/shelter/CBRN-event points, sustainment/supply
-points (ammunition supply point, casualty collection point, MEDEVAC
-pick-up point, ...), and similar. Unlike the Lines/Areas layers above,
-these ARE rendered through
-the same verified milsymbol library as the Units layer, not hand-built
-QGIS symbology — so they're spec-exact, not an approximation.
+Three separate layers, one per table, added 2026-08-14 — the last of
+Appendix H's own point vocabularies to get their own homes. They
+replace the old flat "Control Measure Points" layer, which was a
+holding pen for whichever point types had no table module yet and was
+emptied by these three.
 
-Place points with QGIS's own native **Add Point Feature** tool, then fill
-in the attribute form:
+- **Sustainment Points** — Table H-XXII's own sixteen: Ambulance
+  Exchange Point, Ammunition Supply Point, Ammunition Transfer and
+  Holding Point, Cannibalization Point, Casualty Collection Point,
+  Civilian Collection Point, Detainee Collection Point, Enemy Prisoner
+  of War Collection Point, Logistics Release Point, Maintenance
+  Collection Point, MEDEVAC Pick-Up Point, Rearm/Refuel/Resupply Point,
+  Refuel on the Move Point, Traffic Control Post, Trailer Transfer
+  Point, Unit Maintenance Collection Point.
+- **Supply Points** — Table H-XXIII's own eighteen: General Supply
+  Point, Medical Supply Point, and the supply classes. Note that the
+  classes are **two separate vocabularies** — NATO Class I to V plus
+  Multiple Supply Class (each defined by STANAG 2961), and US Class I
+  to X. They share roman numerals and mean different things, so every
+  entry says which standard it belongs to.
+- **Mission Task Points** — Destroy, Interdict and Neutralize. These
+  are the only three of Table H-XXIV's 29 mission tasks drawn as a
+  single centred glyph on one anchor point; the other 26 are arrows,
+  brackets and outlined regions built from two to fifty anchor points,
+  and none of them is built yet.
+
+All three render through the same verified milsymbol library as the
+Units layer, not hand-built QGIS symbology, so they are spec-exact
+rather than an approximation.
+
+Place points with QGIS's own native **Add Point Feature** tool, then
+fill in the attribute form:
 
 - **Affiliation** — Friend/Hostile/Neutral/Unknown. Colour follows
-  MIL-STD-2525D's own H.5.3 rule for control measures specifically
-  (confirmed by rendering real examples through the library and reading
-  the actual SVG output): friendly/neutral/unknown draw in black, hostile
-  draws in red.
-- **Entity** — which point control measure this is (e.g. "Ammunition
-  Supply Point", "Casualty Collection Point", "Antitank Mine"). 35 of
-  the standard's ~260 point control measures are available here — Table
-  H-VI's own command/control points, Table H-IX's own Observation Post
-  family, Table H-XIII's own 26-entry airspace vocabulary, Table
-  H-XIV's own 105-entry maritime vocabulary and Table H-XVII's own
-  9-entry target/fires vocabulary have each moved to their own
-  dedicated layers (see above); the granular per-nation supply-class
-  variants aren't currently
-  included.
+  MIL-STD-2525D's own H.5.3 rule for control measures specifically:
+  friendly/neutral/unknown draw in black, hostile draws in red.
+- **Entity** — which point control measure this is.
 - **Status** — Present or Planned.
+- **Unique designation** — Field T, drawn beside the symbol.
 
-There's no "Symbol Set" field here the way the Units layer has one — this
-layer only ever draws from Appendix H's control-measure set, so there's
-nothing to choose between.
+There's no "Symbol Set" field on any of them the way the Units layer
+has one — these only ever draw from Appendix H's control-measure set,
+so there's nothing to choose between.
+
+**Two things to know.** NATO Multiple Supply Class Point draws the same
+plain box as General Supply Point: the standard gives it no icon of its
+own, only a user-typed A field ("I/III/V", or "ALL"), and that field
+isn't offered on these layers yet. And Table H-XXIII's own eight
+holding/support areas and eleven convoy and supply-route lines are not
+built — see `military_symbology/supply_points.py` for the full audit of
+what remains.
+
 
 ---
 

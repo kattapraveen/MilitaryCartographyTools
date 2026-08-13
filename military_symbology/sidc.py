@@ -901,6 +901,17 @@ ENTITIES = {
         "start_point": "131600",
         "special_point": "131700",
         "waypoint": "131800",
+        # **Table H-XIV names two of its own Reference Points the same
+        # things**, at 213700 and 214800, and until 2026-08-14 both
+        # tables used the same two keys here. A dict keeps the last
+        # one, so these two H-VI codes were being silently overwritten
+        # by the maritime pair and the C2 Measures layer had been
+        # drawing MARITIME icons for its own Special Point and
+        # Waypoint. The maritime keys now carry that module's own
+        # "_reference" group suffix, the same way its Navigational
+        # Reference Point already did for the same reason. Found by
+        # tests/test_control_measure_point_vocabulary.py, which is
+        # exactly what that sweep is for.
         # Table H-VI (Command and control points) ends here, at 131900 -
         # confirmed 2026-08-10 by reading the actual standard text
         # directly (reference/MIL-STD-2525D.pdf), after the project
@@ -926,11 +937,6 @@ ENTITIES = {
         "target_reference_point": "160300",
         "point_of_departure": "160400",
         # Maritime hazards / reference points
-        "distressed_vessel": "218000",
-        "downed_aircraft": "218100",
-        "iceberg": "218300",
-        "oil_rig": "218500",
-        "sea_mine_like_contact": "218600",
         # Fires
         "point_target": "240601",
         "nuclear_target": "240602",
@@ -1005,6 +1011,29 @@ ENTITIES = {
         "trailer_transfer_point": "321500",
         "unit_maintenance_collection_point": "321600",
         "general_supply_point": "321700",
+        # Table H-XXIII's own sixteen supply classes (Mini-Phase H20,
+        # 2026-08-14). The table splits them by standard, not just by
+        # number: 321701-321706 are the NATO classes, each citing its
+        # own STANAG 2961 definition, and 321707-321716 are the US
+        # classes I-X. Two different vocabularies that happen to share
+        # roman numerals, so the keys say which is which rather than
+        # leaving "class_i" ambiguous.
+        "supply_point_nato_class_i": "321701",
+        "supply_point_nato_class_ii": "321702",
+        "supply_point_nato_class_iii": "321703",
+        "supply_point_nato_class_iv": "321704",
+        "supply_point_nato_class_v": "321705",
+        "supply_point_nato_multiple_class": "321706",
+        "supply_point_us_class_i": "321707",
+        "supply_point_us_class_ii": "321708",
+        "supply_point_us_class_iii": "321709",
+        "supply_point_us_class_iv": "321710",
+        "supply_point_us_class_v": "321711",
+        "supply_point_us_class_vi": "321712",
+        "supply_point_us_class_vii": "321713",
+        "supply_point_us_class_viii": "321714",
+        "supply_point_us_class_ix": "321715",
+        "supply_point_us_class_x": "321716",
         "medical_supply_point": "321800",
         # Mission tasks (point form - a future H.5.26 mission-task
         # module separately covers the arrow/line-graphic form some of
@@ -1135,7 +1164,7 @@ ENTITIES = {
         "vertical_line_array_directional_frequency_analysis_and_recording_sonobuoy": "213515",
         # Reference Points
         "reference_point": "213600",
-        "special_point": "213700",
+        "special_point_reference": "213700",
         "navigational_reference_point_reference": "213800",
         "data_link_reference_point": "213900",
         "vital_area_center": "214100",
@@ -1145,7 +1174,7 @@ ENTITIES = {
         "position_and_intended_movement": "214500",
         "pre_landfall_waypoint": "214600",
         "estimated_position": "214700",
-        "waypoint": "214800",
+        "waypoint_reference": "214800",
         # Subsurface Stations
         "general_subsurface_station": "214900",
         "submarine_subsurface_station": "215000",

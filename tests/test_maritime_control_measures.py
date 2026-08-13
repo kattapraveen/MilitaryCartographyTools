@@ -44,9 +44,6 @@ from MilitaryCartographyTools.military_symbology.maritime_control_measures impor
 from MilitaryCartographyTools.military_symbology.maritime_control_measures import (
     _POINT_ENTITIES,
 )
-from MilitaryCartographyTools.military_symbology.control_measure_points import (
-    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
-)
 from MilitaryCartographyTools.military_symbology.sidc import (
     ENTITIES,
     build_sidc,
@@ -881,15 +878,6 @@ class TestCreateMaritimeControlMeasuresPointsLayer(QgisTestCase):
         finally:
 
             military_symbology_functions.unregister()
-
-
-    def test_the_maritime_family_left_the_shared_points_layer(self):
-
-        overlap = set(POINT_ENTITY_LABELS) & set(
-            _CONTROL_MEASURE_POINT_ENTITY_LABELS
-        )
-
-        self.assertEqual(overlap, set())
 
 
     def test_every_entity_resolves_to_a_real_rendered_symbol(self):

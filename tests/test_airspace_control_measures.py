@@ -46,9 +46,6 @@ from MilitaryCartographyTools.military_symbology.airspace_control_measures impor
     create_airspace_control_measures_lines_layer,
     create_airspace_control_measures_points_layer,
 )
-from MilitaryCartographyTools.military_symbology.control_measure_points import (
-    _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
-)
 from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
 
@@ -886,19 +883,6 @@ class TestCreateAirspaceControlMeasuresPointsLayer(QgisTestCase):
             layer.defaultValueDefinition(idx).expression(),
             "'air_control_point'"
         )
-
-
-    def test_the_airspace_family_no_longer_appears_on_the_shared_points_layer(self):
-
-        # The point of the move: these must be offered by exactly one
-        # dropdown, not two. sidc.py's own entities are deliberately
-        # left alone, so this checks the LABEL dict (what the user
-        # picks from), not the underlying vocabulary.
-        overlap = set(POINT_ENTITY_LABELS) & set(
-            _CONTROL_MEASURE_POINT_ENTITY_LABELS
-        )
-
-        self.assertEqual(overlap, set())
 
 
     def test_only_the_downed_aircrew_pickup_point_is_anchored_at_its_tip(self):

@@ -144,17 +144,6 @@ class TestFieldFortificationPoints(QgisTestCase):
                 self.assertTrue(svg.startswith("base64:"))
 
 
-    def test_the_four_entries_left_the_shared_points_layer(self):
-
-        from MilitaryCartographyTools.military_symbology.control_measure_points import (
-            _ENTITY_LABELS as _SHARED,
-        )
-
-        self.assertEqual(
-            set(POINT_ENTITY_LABELS) & set(_SHARED), set()
-        )
-
-
 class TestFieldFortificationLines(QgisTestCase):
 
     def setUp(self):
