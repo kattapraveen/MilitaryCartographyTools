@@ -6940,6 +6940,78 @@ tested, not claimed as done here.
 
   978 tests passing on both QGIS versions.
 
+- **B6's second correction round** (2026-08-13, same day), and the one
+  that finally settled the arrowhead question. Six more items, two of
+  which turned out to be real bugs hiding behind green tests.
+
+  **The roadblock arrowheads were never in the standard at all.** The
+  maintainer reported them still drawing on Readiness 1, Readiness 2
+  and Complete after the previous round had removed only Planned's.
+  Re-reading the table's own TEMPLATE column settles it: the "PT 1 ->"
+  / "PT 2 ->" / "PT 3 ->" arrows there are ANNOTATION POINTERS naming
+  anchor points, used that way throughout Appendix H, and the EXAMPLE
+  column - which renders the real symbol - shows plain lines with no
+  arrowhead anywhere. **This is the third time this exact misreading
+  has shipped in this project** (Light Line's invented perpendicular
+  tick in H2, then Boundary's, now all four roadblocks), and the
+  maintainer has caught it every time. All four variants now draw no
+  arrowhead; `mct_roadblock_complete_mains`, which existed only to
+  scope them, is deleted.
+
+  **Obstacle Bypass Difficult's teeth** are now derived rather than
+  drawn to a fixed count: "the teeth angles are too wide, reduce the
+  angle to 30 deg, making the teeth closer and more in number." The
+  apex angle is the specified quantity, so it became the INPUT - a
+  tooth alternates between the rear axis and a peak `amplitude` out,
+  giving an apex of 2*atan(step/amplitude), so pinning that at 30
+  degrees fixes step = amplitude * tan(15 degrees) and the count falls
+  out of however much rear line there is to fill (rounded even, so the
+  zigzag lands back on the axis). The first build had it backwards -
+  it fixed the count at 6 and let an ~83-degree apex fall out, which
+  is exactly why it read as "too wide".
+
+  **Obstacle Bypass Impossible's stub gap** was reduced 30% again,
+  compounding on the previous round's 30%: 0.5 -> 0.35 -> 0.245 of the
+  symbol's height.
+
+  **The arrowhead now scales with the drawn obstacle**: "the arrow
+  head dimension remains same whether i draw a small obstacle or big
+  ... arrowhead should also become small if the lines are small, upto
+  the current size which will be the max." The marker is now sized in
+  MAP UNITS as a fraction of its own arrow's length, capped at the
+  previous fixed 6mm through `QgsMapUnitScale.maxSizeMM` - so it
+  tracks the symbol and tops out where it used to sit. **The first cut
+  of this silently did nothing**, and is worth recording: the size
+  expression called a helper that used `asPolyline()`, but this
+  property is evaluated on a marker nested inside a geometry
+  generator, where `$geometry` is the GENERATED geometry (the two
+  arrows, a MultiLineString) rather than the feature's raw points -
+  and `asPolyline()` RAISES on a MultiLineString rather than returning
+  empty, so the property errored, QGIS fell back to the static size,
+  and every arrowhead rendered identically. The helper now accepts
+  either form (each generated arrow part runs rear -> tip, so its own
+  length is the same number), and carries a test that evaluates it
+  against the generated geometry specifically. This is the same
+  generator-context trap as Turn's arrowhead in B5, in a third guise.
+
+  **Bridge or Gap's designation** moved from below the symbol into the
+  channel between its two parallel lines ("the text is below the line
+  - it should be within the parallel lines") - the clicked geometry
+  the label follows IS that centreline, so it only needed an on-line
+  placement, data-defined so Obstacle Line keeps its below-line one.
+  **This shipped broken once too**, for a reason worth knowing: the
+  `LinePlacementOptions` data-defined property takes QGIS's own
+  two-letter codes (`OL`/`AL`/`BL`/`LO`), and a readable spelling like
+  `on_line` is silently accepted and simply drops the label. The
+  string-comparison test written alongside it passed while Bridge or
+  Gap rendered with no designation at all; it now asserts the tokens
+  against the list QGIS itself publishes in the property's own help
+  text.
+
+  984 tests passing on both QGIS versions. **B6 remains complete at 8
+  of 8**; B7 (water crossing sites and the remaining lines) is all
+  that is left of H-XIX's line obstacles.
+
 ---
 
 ## Suggested near-term order

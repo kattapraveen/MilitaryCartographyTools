@@ -4099,9 +4099,6 @@ class TestObstacleBypassFamily(QgisTestCase):
 
         points = result.asPolyline()
 
-        # 9 vertices: rear_top, the 7-vertex zigzag body, rear_bottom.
-        self.assertEqual(len(points), 9)
-
         # Both ends sit exactly on the plain rear axis (x=15) at the
         # arrow bases, so the flats really do reach the arrows.
         self.assertAlmostEqual(points[0].x(), 15)
@@ -4116,16 +4113,68 @@ class TestObstacleBypassFamily(QgisTestCase):
         self.assertAlmostEqual(points[-2].x(), 15)
         self.assertAlmostEqual(points[-2].y(), -8)
 
-        # Teeth bulge to x=18 (depth 15 * amplitude ratio 0.2 = 3) -
-        # half the first build's 0.4, per "the angle of the teeth
-        # should be more acute (reduce by 50%)".
-        self.assertAlmostEqual(points[2].x(), 18)
-        self.assertAlmostEqual(points[4].x(), 18)
-        self.assertAlmostEqual(points[6].x(), 18)
+        # Teeth bulge to x=18 (depth 15 * amplitude ratio 0.2 = 3),
+        # and the body starts and ends back ON the axis.
+        body = points[1:-1]
 
-        # Even-numbered body vertices stay on the axis.
-        self.assertAlmostEqual(points[3].x(), 15)
-        self.assertAlmostEqual(points[5].x(), 15)
+        for index, point in enumerate(body):
+
+            expected = 18 if (0 < index < len(body) - 1
+                              and index % 2 == 1) else 15
+
+            self.assertAlmostEqual(point.x(), expected)
+
+
+    def test_difficult_teeth_are_derived_from_a_thirty_degree_apex(self):
+
+        # "the teeth angles are too wide, reduce the angle to 30 deg,
+        # making the teeth closer and more in number" - the apex angle
+        # is the specified quantity, so the tooth COUNT falls out of it
+        # rather than the other way round (the first build fixed the
+        # count and let an ~83-degree apex fall out).
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _BYPASS_ZIGZAG_APEX_ANGLE_DEG,
+        )
+
+        self.assertEqual(_BYPASS_ZIGZAG_APEX_ANGLE_DEG, 30)
+
+        result = self._evaluate(
+            "mct_obstacle_bypass_rear_difficult", self.PT1, self.PT2, self.PT3
+        )
+
+        points = result.asPolyline()
+
+        body = points[1:-1]
+
+        peaks = [
+            index for index in range(1, len(body) - 1) if index % 2 == 1
+        ]
+
+        # "more in number" - the first build drew 3 peaks over this
+        # same fixture; a 30-degree apex packs in far more.
+        self.assertGreater(len(peaks), 3)
+
+        for index in peaks:
+
+            with self.subTest(peak=index):
+
+                before, peak, after = body[index - 1], body[index], body[index + 1]
+
+                left = math.atan2(
+                    before.y() - peak.y(), before.x() - peak.x()
+                )
+                right = math.atan2(
+                    after.y() - peak.y(), after.x() - peak.x()
+                )
+
+                apex = abs(math.degrees(left - right)) % 360
+
+                if apex > 180:
+                    apex = 360 - apex
+
+                # Rounding the count to an even number nudges the apex
+                # slightly off the nominal 30.
+                self.assertAlmostEqual(apex, 30, delta=2)
 
 
     def test_rear_impossible_is_two_independent_stubs_with_ticks(self):
@@ -4145,28 +4194,28 @@ class TestObstacleBypassFamily(QgisTestCase):
         )
 
         # The stub runs ALONG the rear axis (x stays 15) from the arrow
-        # base, height 20 * 0.325 = 6.5, so it ends at y=3.5.
+        # base, height 20 * 0.3775 = 7.55, so it ends at y=2.45.
         self.assertAlmostEqual(stub_top[0].x(), 15)
         self.assertAlmostEqual(stub_top[0].y(), 10)
         self.assertAlmostEqual(stub_top[1].x(), 15)
-        self.assertAlmostEqual(stub_top[1].y(), 3.5)
+        self.assertAlmostEqual(stub_top[1].y(), 2.45)
 
         self.assertAlmostEqual(stub_bottom[0].x(), 15)
         self.assertAlmostEqual(stub_bottom[0].y(), -10)
         self.assertAlmostEqual(stub_bottom[1].x(), 15)
-        self.assertAlmostEqual(stub_bottom[1].y(), -3.5)
+        self.assertAlmostEqual(stub_bottom[1].y(), -2.45)
 
         # The tick crosses that end, depth 15 * 0.35 = 5.25 long,
         # centred on x=15 so it runs 12.375 to 17.625.
         self.assertAlmostEqual(tick_top[0].x(), 12.375)
-        self.assertAlmostEqual(tick_top[0].y(), 3.5)
+        self.assertAlmostEqual(tick_top[0].y(), 2.45)
         self.assertAlmostEqual(tick_top[1].x(), 17.625)
-        self.assertAlmostEqual(tick_top[1].y(), 3.5)
+        self.assertAlmostEqual(tick_top[1].y(), 2.45)
 
         self.assertAlmostEqual(tick_bottom[0].x(), 12.375)
-        self.assertAlmostEqual(tick_bottom[0].y(), -3.5)
+        self.assertAlmostEqual(tick_bottom[0].y(), -2.45)
         self.assertAlmostEqual(tick_bottom[1].x(), 17.625)
-        self.assertAlmostEqual(tick_bottom[1].y(), -3.5)
+        self.assertAlmostEqual(tick_bottom[1].y(), -2.45)
 
 
     def test_impossible_stubs_stay_straight_along_the_rear_axis(self):
@@ -4205,11 +4254,11 @@ class TestObstacleBypassFamily(QgisTestCase):
             self.assertAlmostEqual((tick[0].x() + tick[1].x()) / 2.0, 15)
 
 
-    def test_impossible_hook_gap_shrank_by_thirty_percent(self):
+    def test_impossible_hook_gap_shrank_by_thirty_percent_twice(self):
 
-        # "reduce the distance between the stubs by 30%, the stub
-        # length is fine" - the two stub ends were 10 apart (height 20
-        # - 2 * stub 5), and are now 7 (height 20 - 2 * stub 6.5).
+        # "reduce the distance between the stubs by 30%" was asked
+        # TWICE, each time compounding: the gap has gone 10 -> 7 ->
+        # 4.9 on this fixture (0.5 -> 0.35 -> 0.245 of the height).
         result = self._evaluate(
             "mct_obstacle_bypass_rear_impossible", self.PT1, self.PT2, self.PT3
         )
@@ -4218,7 +4267,7 @@ class TestObstacleBypassFamily(QgisTestCase):
             result.asMultiPolyline()
         )
 
-        self.assertAlmostEqual(stub_top[1].y() - stub_bottom[1].y(), 7)
+        self.assertAlmostEqual(stub_top[1].y() - stub_bottom[1].y(), 4.9)
 
 
     def test_all_three_variants_are_offered_and_black(self):
@@ -4316,6 +4365,136 @@ class TestObstacleBypassFamily(QgisTestCase):
                     chevron_marker_line.placements(),
                     Qgis.MarkerLinePlacement.LastVertex
                 )
+
+
+    def test_the_arrowhead_scales_with_the_obstacle_up_to_a_fixed_cap(self):
+
+        # "the arrow head dimension remains same whether i draw a small
+        # obstacle or big... arrowhead should also become small if the
+        # lines are small, upto the current size which will be the max"
+        # - sized in MAP UNITS off the arrow's own length so it tracks
+        # the drawn symbol, capped in mm at the size the first build
+        # used as a fixed value.
+        from qgis.core import Qgis
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _CHEVRON_SIZE_MM,
+            _obstacle_bypass_easy_symbol,
+        )
+
+        symbol = _obstacle_bypass_easy_symbol()
+
+        marker = symbol.symbolLayer(2).subSymbol().symbolLayer(0)
+
+        chevron = marker.subSymbol().symbolLayer(0)
+
+        self.assertEqual(chevron.sizeUnit(), Qgis.RenderUnit.MapUnits)
+
+        scale = chevron.sizeMapUnitScale()
+
+        self.assertTrue(scale.maxSizeMMEnabled)
+        self.assertAlmostEqual(scale.maxSizeMM, _CHEVRON_SIZE_MM)
+
+        self.assertTrue(
+            chevron.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.Size
+            )
+        )
+
+        self.assertIn(
+            "mct_obstacle_bypass_arrow_length($geometry)",
+            chevron.dataDefinedProperties().property(
+                QgsSymbolLayer.Property.Size
+            ).expressionString()
+        )
+
+
+    def test_the_arrow_length_expression_is_pt3s_perpendicular_distance(self):
+
+        result = self._evaluate(
+            "mct_obstacle_bypass_arrow_length", self.PT1, self.PT2, self.PT3
+        )
+
+        self.assertAlmostEqual(result, 15)
+
+
+    def test_the_arrow_length_also_reads_the_generated_arrows_geometry(self):
+
+        # This is the form the expression ACTUALLY sees at render time:
+        # it is a data-defined size on a marker nested inside a
+        # geometry generator, and inside a generator's sub-symbol
+        # $geometry is the GENERATED geometry, not the feature's raw
+        # points. asPolyline() raises on a MultiLineString, so a
+        # raw-only version errored out, QGIS fell back to the static
+        # size, and every arrowhead rendered identically - caught by
+        # render, since the raw-geometry test above passed throughout.
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        raw = QgsGeometry.fromPolylineXY(
+            [
+                QgsPointXY(*self.PT1),
+                QgsPointXY(*self.PT2),
+                QgsPointXY(*self.PT3),
+            ]
+        )
+
+        arrows = QgsExpression(
+            "mct_obstacle_bypass_arrows(geom_from_wkt('{}'))".format(
+                raw.asWkt()
+            )
+        ).evaluate()
+
+        self.assertTrue(arrows.isMultipart())
+
+        expression = QgsExpression(
+            "mct_obstacle_bypass_arrow_length(geom_from_wkt('{}'))".format(
+                arrows.asWkt()
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        # Same number either way - each arrow part runs rear -> tip.
+        self.assertAlmostEqual(result, 15)
+
+
+    def test_a_smaller_obstacle_gets_a_proportionally_smaller_arrowhead(self):
+
+        big = self._evaluate(
+            "mct_obstacle_bypass_arrow_length", (0, 10), (0, -10), (15, 0)
+        )
+        small = self._evaluate(
+            "mct_obstacle_bypass_arrow_length", (0, 2), (0, -2), (3, 0)
+        )
+
+        self.assertAlmostEqual(small, big / 5.0)
+
+
+    def test_a_degenerate_geometry_scales_to_zero_rather_than_erroring(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        two_point = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 0), QgsPointXY(0, 10)]
+        )
+
+        expression = QgsExpression(
+            "mct_obstacle_bypass_arrow_length(geom_from_wkt('{}'))".format(
+                two_point.asWkt()
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertEqual(result, 0.0)
 
 
 class TestBridgeOrGap(QgisTestCase):
@@ -4467,6 +4646,78 @@ class TestBridgeOrGap(QgisTestCase):
                 QgsFieldConstraints.Constraint.ConstraintExpression
             ),
             QgsFieldConstraints.ConstraintStrength.ConstraintStrengthHard
+        )
+
+
+    def test_the_designation_sits_inside_the_channel_not_below_it(self):
+
+        # "the text is below the line - it should be within the
+        # parallel lines". The clicked geometry the label follows IS
+        # the centreline between them, so OL (on line) puts it in the
+        # channel; Obstacle Line keeps BL (below line).
+        #
+        # Asserting the RENDERED label position rather than the
+        # expression string, because the readable spellings
+        # ('on_line'/'below_line') are silently accepted by QGIS and
+        # simply drop the label - a string-only assertion passed while
+        # Bridge or Gap rendered with no designation at all.
+        from qgis.core import QgsPalLayerSettings
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        settings = layer.labeling().settings()
+
+        expression = settings.dataDefinedProperties().property(
+            QgsPalLayerSettings.Property.LinePlacementOptions
+        ).expressionString()
+
+        self.assertIn("bridge_or_gap", expression)
+
+        # QGIS's own two-letter codes, per this property's help text.
+        self.assertIn("'OL'", expression)
+        self.assertIn("'BL'", expression)
+
+
+    def test_the_placement_tokens_are_ones_qgis_actually_recognises(self):
+
+        # QGIS silently ignores an unrecognised placement token and
+        # drops the label, so asserting the expression string alone
+        # proves nothing - 'on_line' passed that check while rendering
+        # nothing. This checks the tokens against the list QGIS itself
+        # publishes in the property's own help text, which is the only
+        # authority reachable from Python (QgsLabelingUtils, which does
+        # the real decoding, is not exposed).
+        import re
+
+        from qgis.core import QgsPalLayerSettings
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _LINE_PLACEMENT_FLAGS_EXPRESSION,
+        )
+
+        definition = QgsPalLayerSettings.propertyDefinitions()[
+            int(QgsPalLayerSettings.Property.LinePlacementOptions)
+        ]
+
+        documented = set(
+            re.findall(r"<b>(\w+)</b>", definition.helpText())
+        )
+
+        self.assertIn("OL", documented)
+
+        used = set(re.findall(r"'(\w+)'", _LINE_PLACEMENT_FLAGS_EXPRESSION))
+
+        # Drop the measure_type literal; what remains must all be
+        # documented placement tokens.
+        used.discard("bridge_or_gap")
+
+        self.assertTrue(
+            used <= documented,
+            f"undocumented placement tokens: {sorted(used - documented)}"
         )
 
 
@@ -4745,23 +4996,43 @@ class TestRoadblockFamily(QgisTestCase):
                 self.assertAlmostEqual((main_y + parallel_y) / 2.0, 0)
 
 
-    def test_complete_arrowheads_are_scoped_to_the_two_main_lines(self):
+    def test_no_roadblock_variant_draws_an_arrowhead(self):
 
-        # The parallel lines carry no arrowhead, same as in the other
-        # roadblock variants.
-        result = self._evaluate(
-            "mct_roadblock_complete_mains", self.PT1, self.PT2, self.PT3
+        # The standard's own TEMPLATE column labels its anchor points
+        # with "PT 1 ->" style arrows; those are annotation pointers,
+        # not symbol geometry, and the EXAMPLE column (which renders
+        # the real symbol) shows plain lines. The first build read them
+        # as geometry and gave all four variants an arrowhead - the
+        # same misreading that put an invented tick on Light Line.
+        from qgis.core import QgsMarkerLineSymbolLayer
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _roadblock_complete_symbol,
+            _roadblock_planned_symbol,
+            _roadblock_readiness_1_symbol,
+            _roadblock_readiness_2_symbol,
         )
 
-        self.assertEqual(result.wkbType().name, "MultiLineString")
+        for builder, expected_layers in (
+            (_roadblock_planned_symbol, 2),
+            (_roadblock_readiness_1_symbol, 2),
+            (_roadblock_readiness_2_symbol, 2),
+            (_roadblock_complete_symbol, 1),
+        ):
 
-        mains = result.asMultiPolyline()
+            with self.subTest(builder=builder.__name__):
 
-        self.assertEqual(len(mains), 2)
+                symbol = builder()
 
-        # Tip last, so a LastVertex marker lands on PT1's own tip.
-        self.assertAlmostEqual(mains[0][1].x(), 0)
-        self.assertAlmostEqual(mains[0][1].y(), 10)
+                self.assertEqual(symbol.symbolLayerCount(), expected_layers)
+
+                for index in range(symbol.symbolLayerCount()):
+
+                    inner = symbol.symbolLayer(index).subSymbol()
+
+                    self.assertNotIsInstance(
+                        inner.symbolLayer(0), QgsMarkerLineSymbolLayer
+                    )
 
 
     def test_all_four_variants_are_offered_and_green(self):
@@ -4849,62 +5120,9 @@ class TestRoadblockFamily(QgisTestCase):
         self.assertEqual(parallel_line.penStyle(), Qt.PenStyle.SolidLine)
 
 
-    def test_planned_draws_no_arrowhead_at_all(self):
+    def test_complete_draws_all_four_lines_from_one_generator(self):
 
-        # "there is no arrow, and it is a set of two parallel lines,
-        # dashed" - the maintainer's own correction to a first build
-        # that gave every state variant an arrowhead.
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _roadblock_planned_symbol,
-        )
-
-        symbol = _roadblock_planned_symbol()
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-
-
-    def test_the_two_readiness_variants_keep_an_arrowhead(self):
-
-        from qgis.core import Qgis, QgsMarkerLineSymbolLayer
-
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _roadblock_readiness_1_symbol,
-            _roadblock_readiness_2_symbol,
-        )
-
-        for builder in (
-            _roadblock_readiness_1_symbol,
-            _roadblock_readiness_2_symbol,
-        ):
-
-            with self.subTest(builder=builder.__name__):
-
-                symbol = builder()
-
-                self.assertEqual(symbol.symbolLayerCount(), 3)
-
-                chevron_marker_line = (
-                    symbol.symbolLayer(2).subSymbol().symbolLayer(0)
-                )
-
-                self.assertIsInstance(
-                    chevron_marker_line, QgsMarkerLineSymbolLayer
-                )
-                self.assertEqual(
-                    chevron_marker_line.placements(),
-                    Qgis.MarkerLinePlacement.LastVertex
-                )
-                self.assertIn(
-                    "mct_roadblock_main_line($geometry)",
-                    symbol.symbolLayer(2).geometryExpression()
-                )
-
-
-    def test_complete_has_two_arrowheads_via_its_own_geometry(self):
-
-        from qgis.core import (
-            Qgis, QgsGeometryGeneratorSymbolLayer, QgsMarkerLineSymbolLayer,
-        )
+        from qgis.core import QgsGeometryGeneratorSymbolLayer
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _roadblock_complete_symbol,
@@ -4912,12 +5130,7 @@ class TestRoadblockFamily(QgisTestCase):
 
         symbol = _roadblock_complete_symbol()
 
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-
-        self.assertIn(
-            "mct_roadblock_complete_mains($geometry)",
-            symbol.symbolLayer(1).geometryExpression()
-        )
+        self.assertEqual(symbol.symbolLayerCount(), 1)
 
         self.assertIsInstance(
             symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer
@@ -4925,13 +5138,4 @@ class TestRoadblockFamily(QgisTestCase):
         self.assertIn(
             "mct_roadblock_complete_geometry($geometry)",
             symbol.symbolLayer(0).geometryExpression()
-        )
-
-        chevron_marker_line = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
-
-        self.assertIsInstance(chevron_marker_line, QgsMarkerLineSymbolLayer)
-
-        self.assertEqual(
-            chevron_marker_line.placements(),
-            Qgis.MarkerLinePlacement.LastVertex
         )

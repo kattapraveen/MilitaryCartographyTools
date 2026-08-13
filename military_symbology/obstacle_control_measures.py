@@ -147,6 +147,7 @@ from qgis.core import (
     QgsGeometryGeneratorSymbolLayer,
     QgsLinePatternFillSymbolLayer,
     QgsLineSymbol,
+    QgsMapUnitScale,
     QgsMarkerLineSymbolLayer,
     QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
@@ -3261,23 +3262,61 @@ def _wire_obstacle_symbol(measure_type):
     return symbol
 
 
+# The arrowhead size the whole of B5 uses, in millimetres. For B6's
+# bypass family this is now a CEILING rather than a fixed size (see
+# _obstacle_bypass_chevron_generator).
+_CHEVRON_SIZE_MM = 6
+
+# How much of its own arrow's length each bypass arrowhead takes up.
+# The maintainer asked for the arrowhead to shrink with a small
+# obstacle "upto the current size which will be the max" but named no
+# proportion, so this is a placement call - the one number in this
+# correction that wasn't dictated.
+_BYPASS_CHEVRON_ARROW_FRACTION = 0.25
+
+
 def _obstacle_bypass_chevron_generator(geometry_expression):
 
-    """Shared unfilled-chevron arrowhead generator, keyed to whichever
+    """
+    Shared unfilled-chevron arrowhead generator, keyed to whichever
     geometry expression the caller's own line layers already use -
     same LastVertex-needs-its-own-generator reasoning as Turn/Disrupt.
+
+    The marker is sized in MAP UNITS, as a fraction of the arrow it
+    sits on, and capped at _CHEVRON_SIZE_MM through QgsMapUnitScale -
+    so it scales with the drawn obstacle and tops out at the fixed
+    size the first build used: "the arrow head dimension remains same
+    whether i draw a small obstacle or big... arrowhead should also
+    become small if the lines are small, upto the current size which
+    will be the max."
     """
 
     chevron_marker = QgsMarkerSymbol()
 
     chevron_layer = QgsSimpleMarkerSymbolLayer(
         QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
-        6
+        _CHEVRON_SIZE_MM
     )
 
     chevron_layer.setColor(QColor(0, 0, 0, 0))
 
     chevron_layer.setStrokeWidth(_AREA_OUTLINE_WIDTH_MM * 1.5)
+
+    chevron_layer.setSizeUnit(Qgis.RenderUnit.MapUnits)
+
+    capped = QgsMapUnitScale()
+    capped.maxSizeMMEnabled = True
+    capped.maxSizeMM = _CHEVRON_SIZE_MM
+
+    chevron_layer.setSizeMapUnitScale(capped)
+
+    chevron_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Size,
+        QgsProperty.fromExpression(
+            "mct_obstacle_bypass_arrow_length($geometry) * "
+            f"{_BYPASS_CHEVRON_ARROW_FRACTION}"
+        )
+    )
 
     _apply_obstacle_color(
         chevron_layer,
@@ -3480,22 +3519,28 @@ def _roadblock_line_layer(dashed):
     return layer
 
 
-def _roadblock_symbol(main_dashed, parallel_dashed, with_arrowhead):
+def _roadblock_symbol(main_dashed, parallel_dashed):
 
     """
-    Shared by Planned (271201, both lines dashed, NO arrowhead - "there
-    is no arrow, and it is a set of two parallel lines, dashed", the
-    maintainer's own correction to the first build, which had given
-    every variant an arrowhead), Explosives State of Readiness 1/Safe
-    (271202, main solid with an arrowhead, parallel dashed) and
-    Explosives State of Readiness 2/Passable (271203, both solid, with
-    an arrowhead) - the standard's own three "state" variants of the
-    same two-line construction (mct_roadblock_main_line /
-    mct_roadblock_parallel_line: "points 1 and 2 determine the
-    centerline... point 3 determines its width"). Fixed dash per
-    variant, not status-driven - the variant itself already encodes a
-    real-world readiness state, not present/planned. Roadblock Complete
-    (271204) is a different shape (see _roadblock_complete_symbol).
+    Shared by Planned (271201, both lines dashed), Explosives State of
+    Readiness 1/Safe (271202, one line solid, one dashed) and
+    Explosives State of Readiness 2/Passable (271203, both solid) - the
+    standard's own three "state" variants of the same two-line
+    construction (mct_roadblock_main_line / mct_roadblock_parallel_line:
+    "points 1 and 2 determine the centerline... point 3 determines its
+    width"). Fixed dash per variant, not status-driven - the variant
+    itself already encodes a real-world readiness state, not present/
+    planned. Roadblock Complete (271204) adds a second, rotated pair
+    (see _roadblock_complete_symbol).
+
+    **No arrowheads anywhere in this family.** The first build gave
+    every variant one, reading the "PT 1 ->" / "PT 2 ->" / "PT 3 ->"
+    arrows in the standard's own TEMPLATE column as drawn geometry.
+    They are annotation pointers - the table uses them throughout to
+    label anchor points - and the EXAMPLE column, which renders the
+    real symbol, shows plain lines with no arrowhead at all. This is
+    the same misreading that put an invented tick on Light Line back
+    in H2; the maintainer caught both.
     """
 
     symbol = QgsLineSymbol()
@@ -3532,36 +3577,22 @@ def _roadblock_symbol(main_dashed, parallel_dashed, with_arrowhead):
 
     symbol.appendSymbolLayer(parallel_generator)
 
-    if with_arrowhead:
-
-        symbol.appendSymbolLayer(
-            _obstacle_bypass_chevron_generator(
-                "mct_roadblock_main_line($geometry)"
-            )
-        )
-
     return symbol
 
 
 def _roadblock_planned_symbol():
 
-    return _roadblock_symbol(
-        main_dashed=True, parallel_dashed=True, with_arrowhead=False
-    )
+    return _roadblock_symbol(main_dashed=True, parallel_dashed=True)
 
 
 def _roadblock_readiness_1_symbol():
 
-    return _roadblock_symbol(
-        main_dashed=False, parallel_dashed=True, with_arrowhead=True
-    )
+    return _roadblock_symbol(main_dashed=False, parallel_dashed=True)
 
 
 def _roadblock_readiness_2_symbol():
 
-    return _roadblock_symbol(
-        main_dashed=False, parallel_dashed=False, with_arrowhead=True
-    )
+    return _roadblock_symbol(main_dashed=False, parallel_dashed=False)
 
 
 def _roadblock_complete_symbol():
@@ -3570,11 +3601,11 @@ def _roadblock_complete_symbol():
     Roadblock Complete/Executed (271204) - the ordinary roadblock pair
     (main line + parallel line, both solid) PLUS that same pair
     rotated 50 degrees about its own centre, so the two pairs cross
-    (mct_roadblock_complete_geometry). Arrowheads are scoped to
-    mct_roadblock_complete_mains - only the two main lines carry one,
-    matching the other roadblock variants. Read off the standard's own
-    picture rather than a numbered draw rule (this entry is ASSUMED,
-    not CONFIRMED, in the module's own audit).
+    (mct_roadblock_complete_geometry). No arrowheads, for the same
+    reason as the rest of the family - see _roadblock_symbol's own
+    docstring. Read off the standard's own picture rather than a
+    numbered draw rule (this entry is ASSUMED, not CONFIRMED, in the
+    module's own audit).
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -3602,12 +3633,6 @@ def _roadblock_complete_symbol():
     symbol = QgsLineSymbol()
 
     symbol.changeSymbolLayer(0, generator)
-
-    symbol.appendSymbolLayer(
-        _obstacle_bypass_chevron_generator(
-            "mct_roadblock_complete_mains($geometry)"
-        )
-    )
 
     return symbol
 
@@ -3766,6 +3791,25 @@ _OBSTACLE_LINE_LABEL_EXPRESSION = (
 )
 
 
+# Obstacle Line's label sits BELOW its own line; Bridge or Gap's sits
+# ON it - which puts it inside the channel between the two parallel
+# lines, since the clicked geometry the label follows is the symbol's
+# own centreline ("the text is below the line - it should be within
+# the parallel lines"). Data-defined rather than two labelling rules,
+# because everything else about the two is identical.
+#
+# The tokens are QGIS's own two-letter codes, NOT the readable names -
+# this property's help text spells them out as
+# "OL=On line|AL=Above line|BL=Below line|LO=Respect line
+# orientation". Passing 'on_line' is silently accepted and drops the
+# label entirely, which is how the first cut of this shipped a Bridge
+# or Gap with no designation at all.
+_LINE_PLACEMENT_FLAGS_EXPRESSION = (
+    "CASE WHEN \"measure_type\" = 'bridge_or_gap'"
+    " THEN 'OL' ELSE 'BL' END"
+)
+
+
 def _configure_lines_labeling(layer):
 
     settings = _build_pal_layer_settings(
@@ -3778,6 +3822,11 @@ def _configure_lines_labeling(layer):
     settings.dataDefinedProperties().setProperty(
         QgsPalLayerSettings.Property.Color,
         QgsProperty.fromExpression("color_rgb(0, 0, 0)")
+    )
+
+    settings.dataDefinedProperties().setProperty(
+        QgsPalLayerSettings.Property.LinePlacementOptions,
+        QgsProperty.fromExpression(_LINE_PLACEMENT_FLAGS_EXPRESSION)
     )
 
     layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))

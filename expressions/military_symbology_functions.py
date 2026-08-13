@@ -1565,6 +1565,74 @@ def mct_obstacle_bypass_arrows(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_obstacle_bypass_arrow_length',
+    group='Military Cartography Tools'
+)
+def mct_obstacle_bypass_arrow_length(values, feature=None, parent=None):
+
+    """
+    How long each Obstacle Bypass arrow is, in LAYER UNITS - PT3's own
+    perpendicular distance to the PT1-PT2 line. Used to scale the
+    arrowhead marker with the drawn symbol: "the arrow head dimension
+    remains same whether i draw a small obstacle or big... arrowhead
+    should also become small if the lines are small, upto the current
+    size which will be the max" (the maintainer, 2026-08-13). The
+    caller sizes the marker in MAP UNITS from this and caps it in mm
+    via QgsMapUnitScale, so a small obstacle gets a proportionally
+    small arrowhead while a large one tops out at the fixed size the
+    first build used everywhere.
+
+    Accepts EITHER form of input, which is not optional politeness:
+    this is evaluated as a data-defined size on a marker nested inside
+    a geometry generator, and inside a generator's own sub-symbol
+    `$geometry` is the GENERATED geometry (here, the two arrows as a
+    MultiLineString), not the feature's raw three clicked points.
+    `asPolyline()` RAISES on a MultiLineString rather than returning
+    empty, so a raw-geometry-only version errors out, QGIS falls back
+    to the marker's static size, and every arrowhead renders the same
+    size no matter the obstacle - exactly the bug this function was
+    added to fix, silently reintroduced. Each generated arrow part is
+    [rear, tip], so its own length IS this same distance.
+
+    Returns 0 for degenerate input, which the caller's own cap turns
+    into "draw nothing" rather than an error.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return 0.0
+
+    if geometry.isMultipart():
+
+        parts = geometry.asMultiPolyline()
+
+        if not parts or len(parts[0]) < 2:
+            return 0.0
+
+        start, end = parts[0][0], parts[0][1]
+
+        return math.hypot(end.x() - start.x(), end.y() - start.y())
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return 0.0
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None:
+        return 0.0
+
+    return projection[2]
+
+
+@qgsfunction(
     'mct_obstacle_bypass_rear_easy',
     group='Military Cartography Tools'
 )
@@ -1595,19 +1663,26 @@ def mct_obstacle_bypass_rear_easy(values, feature=None, parent=None):
     return QgsGeometry.fromPolylineXY([rear_top, rear_bottom])
 
 
-# Obstacle Bypass Difficult's own zigzag, corrected 2026-08-13 per the
-# maintainer's own render review: "from the arrows, initially start
-# with a small line segment, the zig-zag, then another line segment to
-# connect with the next arrow base" (flat runs at both ends, not a
-# zigzag spanning the full rear line) "make the teeth closer ie the
-# angle of the teeth should be more acute (reduce by 50%)" - halving
-# the amplitude makes each tooth's own apex angle more acute at a
-# fixed pitch, so AMPLITUDE_RATIO drops from the first build's 0.4 to
-# 0.2. FLAT_RATIO (of the symbol's own height) is a new placement call
-# for the two flat runs, which have no numbered draw rule either.
+# Obstacle Bypass Difficult's own zigzag. Corrected twice on
+# 2026-08-13 from the maintainer's own render reviews: first "from the
+# arrows, initially start with a small line segment, the zig-zag, then
+# another line segment to connect with the next arrow base" (flat runs
+# at both ends, not a zigzag spanning the full rear line), then "the
+# teeth angles are too wide, reduce the angle to 30 deg, making the
+# teeth closer and more in number."
+#
+# That second correction is why the tooth count is now DERIVED rather
+# than fixed. The first build set a segment count and let the apex
+# angle fall out of it (~83 degrees, measured after the fact); the
+# apex angle is the thing actually specified, so it is now the input:
+# a tooth alternates between the rear axis and a peak `amplitude` out,
+# and its own apex angle is 2*atan(step/amplitude), so pinning that at
+# 30 degrees fixes step = amplitude * tan(15 degrees) and the count
+# follows from however much rear line there is to fill. Narrower teeth
+# mean more of them, exactly as asked.
 _BYPASS_ZIGZAG_AMPLITUDE_RATIO = 0.2
 _BYPASS_ZIGZAG_FLAT_RATIO = 0.1
-_BYPASS_ZIGZAG_SEGMENTS = 6
+_BYPASS_ZIGZAG_APEX_ANGLE_DEG = 30
 
 
 @qgsfunction(
@@ -1620,9 +1695,9 @@ def mct_obstacle_bypass_rear_difficult(values, feature=None, parent=None):
     Obstacle Bypass Difficult (270602) - the rear line's own "spring"
     zigzag: a flat run from rear_top, then the zigzag body (bulging
     toward PT3 and touching the flat run's own axis at every other
-    vertex), then a flat run into rear_bottom. See
-    _BYPASS_ZIGZAG_AMPLITUDE_RATIO/_BYPASS_ZIGZAG_FLAT_RATIO's own
-    comment for the assumed proportions.
+    vertex), then a flat run into rear_bottom. The tooth COUNT is
+    derived from the dictated 30-degree apex angle rather than fixed -
+    see _BYPASS_ZIGZAG_APEX_ANGLE_DEG's own comment.
     """
 
     if len(values) < 1:
@@ -1666,7 +1741,23 @@ def mct_obstacle_bypass_rear_difficult(values, feature=None, parent=None):
         + (1 - _BYPASS_ZIGZAG_FLAT_RATIO) * (rear_bottom.y() - rear_top.y()),
     )
 
-    segments = _BYPASS_ZIGZAG_SEGMENTS
+    body_length = math.hypot(
+        flat_end.x() - flat_start.x(), flat_end.y() - flat_start.y()
+    )
+
+    # step = amplitude * tan(apex/2) is what makes each tooth's own
+    # apex angle come out at _BYPASS_ZIGZAG_APEX_ANGLE_DEG. The count
+    # is then whatever fills the body, rounded to an EVEN number so
+    # the zigzag starts and ends back on the rear axis rather than
+    # stranded at a peak.
+    step = amplitude * math.tan(
+        math.radians(_BYPASS_ZIGZAG_APEX_ANGLE_DEG / 2.0)
+    )
+
+    if step <= 0 or body_length <= 0:
+        return QgsGeometry.fromPolylineXY([rear_top, rear_bottom])
+
+    segments = max(2, int(round(body_length / step / 2.0)) * 2)
 
     points = [rear_top]
 
@@ -1690,13 +1781,12 @@ def mct_obstacle_bypass_rear_difficult(values, feature=None, parent=None):
 
 # Obstacle Bypass Impossible's own hook stubs, as fractions of the
 # symbol's own height (|PT1-PT2|, the stub) and depth (PT3's own
-# perpendicular distance, the cap tick). Corrected 2026-08-13 per the
-# maintainer's own render review: STUB_RATIO raised from 0.25 to 0.325
-# so the gap between the two hooks' own inner ends (previously
-# height * 0.5) shrinks by 30% (to height * 0.35) - "reduce the
-# distance between the stubs by 30%, the stub length is fine." Same
-# "placement call, not a measurement" situation as the zigzag above.
-_BYPASS_HOOK_STUB_RATIO = 0.325
+# perpendicular distance, the cap tick). "Reduce the distance between
+# the stubs by 30%, the stub length is fine" - asked TWICE on
+# 2026-08-13, each time compounding on the last, so the gap has gone
+# 0.5 -> 0.35 -> 0.245 of the height and STUB_RATIO with it
+# (0.25 -> 0.325 -> 0.3775, always (1 - gap) / 2).
+_BYPASS_HOOK_STUB_RATIO = 0.3775
 _BYPASS_HOOK_TICK_RATIO = 0.35
 
 
@@ -1964,32 +2054,6 @@ def mct_roadblock_complete_geometry(values, feature=None, parent=None):
     mains, parallels = _roadblock_complete_parts(*points)
 
     return QgsGeometry.fromMultiPolylineXY(mains + parallels)
-
-
-@qgsfunction(
-    'mct_roadblock_complete_mains',
-    group='Military Cartography Tools'
-)
-def mct_roadblock_complete_mains(values, feature=None, parent=None):
-
-    """
-    Just Roadblock Complete's two MAIN lines (tip last), for arrowhead
-    placement - the two parallel lines carry no arrowhead of their own,
-    exactly as in the other roadblock variants, so a LastVertex marker
-    over the full geometry would wrongly mark them too.
-    """
-
-    if len(values) < 1:
-        return "Need a geometry (e.g. $geometry)"
-
-    points = _roadblock_vertices(values[0])
-
-    if points is None:
-        return values[0]
-
-    mains, _parallels = _roadblock_complete_parts(*points)
-
-    return QgsGeometry.fromMultiPolylineXY(mains)
 
 
 # Bridge or Gap (271100), rebuilt 2026-08-13 per the maintainer's own
@@ -3973,13 +4037,13 @@ _FUNCTIONS = [
     mct_disrupt_arrow_tips,
     mct_fix_geometry,
     mct_obstacle_bypass_arrows,
+    mct_obstacle_bypass_arrow_length,
     mct_obstacle_bypass_rear_easy,
     mct_obstacle_bypass_rear_difficult,
     mct_obstacle_bypass_rear_impossible,
     mct_roadblock_main_line,
     mct_roadblock_parallel_line,
     mct_roadblock_complete_geometry,
-    mct_roadblock_complete_mains,
     mct_bridge_or_gap_geometry,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
