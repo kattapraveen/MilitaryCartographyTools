@@ -2071,7 +2071,11 @@ def mct_roadblock_complete_geometry(values, feature=None, parent=None):
 # assumption for the render-and-compare pass, same as the flare length
 # below (the 30-degree flare ANGLE is the maintainer's own number; the
 # flare's own LENGTH is not, since nothing in the request states one).
-_BRIDGE_GAP_HALF_WIDTH_RATIO = 0.12
+# Widened 50% on 2026-08-13 - "the channel width needs to be adjusted
+# to a minimum, present default width is too less, increase by 50%" -
+# so the half-width ratio goes 0.12 -> 0.18 and the channel between
+# the two lines is 0.36 of the centreline's own length.
+_BRIDGE_GAP_HALF_WIDTH_RATIO = 0.18
 _BRIDGE_FLARE_LENGTH_RATIO = 0.15
 _BRIDGE_FLARE_ANGLE_DEG = 30
 

@@ -3899,24 +3899,30 @@ def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
     )
 
     # "require unique designation Field T" - Bridge or Gap is the one
-    # line obstacle where the maintainer asked for Field T to be
-    # mandatory rather than freeform-optional (every other Field T
-    # entry, e.g. Obstacle Line, stays optional). Hard, so it blocks
-    # the save rather than only warning, same pattern as the Maritime
-    # Points layer's own group/entity constraint.
+    # line obstacle where Field T is prompted for rather than purely
+    # freeform-optional (every other Field T entry, e.g. Obstacle Line,
+    # stays optional).
+    #
+    # SOFT, not hard: "you have made field T mandatory, not required"
+    # (the maintainer, correcting the first cut). A hard constraint
+    # BLOCKS the save outright, which is the right strength for the
+    # Maritime Points layer's group/entity pair - a mismatch there
+    # renders the wrong symbol - but wrong here, where a missing
+    # designation only means an unlabelled bridge. Soft flags the
+    # field in the form and still lets the feature be saved.
     designation_idx = fields.indexOf("unique_designation")
 
     layer.setConstraintExpression(
         designation_idx,
         "\"measure_type\" != 'bridge_or_gap'"
         " OR (unique_designation IS NOT NULL AND unique_designation != '')",
-        "Bridge or Gap requires a unique designation (Field T)."
+        "Bridge or Gap should carry a unique designation (Field T)."
     )
 
     layer.setFieldConstraint(
         designation_idx,
         QgsFieldConstraints.Constraint.ConstraintExpression,
-        QgsFieldConstraints.ConstraintStrength.ConstraintStrengthHard
+        QgsFieldConstraints.ConstraintStrength.ConstraintStrengthSoft
     )
 
     layer.setRenderer(

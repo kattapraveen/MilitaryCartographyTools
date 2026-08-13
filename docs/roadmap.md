@@ -7012,6 +7012,34 @@ tested, not claimed as done here.
   of 8**; B7 (water crossing sites and the remaining lines) is all
   that is left of H-XIX's line obstacles.
 
+- **B6's last two Bridge or Gap adjustments** (2026-08-13, same day) -
+  "all others are fixed", closing the batch out.
+
+  **Field T went from mandatory to required**: "you have made field T
+  mandatory, not required." The previous round had used
+  `ConstraintStrengthHard`, which BLOCKS the save outright - the right
+  strength for the Maritime Points layer's own group/entity pair,
+  where a mismatched pair renders the wrong symbol, but too strong
+  here, where a missing designation only means an unlabelled bridge.
+  Now `ConstraintStrengthSoft`: the form flags the field, the feature
+  still saves. Verified as BEHAVIOUR rather than as an enum value -
+  a probe confirmed `validateAttribute()` reports the failure while
+  `addFeature()` still succeeds, and the test asserts both, since the
+  enum alone says only what was asked for, not what it does.
+
+  **The channel widened 50%**: "the channel width needs to be adjusted
+  to a minimum, present default width is too less, increase by 50%" -
+  half-width ratio 0.12 to 0.18, so the gap between the two lines is
+  now 0.36 of the centreline's own length.
+
+  986 tests passing on both QGIS versions. One thing deliberately NOT
+  done: "adjusted to a minimum" may also have meant a hard floor on
+  the channel width, which the ratio alone doesn't give - a very short
+  line still yields a narrow channel. That is left open rather than
+  guessed at, since a floor in layer units wouldn't actually guarantee
+  a text fit anyway (no text metrics are reachable inside a geometry
+  generator - the limitation already recorded above).
+
 ---
 
 ## Suggested near-term order

@@ -4570,7 +4570,7 @@ class TestBridgeOrGap(QgisTestCase):
     def test_two_clicked_points_give_two_parallel_flared_sides(self):
 
         # PT1-PT2 runs 100 units along +x, so half_width is
-        # 100 * 0.12 = 12 and each side sits at y = +/-12.
+        # 100 * 0.18 = 18 and each side sits at y = +/-18.
         side_a, side_b = self._sides()
 
         self.assertEqual(len(side_a), 4)
@@ -4578,14 +4578,33 @@ class TestBridgeOrGap(QgisTestCase):
 
         # Vertices 1 and 2 of each side are the straight run itself.
         self.assertAlmostEqual(side_a[1].x(), 0)
-        self.assertAlmostEqual(side_a[1].y(), 12)
+        self.assertAlmostEqual(side_a[1].y(), 18)
         self.assertAlmostEqual(side_a[2].x(), 100)
-        self.assertAlmostEqual(side_a[2].y(), 12)
+        self.assertAlmostEqual(side_a[2].y(), 18)
 
         self.assertAlmostEqual(side_b[1].x(), 0)
-        self.assertAlmostEqual(side_b[1].y(), -12)
+        self.assertAlmostEqual(side_b[1].y(), -18)
         self.assertAlmostEqual(side_b[2].x(), 100)
-        self.assertAlmostEqual(side_b[2].y(), -12)
+        self.assertAlmostEqual(side_b[2].y(), -18)
+
+
+    def test_the_channel_is_wide_enough_to_hold_a_designation(self):
+
+        # "the channel width needs to be adjusted to a minimum, present
+        # default width is too less, increase by 50%" - the channel
+        # (the full gap, not the half-width) is now 0.36 of the
+        # centreline's own length.
+        from MilitaryCartographyTools.expressions.military_symbology_functions import (
+            _BRIDGE_GAP_HALF_WIDTH_RATIO,
+        )
+
+        self.assertAlmostEqual(_BRIDGE_GAP_HALF_WIDTH_RATIO, 0.18)
+
+        side_a, side_b = self._sides()
+
+        channel = side_a[1].y() - side_b[1].y()
+
+        self.assertAlmostEqual(channel, 36)
 
 
     def test_the_two_sides_straddle_the_clicked_centreline(self):
@@ -4609,10 +4628,10 @@ class TestBridgeOrGap(QgisTestCase):
         run = 15 * math.cos(math.radians(30))
 
         self.assertAlmostEqual(side_a[0].x(), -run)
-        self.assertAlmostEqual(side_a[0].y(), 12 + 7.5)
+        self.assertAlmostEqual(side_a[0].y(), 18 + 7.5)
 
         self.assertAlmostEqual(side_a[3].x(), 100 + run)
-        self.assertAlmostEqual(side_a[3].y(), 12 + 7.5)
+        self.assertAlmostEqual(side_a[3].y(), 18 + 7.5)
 
 
     def test_both_sides_flare_away_from_each_other(self):
@@ -4625,10 +4644,15 @@ class TestBridgeOrGap(QgisTestCase):
         self.assertLess(side_b[0].y(), side_b[1].y())
 
 
-    def test_a_unique_designation_is_required_not_optional(self):
+    def test_a_unique_designation_is_required_but_not_mandatory(self):
 
-        # "require unique designation Field T" - the one line obstacle
-        # where Field T is mandatory rather than freeform-optional.
+        # "you have made field T mandatory, not required" - the
+        # maintainer's own correction. SOFT flags the field in the form
+        # and still lets the feature save; HARD would block the save
+        # outright, which is right for the Maritime Points layer's
+        # group/entity pair (a mismatch there renders the wrong symbol)
+        # but wrong here, where a missing designation only means an
+        # unlabelled bridge.
         from qgis.core import QgsFieldConstraints
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
@@ -4645,8 +4669,49 @@ class TestBridgeOrGap(QgisTestCase):
             layer.fieldConstraintsAndStrength(index).get(
                 QgsFieldConstraints.Constraint.ConstraintExpression
             ),
-            QgsFieldConstraints.ConstraintStrength.ConstraintStrengthHard
+            QgsFieldConstraints.ConstraintStrength.ConstraintStrengthSoft
         )
+
+
+    def test_a_bridge_without_a_designation_still_saves(self):
+
+        # The enum assertion above says what strength was ASKED for;
+        # this says what it actually DOES - the constraint reports a
+        # failure (so the form flags the field) but the feature is
+        # still accepted, which is the whole difference between
+        # "required" and "mandatory".
+        from qgis.core import (
+            QgsFeature, QgsGeometry, QgsPointXY, QgsVectorLayerUtils,
+        )
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(
+            QgsGeometry.fromPolylineXY(
+                [QgsPointXY(0, 0), QgsPointXY(100, 0)]
+            )
+        )
+        feature.setAttribute("measure_type", "bridge_or_gap")
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("status", "present")
+        feature.setAttribute("colour", "black")
+
+        valid, messages = QgsVectorLayerUtils.validateAttribute(
+            layer, feature, layer.fields().indexOf("unique_designation")
+        )
+
+        self.assertFalse(valid)
+        self.assertTrue(messages)
+
+        layer.startEditing()
+
+        self.assertTrue(layer.addFeature(feature))
+        self.assertEqual(layer.featureCount(), 1)
 
 
     def test_the_designation_sits_inside_the_channel_not_below_it(self):
