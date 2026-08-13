@@ -163,6 +163,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
+import math
+
 from collections import namedtuple
 
 from qgis.PyQt.QtCore import QMetaType, QPointF, Qt
@@ -3451,52 +3453,164 @@ def _obstacle_bypass_impossible_symbol():
     )
 
 
+# Bridge or Gap's cross-section, all in MILLIMETRES on the page rather
+# than in layer units - "keep the gap at a fixed unit rather than
+# making it length of line dependent, as such it is a linear feature,
+# so the width increasing with the length is not practical" (the
+# maintainer, after two length-proportional versions). The channel is
+# 4.56mm wide (their own number, replacing a first millimetre cut at
+# 6mm: "make the bridge width 4.56mm, 6mm is too much"), which still
+# clears the 9pt label - about 3.2mm - that sits inside it.
+_BRIDGE_CHANNEL_MM = 4.56
+_BRIDGE_HALF_CHANNEL_MM = _BRIDGE_CHANNEL_MM / 2.0
+_BRIDGE_FLARE_MM = 3.0
+_BRIDGE_FLARE_ANGLE_DEG = 30
+
+# QGIS sizes an SVG marker by its WIDTH, and mct_bridge_flare_svg emits
+# a viewBox exactly 2*run wide - so setting the marker to that many
+# millimetres makes one viewBox unit one millimetre, which is what
+# keeps the wings meeting the parallel lines exactly.
+_BRIDGE_FLARE_MARKER_MM = (
+    2.0 * _BRIDGE_FLARE_MM * math.cos(math.radians(_BRIDGE_FLARE_ANGLE_DEG))
+)
+
+
+def _bridge_flare_layer(at_end):
+
+    """One end cap of Bridge or Gap - the pair of outward wings - as a
+    rotating SVG marker on the centreline's first or last vertex."""
+
+    marker = QgsMarkerSymbol()
+
+    svg_layer = QgsSvgMarkerSymbolLayer("")
+
+    svg_layer.setSize(_BRIDGE_FLARE_MARKER_MM)
+
+    # _POINT_MONO_COLOR_EXPRESSION, not _AREA_OUTLINE_COLOR_EXPRESSION:
+    # this colour goes into SVG markup, so it has to be a CSS colour
+    # ("rgb(0,0,0)"). The outline expression is built from color_rgb(),
+    # which evaluates to a bare "0,0,0" - fine for a QGIS colour
+    # property, silently invalid inside an SVG, which renders the glyph
+    # as nothing at all.
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_bridge_flare_svg({colour}, {half}, {flare}, {angle},"
+            " {stroke}, {at_end})".format(
+                colour=_POINT_MONO_COLOR_EXPRESSION,
+                half=_BRIDGE_HALF_CHANNEL_MM,
+                flare=_BRIDGE_FLARE_MM,
+                angle=_BRIDGE_FLARE_ANGLE_DEG,
+                stroke=_AREA_OUTLINE_WIDTH_MM,
+                at_end="true" if at_end else "false",
+            )
+        )
+    )
+
+    marker.changeSymbolLayer(0, svg_layer)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(
+        Qgis.MarkerLinePlacement.LastVertex if at_end
+        else Qgis.MarkerLinePlacement.FirstVertex
+    )
+
+    # Follow the centreline's own bearing, so the wings stay square to
+    # the channel however the feature was drawn.
+    marker_line.setRotateSymbols(True)
+
+    return marker_line
+
+
 def _bridge_or_gap_symbol():
 
     """
-    Bridge or Gap (271100) - rebuilt 2026-08-13 per the maintainer's
-    own correction to the first build (which had read 4 independently-
-    clicked anchor points off the standard's own template): "user will
-    click only two points PT1 and PT2, make two parallel lines and
-    require unique designation Field T, so the gap between the lines
-    will be slightly more than the text, wings or flares at both ends,
-    outwards at 30deg." PT1-PT2 is now the centreline
-    (mct_bridge_or_gap_geometry), one geometry generator draws both
-    flared sides. BLACK per the module's own audit. Field T is now a
-    HARD requirement for this measure_type - see
-    _BRIDGE_OR_GAP_DESIGNATION_CONSTRAINT in the layer factory below.
+    Bridge or Gap (271100) - rebuilt twice on 2026-08-13. First from
+    the maintainer's own correction to a build that had read 4
+    independently-clicked anchor points off the standard's own
+    template: "user will click only two points PT1 and PT2, make two
+    parallel lines and require unique designation Field T, so the gap
+    between the lines will be slightly more than the text, wings or
+    flares at both ends, outwards at 30deg." Then again when the
+    channel was still being derived from the line's own length: "keep
+    the gap at a fixed unit rather than making it length of line
+    dependent, as such it is a linear feature, so the width increasing
+    with the length is not practical."
+
+    So the whole cross-section is now fixed in MILLIMETRES and none of
+    it is generated geometry: mct_bridge_or_gap_geometry hands back the
+    bare PT1-PT2 centreline, two line layers draw the parallel lines by
+    offsetting it +/- half a channel in millimetres, and each end cap's
+    pair of wings is a millimetre-sized rotating SVG marker
+    (_bridge_flare_layer). A geometry generator could not do any of
+    this - it works in layer units and cannot see page units.
+
+    BLACK per the module's own audit. Field T is a SOFT requirement for
+    this measure_type - see the constraint in the layer factory below.
     """
-
-    line_layer = QgsSimpleLineSymbolLayer()
-
-    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
-
-    _apply_obstacle_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor],
-        _AREA_OUTLINE_COLOR_EXPRESSION
-    )
-
-    line_layer.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-    )
-
-    generator = QgsGeometryGeneratorSymbolLayer.create({})
-
-    generator.setSymbolType(QgsSymbol.SymbolType.Line)
-
-    generator.setGeometryExpression("mct_bridge_or_gap_geometry($geometry)")
-
-    inner = QgsLineSymbol()
-
-    inner.changeSymbolLayer(0, line_layer)
-
-    generator.setSubSymbol(inner)
 
     symbol = QgsLineSymbol()
 
-    symbol.changeSymbolLayer(0, generator)
+    for index, sign in enumerate((1.0, -1.0)):
+
+        line_layer = QgsSimpleLineSymbolLayer()
+
+        line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+        _apply_obstacle_color(
+            line_layer,
+            [QgsSymbolLayer.Property.StrokeColor],
+            _AREA_OUTLINE_COLOR_EXPRESSION
+        )
+
+        line_layer.setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeStyle,
+            QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+        )
+
+        line_layer.setOffset(sign * _BRIDGE_HALF_CHANNEL_MM)
+
+        line_layer.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+        generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+        generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+        generator.setGeometryExpression(
+            "mct_bridge_or_gap_geometry($geometry)"
+        )
+
+        inner = QgsLineSymbol()
+
+        inner.changeSymbolLayer(0, line_layer)
+
+        generator.setSubSymbol(inner)
+
+        if index == 0:
+            symbol.changeSymbolLayer(0, generator)
+        else:
+            symbol.appendSymbolLayer(generator)
+
+    for at_end in (False, True):
+
+        flare_inner = QgsLineSymbol()
+
+        flare_inner.changeSymbolLayer(0, _bridge_flare_layer(at_end))
+
+        flare_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+        flare_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+        flare_generator.setGeometryExpression(
+            "mct_bridge_or_gap_geometry($geometry)"
+        )
+
+        flare_generator.setSubSymbol(flare_inner)
+
+        symbol.appendSymbolLayer(flare_generator)
 
     return symbol
 

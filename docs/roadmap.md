@@ -7032,13 +7032,49 @@ tested, not claimed as done here.
   half-width ratio 0.12 to 0.18, so the gap between the two lines is
   now 0.36 of the centreline's own length.
 
-  986 tests passing on both QGIS versions. One thing deliberately NOT
-  done: "adjusted to a minimum" may also have meant a hard floor on
-  the channel width, which the ratio alone doesn't give - a very short
-  line still yields a narrow channel. That is left open rather than
-  guessed at, since a floor in layer units wouldn't actually guarantee
-  a text fit anyway (no text metrics are reachable inside a geometry
-  generator - the limitation already recorded above).
+  986 tests passing on both QGIS versions.
+
+- **Bridge or Gap's cross-section moved off geometry entirely and into
+  millimetres** (2026-08-13, same day), which retires the open
+  channel-width question above rather than answering it. The
+  maintainer, after both the 0.12 and the widened 0.18 versions: "keep
+  the gap at a fixed unit rather than making it length of line
+  dependent, as such it is a linear feature, so the width increasing
+  with the length is not practical." Followed by the number: "make the
+  bridge width 4.56mm, 6mm is too much."
+
+  That is a design correction, not a parameter tweak, and it is right
+  twice over. A linear feature's cross-section shouldn't scale with
+  its length - and a millimetre channel also settles the text-fitting
+  problem the previous entry had left open, because the label is
+  millimetre-sized too, so the channel holds it at any zoom and any
+  bridge length, which no ratio-of-length ever could.
+
+  The structural consequence: **a geometry generator works in layer
+  units and cannot see page units**, so none of the cross-section can
+  be built there any more. `mct_bridge_or_gap_geometry` now returns
+  the bare PT1-PT2 centreline (still trimming extra clicked vertices,
+  which would otherwise bend the symbol), two line layers draw the
+  parallel lines by offsetting it +/- 2.28mm via
+  `setOffsetUnit(Millimeters)`, and each end cap's pair of 30-degree
+  wings is a millimetre-sized rotating SVG marker on the first/last
+  vertex. The two caps are mirror images because QGIS rotates a marker
+  to the LINE's direction at both ends rather than reversing it at the
+  start.
+
+  One bug found by render on the way, worth recording as a class:
+  **the flare glyph rendered as nothing at all** because it was handed
+  `_AREA_OUTLINE_COLOR_EXPRESSION`, which is built from `color_rgb()`
+  and evaluates to a bare `"0,0,0"` - correct for a QGIS colour
+  property, silently invalid inside SVG markup, which wants
+  `"rgb(0,0,0)"`. This module already had `_POINT_MONO_COLOR_EXPRESSION`
+  for exactly this reason; the two are now not interchangeable by
+  accident. A second, non-bug worth noting: at ordinary render DPI the
+  flares looked inverted, and only a 400-DPI render showed they were
+  correct all along - millimetre-sized detail needs the DPI raised to
+  be judged at all.
+
+  988 tests passing on both QGIS versions.
 
 ---
 

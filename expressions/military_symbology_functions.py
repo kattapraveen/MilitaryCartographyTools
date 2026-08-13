@@ -2061,63 +2061,26 @@ def mct_roadblock_complete_geometry(values, feature=None, parent=None):
 # click only two points PT1 and PT2, make two parallel lines and
 # require unique designation Field T, so the gap between the lines
 # will be slightly more than the text, wings or flares at both ends,
-# outwards at 30deg." PT1-PT2 is now the CENTRELINE (not one side of a
-# 4-point gap), so the two drawn lines are offset half a gap-width to
-# each side, and "slightly more than the text" cannot literally be
-# measured from geometry alone (no text metrics at this layer) - sized
-# instead as a fraction of the centreline's own length, matching the
-# scale-invariant proportions this project's other decorations already
-# use (Mine Cluster's 1/3, Trip Wire's 1/5/1/7). Flagged as an
-# assumption for the render-and-compare pass, same as the flare length
-# below (the 30-degree flare ANGLE is the maintainer's own number; the
-# flare's own LENGTH is not, since nothing in the request states one).
-# Widened 50% on 2026-08-13 - "the channel width needs to be adjusted
-# to a minimum, present default width is too less, increase by 50%" -
-# so the half-width ratio goes 0.12 -> 0.18 and the channel between
-# the two lines is 0.36 of the centreline's own length.
-_BRIDGE_GAP_HALF_WIDTH_RATIO = 0.18
-_BRIDGE_FLARE_LENGTH_RATIO = 0.15
-_BRIDGE_FLARE_ANGLE_DEG = 30
-
-
-def _bridge_flared_side(pt1, pt2, ux, uy, side_nx, side_ny,
-                        half_width, flare_length, flare_angle_deg):
-
-    """
-    One of Bridge or Gap's two lines: PT1/PT2 offset by `half_width`
-    along (side_nx, side_ny), with a flare at each end bending
-    `flare_angle_deg` OUTWARD (further along (side_nx, side_ny)) from
-    the straight PT1-PT2 direction.
-    """
-
-    start = QgsPointXY(
-        pt1.x() + half_width * side_nx, pt1.y() + half_width * side_ny
-    )
-    end = QgsPointXY(
-        pt2.x() + half_width * side_nx, pt2.y() + half_width * side_ny
-    )
-
-    angle = math.radians(flare_angle_deg)
-    cos_a, sin_a = math.cos(angle), math.sin(angle)
-
-    # Rotate the "backward" direction (-u) by flare_angle toward this
-    # side's own outward normal - the flare at PT1's end continues
-    # roughly backward but bent away from the centreline.
-    back_x = -ux * cos_a + side_nx * sin_a
-    back_y = -uy * cos_a + side_ny * sin_a
-
-    flare_start = QgsPointXY(
-        start.x() + flare_length * back_x, start.y() + flare_length * back_y
-    )
-
-    fwd_x = ux * cos_a + side_nx * sin_a
-    fwd_y = uy * cos_a + side_ny * sin_a
-
-    flare_end = QgsPointXY(
-        end.x() + flare_length * fwd_x, end.y() + flare_length * fwd_y
-    )
-
-    return [flare_start, start, end, flare_end]
+# outwards at 30deg." PT1-PT2 is the CENTRELINE, not one side of a
+# 4-point gap.
+#
+# **The channel is a fixed MILLIMETRE width, not a fraction of the
+# line's own length** - "keep the gap at a fixed unit rather than
+# making it length of line dependent, as such it is a linear feature,
+# so the width increasing with the length is not practical" (the
+# maintainer, after two length-proportional versions - 0.12 then 0.18
+# of the length - both looked wrong). That is right, and it also
+# settles the text-fitting question left open by those versions: the
+# label is sized in millimetres too, so a millimetre channel holds it
+# at any zoom and any bridge length, which no ratio-of-length could.
+#
+# The consequence for THIS module is that Bridge or Gap's own
+# cross-section is no longer built here. A geometry generator works in
+# layer units and has no access to page units, so the parallel offset
+# and the end flares both moved to the SYMBOLOGY layer - millimetre
+# line offsets and a millimetre end-cap glyph, see
+# _bridge_or_gap_symbol(). All this function does is hand back the
+# centreline itself.
 
 
 @qgsfunction(
@@ -2127,11 +2090,14 @@ def _bridge_flared_side(pt1, pt2, ux, uy, side_nx, side_ny,
 def mct_bridge_or_gap_geometry(values, feature=None, parent=None):
 
     """
-    Bridge or Gap (271100) - two anchor points, PT1-PT2, the symbol's
-    own centreline. Two parallel lines are drawn, offset half a
-    gap-width to each side (see _BRIDGE_GAP_HALF_WIDTH_RATIO's own
-    comment), each with an outward-flared "wing" at both ends (see
-    _bridge_flared_side).
+    Bridge or Gap (271100) - the symbol's own centreline, PT1 to PT2.
+
+    Deliberately the first two clicked points rather than the raw
+    geometry: the two parallel lines are drawn from this by
+    millimetre-offset symbol layers, so any extra vertices a user
+    happened to click would otherwise bend the whole symbol. See this
+    function's own preamble comment for why the cross-section is
+    millimetre-based and so lives in the symbology, not here.
     """
 
     if len(values) < 1:
@@ -2149,31 +2115,90 @@ def mct_bridge_or_gap_geometry(values, feature=None, parent=None):
 
     pt1, pt2 = QgsPointXY(vertices[0]), QgsPointXY(vertices[1])
 
-    length = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
-
-    if length == 0:
+    if pt1 == pt2:
         return geometry
 
-    ux, uy = (pt2.x() - pt1.x()) / length, (pt2.y() - pt1.y()) / length
+    return QgsGeometry.fromPolylineXY([pt1, pt2])
 
-    # A fixed perpendicular choice (90 degrees CCW) - either side works
-    # since both are drawn, unlike the bypass/roadblock constructions
-    # where PT3 disambiguates a specific side.
-    nx, ny = -uy, ux
 
-    half_width = length * _BRIDGE_GAP_HALF_WIDTH_RATIO
-    flare_length = length * _BRIDGE_FLARE_LENGTH_RATIO
+@qgsfunction(
+    'mct_bridge_flare_svg',
+    group='Military Cartography Tools'
+)
+def mct_bridge_flare_svg(values, feature=None, parent=None):
 
-    side_a = _bridge_flared_side(
-        pt1, pt2, ux, uy, nx, ny,
-        half_width, flare_length, _BRIDGE_FLARE_ANGLE_DEG
+    """
+    Bridge or Gap's own end cap - the pair of outward "wings" at one
+    end of the channel - as an inline "base64:<...>" SVG, for a marker
+    placed on the centreline's first or last vertex.
+
+    Drawn as a glyph rather than as geometry because the whole
+    cross-section is fixed in MILLIMETRES (see the preamble above), and
+    a rotating marker is the only thing in QGIS sized that way that can
+    also follow the line's own direction.
+
+    Arguments: colour, half_width_mm (the channel's own half-width, so
+    each wing starts exactly on its parallel line), flare_mm, angle_deg
+    (30, the maintainer's own number), stroke_mm, and at_end (True for
+    the last vertex, False for the first - the two are mirror images,
+    because QGIS rotates a marker to the LINE's direction at both ends
+    rather than reversing it at the start).
+
+    The viewBox is deliberately SYMMETRIC about the origin so the glyph
+    centres itself on the vertex needing no offset. QGIS sizes an SVG
+    marker by its WIDTH, so with a viewBox `2*run` wide and the marker
+    size set to that same number of millimetres, one viewBox unit is
+    exactly one millimetre and the height follows correctly.
+    """
+
+    colour = str(values[0]) if values and values[0] else "rgb(0,0,0)"
+    half_width = float(values[1]) if len(values) > 1 else 2.28
+    flare = float(values[2]) if len(values) > 2 else 3.0
+    angle_deg = float(values[3]) if len(values) > 3 else 30.0
+    stroke = float(values[4]) if len(values) > 4 else 0.4
+    at_end = bool(values[5]) if len(values) > 5 else True
+
+    angle = math.radians(angle_deg)
+
+    run = flare * math.cos(angle)
+    rise = flare * math.sin(angle)
+
+    if run <= 0:
+        return ""
+
+    direction = 1.0 if at_end else -1.0
+
+    outer = half_width + rise
+
+    # SVG y grows DOWNWARD, hence the negative y for the "upper" wing.
+    # Both wings start ON their own parallel line (+/- the channel's
+    # half-width) and bend further out from there.
+    paths = [
+        "M 0,{:.4f} L {:.4f},{:.4f}".format(
+            -half_width, direction * run, -outer
+        ),
+        "M 0,{:.4f} L {:.4f},{:.4f}".format(
+            half_width, direction * run, outer
+        ),
+    ]
+
+    body = "".join(
+        '<path d="{}" fill="none" stroke="{}" stroke-width="{:.4f}"'
+        ' stroke-linecap="round"/>'.format(path, colour, stroke)
+        for path in paths
     )
-    side_b = _bridge_flared_side(
-        pt1, pt2, ux, uy, -nx, -ny,
-        half_width, flare_length, _BRIDGE_FLARE_ANGLE_DEG
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+        ' viewBox="{minx:.4f} {miny:.4f} {width:.4f} {height:.4f}"'
+        ' width="{width:.4f}" height="{height:.4f}">{body}</svg>'
+    ).format(
+        minx=-run, miny=-outer, width=2 * run, height=2 * outer, body=body
     )
 
-    return QgsGeometry.fromMultiPolylineXY([side_a, side_b])
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
 
 
 @qgsfunction(
@@ -4049,6 +4074,7 @@ _FUNCTIONS = [
     mct_roadblock_parallel_line,
     mct_roadblock_complete_geometry,
     mct_bridge_or_gap_geometry,
+    mct_bridge_flare_svg,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,

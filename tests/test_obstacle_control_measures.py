@@ -4523,7 +4523,7 @@ class TestBridgeOrGap(QgisTestCase):
         super().tearDown()
 
 
-    def _sides(self, pt1=(0, 0), pt2=(100, 0)):
+    def _centreline(self, pt1=(0, 0), pt2=(100, 0)):
 
         from qgis.core import QgsGeometry, QgsPointXY
 
@@ -4541,9 +4541,7 @@ class TestBridgeOrGap(QgisTestCase):
             expression.hasEvalError(), expression.evalErrorString()
         )
 
-        self.assertEqual(result.wkbType().name, "MultiLineString")
-
-        return result.asMultiPolyline()
+        return result
 
 
     def test_a_single_point_returns_the_geometry_unchanged(self):
@@ -4567,81 +4565,188 @@ class TestBridgeOrGap(QgisTestCase):
         self.assertEqual(result.asWkt(), one_point.asWkt())
 
 
-    def test_two_clicked_points_give_two_parallel_flared_sides(self):
+    def test_the_geometry_is_just_the_clicked_centreline(self):
 
-        # PT1-PT2 runs 100 units along +x, so half_width is
-        # 100 * 0.18 = 18 and each side sits at y = +/-18.
-        side_a, side_b = self._sides()
+        # The cross-section is millimetre-based and so cannot be built
+        # here - a geometry generator works in layer units and has no
+        # access to page units. All this returns is PT1-PT2; the
+        # parallel offset and the flares are symbology (see
+        # _bridge_or_gap_symbol).
+        result = self._centreline()
 
-        self.assertEqual(len(side_a), 4)
-        self.assertEqual(len(side_b), 4)
+        self.assertEqual(result.wkbType().name, "LineString")
 
-        # Vertices 1 and 2 of each side are the straight run itself.
-        self.assertAlmostEqual(side_a[1].x(), 0)
-        self.assertAlmostEqual(side_a[1].y(), 18)
-        self.assertAlmostEqual(side_a[2].x(), 100)
-        self.assertAlmostEqual(side_a[2].y(), 18)
+        points = result.asPolyline()
 
-        self.assertAlmostEqual(side_b[1].x(), 0)
-        self.assertAlmostEqual(side_b[1].y(), -18)
-        self.assertAlmostEqual(side_b[2].x(), 100)
-        self.assertAlmostEqual(side_b[2].y(), -18)
+        self.assertEqual(len(points), 2)
+
+        self.assertAlmostEqual(points[0].x(), 0)
+        self.assertAlmostEqual(points[0].y(), 0)
+        self.assertAlmostEqual(points[1].x(), 100)
+        self.assertAlmostEqual(points[1].y(), 0)
 
 
-    def test_the_channel_is_wide_enough_to_hold_a_designation(self):
+    def test_extra_clicked_vertices_do_not_bend_the_symbol(self):
 
-        # "the channel width needs to be adjusted to a minimum, present
-        # default width is too less, increase by 50%" - the channel
-        # (the full gap, not the half-width) is now 0.36 of the
-        # centreline's own length.
-        from MilitaryCartographyTools.expressions.military_symbology_functions import (
-            _BRIDGE_GAP_HALF_WIDTH_RATIO,
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        wkt = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 0), QgsPointXY(100, 0), QgsPointXY(140, 60)]
+        ).asWkt()
+
+        result = QgsExpression(
+            "mct_bridge_or_gap_geometry(geom_from_wkt('{}'))".format(wkt)
+        ).evaluate()
+
+        self.assertEqual(len(result.asPolyline()), 2)
+
+
+    def test_the_channel_is_a_fixed_millimetre_width(self):
+
+        # "keep the gap at a fixed unit rather than making it length of
+        # line dependent, as such it is a linear feature, so the width
+        # increasing with the length is not practical" - so the two
+        # lines are offset +/- half a channel in MILLIMETRES, and the
+        # geometry itself is length-independent.
+        from qgis.core import Qgis
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _BRIDGE_CHANNEL_MM,
+            _bridge_or_gap_symbol,
         )
 
-        self.assertAlmostEqual(_BRIDGE_GAP_HALF_WIDTH_RATIO, 0.18)
+        self.assertAlmostEqual(_BRIDGE_CHANNEL_MM, 4.56)
 
-        side_a, side_b = self._sides()
+        symbol = _bridge_or_gap_symbol()
 
-        channel = side_a[1].y() - side_b[1].y()
+        offsets = []
 
-        self.assertAlmostEqual(channel, 36)
+        for index in range(2):
 
+            line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
 
-    def test_the_two_sides_straddle_the_clicked_centreline(self):
+            self.assertEqual(line.offsetUnit(), Qgis.RenderUnit.Millimeters)
 
-        side_a, side_b = self._sides()
+            offsets.append(line.offset())
 
-        # PT1-PT2 is the CENTRELINE, not one edge - the first build
-        # read it as one side of a 4-point gap.
-        self.assertAlmostEqual((side_a[1].y() + side_b[1].y()) / 2.0, 0)
-        self.assertAlmostEqual((side_a[2].y() + side_b[2].y()) / 2.0, 0)
+        self.assertAlmostEqual(offsets[0], _BRIDGE_CHANNEL_MM / 2.0)
+        self.assertAlmostEqual(offsets[1], -_BRIDGE_CHANNEL_MM / 2.0)
 
-
-    def test_flares_bend_thirty_degrees_outward_at_both_ends(self):
-
-        side_a, _side_b = self._sides()
-
-        # Flare length is 100 * 0.15 = 15, at 30 degrees from the
-        # centreline direction, bending AWAY from it - so each flare
-        # rises 15*sin(30) = 7.5 further out in y, and runs
-        # 15*cos(30) past the straight run's own end in x.
-        run = 15 * math.cos(math.radians(30))
-
-        self.assertAlmostEqual(side_a[0].x(), -run)
-        self.assertAlmostEqual(side_a[0].y(), 18 + 7.5)
-
-        self.assertAlmostEqual(side_a[3].x(), 100 + run)
-        self.assertAlmostEqual(side_a[3].y(), 18 + 7.5)
+        # The two straddle the clicked centreline rather than sitting
+        # to one side of it.
+        self.assertAlmostEqual(offsets[0] + offsets[1], 0)
 
 
-    def test_both_sides_flare_away_from_each_other(self):
+    def test_the_channel_does_not_change_with_the_lines_length(self):
 
-        side_a, side_b = self._sides()
+        # The whole point of the correction: a short bridge and a long
+        # one get the same channel.
+        short = self._centreline((0, 0), (10, 0)).asPolyline()
+        long = self._centreline((0, 0), (1000, 0)).asPolyline()
 
-        # Side A sits above the centreline and flares further up; side
-        # B sits below and flares further down.
-        self.assertGreater(side_a[0].y(), side_a[1].y())
-        self.assertLess(side_b[0].y(), side_b[1].y())
+        # Both are bare centrelines - no width baked into the geometry
+        # at all, so length cannot influence it.
+        self.assertEqual(len(short), 2)
+        self.assertEqual(len(long), 2)
+
+
+    def test_each_end_carries_a_rotating_flare_marker(self):
+
+        from qgis.core import Qgis, QgsMarkerLineSymbolLayer
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _bridge_or_gap_symbol,
+        )
+
+        symbol = _bridge_or_gap_symbol()
+
+        # Two offset lines plus two end caps.
+        self.assertEqual(symbol.symbolLayerCount(), 4)
+
+        placements = []
+
+        for index in (2, 3):
+
+            marker_line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+
+            self.assertIsInstance(marker_line, QgsMarkerLineSymbolLayer)
+
+            # Must follow the centreline's own bearing, or the wings
+            # sit square to the screen instead of to the channel.
+            self.assertTrue(marker_line.rotateSymbols())
+
+            placements.append(marker_line.placements())
+
+        self.assertEqual(
+            set(placements),
+            {
+                Qgis.MarkerLinePlacement.FirstVertex,
+                Qgis.MarkerLinePlacement.LastVertex,
+            }
+        )
+
+
+    def test_the_flare_glyph_wings_start_on_the_parallel_lines(self):
+
+        # The wings have to meet the offset lines exactly, which only
+        # holds if one viewBox unit is one millimetre - i.e. if the
+        # marker's own size matches the viewBox width the SVG emits.
+        import base64
+        import re
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _BRIDGE_FLARE_MARKER_MM,
+            _BRIDGE_HALF_CHANNEL_MM,
+        )
+
+        svg = QgsExpression(
+            "mct_bridge_flare_svg('rgb(0,0,0)', {}, 3.0, 30, 0.4, true)".format(
+                _BRIDGE_HALF_CHANNEL_MM
+            )
+        ).evaluate()
+
+        self.assertTrue(svg.startswith("base64:"))
+
+        markup = base64.b64decode(svg[len("base64:"):]).decode("utf-8")
+
+        view_box = re.search(r'viewBox="([-\d. ]+)"', markup).group(1).split()
+
+        self.assertAlmostEqual(
+            float(view_box[2]), _BRIDGE_FLARE_MARKER_MM, places=4
+        )
+
+        # Each wing starts at x=0, on its own parallel line.
+        starts = sorted(
+            float(m) for m in re.findall(r"M 0,(-?[\d.]+)", markup)
+        )
+
+        self.assertAlmostEqual(starts[0], -_BRIDGE_HALF_CHANNEL_MM, places=4)
+        self.assertAlmostEqual(starts[1], _BRIDGE_HALF_CHANNEL_MM, places=4)
+
+
+    def test_the_two_end_caps_are_mirror_images(self):
+
+        # QGIS rotates a marker to the LINE's direction at both ends
+        # rather than reversing it at the start, so the first-vertex
+        # glyph has to be mirrored itself or both caps splay the same
+        # way.
+        import base64
+        import re
+
+        def wing_run(at_end):
+
+            svg = QgsExpression(
+                "mct_bridge_flare_svg('rgb(0,0,0)', 2.28, 3.0, 30, 0.4, {})"
+                .format("true" if at_end else "false")
+            ).evaluate()
+
+            markup = base64.b64decode(svg[len("base64:"):]).decode("utf-8")
+
+            return float(re.search(r"L (-?[\d.]+),", markup).group(1))
+
+        self.assertGreater(wing_run(True), 0)
+        self.assertLess(wing_run(False), 0)
+        self.assertAlmostEqual(wing_run(True), -wing_run(False))
 
 
     def test_a_unique_designation_is_required_but_not_mandatory(self):
@@ -4824,15 +4929,19 @@ class TestBridgeOrGap(QgisTestCase):
 
         symbol = _bridge_or_gap_symbol()
 
-        self.assertEqual(symbol.symbolLayerCount(), 1)
+        # Both offset lines follow status; the two end caps are markers
+        # and have no stroke style of their own.
+        for index in (0, 1):
 
-        inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
+            with self.subTest(symbol_layer=index):
 
-        self.assertTrue(
-            inner_line.dataDefinedProperties().isActive(
-                QgsSymbolLayer.Property.StrokeStyle
-            )
-        )
+                inner_line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+
+                self.assertTrue(
+                    inner_line.dataDefinedProperties().isActive(
+                        QgsSymbolLayer.Property.StrokeStyle
+                    )
+                )
 
 
 class TestRoadblockFamily(QgisTestCase):
