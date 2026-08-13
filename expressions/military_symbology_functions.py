@@ -2293,11 +2293,24 @@ def mct_rampart_svg(values, feature=None, parent=None):
     One tile of Fortified Line's own crenellated rampart (290900), as
     an inline "base64:<...>" SVG for a marker tiled along the line.
 
-    The tile is a single square wave - one merlon and the gap after it
-    - drawn so consecutive tiles butt together into a continuous
-    profile: it rises at x=0, runs along the merlon top, drops back to
-    the baseline, and runs level to x=100, where the next tile's own
-    rise continues it.
+    The tile is a single square wave - one merlon with half a gap on
+    either side of it - drawn so consecutive tiles butt together into a
+    continuous profile: it runs level from x=0 to x=25, rises, runs
+    along the merlon top to x=75, drops back to the baseline and runs
+    level to x=100, where the next tile's own level run continues it.
+
+    **The gap is split across the tile's two ends deliberately, not
+    just tucked after the merlon.** The merlon is 50 wide with 50 of
+    gap between merlons either way, so the rhythm is identical; what
+    changes is the phase. With the whole gap trailing, the very first
+    tile opened with a merlon rising straight out of PT1, and Table
+    H-XX's own template does not - it starts with a short level run,
+    exactly as it ends with one at PT2, and that run is what tells the
+    reader which side the ramparts stand on. The maintainer's own
+    words: "at pt1 it is directly starting with the open square, it
+    should start with a small line segment like it ends at pt2. that
+    line segment actually determines which way the ramparts are
+    pointing."
 
     The profile IS the line here, exactly as Table H-XIX's antitank
     wall and Obstacle Line are, so nothing draws a straight line
@@ -2313,7 +2326,7 @@ def mct_rampart_svg(values, feature=None, parent=None):
     # merlon stands a little under half the tile's own width. The
     # standard numbers none of this; see field_fortification.py's own
     # module docstring.
-    path = "M 0,50 L 0,12 L 50,12 L 50,50 L 100,50"
+    path = "M 0,50 L 25,50 L 25,12 L 75,12 L 75,50 L 100,50"
 
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg"'
@@ -2322,91 +2335,6 @@ def mct_rampart_svg(values, feature=None, parent=None):
         ' stroke-width="{stroke}" stroke-linecap="butt"'
         ' stroke-linejoin="miter"/></svg>'
     ).format(path=path, colour=colour, stroke=stroke)
-
-    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
-
-    return "base64:" + encoded
-
-
-@qgsfunction(
-    'mct_fortified_position_front',
-    group='Military Cartography Tools'
-)
-def mct_fortified_position_front(values, feature=None, parent=None):
-
-    """
-    Fortified Position's own front bar (291000) - PT1 to PT2, the two
-    front corners, and nothing else.
-
-    The legs that trail back from each corner are NOT here: the
-    standard says this symbol "varies only in length", so their depth
-    is fixed in MILLIMETRES and a geometry generator works in layer
-    units. They are drawn as a marker glyph instead - see
-    mct_fortified_position_leg_svg.
-
-    Trimmed to the first two clicked points, so a stray third vertex
-    cannot bend the front bar.
-    """
-
-    if len(values) < 1:
-        return "Need a geometry (e.g. $geometry)"
-
-    geometry = values[0]
-
-    if geometry is None or geometry.isEmpty():
-        return geometry
-
-    vertices = geometry.asPolyline()
-
-    if len(vertices) < 2:
-        return geometry
-
-    pt1, pt2 = QgsPointXY(vertices[0]), QgsPointXY(vertices[1])
-
-    if pt1 == pt2:
-        return geometry
-
-    return QgsGeometry.fromPolylineXY([pt1, pt2])
-
-
-@qgsfunction(
-    'mct_fortified_position_leg_svg',
-    group='Military Cartography Tools'
-)
-def mct_fortified_position_leg_svg(values, feature=None, parent=None):
-
-    """
-    One of Fortified Position's own two legs, as an inline
-    "base64:<...>" SVG for a marker on each front corner.
-
-    The leg runs from the corner itself (the glyph's own origin) to
-    `depth_mm` away in POSITIVE y, which a marker rotated to the line's
-    own bearing puts on the RIGHT of PT1->PT2 travel - leaving the
-    closed front facing left, as the template draws it.
-
-    The viewBox is square and symmetric about the origin so the glyph
-    centres on its corner with no offset; QGIS sizes an SVG marker by
-    its WIDTH, so the caller sets the marker to 2*depth and one viewBox
-    unit is one millimetre.
-    """
-
-    colour = str(values[0]) if values and values[0] else "rgb(0,0,0)"
-    depth = float(values[1]) if len(values) > 1 and values[1] else 4.0
-    stroke = float(values[2]) if len(values) > 2 and values[2] else 0.4
-
-    if depth <= 0:
-        return ""
-
-    svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg"'
-        ' viewBox="{minx:.4f} {minx:.4f} {size:.4f} {size:.4f}"'
-        ' width="{size:.4f}" height="{size:.4f}">'
-        '<path d="M 0,0 L 0,{depth:.4f}" fill="none" stroke="{colour}"'
-        ' stroke-width="{stroke:.4f}" stroke-linecap="butt"/></svg>'
-    ).format(
-        minx=-depth, size=2 * depth, depth=depth,
-        colour=colour, stroke=stroke,
-    )
 
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
@@ -4370,8 +4298,6 @@ _FUNCTIONS = [
     mct_bridge_flare_svg,
     mct_ford_zigzag_svg,
     mct_rampart_svg,
-    mct_fortified_position_front,
-    mct_fortified_position_leg_svg,
     mct_overhead_wire_tower_svg,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,

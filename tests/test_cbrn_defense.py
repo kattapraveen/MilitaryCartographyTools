@@ -13,6 +13,7 @@ from .qgis_test_case import FakeIface, QgisTestCase
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     POINTS_LAYER_NAME,
+    POINT_MARKER_SIZE_SCALES,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
     SHARED_GLYPH_CODES,
@@ -20,9 +21,20 @@ from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     add_cbrn_defense_points_layer,
     create_cbrn_defense_points_layer,
 )
-from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
+from MilitaryCartographyTools.military_symbology.sidc import (
+    ENTITIES,
+    build_sidc,
+)
+from MilitaryCartographyTools.military_symbology.symbol_engine import (
+    render_symbol_svg,
+)
 
-from qgis.core import QgsCoordinateReferenceSystem, QgsExpression, QgsProject
+import base64
+import re
+
+from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
+                       QgsExpressionContext, QgsExpressionContextScope,
+                       QgsFeature, QgsProject, QgsSymbolLayer)
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
@@ -234,3 +246,164 @@ class TestCbrnLayerInsertion(QgisTestCase):
         self.assertEqual(matching[0].id(), first.id())
 
         self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+class TestCbrnSmokeTestFixes(QgisTestCase):
+
+    """Table H-XXI's own two 2026-08-13 smoke-test findings."""
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _svg_layer(self, layer):
+
+        return layer.renderer().symbol().symbolLayer(0)
+
+
+    def test_the_eight_events_are_drawn_thirty_percent_larger(self):
+
+        # "all points are too small to be readable, can we increase the
+        # size by 30%? - 281300/301/400/401/500/600/700/701" - the eight
+        # events, whose milsymbol boxes are wide and low (158x118) where
+        # the decontamination points' are narrow and tall (88x168).
+        layer = create_cbrn_defense_points_layer()
+
+        expression = self._svg_layer(layer).dataDefinedProperties().property(
+            QgsSymbolLayer.Property.Size
+        ).expressionString()
+
+        self.assertTrue(expression)
+
+        for entity in POINT_ENTITY_LABELS:
+
+            context = QgsExpressionContext()
+
+            scope = QgsExpressionContextScope()
+            scope.setVariable("entity", entity)
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("entity", entity)
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("status", "present")
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            size = QgsExpression(expression).evaluate(context)
+
+            if POINT_ENTITY_CODES[entity].startswith("2818"):
+
+                # Decontamination points are untouched.
+                self.assertAlmostEqual(size, 8.0, places=4, msg=entity)
+
+            else:
+
+                self.assertAlmostEqual(size, 8.0 * 1.30, places=4, msg=entity)
+
+
+    def test_only_the_eight_event_codes_are_scaled(self):
+
+        self.assertEqual(
+            {POINT_ENTITY_CODES[e] for e in POINT_MARKER_SIZE_SCALES},
+            {
+                "281300", "281301", "281400", "281401",
+                "281500", "281600", "281700", "281701",
+            }
+        )
+
+
+    def test_the_unique_designation_reaches_the_symbol(self):
+
+        # The field was on the layer and collected in the attribute
+        # table, but the shared point-layer builder never passed it into
+        # mct_sidc_svg - so nothing drew it. Same defect class the
+        # maintainer found on three other Points layers on 2026-08-10.
+        layer = create_cbrn_defense_points_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("entity", "decontamination_point_operational")
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("status", "present")
+        feature.setAttribute("unique_designation", "v2")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        path, ok = self._svg_layer(layer).dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name, context, ""
+        )
+
+        self.assertTrue(ok)
+
+        svg = base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+        # Upper-cased per H.5.4, and to the RIGHT of the box, which is
+        # where the template puts Field T - milsymbol's own
+        # uniqueDesignation1 slot would have put it inside the box,
+        # which is the template's T1.
+        self.assertIn(">V2</text>", svg)
+
+        placed = re.search(r'<text x="([\d.]+)"[^>]*>V2</text>', svg)
+
+        self.assertGreater(float(placed.group(1)), 140.0)
+
+
+    def test_an_empty_designation_leaves_the_icon_alone(self):
+
+        layer = create_cbrn_defense_points_layer()
+
+        svgs = []
+
+        for designation in (None, ""):
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("entity", "decontamination_point")
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("status", "present")
+            feature.setAttribute("unique_designation", designation)
+
+            context = layer.createExpressionContext()
+            context.setFeature(feature)
+
+            path, ok = self._svg_layer(
+                layer
+            ).dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Name, context, ""
+            )
+
+            self.assertTrue(ok)
+
+            svgs.append(
+                base64.b64decode(path[len("base64:"):]).decode("utf-8")
+            )
+
+        self.assertEqual(svgs[0], svgs[1])
+
+        # ...and both are exactly what the icon renders with no
+        # designation asked for at all. ("<text" alone would not do:
+        # the icon's own "DCN" is text too.)
+        self.assertEqual(
+            svgs[0],
+            render_symbol_svg(
+                build_sidc(
+                    "friend",
+                    "decontamination_point",
+                    symbol_set="control_measure",
+                    echelon="unspecified",
+                    status="present",
+                )
+            )
+        )

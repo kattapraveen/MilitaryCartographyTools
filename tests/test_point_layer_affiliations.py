@@ -60,8 +60,10 @@ from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
 from MilitaryCartographyTools.military_symbology import (
     airspace_control_measures,
     c2_measures,
+    cbrn_defense,
     control_measure_points,
     defensive_control_measures,
+    field_fortification,
     maritime_control_measures,
     obstacle_control_measures,
     offensive_control_measures,
@@ -92,12 +94,20 @@ _POINT_LAYER_FACTORIES = (
         c2_measures.create_c2_measures_points_layer,
     ),
     (
+        "cbrn",
+        cbrn_defense.create_cbrn_defense_points_layer,
+    ),
+    (
         "control_measure_points",
         control_measure_points.create_control_measure_points_layer,
     ),
     (
         "defensive",
         defensive_control_measures.create_defensive_control_measures_points_layer,
+    ),
+    (
+        "field_fortification",
+        field_fortification.create_field_fortification_points_layer,
     ),
     (
         "maritime",
@@ -240,6 +250,62 @@ class TestEveryPointLayerBuildsValidSidcs(QgisTestCase):
                 self.assertIn(default, AFFILIATIONS)
 
 
+    def test_every_layers_default_entity_is_one_it_actually_offers(self):
+
+        # The gap this sweep had: it checked that every default RENDERS,
+        # which 'shelter' still did long after H17 moved Shelter off the
+        # shared Control Measure Points layer into its own - because
+        # 'shelter' is still perfectly real vocabulary in sidc.py. What
+        # broke was narrower and invisible here: the default was no
+        # longer in that layer's own dropdown, so a freshly digitized
+        # point landed on an entity the form could not display.
+        for name, factory in _POINT_LAYER_FACTORIES:
+
+            with self.subTest(layer=name):
+
+                layer = factory()
+
+                fields = layer.fields()
+
+                index = fields.indexOf("entity")
+
+                if index < 0:
+                    continue
+
+                default = self._default_attributes(layer).get("entity")
+
+                setup = layer.editorWidgetSetup(index)
+
+                config = setup.config()
+
+                if setup.type() == "ValueMap":
+
+                    offered = set(config.get("map", {}).values())
+
+                elif setup.type() == "ValueRelation":
+
+                    lookup = QgsProject.instance().mapLayer(
+                        config.get("Layer")
+                    )
+
+                    self.assertIsNotNone(lookup, name)
+
+                    key = config.get("Key")
+
+                    offered = {
+                        feature[key] for feature in lookup.getFeatures()
+                    }
+
+                else:
+
+                    self.fail(
+                        f"{name}: unexpected entity widget "
+                        f"{setup.type()!r}"
+                    )
+
+                self.assertIn(default, offered, name)
+
+
     def test_no_layer_offers_an_affiliation_build_sidc_rejects(self):
 
         for name, factory in _POINT_LAYER_FACTORIES:
@@ -287,18 +353,18 @@ class TestEveryPointLayerBuildsValidSidcs(QgisTestCase):
                 self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
 
 
-    def test_abatis_is_the_one_known_unrenderable_dropdown_entry(self):
+    def test_abatis_is_not_offered_as_a_point_anywhere(self):
 
         # Abatis (280100) is a LINE, so milsymbol has no point icon for
-        # it and it renders as the unknown-icon fallback on the shared
-        # Control Measure Points layer, whatever the affiliation. It is
-        # deliberately left in that dropdown so it does not vanish
-        # between batches (see control_measure_points._ENTITY_LABELS),
-        # and batch B4 removes it when it builds the line version.
+        # it and it renders as the unknown-icon fallback whatever the
+        # affiliation. It sat in this layer's own dropdown as a stopgap
+        # so it would not vanish between batches; B4 then built the
+        # line version and removed it, and this asserts it stayed
+        # removed rather than drifting back in.
         #
-        # Asserted rather than merely skipped, so this exemption cannot
-        # outlive its reason: when B4 removes the entry, this test fails
-        # and forces the exemption to be deleted with it.
+        # Both halves matter. The first pins WHY it may not be offered
+        # - drop the second and the test would still pass if abatis
+        # quietly reappeared.
         layer = control_measure_points.create_control_measure_points_layer()
 
         feature = QgsFeature(layer.fields())
@@ -313,12 +379,15 @@ class TestEveryPointLayerBuildsValidSidcs(QgisTestCase):
             self._rendered_icon_svg(layer, feature)
         )
 
-        # ...and it must NOT be what a new point defaults to.
-        self.assertNotEqual(
-            self._default_attributes(layer).get("entity"),
-            "abatis"
-        )
+        for name, factory in _POINT_LAYER_FACTORIES:
 
+            with self.subTest(layer=name):
+
+                offered = factory().editorWidgetSetup(
+                    factory().fields().indexOf("entity")
+                ).config().get("map", {})
+
+                self.assertNotIn("abatis", set(offered.values()), name)
 
     def test_every_offered_affiliation_renders_a_real_icon(self):
 

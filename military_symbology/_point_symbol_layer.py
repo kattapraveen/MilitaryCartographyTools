@@ -296,6 +296,7 @@ def _build_renderer(
     sector1_labels=None,
     sector2_labels=None,
     dimension_symbol_sets=None,
+    entity_marker_size_scales=None,
 ):
 
     """
@@ -325,12 +326,35 @@ def _build_renderer(
     sector1_expr = '"sector1_modifier"' if sector1_labels else "''"
     sector2_expr = '"sector2_modifier"' if sector2_labels else "''"
 
+    # The layer's own "unique_designation" (Field T) goes through
+    # mct_sidc_svg's SEPARATE text channel, not through the SIDC - the
+    # SIDC string encodes structured attributes only and has no room
+    # for free text.
+    #
+    # **This was missing until 2026-08-13**, so every layer built
+    # through this helper collected a designation in its attribute
+    # table and then drew nothing with it. That is the exact defect
+    # the maintainer found on 2026-08-10 in c2_measures.py,
+    # defensive_control_measures.py and control_measure_points.py -
+    # each of which carries its own SIDC expression and was fixed
+    # there - and this shared builder simply never got the same
+    # treatment. Found again on Table H-XXI's own decontamination
+    # points, whose Field T the standard puts to the right of the box.
+    #
+    # upper(...) per H.5.4's own all-caps rule; coalesce(..., '')
+    # because QGIS short-circuits the whole call to NULL on any NULL
+    # argument, which would blank the icon rather than just its text.
+    # An empty string is treated as "no designation" inside
+    # mct_sidc_svg, so an untouched field costs nothing.
     expression = (
         'mct_sidc_svg(mct_build_sidc('
         f'"affiliation","entity",{symbol_set_expr},'
         f'{echelon_expr},"status",{headquarters_expr},'
         f'{sector1_expr},{sector2_expr}'
-        '))'
+        '),'
+        'upper(coalesce("unique_designation", \'\')),'
+        "'uniqueDesignation'"
+        ')'
     )
 
     symbol = QgsMarkerSymbol()
@@ -338,6 +362,26 @@ def _build_renderer(
     svg_layer = QgsSvgMarkerSymbolLayer("")
 
     svg_layer.setSize(marker_size_mm)
+
+    # Some icons are drawn at a visibly different scale from their own
+    # siblings because milsymbol's declared bounding box for them is a
+    # different shape - QGIS sizes an SVG marker by its WIDTH, so a
+    # wide-and-short icon comes out small next to a narrow-and-tall
+    # one. Where that is worth correcting, the caller passes a per-
+    # entity multiplier; see cbrn_defense.py, the first to need it.
+    if entity_marker_size_scales:
+
+        clauses = " ".join(
+            f"WHEN \"entity\" = '{entity}' THEN {marker_size_mm * scale:g}"
+            for entity, scale in entity_marker_size_scales.items()
+        )
+
+        svg_layer.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Size,
+            QgsProperty.fromExpression(
+                f"CASE {clauses} ELSE {marker_size_mm:g} END"
+            )
+        )
 
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
@@ -363,6 +407,7 @@ def build_single_domain_point_layer(
     dimension_labels=None,
     dimension_symbol_sets=None,
     default_dimension=None,
+    entity_marker_size_scales=None,
 ):
 
     """
@@ -476,6 +521,7 @@ def build_single_domain_point_layer(
             sector1_labels,
             sector2_labels,
             dimension_symbol_sets,
+            entity_marker_size_scales,
         )
     )
 
@@ -509,6 +555,7 @@ def add_single_domain_point_layer(
     dimension_labels=None,
     dimension_symbol_sets=None,
     default_dimension=None,
+    entity_marker_size_scales=None,
 ):
 
     """
@@ -547,6 +594,7 @@ def add_single_domain_point_layer(
         dimension_labels,
         dimension_symbol_sets,
         default_dimension,
+        entity_marker_size_scales,
     )
 
     return add_layer_at_default_position(

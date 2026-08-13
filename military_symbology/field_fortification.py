@@ -34,23 +34,31 @@ say their symbol "varies only in length", which is the standard's own
 way of saying the CROSS-SECTION is fixed - the same principle the
 maintainer applied to Table H-XIX's Bridge or Gap ("as such it is a
 linear feature, so the width increasing with the length is not
-practical"). So both cross-sections are fixed MILLIMETRES here, and
-neither is built as generated geometry: a geometry generator works in
-layer units and cannot see page units.
+practical").
 
-What it does NOT number, and so is this build's own call - flagged for
-the maintainer's smoke test rather than presented as read off the page:
+Fortified Line takes that literally: its rampart profile is a fixed
+millimetre tile, not generated geometry, because a geometry generator
+works in layer units and cannot see page units.
+
+**Fortified Position does not, after the 2026-08-13 smoke test.** It
+was built the same way first - a front bar plus two legs held at a
+fixed millimetre depth by a rotated SVG marker - and on a real map the
+legs did not draw at all. Rather than chase that, the maintainer
+called for the construction Table H-XIX's Obstacle Bypass Easy already
+uses and this codebase already trusts: three anchor points, PT3's own
+perpendicular distance setting the depth, plain ends instead of
+arrowheads. See _fortified_position_symbol() for what that trades
+away.
+
+What the standard does NOT number, and so is this build's own call:
 
 1. The rampart tile's own size (_RAMPART_TILE_MM and the merlon
    proportions inside the glyph).
-2. Fortified Position's own depth (_FORTIFIED_POSITION_DEPTH_MM).
-3. **Which side the front faces.** Both entries carry only a "typically
-   points/faces toward enemy forces" note, which two anchor points
-   cannot express. Both templates draw the front on the LEFT of PT1->
-   PT2 travel - ramparts rising to the left, Fortified Position's legs
-   trailing to the right so its closed side faces left - so that is the
-   convention used, consistently, for both. A third anchor point would
-   be the alternative, and the standard does not ask for one.
+2. **Which side Fortified Line's ramparts stand on.** It carries only
+   a "typically points toward enemy forces" note, which two anchor
+   points cannot express; the template draws them on the LEFT of
+   PT1->PT2 travel, so that is the convention here. Fortified Position
+   no longer needs a convention at all - PT3 says which side.
 """
 
 from qgis.core import (
@@ -84,7 +92,7 @@ from ._control_measure_shared import (
 
 from ._point_symbol_layer import build_single_domain_point_layer
 
-from qgis.core import QgsEditorWidgetSetup, QgsField
+from qgis.core import QgsDefaultValue, QgsEditorWidgetSetup, QgsField
 
 
 POINTS_LAYER_NAME = "Field Fortification Points"
@@ -151,11 +159,6 @@ _RAMPART_TILE_MM = 3.0
 # in Table H-XIX (see _WIRE_TILE_OVERLAP_MM there).
 _RAMPART_TILE_OVERLAP_MM = 0.12
 
-# How far Fortified Position's legs trail back from its front bar.
-# Fixed, because the standard says the symbol "varies only in length".
-_FORTIFIED_POSITION_DEPTH_MM = 4.0
-
-
 def _fortified_line_symbol():
 
     """
@@ -216,93 +219,67 @@ def _fortified_line_symbol():
 def _fortified_position_symbol():
 
     """
-    Fortified Position (291000) - PT1 and PT2 are the two front
-    corners, and a leg trails back from each. The standard says the
-    symbol "varies only in length", so the legs are a fixed
-    millimetre depth rather than any fraction of the front bar, and
-    they are therefore drawn as a marker glyph rather than as geometry
-    (a geometry generator cannot see page units).
+    Fortified Position (291000) - a plain bracket: a bar with a leg
+    running out from each of its ends.
 
-    The legs trail to the RIGHT of PT1->PT2 travel, putting the closed
-    front on the left - see the module docstring.
+    **Built on Table H-XIX's own Obstacle Bypass Easy frame, at the
+    maintainer's request** ("make the construction same as obstacle
+    bypass easy, except the lines dont start/end with arrowhead but
+    are plain, the user can figure out how to make it correctly").
+    Three anchor points: PT1 and PT2 are the open ends of the two
+    legs, and PT3's own perpendicular distance from the PT1-PT2 line
+    places the bar and therefore sets the leg depth.
+
+    That does swap the standard's own anchor roles - it calls PT1 and
+    PT2 the front corners, i.e. the ends of the BAR. The picture that
+    comes out is the same bracket either way, only which point the
+    user clicks first changes, and the maintainer took that trade
+    knowingly: it buys a construction that is already proven in this
+    codebase and it hands the leg depth to the user, where the
+    previous attempt tried to hold it at a fixed millimetre depth
+    through a rotated SVG marker and did not draw the legs at all on
+    a real map.
+
+    Plain ends. Obstacle Bypass's own arrowhead chevrons are the one
+    part deliberately not reused.
     """
 
     symbol = QgsLineSymbol()
 
-    front = QgsSimpleLineSymbolLayer()
+    for index, geometry_expression in enumerate((
+        "mct_obstacle_bypass_rear_easy($geometry)",
+        "mct_obstacle_bypass_arrows($geometry)",
+    )):
 
-    front.setWidth(_LINE_WIDTH_MM)
+        line = QgsSimpleLineSymbolLayer()
 
-    _apply_affiliation_color(
-        front, [QgsSymbolLayer.Property.StrokeColor]
-    )
+        line.setWidth(_LINE_WIDTH_MM)
 
-    front.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-    )
-
-    front_generator = QgsGeometryGeneratorSymbolLayer.create({})
-
-    front_generator.setSymbolType(QgsSymbol.SymbolType.Line)
-
-    front_generator.setGeometryExpression(
-        "mct_fortified_position_front($geometry)"
-    )
-
-    front_inner = QgsLineSymbol()
-
-    front_inner.changeSymbolLayer(0, front)
-
-    front_generator.setSubSymbol(front_inner)
-
-    symbol.changeSymbolLayer(0, front_generator)
-
-    leg_marker = QgsMarkerSymbol()
-
-    leg = QgsSvgMarkerSymbolLayer("")
-
-    leg.setSize(2.0 * _FORTIFIED_POSITION_DEPTH_MM)
-
-    leg.setDataDefinedProperty(
-        QgsSymbolLayer.Property.Name,
-        QgsProperty.fromExpression(
-            "mct_fortified_position_leg_svg({colour}, {depth}, {stroke})"
-            .format(
-                colour=_RAMPART_GLYPH_COLOR_EXPRESSION,
-                depth=_FORTIFIED_POSITION_DEPTH_MM,
-                stroke=_LINE_WIDTH_MM,
-            )
+        _apply_affiliation_color(
+            line, [QgsSymbolLayer.Property.StrokeColor]
         )
-    )
 
-    leg_marker.changeSymbolLayer(0, leg)
+        line.setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeStyle,
+            QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+        )
 
-    leg_line = QgsMarkerLineSymbolLayer(True)
+        inner = QgsLineSymbol()
 
-    leg_line.setSubSymbol(leg_marker)
+        inner.changeSymbolLayer(0, line)
 
-    # The front geometry is trimmed to exactly two points, so "every
-    # vertex" is precisely the two front corners.
-    leg_line.setPlacements(Qgis.MarkerLinePlacement.Vertex)
+        generator = QgsGeometryGeneratorSymbolLayer.create({})
 
-    leg_line.setRotateSymbols(True)
+        generator.setSymbolType(QgsSymbol.SymbolType.Line)
 
-    leg_inner = QgsLineSymbol()
+        generator.setGeometryExpression(geometry_expression)
 
-    leg_inner.changeSymbolLayer(0, leg_line)
+        generator.setSubSymbol(inner)
 
-    leg_generator = QgsGeometryGeneratorSymbolLayer.create({})
-
-    leg_generator.setSymbolType(QgsSymbol.SymbolType.Line)
-
-    leg_generator.setGeometryExpression(
-        "mct_fortified_position_front($geometry)"
-    )
-
-    leg_generator.setSubSymbol(leg_inner)
-
-    symbol.appendSymbolLayer(leg_generator)
+        if index == 0:
+            symbol.changeSymbolLayer(0, generator)
+        else:
+            symbol.appendSymbolLayer(generator)
 
     return symbol
 
@@ -368,6 +345,16 @@ def create_field_fortification_lines_layer(name=LINES_LAYER_NAME):
         QgsEditorWidgetSetup(
             "ValueMap", {"map": _value_map(LINE_MEASURE_TYPE_LABELS)}
         )
+    )
+
+    # Without this a new feature's measure_type starts NULL and QGIS
+    # adds its own null entry to the top of the dropdown - the "extra
+    # null option unlike any other menu" the maintainer spotted. Every
+    # other lines/areas layer in this appendix sets a default; this one
+    # was simply missed.
+    layer.setDefaultValueDefinition(
+        fields.indexOf("measure_type"),
+        QgsDefaultValue("'fortified_line'")
     )
 
     _configure_affiliation_field(layer)

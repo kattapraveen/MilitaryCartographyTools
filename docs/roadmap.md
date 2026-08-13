@@ -7425,6 +7425,79 @@ tested, not claimed as done here.
 
   1041 tests passing on both QGIS versions.
 
+- **H-XX and H-XXI smoke-tested; five defects fixed, two of them in the
+  shared point-layer builder** (2026-08-13, same day).
+
+  **Fortified Line started at PT1 with a merlon.** The rampart tile put
+  its whole gap AFTER the merlon, so the very first tile rose straight
+  out of PT1 while the last one trailed a level run into PT2 - and
+  Table H-XX's own template starts with that level run too. It is not
+  decoration: "that line segment actually determines which way the
+  ramparts are pointing." The gap is now split across the tile's two
+  ends (`M 0,50 L 25,50 L 25,12 L 75,12 L 75,50 L 100,50`), so the
+  merlon is still 50 wide with 50 of gap between merlons - the same
+  rhythm already signed off, moved by a quarter tile in phase.
+
+  **Fortified Position's legs did not draw at all** on a real map,
+  though they rendered fine in the offscreen harness - the front bar
+  plus two legs held at a fixed millimetre depth by a rotated SVG
+  marker. Rather than chase it, the maintainer called for the
+  construction Table H-XIX's Obstacle Bypass Easy already uses and this
+  codebase already trusts: three anchor points, PT3's own perpendicular
+  distance setting the depth, plain ends where Bypass draws arrowheads.
+  That swaps the standard's own anchor roles - it calls PT1/PT2 the
+  front corners, i.e. the ends of the bar - and the maintainer took
+  that knowingly ("the user can figure out how to make it correctly").
+  The bracket that comes out is the same either way; only which point
+  is clicked first changes. `mct_fortified_position_front` and
+  `mct_fortified_position_leg_svg` are gone with the old construction.
+
+  **The Lines layer offered a null measure_type** no other menu in the
+  appendix shows, because it was the one lines/areas layer that never
+  set a default value on that field, so a new feature started NULL and
+  QGIS added its own null entry.
+
+  **Table H-XXI's events render at barely half their siblings' scale**
+  - milsymbol's box for each event is a wide, low 158x118 where each
+  decontamination point is a narrow, tall 88x168, and QGIS sizes an SVG
+  marker by its WIDTH. Scaled up 30%, the maintainer's own number;
+  matching the decon points' drawn scale exactly would be about 80%, so
+  this is a legibility call rather than a normalisation and is theirs
+  to revisit. Needed a new opt-in `entity_marker_size_scales` on the
+  shared point-layer builder, which had only ever had one size per
+  layer.
+
+  **Field T never reached the symbol on ANY layer built through the
+  shared builder.** Its renderer called `mct_sidc_svg(mct_build_sidc(
+  ...))` with no text argument, so `unique_designation` was collected
+  in the attribute table and drawn nowhere - the exact defect the
+  maintainer found on 2026-08-10 in `c2_measures.py`,
+  `defensive_control_measures.py` and `control_measure_points.py`, each
+  of which carries its OWN SIDC expression and was fixed there while
+  this shared one was missed. Fixed at the root, so every appendix
+  layer gains it. milsymbol's `uniqueDesignation` is the right slot
+  here, probed rather than assumed: it places the text to the RIGHT of
+  the box, where Table H-XXI's template puts T, while
+  `uniqueDesignation1` places it INSIDE, which is the template's own
+  T1. One icon, Biological - Toxic Industrial Material (281401),
+  defines no designation slot at all despite the table drawing a T on
+  it; passing one is a harmless no-op.
+
+  **Found while fixing the above, not reported**: the shared Control
+  Measure Points layer still defaulted its entity to `'shelter'` after
+  H17 moved Shelter out to `field_fortification.py`, so a freshly
+  digitized point landed on an entity its own dropdown no longer
+  offered. `tests/test_point_layer_affiliations.py` exists precisely to
+  sweep that class of bug and missed this one twice over: it checked
+  only that each default RENDERS, and `'shelter'` is still perfectly
+  real vocabulary in `sidc.py`; and its layer list had never been
+  extended to the H-XX and H-XXI Points layers at all. Both gaps
+  closed - the sweep now asserts every default is an option that layer
+  actually offers, and covers all ten Points layers. Verified by
+  reintroducing the bug and watching the new test fail on it.
+
+  1049 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

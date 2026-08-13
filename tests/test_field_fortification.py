@@ -29,7 +29,8 @@ from MilitaryCartographyTools.military_symbology.field_fortification import (
 from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
 from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
-                       QgsProject, QgsSymbolLayer)
+                       QgsProject, QgsSimpleLineSymbolLayer,
+                       QgsSymbolLayer)
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
@@ -282,87 +283,6 @@ class TestFieldFortificationLines(QgisTestCase):
         self.assertTrue(marker_line.rotateSymbols())
 
 
-    def test_fortified_position_front_is_just_the_two_clicked_points(self):
-
-        from qgis.core import QgsGeometry, QgsPointXY
-
-        wkt = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(0, 0), QgsPointXY(100, 0), QgsPointXY(150, 60)]
-        ).asWkt()
-
-        result = QgsExpression(
-            "mct_fortified_position_front(geom_from_wkt('{}'))".format(wkt)
-        ).evaluate()
-
-        points = result.asPolyline()
-
-        # Trimmed, so a stray third click cannot bend the front bar.
-        self.assertEqual(len(points), 2)
-        self.assertAlmostEqual(points[1].x(), 100)
-        self.assertAlmostEqual(points[1].y(), 0)
-
-
-    def test_fortified_position_legs_are_a_fixed_millimetre_depth(self):
-
-        # "Points 1 and 2 determine the length of the symbol, which
-        # varies only in length" - so the depth is fixed, and therefore
-        # cannot be generated geometry (layer units) at all.
-        from qgis.core import Qgis, QgsMarkerLineSymbolLayer
-
-        from MilitaryCartographyTools.military_symbology.field_fortification import (
-            _FORTIFIED_POSITION_DEPTH_MM,
-            _fortified_position_symbol,
-        )
-
-        symbol = _fortified_position_symbol()
-
-        self.assertEqual(symbol.symbolLayerCount(), 2)
-
-        leg_generator = symbol.symbolLayer(1)
-
-        inner = leg_generator.subSymbol()
-
-        marker_line = inner.symbolLayer(0)
-
-        self.assertIsInstance(marker_line, QgsMarkerLineSymbolLayer)
-
-        # The front is trimmed to two points, so "every vertex" is
-        # exactly the two front corners.
-        self.assertEqual(
-            marker_line.placements(), Qgis.MarkerLinePlacement.Vertex
-        )
-        self.assertTrue(marker_line.rotateSymbols())
-
-        marker = marker_line.subSymbol()
-
-        # QGIS sizes an SVG marker by its WIDTH, and the leg glyph's
-        # viewBox is 2*depth square - so the marker is 2*depth and one
-        # viewBox unit is one millimetre.
-        self.assertAlmostEqual(
-            marker.symbolLayer(0).size(), 2.0 * _FORTIFIED_POSITION_DEPTH_MM
-        )
-
-
-    def test_the_leg_glyph_runs_back_from_the_corner(self):
-
-        svg = QgsExpression(
-            "mct_fortified_position_leg_svg('rgb(0,0,0)', 4.0, 0.4)"
-        ).evaluate()
-
-        markup = base64.b64decode(svg[len("base64:"):]).decode("utf-8")
-
-        path = re.search(r'd="([^"]+)"', markup).group(1)
-
-        # Starts AT the corner (the glyph's own origin) and runs to
-        # +y, which a rotated marker puts on the RIGHT of travel -
-        # leaving the closed front facing left.
-        self.assertTrue(path.startswith("M 0,0"))
-
-        end_y = float(re.search(r"L 0,([\d.]+)", path).group(1))
-
-        self.assertAlmostEqual(end_y, 4.0)
-
-
     def test_both_lines_follow_present_planned_status(self):
 
         from MilitaryCartographyTools.military_symbology.field_fortification import (
@@ -453,3 +373,158 @@ class TestFieldFortificationLayerInsertion(QgisTestCase):
             self.assertEqual(matching[0].id(), first.id())
 
         self.assertEqual(len(self.iface.messageBar().calls), 2)
+
+
+class TestFieldFortificationSmokeTestFixes(QgisTestCase):
+
+    """
+    The three Table H-XX defects the maintainer's own 2026-08-13 smoke
+    test turned up.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_measure_type_has_a_default_so_no_null_option_appears(self):
+
+        # "in the lines menu, there is an additional null option unlike
+        # any other menu - in measure_type - why?" Because this layer
+        # was the one that never set a default, so a new feature's
+        # measure_type started NULL and QGIS put its own null entry at
+        # the top of the ValueMap.
+        layer = create_field_fortification_lines_layer()
+
+        default = layer.defaultValueDefinition(
+            layer.fields().indexOf("measure_type")
+        ).expression()
+
+        self.assertEqual(default, "'fortified_line'")
+
+        self.assertIn(
+            QgsExpression(default).evaluate(),
+            LINE_MEASURE_TYPE_LABELS
+        )
+
+
+    def test_the_rampart_tile_starts_and_ends_level(self):
+
+        # "at pt1 it is directly starting with the open square, it
+        # should start with a small line segment like it ends at pt2."
+        # The tile used to open with the merlon's own rise at x=0.
+        svg = self._rampart_svg()
+
+        path = re.search(r'\bd="([^"]*)"', svg).group(1)
+
+        commands = path.replace(",", " ").split()
+
+        # "M 0,50 L 25,50 ..." - a level run out of the origin.
+        self.assertEqual(commands[:6], ["M", "0", "50", "L", "25", "50"])
+
+        # ...and the same level run into the tile's own right edge, so
+        # the LAST tile leaves one at PT2 too.
+        self.assertEqual(commands[-6:], ["L", "75", "50", "L", "100", "50"])
+
+
+    def test_the_ramparts_rhythm_is_unchanged_by_that_shift(self):
+
+        # Only the phase moved. A merlon 50 wide with 50 of gap either
+        # side of it is the same square wave the maintainer already
+        # signed off as "quite ok"; splitting the gap across the tile's
+        # two ends is what buys the lead-in.
+        path = re.search(r'\bd="([^"]*)"', self._rampart_svg()).group(1)
+
+        xs = [
+            float(pair.split(",")[0])
+            for pair in re.findall(r"[-\d.]+,[-\d.]+", path)
+        ]
+
+        self.assertEqual(xs, [0.0, 25.0, 25.0, 75.0, 75.0, 100.0])
+
+
+    def _rampart_svg(self):
+
+        path = QgsExpression(
+            "mct_rampart_svg('rgb(0,0,0)')"
+        ).evaluate()
+
+        return base64.b64decode(
+            path[len("base64:"):]
+        ).decode("utf-8")
+
+
+    def test_fortified_position_is_built_on_the_bypass_frame(self):
+
+        # "make the construction same as obstacle bypass easy, except
+        # the lines dont start/end with arrowhead but are plain."
+        symbol = field_fortification._fortified_position_symbol()
+
+        expressions = [
+            symbol.symbolLayer(index).geometryExpression()
+            for index in range(symbol.symbolLayerCount())
+        ]
+
+        self.assertEqual(
+            expressions,
+            [
+                "mct_obstacle_bypass_rear_easy($geometry)",
+                "mct_obstacle_bypass_arrows($geometry)",
+            ]
+        )
+
+
+    def test_fortified_position_draws_no_arrowheads(self):
+
+        # The one part of Obstacle Bypass deliberately NOT reused. Any
+        # marker layer at all would be an arrowhead sneaking back in.
+        symbol = field_fortification._fortified_position_symbol()
+
+        for index in range(symbol.symbolLayerCount()):
+
+            inner = symbol.symbolLayer(index).subSymbol()
+
+            for sub in range(inner.symbolLayerCount()):
+
+                self.assertIsInstance(
+                    inner.symbolLayer(sub),
+                    QgsSimpleLineSymbolLayer
+                )
+
+
+    def test_fortified_position_actually_draws_both_legs(self):
+
+        # The defect itself: "the legs are not forming". Evaluate the
+        # real geometry rather than trusting the expression string -
+        # the previous construction's own expression looked right and
+        # drew nothing.
+        wkt = "LineString(0 0, 10 0, 5 -4)"
+
+        arms = QgsExpression(
+            "mct_obstacle_bypass_arrows(geom_from_wkt('{}'))".format(wkt)
+        ).evaluate()
+
+        self.assertEqual(len(arms.asMultiPolyline()), 2)
+
+        for arm in arms.asMultiPolyline():
+
+            self.assertEqual(len(arm), 2)
+
+            self.assertNotEqual(arm[0], arm[1])
+
+        bar = QgsExpression(
+            "mct_obstacle_bypass_rear_easy(geom_from_wkt('{}'))".format(wkt)
+        ).evaluate()
+
+        self.assertEqual(len(bar.asPolyline()), 2)

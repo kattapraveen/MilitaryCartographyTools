@@ -31,6 +31,20 @@ shared control_measure_points.py layer. They move here with the rest
 of their table, exactly as Tables H-VI, H-IX, H-XIII, H-XIX and H-XX's
 own points did before them. The other 14 are new vocabulary.
 
+**Field T (unique designation).** Every row in the table carries it -
+to the right of the box on the decontamination points, at the lower
+left of the triangle on the events - and it reaches the symbol through
+mct_sidc_svg's own text channel, wired in the shared point-layer
+builder (see _point_symbol_layer.py, where it was missing until
+2026-08-13). milsymbol's `uniqueDesignation` slot is the right one
+here: probed directly, it places the text to the RIGHT of the box,
+where the template puts T, while `uniqueDesignation1` places it INSIDE
+the box, which is the template's own T1. One icon,
+Biological - Toxic Industrial Material (281401), defines no
+designation slot at all in milsymbol even though the table draws a T
+on it; passing one is a harmless no-op, so that row simply shows no
+designation.
+
 **One quirk worth knowing before anyone reports it as a bug**: Nuclear
 Event (281500) and Nuclear Fallout Producing Event (281600) are two
 distinct codes that milsymbol draws with the SAME icon
@@ -107,6 +121,38 @@ POINT_ENTITY_CODES = {
 # differently - see the module docstring.
 SHARED_GLYPH_CODES = ("281500", "281600")
 
+# **The eight events are drawn smaller than the ten decontamination
+# points, and that is milsymbol's bounding boxes, not this layer.**
+#
+# Every event icon (281300-281701) is a wide, low inverted triangle
+# whose declared box is 158x118; every decontamination point
+# (281800-281809) is a narrow, tall box-and-spike at 88x168. QGIS
+# sizes an SVG marker by its WIDTH, so at one marker size the events
+# render at 8/158 mm per icon unit against the decon points' 8/88 -
+# barely more than half the scale, and unreadable next to them, which
+# is what the maintainer's smoke test reported.
+#
+# Their number: 30%, asked for directly. Note that matching the decon
+# points' drawn scale exactly would be 158/88, about 80% - so this is
+# a legibility call rather than a normalisation, and is theirs to
+# revisit.
+_EVENT_MARKER_SIZE_SCALE = 1.30
+
+_EVENT_ENTITIES = (
+    "chemical_event",
+    "chemical_toxic_industrial_material",
+    "biological_event",
+    "biological_toxic_industrial_material",
+    "nuclear_event",
+    "nuclear_fallout_producing_event",
+    "radiological_event",
+    "radiological_toxic_industrial_material",
+)
+
+POINT_MARKER_SIZE_SCALES = {
+    entity: _EVENT_MARKER_SIZE_SCALE for entity in _EVENT_ENTITIES
+}
+
 # --- Audited, NOT built. ---
 #
 # The nine remaining rows of Table H-XXI, all areas or lines, none
@@ -162,6 +208,7 @@ def create_cbrn_defense_points_layer(name=POINTS_LAYER_NAME):
         "chemical_event",
         include_echelon=False,
         include_headquarters=False,
+        entity_marker_size_scales=POINT_MARKER_SIZE_SCALES,
     )
 
 

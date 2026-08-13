@@ -241,10 +241,22 @@ def _configure_attribute_form(layer):
     # cause. Found by tests/test_point_layer_affiliations.py, which
     # sweeps every Points layer's own defaults.
     #
-    # Abatis stays in the dropdown (see _ENTITY_LABELS) so it does not
-    # vanish between batches, but it cannot be what a new point defaults
-    # to. B4 removes it from here when it builds the line version.
-    layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'shelter'"))
+    # Abatis has since gone from the dropdown entirely: B4 built the
+    # line version and removed it, as that plan said it would.
+    #
+    # **It then defaulted to 'shelter', and kept doing so after H17
+    # moved Shelter out to field_fortification.py on 2026-08-13** - so
+    # a freshly digitized point on this layer defaulted to an entity
+    # its own dropdown no longer offered. The sweep did not catch it
+    # because it only checked that each default RENDERS, and 'shelter'
+    # is still perfectly real vocabulary in sidc.py; what broke was
+    # narrower, that this LAYER stopped offering it. That sweep now
+    # asserts every default is an offered option too, and covers the
+    # H-XX and H-XXI Points layers, which it had never been extended
+    # to reach.
+    layer.setDefaultValueDefinition(
+        entity_idx, QgsDefaultValue("'ambulance_exchange_point'")
+    )
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
 
