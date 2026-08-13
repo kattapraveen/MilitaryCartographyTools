@@ -142,6 +142,17 @@ def mct_sidc_svg(values, feature=None, parent=None):
     mono_color = str(values[3]) if len(values) > 3 and values[3] else None
     stroke_scale = float(values[4]) if len(values) > 4 and values[4] else None
 
+    # Optional 6th argument: draw the ICON only, dropping milsymbol's
+    # own frame. Added 2026-08-13 for Overhead Wire, which borrows Land
+    # Installation's Telecommunications Tower (121203) as its pylon -
+    # that symbol set is framed, and a framed installation box at every
+    # vertex is not what Table H-XIX's own Overhead Wire template
+    # draws. Defaults to framed, so every existing caller is unaffected.
+    framed = True
+
+    if len(values) > 5 and values[5] is not None:
+        framed = bool(values[5])
+
     options = {}
 
     if text:
@@ -149,6 +160,9 @@ def mct_sidc_svg(values, feature=None, parent=None):
 
     if mono_color:
         options["monoColor"] = mono_color
+
+    if not framed:
+        options["frame"] = False
 
     return render_symbol_base64_path(
         sidc, options or None, stroke_scale

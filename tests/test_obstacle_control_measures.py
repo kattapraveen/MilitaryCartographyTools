@@ -2210,7 +2210,7 @@ class TestWireObstacles(QgisTestCase):
                 "roadblock_planned", "roadblock_readiness_1",
                 "roadblock_readiness_2", "roadblock_complete",
                 "bridge", "ford_easy", "ford_difficult", "lane", "ferry",
-                "raft_site", "overhead_wire",
+                "overhead_wire",
             },
             set(LINE_MEASURE_TYPE_LABELS)
         )
@@ -5389,7 +5389,6 @@ class TestWaterCrossingSites(QgisTestCase):
             "ford_difficult": "271600",
             "lane": "290600",
             "ferry": "290700",
-            "raft_site": "290800",
             "overhead_wire": "282003",
         }
 
@@ -5526,13 +5525,21 @@ class TestWaterCrossingSites(QgisTestCase):
 
     def test_the_fords_are_dashed_and_carry_no_end_wings(self):
 
-        from qgis.PyQt.QtCore import Qt
-
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _AREA_OUTLINE_WIDTH_MM,
+            _FORD_DASH_MM,
+            _FORD_GAP_MM,
             _bridge_symbol,
             _ford_difficult_symbol,
             _ford_easy_symbol,
         )
+
+        # "dashes are too small, increase length of dashes by 2 time" -
+        # doubled off Qt's own [4, 2]-pen-width default, which is the
+        # same traceable baseline Mine Cluster's pattern uses. Only the
+        # dash was doubled; the maintainer said nothing about the gap.
+        self.assertAlmostEqual(_FORD_DASH_MM, _AREA_OUTLINE_WIDTH_MM * 8.0)
+        self.assertAlmostEqual(_FORD_GAP_MM, _AREA_OUTLINE_WIDTH_MM * 2.0)
 
         for builder in (_ford_easy_symbol, _ford_difficult_symbol):
 
@@ -5544,7 +5551,11 @@ class TestWaterCrossingSites(QgisTestCase):
 
                     line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
 
-                    self.assertEqual(line.penStyle(), Qt.PenStyle.DashLine)
+                    self.assertTrue(line.useCustomDashPattern())
+                    self.assertEqual(
+                        list(line.customDashVector()),
+                        [_FORD_DASH_MM, _FORD_GAP_MM]
+                    )
 
         # Ford Easy is the two dashed lines and nothing else; Bridge
         # adds the two end wings on top of its own pair.
@@ -5613,52 +5624,67 @@ class TestWaterCrossingSites(QgisTestCase):
         self.assertAlmostEqual(max(ys), _FORD_ZIGZAG_MM / 2.0, places=3)
 
 
-    def test_lane_ferry_and_raft_site_point_their_arrows_outward(self):
+    def test_the_open_ends_splay_outward_rather_than_pointing(self):
 
+        # ">-----<" - the maintainer's own notation. The vertex sits ON
+        # the line's end and both arms splay AWAY from it. The first
+        # build had it the other way round (an arrow pointing out), and
+        # the difference is a 180-degree spin: QGIS's ArrowHead glyph
+        # points ALONG the rotation direction, so an outward-OPENING
+        # end means spinning the LAST vertex, not the first.
         from qgis.core import Qgis, QgsMarkerLineSymbolLayer
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _ferry_symbol,
             _lane_symbol,
-            _raft_site_symbol,
         )
 
-        for builder in (_lane_symbol, _ferry_symbol, _raft_site_symbol):
+        symbol = _lane_symbol()
 
-            with self.subTest(builder=builder.__name__):
+        self.assertEqual(symbol.symbolLayerCount(), 3)
 
-                symbol = builder()
+        angles = {}
 
-                # Shaft plus one arrowhead at each end.
-                self.assertEqual(symbol.symbolLayerCount(), 3)
+        for index in (1, 2):
 
-                angles = {}
+            marker_line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
 
-                for index in (1, 2):
+            self.assertIsInstance(marker_line, QgsMarkerLineSymbolLayer)
+            self.assertTrue(marker_line.rotateSymbols())
 
-                    marker_line = (
-                        symbol.symbolLayer(index).subSymbol().symbolLayer(0)
-                    )
+            angles[marker_line.placements()] = marker_line.subSymbol().angle()
 
-                    self.assertIsInstance(
-                        marker_line, QgsMarkerLineSymbolLayer
-                    )
-                    self.assertTrue(marker_line.rotateSymbols())
+        self.assertAlmostEqual(
+            angles[Qgis.MarkerLinePlacement.FirstVertex], 0
+        )
+        self.assertAlmostEqual(
+            angles[Qgis.MarkerLinePlacement.LastVertex], 180
+        )
 
-                    angles[marker_line.placements()] = (
-                        marker_line.subSymbol().angle()
-                    )
+        # Ferry's are real arrowheads and point outward the ordinary
+        # way, so its spins are the exact opposite of Lane's.
+        #
+        # NOTE the symbol is held in its own variable rather than
+        # chained off the call - a temporary's C++ object gets
+        # collected mid-expression and segfaults the interpreter.
+        ferry = _ferry_symbol()
 
-                # QGIS rotates a marker to the LINE's direction at both
-                # ends rather than reversing it at the start, so the
-                # first-vertex head has to be spun 180 by hand -
-                # otherwise both ends point the same way.
-                self.assertAlmostEqual(
-                    angles[Qgis.MarkerLinePlacement.FirstVertex], 180
-                )
-                self.assertAlmostEqual(
-                    angles[Qgis.MarkerLinePlacement.LastVertex], 0
-                )
+        ferry_angles = {}
+
+        for index in (1, 2):
+
+            marker_line = ferry.symbolLayer(index).subSymbol().symbolLayer(0)
+
+            ferry_angles[marker_line.placements()] = (
+                marker_line.subSymbol().angle()
+            )
+
+        self.assertAlmostEqual(
+            ferry_angles[Qgis.MarkerLinePlacement.FirstVertex], 180
+        )
+        self.assertAlmostEqual(
+            ferry_angles[Qgis.MarkerLinePlacement.LastVertex], 0
+        )
 
 
     def test_only_ferry_fills_its_arrowheads(self):
@@ -5668,7 +5694,6 @@ class TestWaterCrossingSites(QgisTestCase):
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _ferry_symbol,
             _lane_symbol,
-            _raft_site_symbol,
         )
 
         def head_shape(symbol):
@@ -5678,117 +5703,211 @@ class TestWaterCrossingSites(QgisTestCase):
             return marker_line.subSymbol().symbolLayer(0).shape()
 
         # "The arrowheads will be filled-in versions of a common
-        # arrowhead" - Ferry only. Lane and Raft Site say instead that
-        # "the lines of the arrowhead will form an acute angle", i.e.
-        # an open chevron.
+        # arrowhead" - Ferry only. Lane/Raft Site say instead that "the
+        # lines of the arrowhead will form an acute angle", i.e. an
+        # open chevron.
         self.assertEqual(
             head_shape(_ferry_symbol()),
             QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHeadFilled
         )
-
-        for builder in (_lane_symbol, _raft_site_symbol):
-
-            with self.subTest(builder=builder.__name__):
-
-                self.assertEqual(
-                    head_shape(builder()),
-                    QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead
-                )
-
-
-    def test_lane_and_raft_site_are_deliberately_identical(self):
-
-        # Their templates AND their draw rules are word for word the
-        # same; the only difference in the table is Lane's own W/W1
-        # amplifiers. Pinned so this reads as a confirmed decision
-        # rather than the duplication bug TestWireObstacles guards
-        # against.
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _OBSTACLE_LINE_LABEL_EXPRESSION,
-            _lane_symbol,
-            _raft_site_symbol,
+        self.assertEqual(
+            head_shape(_lane_symbol()),
+            QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead
         )
 
-        lane = _lane_symbol()
-        raft = _raft_site_symbol()
 
-        self.assertEqual(lane.symbolLayerCount(), raft.symbolLayerCount())
+    def test_lane_and_raft_site_are_one_merged_entry(self):
 
-        for index in range(lane.symbolLayerCount()):
+        # "since same construction, put them in one option itself like
+        # bridge/assault crossing" - Raft Site has no measure type of
+        # its own, so _B7_MERGED_CODES is what stops a coverage check
+        # reading 290800 as dropped.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            _B7_MERGED_CODES,
+        )
 
-            self.assertEqual(
-                lane.symbolLayer(index).geometryExpression(),
-                raft.symbolLayer(index).geometryExpression()
+        self.assertNotIn("290800", set(LINE_MEASURE_TYPE_CODES.values()))
+
+        self.assertEqual(_B7_MERGED_CODES["lane"], ("290800",))
+
+        self.assertIn("Lane", LINE_MEASURE_TYPE_LABELS["lane"])
+        self.assertIn("Raft Site", LINE_MEASURE_TYPE_LABELS["lane"])
+
+
+    def test_overhead_wire_puts_a_tower_on_every_vertex(self):
+
+        # "the tower should be marked at every point user clicks - it
+        # should not be restricted to 2 points - a multi-segment line
+        # will have a tower at every point/vertex", which is also what
+        # the standard's own draw rules say. This one therefore draws
+        # the feature's OWN geometry, not the first-two-points
+        # centreline the rest of the family shares - trimming would
+        # throw away every vertex past the second.
+        from qgis.core import (
+            Qgis, QgsGeometryGeneratorSymbolLayer, QgsMarkerLineSymbolLayer,
+        )
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _overhead_wire_symbol,
+        )
+
+        symbol = _overhead_wire_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 2)
+
+        for index in range(2):
+
+            self.assertNotIsInstance(
+                symbol.symbolLayer(index), QgsGeometryGeneratorSymbolLayer
             )
 
-        # The one real difference: Lane is labelled, Raft Site is not.
-        self.assertIn("'lane'", _OBSTACLE_LINE_LABEL_EXPRESSION)
-        self.assertNotIn("'raft_site'", _OBSTACLE_LINE_LABEL_EXPRESSION)
+        marker_line = symbol.symbolLayer(1)
+
+        self.assertIsInstance(marker_line, QgsMarkerLineSymbolLayer)
+
+        self.assertEqual(
+            marker_line.placements(), Qgis.MarkerLinePlacement.Vertex
+        )
+
+        # A pylon stands upright however the wire runs.
+        self.assertFalse(marker_line.rotateSymbols())
 
 
-    def test_overhead_wire_reuses_the_tables_own_tower_symbol(self):
-
-        # The standard numbers nothing about the pylon it draws, but
-        # this table already HAS a tower symbol - Tower High (282002),
-        # built in B1 - so the glyph is reused rather than invented.
-        from qgis.core import QgsMarkerLineSymbolLayer
+    def test_overhead_wire_uses_the_telecom_tower_glyph(self):
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _OVERHEAD_WIRE_TOWER_ENTITY,
+            _OVERHEAD_WIRE_TOWER_SYMBOL_SET,
             _overhead_wire_symbol,
         )
         from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
 
         self.assertEqual(
-            ENTITIES["control_measure"][_OVERHEAD_WIRE_TOWER_ENTITY], "282002"
+            ENTITIES[_OVERHEAD_WIRE_TOWER_SYMBOL_SET][
+                _OVERHEAD_WIRE_TOWER_ENTITY
+            ],
+            "121203"
         )
 
         symbol = _overhead_wire_symbol()
 
-        self.assertEqual(symbol.symbolLayerCount(), 3)
+        marker_line = symbol.symbolLayer(1)
 
-        for index in (1, 2):
+        marker = marker_line.subSymbol()
 
-            marker_line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+        expression = (
+            marker.symbolLayer(0)
+            .dataDefinedProperties()
+            .property(QgsSymbolLayer.Property.Name)
+            .expressionString()
+        )
 
-            self.assertIsInstance(marker_line, QgsMarkerLineSymbolLayer)
+        self.assertIn(_OVERHEAD_WIRE_TOWER_ENTITY, expression)
+        self.assertIn(_OVERHEAD_WIRE_TOWER_SYMBOL_SET, expression)
 
-            # A pylon stands upright however the wire runs.
-            self.assertFalse(marker_line.rotateSymbols())
+        # The symbol set has to travel WITH the entity - 121203 is a
+        # land_installation code, and building it against
+        # control_measure would yield a valid-looking SIDC for the
+        # wrong symbol.
+        self.assertNotIn("'control_measure'", expression)
 
-            expression = (
-                marker_line.subSymbol().symbolLayer(0)
-                .dataDefinedProperties()
-                .property(QgsSymbolLayer.Property.Name)
-                .expressionString()
-            )
 
-            self.assertIn(_OVERHEAD_WIRE_TOWER_ENTITY, expression)
-            self.assertIn("mct_sidc_svg", expression)
+    def test_the_tower_glyph_does_not_read_this_layers_affiliation(self):
+
+        # The bug this replaced: the expression read "affiliation" from
+        # the Lines layer, whose vocabulary includes (and defaults to)
+        # "unspecified" - which build_sidc REJECTS, returning an error
+        # string rather than a SIDC, so every tower rendered as
+        # garbage. Structural glyphs take a fixed literal, like the
+        # mine glyphs already do.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _overhead_wire_symbol,
+        )
+
+        symbol = _overhead_wire_symbol()
+
+        marker_line = symbol.symbolLayer(1)
+
+        marker = marker_line.subSymbol()
+
+        expression = (
+            marker.symbolLayer(0)
+            .dataDefinedProperties()
+            .property(QgsSymbolLayer.Property.Name)
+            .expressionString()
+        )
+
+        self.assertNotIn('"affiliation"', expression)
+        self.assertNotIn('"status"', expression)
+
+
+    def test_the_tower_glyph_drops_its_installation_frame(self):
+
+        # 121203 is a Land Installation code and so renders FRAMED; a
+        # framed installation box at every vertex is not the bare pylon
+        # Table H-XIX's own Overhead Wire template draws.
+        from MilitaryCartographyTools.military_symbology.symbol_engine import (
+            render_symbol_svg,
+        )
+
+        sidc = "10032000001212030000"
+
+        framed = render_symbol_svg(sidc, None)
+        unframed = render_symbol_svg(sidc, {"frame": False})
+
+        self.assertNotEqual(framed, unframed)
+        self.assertLess(len(unframed), len(framed))
+
+        # And the symbol actually asks for it.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _overhead_wire_symbol,
+        )
+
+        symbol = _overhead_wire_symbol()
+
+        marker_line = symbol.symbolLayer(1)
+
+        marker = marker_line.subSymbol()
+
+        expression = (
+            marker.symbolLayer(0)
+            .dataDefinedProperties()
+            .property(QgsSymbolLayer.Property.Name)
+            .expressionString()
+        )
+
+        self.assertTrue(expression.rstrip().endswith("false)"))
 
 
     def test_the_overhead_wire_tower_resolves_to_a_real_glyph(self):
 
-        # The expression above is only correct if it actually renders -
-        # a bad entity name would silently produce the unknown icon,
-        # the defect class this module has already hit three times.
+        # A bad entity/symbol-set pair silently produces the unknown
+        # icon - or, as it actually did here, an error string. Assert
+        # the whole chain end to end rather than the expression text.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _OVERHEAD_WIRE_TOWER_ENTITY,
+            _OVERHEAD_WIRE_TOWER_SYMBOL_SET,
         )
 
         sidc = QgsExpression(
-            "mct_build_sidc('friend', '{}', 'control_measure',"
+            "mct_build_sidc('friend', '{}', '{}',"
             " 'unspecified', 'present', false)".format(
-                _OVERHEAD_WIRE_TOWER_ENTITY
+                _OVERHEAD_WIRE_TOWER_ENTITY,
+                _OVERHEAD_WIRE_TOWER_SYMBOL_SET,
             )
         ).evaluate()
 
-        # Set B's entity occupies digits 11-16 of the 20-digit SIDC.
-        self.assertEqual(sidc[10:16], "282002")
+        # 20 digits, not an error message.
+        self.assertEqual(len(sidc), 20)
+        self.assertTrue(sidc.isdigit())
+
+        # Set B's entity occupies digits 11-16.
+        self.assertEqual(sidc[10:16], "121203")
 
         svg = QgsExpression(
-            "mct_sidc_svg('{}', '', 'uniqueDesignation',"
-            " 'rgb(0,155,0)', 1.0)".format(sidc)
+            "mct_sidc_svg('{}', '', '', 'rgb(0,155,0)', 1.0)".format(sidc)
         ).evaluate()
 
         self.assertTrue(svg.startswith("base64:"))

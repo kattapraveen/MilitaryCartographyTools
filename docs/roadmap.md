@@ -7139,6 +7139,68 @@ tested, not claimed as done here.
   (Points, Areas, Minefields, Lines). Mini-Phase H15/H16 is done;
   H17 (Table H-XX, Field Fortification) is next.
 
+- **B7's smoke-test corrections** (2026-08-13, same day) - five items,
+  one of them a symbol that had been rendering as garbage.
+
+  **Overhead Wire's towers were not drawing at all.** The marker built
+  its SIDC from `"affiliation"` and `"status"` READ OFF THE LINES
+  LAYER - but that layer's affiliation vocabulary includes, and
+  defaults to, `"unspecified"`, which `mct_build_sidc()` rejects: it
+  returns an error STRING rather than a SIDC, so every tower rendered
+  as nonsense. Structural glyphs have no business reading an
+  affiliation (their colour comes from the obstacle colour expression),
+  and the mine glyphs already had this right with a fixed
+  `_MINE_GLYPH_AFFILIATION` literal - this now follows them. **The unit
+  test could not have caught it**: it asserted the expression STRING
+  contained the entity name, which it did. Only the render showed the
+  output was an error message.
+
+  **The pylon is now Land Installation's Telecommunications Tower
+  (121203)**, the maintainer's own pick over this table's Tower High
+  (282002). Note the symbol set has to travel with the entity - 121203
+  is a `land_installation` code, and building it against
+  `control_measure` yields a valid-looking SIDC for the wrong symbol.
+  It also renders FRAMED, so `mct_sidc_svg()` gained an optional 6th
+  argument to draw the icon without milsymbol's frame (defaulting to
+  framed, so no existing caller changes); a framed installation box at
+  every vertex is not the bare pylon the template draws.
+
+  **And a tower now sits on EVERY vertex**, not just the two ends -
+  "it should not be restricted to 2 points - a multi-segment line will
+  have a tower at every point/vertex". The standard's own draw rules
+  say the same ("additional points can be defined to extend the line")
+  and its example picture shows a three-tower run with a bend. This is
+  the one crossing symbol that draws the feature's OWN geometry rather
+  than the shared first-two-points centreline, which would have thrown
+  away every vertex past the second.
+
+  **Lane and Raft Site became one entry.** They had shipped as two
+  entries sharing a builder; the maintainer folded them together like
+  Bridge/Assault Crossing - "since same construction, put them in one
+  option itself". `_B7_MERGED_CODES` records 290800 alongside 271300.
+
+  **The open ends were pointing the wrong way.** Lane/Raft Site's ends
+  are not arrowheads: they OPEN outward, vertex on the line's own end
+  and both arms splaying away, which the maintainer drew as
+  `>-----<`. The first build had an arrow pointing outward instead.
+  Since QGIS's ArrowHead glyph points ALONG the rotation direction,
+  getting this right means spinning the LAST vertex 180 degrees rather
+  than the first - the exact opposite of Ferry, whose filled heads are
+  real arrows and do point outward.
+
+  **The Fords' dashes doubled** - "increase length of dashes by 2
+  time" - off Qt's own [4, 2]-pen-width default, the same traceable
+  baseline Mine Cluster's custom pattern uses. Only the dash was
+  doubled; nothing was said about the gap.
+
+  One process note: a new test segfaulted the interpreter by chaining
+  `_ferry_symbol().symbolLayer(...)` - the temporary's C++ object is
+  collected mid-expression. That trap is already recorded in this
+  project's own gotchas from three earlier hits, and it applies to
+  symbols exactly as it does to `QgsPalLayerSettings`.
+
+  1005 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

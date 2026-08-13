@@ -3592,6 +3592,14 @@ def _crossing_generator(sub_symbol_layer):
     return generator
 
 
+# The Fords' own dashes. Qt's own DashLine baseline is [4, 2] in pen
+# widths (probed, not guessed - the same baseline Mine Cluster's
+# pattern is derived from); the maintainer asked for twice the dash
+# length and said nothing about the gap, so only the 4 is doubled.
+_FORD_DASH_MM = _AREA_OUTLINE_WIDTH_MM * 4.0 * 2.0
+_FORD_GAP_MM = _AREA_OUTLINE_WIDTH_MM * 2.0
+
+
 def _parallel_channel_symbol(dashed, flares, midpoint_layer=None):
 
     """
@@ -3631,7 +3639,18 @@ def _parallel_channel_symbol(dashed, flares, midpoint_layer=None):
             # dashed in the standard's own template whatever their
             # planned/present status, the same way the roadblock state
             # variants are.
-            line_layer.setPenStyle(Qt.PenStyle.DashLine)
+            #
+            # Custom rather than Qt's own DashLine, because the
+            # maintainer found that default too fine here: "dashes are
+            # too small, increase length of dashes by 2 time". Same
+            # traceable-baseline approach Mine Cluster already uses -
+            # Qt's own default is [4, 2] in pen widths, so the dash is
+            # doubled off that and the gap left alone.
+            line_layer.setUseCustomDashPattern(True)
+            line_layer.setCustomDashPatternUnit(Qgis.RenderUnit.Millimeters)
+            line_layer.setCustomDashVector(
+                [_FORD_DASH_MM, _FORD_GAP_MM]
+            )
         else:
             line_layer.setDataDefinedProperty(
                 QgsSymbolLayer.Property.StrokeStyle,
@@ -3758,18 +3777,23 @@ _CROSSING_ARROW_MM = 5.0
 def _crossing_end_marker_layer(at_end, filled):
 
     """
-    The end decoration shared by Lane (290600), Ferry (290700) and Raft
-    Site (290800): an arrowhead at each end of the shaft, pointing
-    OUTWARD.
+    The end decoration shared by Lane/Raft Site (290600 + 290800) and
+    Ferry (290700).
+
+    **The open ones are not arrowheads** - they OPEN outward, vertex on
+    the line's own end and both arms splaying away from it, which the
+    maintainer drew as `>-----<`. The first build had them the other
+    way round (vertex off the end, arms trailing back, i.e. an arrow
+    pointing out) and it was wrong: the template's own shape is a "Y"
+    at each end, and its draw rules say only that "the lines of the
+    arrowhead will form an acute angle", never that it points anywhere.
 
     QGIS rotates a marker to the LINE's direction at both ends rather
-    than reversing it at the start, so the first-vertex marker is spun
-    180 degrees by hand - otherwise both ends point the same way.
-
-    `filled` picks Ferry's own solid head ("the arrowheads will be
-    filled-in versions of a common arrowhead") over Lane's and Raft
-    Site's open one ("the lines of the arrowhead will form an acute
-    angle").
+    than reversing it at the start, and its own ArrowHead glyph points
+    ALONG that direction - so getting `>-----<` means spinning the LAST
+    vertex by 180, not the first. Ferry keeps a real arrow at each end
+    ("the arrowheads will be filled-in versions of a common
+    arrowhead"), so its heads point outward the ordinary way.
     """
 
     marker = QgsMarkerSymbol()
@@ -3801,7 +3825,10 @@ def _crossing_end_marker_layer(at_end, filled):
 
     marker.changeSymbolLayer(0, head)
 
-    if not at_end:
+    # Ferry's filled heads point outward the ordinary way (spin the
+    # START); the open ones open outward, which is the opposite (spin
+    # the END). See this function's own docstring.
+    if filled != at_end:
         marker.setAngle(180)
 
     marker_line = QgsMarkerLineSymbolLayer(True)
@@ -3821,17 +3848,19 @@ def _crossing_end_marker_layer(at_end, filled):
 def _shaft_with_end_arrows_symbol(filled):
 
     """
-    Lane (290600), Ferry (290700) and Raft Site (290800) - a plain
-    shaft between the two clicked points with an arrowhead at each end
-    pointing outward.
+    Lane/Raft Site (290600 + 290800) and Ferry (290700) - a plain shaft
+    between the two clicked points with an end decoration at each end.
 
-    **Lane and Raft Site are the same symbol.** Their templates are
+    **Lane and Raft Site are ONE entry**, not two. Their templates are
     identical and their draw rules are word for word identical; the
-    whole difference in the table is that Lane carries the W/W1 width
-    amplifiers and Raft Site does not. Confirmed with the maintainer
-    before building rather than assumed ("Identical geometry, Lane gets
-    Field W"), since two indistinguishable symbols would otherwise look
-    like the duplication bug this module already tests against.
+    only difference in the whole table is that Lane carries the W/W1
+    width amplifiers. They were built as two entries sharing a builder
+    at first; the maintainer then folded them together the same way as
+    Bridge and Assault Crossing - "since same construction, put them in
+    one option itself like bridge/assault crossing". The designation
+    stays optional either way ("the unique designation is a choice by
+    the user so it can be filled or not"), so the merged entry loses
+    nothing Raft Site had.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -3866,6 +3895,9 @@ def _shaft_with_end_arrows_symbol(filled):
 
 def _lane_symbol():
 
+    """Lane AND Raft Site - see _shaft_with_end_arrows_symbol for why
+    they are one entry."""
+
     return _shaft_with_end_arrows_symbol(filled=False)
 
 
@@ -3874,27 +3906,36 @@ def _ferry_symbol():
     return _shaft_with_end_arrows_symbol(filled=True)
 
 
-def _raft_site_symbol():
-
-    return _shaft_with_end_arrows_symbol(filled=False)
-
-
 # Overhead Wire's own pylons. The standard draws a transmission tower
-# at each end and numbers nothing about it - but this table already
-# HAS a tower symbol of its own, Tower High (282002), built in B1 and
-# rendered by milsymbol. Reusing that glyph means no invented geometry
-# and no second drawing of the same real-world object; it was the
-# maintainer's own question that surfaced it ("is there any sidc for
-# tower?").
-_OVERHEAD_WIRE_TOWER_ENTITY = "tower_high"
+# at each end and numbers nothing about it, so no glyph is invented
+# here - one is reused from the SIDC vocabulary, which the maintainer's
+# own question surfaced ("is there any sidc for tower?"). Their pick
+# after seeing both candidates was Land Installation's
+# Telecommunications Tower (121203) over this table's own Tower High
+# (282002) - it is the pylon this symbol actually means.
+#
+# NOTE the symbol set travels with the entity: 121203 is a
+# land_installation code, not a control_measure one, so build_sidc has
+# to be told which set to use or it produces a valid-looking SIDC for
+# the wrong symbol.
+_OVERHEAD_WIRE_TOWER_ENTITY = "telecommunications_tower"
+_OVERHEAD_WIRE_TOWER_SYMBOL_SET = "land_installation"
 
-# The same size the Points layer draws its own Tower High at, rather
-# than a number of this symbol's own - it is literally the same glyph
-# for the same object, so the two should not disagree.
+# The same size the Points layer draws its own tower icons at, rather
+# than a number of this symbol's own.
 _OVERHEAD_WIRE_TOWER_MM = _POINTS_DEFAULT_MARKER_SIZE_MM
 
 
-def _overhead_wire_tower_layer(at_end):
+def _overhead_wire_tower_layer():
+
+    """
+    A pylon on EVERY vertex of the wire, not just its two ends - "the
+    tower should be marked at every point user clicks... a
+    multi-segment line will have a tower at every point/vertex", which
+    is also what the standard's own draw rules say ("additional points
+    can be defined to extend the line") and what its example picture
+    shows: a three-tower run with a bend at the middle pylon.
+    """
 
     marker = QgsMarkerSymbol()
 
@@ -3902,18 +3943,29 @@ def _overhead_wire_tower_layer(at_end):
 
     svg_layer.setSize(_OVERHEAD_WIRE_TOWER_MM)
 
-    # Built through the same build_sidc()/sidc_svg() pair the Points
-    # layer uses, rather than by hand-writing the SIDC string - so the
-    # glyph tracks this feature's own affiliation and status fields and
-    # stays correct if the vocabulary moves.
+    # Affiliation and status are FIXED literals, NOT this layer's own
+    # fields. That was the bug in the first cut: the Lines layer's
+    # affiliation vocabulary includes "unspecified" (and defaults to
+    # it), which build_sidc rejects outright - it returns an error
+    # STRING rather than a SIDC, so every tower rendered as garbage.
+    # The glyph is structural and takes its colour from the obstacle
+    # colour expression anyway, so it has no business reading an
+    # affiliation. Same fixed-literal pattern the mine glyphs already
+    # use (_MINE_GLYPH_AFFILIATION).
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
         QgsProperty.fromExpression(
+            # Trailing `false` drops milsymbol's own frame: 121203 is
+            # a Land Installation code and so renders framed, and a
+            # framed installation box at every vertex is not the bare
+            # pylon Table H-XIX's own Overhead Wire template draws.
             "mct_sidc_svg(mct_build_sidc("
-            "\"affiliation\", '{entity}', 'control_measure',"
-            " 'unspecified', \"status\", false), '', 'uniqueDesignation',"
-            " {colour}, 1.0)".format(
+            " '{affiliation}', '{entity}', '{symbol_set}',"
+            " 'unspecified', 'present', false), '', '',"
+            " {colour}, 1.0, false)".format(
+                affiliation=_MINE_GLYPH_AFFILIATION,
                 entity=_OVERHEAD_WIRE_TOWER_ENTITY,
+                symbol_set=_OVERHEAD_WIRE_TOWER_SYMBOL_SET,
                 colour=_POINT_MONO_COLOR_EXPRESSION,
             )
         )
@@ -3925,10 +3977,7 @@ def _overhead_wire_tower_layer(at_end):
 
     marker_line.setSubSymbol(marker)
 
-    marker_line.setPlacements(
-        Qgis.MarkerLinePlacement.LastVertex if at_end
-        else Qgis.MarkerLinePlacement.FirstVertex
-    )
+    marker_line.setPlacements(Qgis.MarkerLinePlacement.Vertex)
 
     # Towers stand upright regardless of which way the wire runs.
     marker_line.setRotateSymbols(False)
@@ -3939,10 +3988,17 @@ def _overhead_wire_tower_layer(at_end):
 def _overhead_wire_symbol():
 
     """
-    Overhead Wire (282003) - a plain line with a pylon at each end.
+    Overhead Wire (282003) - a plain line with a pylon on every vertex.
     The one B7 entry that is a LINE despite its 28xxxx code, which is
     the trap this module's own docstring opens with.
+
+    Unlike the rest of the crossing family this draws the feature's OWN
+    geometry rather than the first-two-points centreline: the standard
+    lets this one run over as many anchor points as the user wants, so
+    trimming it would throw away every vertex past the second.
     """
+
+    symbol = QgsLineSymbol()
 
     line_layer = QgsSimpleLineSymbolLayer()
 
@@ -3959,15 +4015,9 @@ def _overhead_wire_symbol():
         QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
     )
 
-    symbol = QgsLineSymbol()
+    symbol.changeSymbolLayer(0, line_layer)
 
-    symbol.changeSymbolLayer(0, _crossing_generator(line_layer))
-
-    for at_end in (False, True):
-
-        symbol.appendSymbolLayer(
-            _crossing_generator(_overhead_wire_tower_layer(at_end))
-        )
+    symbol.appendSymbolLayer(_overhead_wire_tower_layer())
 
     return symbol
 
@@ -4196,19 +4246,22 @@ B6_ROADBLOCKS_MEASURE_TYPE_CODES = {
 #   MINEFIELD_MEASURE_TYPE_CODES), and _B7_MERGED_CODES below records
 #   the code that would otherwise look missing from the build.
 #
-# - **Lane (290600) and Raft Site (290800) stay SEPARATE but draw
-#   identically** - their templates AND their draw rules are word for
-#   word the same, the only difference in the whole table being that
-#   Lane carries the W/W1 width amplifiers. Kept as two entries because
-#   they are two distinct real-world things with two SIDCs; sharing one
-#   builder is the honest way to say they look the same.
+# - **Lane (290600) and Raft Site (290800) are ONE entry** - their
+#   templates AND their draw rules are word for word the same, the only
+#   difference in the whole table being that Lane carries the W/W1
+#   width amplifiers. They shipped as two entries sharing a builder at
+#   first; the maintainer folded them together on review, for the same
+#   reason as Bridge/Assault Crossing - "since same construction, put
+#   them in one option itself like bridge/assault crossing". The
+#   designation is optional on this layer anyway ("the unique
+#   designation is a choice by the user so it can be filled or not"),
+#   so nothing Raft Site had is lost by merging.
 B7_CROSSINGS_MEASURE_TYPE_LABELS = {
     "bridge": "Bridge / Assault Crossing",
     "ford_easy": "Ford - Easy",
     "ford_difficult": "Ford - Difficult",
-    "lane": "Lane",
+    "lane": "Lane / Raft Site",
     "ferry": "Ferry",
-    "raft_site": "Raft Site",
     "overhead_wire": "Overhead Wire",
 }
 
@@ -4218,7 +4271,6 @@ B7_CROSSINGS_MEASURE_TYPE_CODES = {
     "ford_difficult": "271600",
     "lane": "290600",
     "ferry": "290700",
-    "raft_site": "290800",
     "overhead_wire": "282003",
 }
 
@@ -4228,6 +4280,7 @@ B7_CROSSINGS_MEASURE_TYPE_CODES = {
 # are built to catch.
 _B7_MERGED_CODES = {
     "bridge": ("271300",),
+    "lane": ("290800",),
 }
 
 LINE_MEASURE_TYPE_LABELS = dict(WIRE_MEASURE_TYPE_LABELS)
@@ -4259,7 +4312,7 @@ _LINE_SYMBOL_BUILDERS = {
         "roadblock_readiness_1", "roadblock_readiness_2",
         "roadblock_complete",
         "bridge", "ford_easy", "ford_difficult", "lane", "ferry",
-        "raft_site", "overhead_wire",
+        "overhead_wire",
     )
 }
 
@@ -4290,7 +4343,6 @@ _LINE_SYMBOL_BUILDERS["ford_easy"] = _ford_easy_symbol
 _LINE_SYMBOL_BUILDERS["ford_difficult"] = _ford_difficult_symbol
 _LINE_SYMBOL_BUILDERS["lane"] = _lane_symbol
 _LINE_SYMBOL_BUILDERS["ferry"] = _ferry_symbol
-_LINE_SYMBOL_BUILDERS["raft_site"] = _raft_site_symbol
 _LINE_SYMBOL_BUILDERS["overhead_wire"] = _overhead_wire_symbol
 
 
