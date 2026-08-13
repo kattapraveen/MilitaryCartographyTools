@@ -7698,7 +7698,35 @@ says why.
   omitted, which is deterministic, needs no mask, and is what Retain's
   own template draws anyway.
 
-1086 tests passing on both QGIS versions.
+**A third round settled the masking properly, and turned up a real
+QGIS limit worth recording.**
+
+**Selective Masking does not reach symbol layers inside a
+QgsGeometryGeneratorSymbolLayer.** Probed both ways - referencing the
+nested line layer's own id, and the generator's - and neither takes.
+What had looked like a working mask on the arc turned out to be the
+letter glyph simply covering it, same colour; the giveaway was that
+masking ONLY the ticks still produced the same "gap". Every part of
+Contain and Retain is generated, so masking could never have worked
+here. `c2_measures.py`'s Boundary masks fine because its line is a
+plain top-level symbol layer.
+
+So the gap is cut into the GEOMETRY instead: the arc returns two parts
+with a 14-degree gap at the letter, and the tick at that same angle
+keeps its length but starts clear of the letter rather than at the
+perimeter. **The tick is not dropped** - the manual does not drop it,
+it hides the part the letter covers, which is what shortening
+reproduces. That is also more faithful than a mask would be: it breaks
+the line by a fixed amount of ARC rather than by whatever the glyph
+happens to cover. "ENY" keeps its painted mask, which does work, since
+the arrow is a single unbroken line.
+
+One consequence caught in the render: a marker on the last vertex of
+the now-two-part arc lands on the end of EACH part, putting a second
+arrowhead beside the "R". The arrowhead rides on its own short
+ungapped tail (`mct_retain_arc_end`) instead.
+
+1089 tests passing on both QGIS versions.
 
 ---
 

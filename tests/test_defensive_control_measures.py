@@ -999,11 +999,15 @@ class TestContainAndRetain(QgisTestCase):
         # endpoints of the semicircle's opening", and the opening
         # "typically faces enemy forces" - which is where PT3, the
         # arrow's own end, is. So the ARC must bulge the other way.
-        arc = self._evaluate("mct_contain_arc", self._CONTAIN).asPolyline()
+        parts = self._evaluate(
+            "mct_contain_arc", self._CONTAIN
+        ).asMultiPolyline()
 
-        self.assertLess(min(point.x() for point in arc), -9.5)
+        points = [point for part in parts for point in part]
 
-        self.assertLessEqual(max(point.x() for point in arc), 0.01)
+        self.assertLess(min(point.x() for point in points), -9.5)
+
+        self.assertLessEqual(max(point.x() for point in points), 0.01)
 
 
     def test_contain_teeth_point_inward_at_a_third_of_the_radius(self):
@@ -1014,28 +1018,28 @@ class TestContainAndRetain(QgisTestCase):
 
         # 180 degrees at 18-degree spacing, INCLUSIVE of both ends -
         # "the last tooth in contain on both ends should be at pt1 and
-        # pt2, not slightly inside" - which would be 11, less the one
-        # at 90 degrees left out to make room for the "C".
-        self.assertEqual(len(teeth), 10)
+        # pt2, not slightly inside". None is dropped; the one at 90
+        # degrees is merely shortened to clear the "C".
+        self.assertEqual(len(teeth), 11)
 
         for end, tooth in ((10.0, teeth[0]), (-10.0, teeth[-1])):
 
             self.assertAlmostEqual(tooth[0].x(), 0.0, places=6)
             self.assertAlmostEqual(tooth[0].y(), end, places=6)
 
+        # Every tick's own TIP is at 2/3 of the radius; its foot is on
+        # the perimeter except for the one shortened to clear the "C".
         for outer, inner in teeth:
-
-            outer_radius = math.hypot(outer.x(), outer.y())
-            inner_radius = math.hypot(inner.x(), inner.y())
-
-            self.assertAlmostEqual(outer_radius, 10.0, places=6)
 
             # INWARD - the opposite of Retain's, read off the template
             # at 480 dpi and confirmed by the maintainer.
-            self.assertLess(inner_radius, outer_radius)
-
             self.assertAlmostEqual(
-                outer_radius - inner_radius, 10.0 / 3.0, places=6
+                math.hypot(inner.x(), inner.y()), 10.0 - 10.0 / 3.0,
+                places=6
+            )
+
+            self.assertLessEqual(
+                math.hypot(outer.x(), outer.y()), 10.0 + 1e-6
             )
 
 
@@ -1081,19 +1085,23 @@ class TestContainAndRetain(QgisTestCase):
         # 300 drawn, a 60-degree opening. The standard's own text says
         # the opening is 30 degrees; its own picture draws nearer 60,
         # and the maintainer asked for 300. See _RETAIN_ARC_DEG.
-        arc = self._evaluate("mct_retain_arc", self._RETAIN).asPolyline()
+        parts = self._evaluate(
+            "mct_retain_arc", self._RETAIN
+        ).asMultiPolyline()
 
         def bearing(point):
             return math.degrees(math.atan2(point.y(), point.x()))
 
-        self.assertAlmostEqual(bearing(arc[0]), 90.0, places=4)
+        first, last = parts[0], parts[-1]
 
-        sweep = (bearing(arc[0]) - bearing(arc[-1])) % 360
+        self.assertAlmostEqual(bearing(first[0]), 90.0, places=4)
+
+        sweep = (bearing(first[0]) - bearing(last[-1])) % 360
 
         self.assertAlmostEqual(sweep, 300.0, places=4)
 
         # Clockwise: the second point's bearing is BELOW the first's.
-        self.assertLess(bearing(arc[1]), bearing(arc[0]))
+        self.assertLess(bearing(first[1]), bearing(first[0]))
 
 
     def test_retain_teeth_point_outward_at_a_fifth_of_the_radius(self):
@@ -1103,23 +1111,21 @@ class TestContainAndRetain(QgisTestCase):
         ).asMultiPolyline()
 
         # 300 degrees at 15-degree spacing inclusive of both ends is
-        # 21, less two: the one at 180 degrees makes room for the "R",
-        # and the last is dropped because it sits under the arrowhead
-        # ("the last tooth near the arrow head can be dropped, it is
-        # confusing").
-        self.assertEqual(len(teeth), 19)
+        # 21, less the last, which sits under the arrowhead ("the last
+        # tooth near the arrow head can be dropped, it is confusing").
+        # The one at the "R" stays, just shortened.
+        self.assertEqual(len(teeth), 20)
 
+        # Every tick's own TIP is at 1.2 radii; its foot is on the
+        # perimeter except for the one shortened to clear the "R".
         for inner, outer in teeth:
 
-            inner_radius = math.hypot(inner.x(), inner.y())
-            outer_radius = math.hypot(outer.x(), outer.y())
-
-            self.assertAlmostEqual(inner_radius, 10.0, places=6)
-
-            self.assertGreater(outer_radius, inner_radius)
-
             self.assertAlmostEqual(
-                outer_radius - inner_radius, 10.0 / 5.0, places=6
+                math.hypot(outer.x(), outer.y()), 12.0, places=6
+            )
+
+            self.assertGreaterEqual(
+                math.hypot(inner.x(), inner.y()), 10.0 - 1e-6
             )
 
 
@@ -1232,42 +1238,40 @@ class TestDefensiveLinesLayer(QgisTestCase):
         )
 
 
-    def test_each_label_masks_the_line_it_sits_on(self):
+    def test_only_the_arrow_carries_a_painted_mask(self):
 
         # "C" and "R" sit ON the perimeter and "ENY" on the arrow
-        # shaft, so each has to cut its own gap. Labels, not marker
-        # glyphs, purely because a marker has no QgsTextMaskSettings.
+        # shaft, so each needs a gap - but only one of the three can be
+        # painted by the label engine.
         layer = create_defensive_control_measures_lines_layer()
 
-        expected = {
-            "ENY": _CONTAIN_ARROW_SYMBOL_LAYER_ID,
-            "C": _CONTAIN_ARC_SYMBOL_LAYER_ID,
-            "R": _RETAIN_ARC_SYMBOL_LAYER_ID,
-        }
+        rules = self._label_rules(layer)
 
-        for text, (_settings, _fmt, mask) in self._label_rules(layer).items():
+        # ONLY the arrow. Selective Masking does not reach symbol
+        # layers inside a geometry generator, so the arc and the ticks
+        # get a real gap cut into their geometry instead - see
+        # _configure_lines_labeling(). The arrow's mask does take, and
+        # is kept.
+        eny_mask = rules["ENY"][2]
 
-            self.assertTrue(mask.enabled(), text)
+        self.assertTrue(eny_mask.enabled())
 
-            references = mask.maskedSymbolLayers()
+        references = eny_mask.maskedSymbolLayers()
 
-            self.assertEqual(
-                [
-                    reference.symbolLayerIdV2()
-                    for reference in references
-                ],
-                [expected[text]],
-                text
-            )
+        self.assertEqual(
+            [reference.symbolLayerIdV2() for reference in references],
+            [_CONTAIN_ARROW_SYMBOL_LAYER_ID]
+        )
 
-            # The reference is scoped by layer id, and the layer had
-            # none when the rule was built - so it must have been
-            # re-stamped with the real one.
-            self.assertEqual(
-                [reference.layerId() for reference in references],
-                [layer.id()],
-                text
-            )
+        # The reference is scoped by layer id, and the layer had none
+        # when the rule was built - so it must have been re-stamped.
+        self.assertEqual(
+            [reference.layerId() for reference in references],
+            [layer.id()]
+        )
+
+        for text in ("C", "R"):
+            self.assertFalse(rules[text][2].enabled(), text)
 
 
     def test_only_eny_is_red(self):
@@ -1423,14 +1427,13 @@ class TestArrowheadsAreOpen(QgisTestCase):
             self.assertEqual(head.fillColor().alpha(), 0, builder.__name__)
 
 
-class TestLetterTicksAreOmittedNotMasked(QgisTestCase):
+class TestLetterTicksAreShortenedNotRemoved(QgisTestCase):
 
     """
     Both letters land exactly on a tick - 180 degrees is a whole number
-    of steps for both spacings - so something has to give. Masking the
-    ticks was tried and did not take where masking the ARC does, so the
-    tick is simply left out. That is also what Retain's own template
-    draws: its "R" sits in a plain gap in the tick sequence.
+    of steps for both spacings. The manual does not drop that tick, so
+    neither does this: its inner end is pulled back by the same amount
+    of arc the letter's own gap takes out of the perimeter.
     """
 
     def setUp(self):
@@ -1464,7 +1467,90 @@ class TestLetterTicksAreOmittedNotMasked(QgisTestCase):
         return result.asMultiPolyline()
 
 
-    def test_no_tick_lands_where_a_letter_sits(self):
+    def test_each_arc_is_broken_where_its_letter_sits(self):
+
+        # The gap is cut into the GEOMETRY, not painted by a mask -
+        # QGIS's Selective Masking does not reach symbol layers inside
+        # a geometry generator, and every part of these two symbols is
+        # generated. Two parts means a real break.
+        for function, letter_function, wkt in (
+            ("mct_contain_arc", "mct_contain_letter_point",
+             "LineString(0 10, 0 -10, 25 0)"),
+            ("mct_retain_arc", "mct_retain_letter_point",
+             "LineString(0 0, 0 10)"),
+        ):
+
+            parts = QgsExpression(
+                "{}(geom_from_wkt('{}'))".format(function, wkt)
+            ).evaluate().asMultiPolyline()
+
+            self.assertEqual(len(parts), 2, function)
+
+            letter = QgsExpression(
+                "{}(geom_from_wkt('{}'))".format(letter_function, wkt)
+            ).evaluate().asPoint()
+
+            # Neither part comes near the letter.
+            for part in parts:
+                for point in part:
+                    self.assertGreater(
+                        math.hypot(
+                            point.x() - letter.x(), point.y() - letter.y()
+                        ),
+                        0.9,
+                        function
+                    )
+
+
+    def test_retains_arrowhead_rides_on_its_own_tail_not_the_split_arc(self):
+
+        # A marker on the last vertex of the GAPPED arc lands on the
+        # end of each part - a second arrowhead right beside the "R".
+        wkt = "LineString(0 0, 0 10)"
+
+        tail = QgsExpression(
+            "mct_retain_arc_end(geom_from_wkt('{}'))".format(wkt)
+        ).evaluate().asPolyline()
+
+        self.assertEqual(len(tail), 2)
+
+        parts = QgsExpression(
+            "mct_retain_arc(geom_from_wkt('{}'))".format(wkt)
+        ).evaluate().asMultiPolyline()
+
+        # It ends where the whole arc ends.
+        self.assertAlmostEqual(tail[-1].x(), parts[-1][-1].x(), places=6)
+        self.assertAlmostEqual(tail[-1].y(), parts[-1][-1].y(), places=6)
+
+
+    def test_the_tick_at_each_letter_is_shortened_not_removed(self):
+
+        for teeth_function, letter_function, step, wkt in (
+            ("mct_contain_teeth", "mct_contain_letter_point", 18.0,
+             "LineString(0 10, 0 -10, 25 0)"),
+            ("mct_retain_teeth", "mct_retain_letter_point", 15.0,
+             "LineString(0 0, 0 10)"),
+        ):
+
+            teeth = self._teeth(teeth_function, wkt)
+
+            letter = QgsExpression(
+                "{}(geom_from_wkt('{}'))".format(letter_function, wkt)
+            ).evaluate().asPoint()
+
+            # The tick is still there - just standing off the letter.
+            nearest = min(
+                math.hypot(
+                    tooth[0].x() - letter.x(), tooth[0].y() - letter.y()
+                )
+                for tooth in teeth
+            )
+
+            self.assertGreater(nearest, 0.5, teeth_function)
+            self.assertLess(nearest, 3.0, teeth_function)
+
+
+    def test_no_tick_foot_sits_on_a_letter(self):
 
         for teeth_function, letter_function, wkt in (
             ("mct_contain_teeth", "mct_contain_letter_point",
@@ -1496,11 +1582,11 @@ class TestLetterTicksAreOmittedNotMasked(QgisTestCase):
 
         wkt = "LineString(0 0, 0 10)"
 
-        arc = QgsExpression(
+        parts = QgsExpression(
             "mct_retain_arc(geom_from_wkt('{}'))".format(wkt)
-        ).evaluate().asPolyline()
+        ).evaluate().asMultiPolyline()
 
-        end = arc[-1]
+        end = parts[-1][-1]
 
         for tooth in self._teeth("mct_retain_teeth", wkt):
 

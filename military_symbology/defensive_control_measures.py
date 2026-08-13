@@ -288,16 +288,14 @@ _ENEMY_RED = QColor(255, 0, 0)
 # offensive_control_measures.py).
 _CONTAIN_ARROW_SYMBOL_LAYER_ID = "contain_arrow"
 
-# The two arcs carry ids because "C" and "R" sit ON the perimeter and
-# cut their own gap in it.
-#
-# The TICKS do not, and are not masked: at both letters' own position a
-# tick lands exactly there too, and masking them was tried first and
-# did not take where masking the arc does. The tick is simply left out
-# instead (see _radial_teeth's own `skip_deg`) - deterministic, and
-# what Retain's template draws anyway.
+# The arcs and ticks carry ids only so the symbol tree is readable;
+# nothing masks them. See _configure_lines_labeling() for what does and
+# does not get a painted mask here, and the expression module's own
+# _LETTER_GAP_DEG for how the "C"/"R" gap is cut instead.
 _CONTAIN_ARC_SYMBOL_LAYER_ID = "contain_arc"
+_CONTAIN_TEETH_SYMBOL_LAYER_ID = "contain_teeth"
 _RETAIN_ARC_SYMBOL_LAYER_ID = "retain_arc"
+_RETAIN_TEETH_SYMBOL_LAYER_ID = "retain_teeth"
 
 # **Both arrowheads are OPEN, not filled.** Read off the templates at
 # 480 dpi after the maintainer reported Retain's: the only filled black
@@ -421,7 +419,10 @@ def _contain_symbol():
     )
 
     symbol.appendSymbolLayer(
-        _arc_generator_layer("mct_contain_teeth($geometry)")
+        _arc_generator_layer(
+            "mct_contain_teeth($geometry)",
+            symbol_layer_id=_CONTAIN_TEETH_SYMBOL_LAYER_ID,
+        )
     )
 
     symbol.appendSymbolLayer(
@@ -462,11 +463,14 @@ def _retain_symbol():
     )
 
     symbol.appendSymbolLayer(
-        _arc_generator_layer("mct_retain_teeth($geometry)")
+        _arc_generator_layer(
+            "mct_retain_teeth($geometry)",
+            symbol_layer_id=_RETAIN_TEETH_SYMBOL_LAYER_ID,
+        )
     )
 
     arrowhead = _arrowhead_layer(
-        "mct_retain_arc($geometry)",
+        "mct_retain_arc_end($geometry)",
         QColor(0, 0, 0),
         Qgis.MarkerLinePlacement.LastVertex,
     )
@@ -946,7 +950,7 @@ def create_defensive_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     return layer
 
 
-def _arc_label_rule(measure_type, text, position_function, mask_ids,
+def _arc_label_rule(measure_type, text, position_function, mask_ids=(),
                     colour=None):
 
     """
@@ -1012,22 +1016,24 @@ def _arc_label_rule(measure_type, text, position_function, mask_ids,
 
         text_format.setColor(colour)
 
-    mask = QgsTextMaskSettings()
+    if mask_ids:
 
-    mask.setEnabled(True)
+        mask = QgsTextMaskSettings()
 
-    mask.setSize(_LABEL_MASK_MM)
+        mask.setEnabled(True)
 
-    mask.setSizeUnit(Qgis.RenderUnit.Millimeters)
+        mask.setSize(_LABEL_MASK_MM)
 
-    mask.setMaskedSymbolLayers(
-        [
-            QgsSymbolLayerReference(_MASK_LAYER_ID_PLACEHOLDER, mask_id)
-            for mask_id in mask_ids
-        ]
-    )
+        mask.setSizeUnit(Qgis.RenderUnit.Millimeters)
 
-    text_format.setMask(mask)
+        mask.setMaskedSymbolLayers(
+            [
+                QgsSymbolLayerReference(_MASK_LAYER_ID_PLACEHOLDER, mask_id)
+                for mask_id in mask_ids
+            ]
+        )
+
+        text_format.setMask(mask)
 
     settings.setFormat(text_format)
 
@@ -1045,12 +1051,20 @@ def _arc_label_rule(measure_type, text, position_function, mask_ids,
 def _configure_lines_labeling(layer):
 
     """
-    Three masked labels: Contain's "ENY" on its arrow and "C" on its
-    arc, Retain's "R" on its arc.
+    Three labels: Contain's "ENY" on its arrow, its "C" on the arc, and
+    Retain's "R" on the arc.
 
-    Rule-BASED rather than simple labelling, because each one needs its
-    own text format - a different colour, and a different symbol layer
-    to mask.
+    **Only "ENY" carries a painted mask.** Selective Masking works on
+    the arrow, and does not on the arc or the ticks - probed both ways,
+    referencing the nested line layer's own id and the generator's.
+    Rather than leave the two letters sitting on top of their own line,
+    their gap is cut into the GEOMETRY instead; see the expression
+    module's own _LETTER_GAP_DEG. That is also more faithful, since it
+    breaks the line by a fixed amount of ARC rather than by whatever
+    the glyph happens to cover.
+
+    Rule-BASED rather than simple labelling, because each label needs
+    its own text format - a different colour, and its own mask or none.
     """
 
     rules = QgsRuleBasedLabeling.Rule(QgsPalLayerSettings())
@@ -1062,11 +1076,9 @@ def _configure_lines_labeling(layer):
         ),
         _arc_label_rule(
             "contain", "C", "mct_contain_letter_point",
-            [_CONTAIN_ARC_SYMBOL_LAYER_ID],
         ),
         _arc_label_rule(
             "retain", "R", "mct_retain_letter_point",
-            [_RETAIN_ARC_SYMBOL_LAYER_ID],
         ),
     ):
         rules.appendChild(rule)
@@ -1099,6 +1111,9 @@ def _bind_label_masks_to_layer(layer):
         text_format = settings.format()
 
         mask = text_format.mask()
+
+        if not mask.maskedSymbolLayers():
+            continue
 
         mask.setMaskedSymbolLayers(
             [

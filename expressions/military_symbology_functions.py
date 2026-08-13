@@ -2445,13 +2445,29 @@ _RETAIN_ARC_DEG = 300.0
 _RETAIN_TOOTH_STEP_DEG = 15.0
 _RETAIN_TOOTH_LENGTH_RATIO = 1.0 / 5.0
 
-# Both letters sit ON the perimeter, cutting their own gap in the arc
-# rather than floating beside it - the maintainer's own instruction
-# ("should be on the perimeter, not next to it, with mask") and what
-# both templates draw. That mask is why they are LABELS and not marker
-# glyphs; see defensive_control_measures.py's own
-# _configure_lines_labeling().
+# Both letters sit ON the perimeter, in a gap in the arc rather than
+# floating beside it - the maintainer's own instruction ("should be on
+# the perimeter, not next to it, with mask") and what both templates
+# draw.
 _LETTER_RADIUS_RATIO = 1.0
+
+# **That gap is cut into the GEOMETRY, not painted by a mask.**
+#
+# QGIS's own Selective Masking was tried first, and it is the right
+# tool anywhere else: c2_measures.py's own Boundary uses it, and it
+# works there. It does NOT reach symbol layers that live inside a
+# QgsGeometryGeneratorSymbolLayer - probed both ways, referencing the
+# nested line layer's own id and the generator's, and neither takes.
+# (What looked at first like a working mask on the arc turned out to be
+# the letter glyph simply covering it, same colour.) Every part of
+# Contain and Retain is generated, so nothing here can be masked at
+# all, and the gap has to be real geometry.
+#
+# The angle is a compromise the fixed-size letter forces: the glyph is
+# a label in MILLIMETRES while the arc is in layer units, so no single
+# figure is right at every zoom. 14 degrees suits the sizes these are
+# drawn at.
+_LETTER_GAP_DEG = 14.0
 
 # Points per 180 degrees when flattening an arc to a polyline. High
 # enough that the curve reads as a curve at any zoom this plugin is
@@ -2470,6 +2486,48 @@ def _arc_points(centre, radius, start_rad, sweep_rad, segments):
         )
         for i in range(segments + 1)
     ]
+
+
+def _arc_with_letter_gap(centre, radius, start_rad, sweep_rad, segments,
+                         gap_at_rad):
+
+    """
+    An arc split into two parts, leaving a gap for the "C"/"R" that
+    sits on it - see _LETTER_GAP_DEG for why this is geometry rather
+    than a mask.
+    """
+
+    half_gap = math.radians(_LETTER_GAP_DEG) / 2.0
+
+    direction = 1.0 if sweep_rad >= 0 else -1.0
+
+    before_end = gap_at_rad - half_gap * direction
+    after_start = gap_at_rad + half_gap * direction
+
+    parts = []
+
+    for part_start, part_sweep in (
+        (0.0, before_end),
+        (after_start, sweep_rad - after_start),
+    ):
+
+        if abs(part_sweep) < 1e-9:
+            continue
+
+        count = max(
+            2, int(round(segments * abs(part_sweep) / abs(sweep_rad)))
+        )
+
+        parts.append(
+            _arc_points(
+                centre, radius, start_rad + part_start, part_sweep, count
+            )
+        )
+
+    if not parts:
+        return QgsGeometry()
+
+    return QgsGeometry.fromMultiPolylineXY(parts)
 
 
 def _radial_teeth(centre, radius, start_rad, sweep_rad, step_deg,
@@ -2491,13 +2549,12 @@ def _radial_teeth(centre, radius, start_rad, sweep_rad, step_deg,
     "the last tooth near the arrow head can be dropped, it is
     confusing".
 
-    `skip_deg` leaves out the one tick at that offset along the sweep,
-    making room for the "C"/"R". Both letters land exactly on a tick -
-    180 degrees is a whole number of steps for both - and masking the
-    ticks was tried first and did not take, where masking the ARC
-    does. Leaving the tick out is deterministic, needs no mask at all,
-    and is what Retain's own template draws: its "R" sits in a plain
-    gap in the tick sequence.
+    `skip_deg` marks where a letter sits. Both letters land exactly on
+    a tick - 180 degrees is a whole number of steps for both spacings -
+    and the manual does not drop that tick, it just hides the part the
+    letter covers. So the tick stays and its inner end is pulled back
+    instead, by the same amount of arc the letter's own gap takes out
+    of the perimeter.
     """
 
     step = math.radians(step_deg) * (1 if sweep_rad >= 0 else -1)
@@ -2511,24 +2568,33 @@ def _radial_teeth(centre, radius, start_rad, sweep_rad, step_deg,
 
     for i in range(count + (0 if drop_last else 1)):
 
-        if skip_deg is not None and abs(i * step_deg - skip_deg) < 1e-6:
-            continue
-
         angle = start_rad + step * i
+
+        # The tick at the letter starts clear of it rather than at the
+        # perimeter, so the letter reads against blank paper.
+        inset = (
+            radius * math.radians(_LETTER_GAP_DEG) / 2.0
+            if skip_deg is not None
+            and abs(i * step_deg - skip_deg) < 1e-6
+            else 0.0
+        )
 
         cos_a, sin_a = math.cos(angle), math.sin(angle)
 
-        outer = QgsPointXY(
-            centre.x() + radius * cos_a, centre.y() + radius * sin_a
-        )
-
         reach = -length if inward else length
+
+        foot = radius - inset if inward else radius + inset
+
+        outer = QgsPointXY(
+            centre.x() + foot * cos_a, centre.y() + foot * sin_a
+        )
 
         teeth.append(
             [
                 outer,
                 QgsPointXY(
-                    outer.x() + reach * cos_a, outer.y() + reach * sin_a
+                    centre.x() + (radius + reach) * cos_a,
+                    centre.y() + (radius + reach) * sin_a,
                 ),
             ]
         )
@@ -2613,10 +2679,9 @@ def mct_contain_arc(values, feature=None, parent=None):
 
     centre, radius, start, sweep, _n = frame
 
-    return QgsGeometry.fromPolylineXY(
-        _arc_points(
-            centre, radius, start, sweep, _ARC_SEGMENTS_PER_SEMICIRCLE
-        )
+    return _arc_with_letter_gap(
+        centre, radius, start, sweep, _ARC_SEGMENTS_PER_SEMICIRCLE,
+        sweep / 2.0,
     )
 
 
@@ -2834,8 +2899,42 @@ def mct_retain_arc(values, feature=None, parent=None):
         _ARC_SEGMENTS_PER_SEMICIRCLE * abs(sweep) / math.pi
     )
 
+    # The "R" sits 180 degrees along the sweep, which is clockwise -
+    # hence negative, matching _retain_letter_point().
+    return _arc_with_letter_gap(
+        centre, radius, start, sweep, max(segments, 2), -math.pi
+    )
+
+
+@qgsfunction(
+    'mct_retain_arc_end',
+    group='Military Cartography Tools'
+)
+def mct_retain_arc_end(values, feature=None, parent=None):
+
+    """
+    The last short segment of Retain's arc, for the arrowhead alone.
+
+    It cannot ride on mct_retain_arc(): that returns TWO parts once the
+    "R" gap is cut into it, and a marker on the last vertex then lands
+    on the end of each - putting a second arrowhead right beside the
+    letter. Caught in a render.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _retain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, sweep = frame
+
+    step = math.radians(2.0) * (1 if sweep >= 0 else -1)
+
     return QgsGeometry.fromPolylineXY(
-        _arc_points(centre, radius, start, sweep, max(segments, 2))
+        _arc_points(centre, radius, start + sweep - step, step, 1)
     )
 
 
@@ -4923,6 +5022,7 @@ _FUNCTIONS = [
     mct_contain_arrow,
     mct_contain_letter_point,
     mct_retain_arc,
+    mct_retain_arc_end,
     mct_retain_teeth,
     mct_retain_letter_point,
     mct_rampart_connector_svg,
