@@ -220,9 +220,13 @@ class TestTableHXIXInventory(QgisTestCase):
     def test_colour_follows_the_maintainers_audit(self):
 
         # The table-wide default is green; these are the entries the
-        # 2026-08-12 audit named as exceptions. Pinned by name because
-        # a wrong colour here is invisible in a headless test and only
-        # shows up on a printed map.
+        # 2026-08-12 audit named as exceptions, plus the whole B7
+        # crossing family, which the maintainer moved to black when
+        # that batch was built ("b7 all default colour black not
+        # green") - a crossing site is not itself an obstacle, which is
+        # what the green is for. Pinned by name because a wrong colour
+        # here is invisible in a headless test and only shows up on a
+        # printed map.
         black = {
             code for code, entry in TABLE_H_XIX_INVENTORY.items()
             if entry["colour"] == BLACK
@@ -238,9 +242,33 @@ class TestTableHXIXInventory(QgisTestCase):
                 "271000",  # UXO Area
                 "290203",  # Antitank Ditch Reinforced with Antitank Mines
                 "290204",  # Antitank Wall
+                # B7's water crossing sites, all black.
+                "271300",  # Assault Crossing
+                "271400",  # Bridge
+                "271500",  # Ford Easy
+                "271600",  # Ford Difficult
+                "282003",  # Overhead Wire
                 "290600",  # Lane
+                "290700",  # Ferry
+                "290800",  # Raft Site
             }
         )
+
+
+    def test_every_b7_crossing_entry_defaults_to_black(self):
+
+        # Stated as a rule about the BATCH rather than a list of codes,
+        # so a later addition to B7 cannot quietly come back green.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            B7_CROSSINGS,
+            inventory_for_batch,
+        )
+
+        for code, entry in inventory_for_batch(B7_CROSSINGS).items():
+
+            with self.subTest(code=code):
+
+                self.assertEqual(entry["colour"], BLACK)
 
         # "OT" in the audit's own shorthand - outline green, text black.
         outline_green = {
@@ -2181,6 +2209,8 @@ class TestWireObstacles(QgisTestCase):
                 "obstacle_bypass_impossible", "bridge_or_gap",
                 "roadblock_planned", "roadblock_readiness_1",
                 "roadblock_readiness_2", "roadblock_complete",
+                "bridge", "ford_easy", "ford_difficult", "lane", "ferry",
+                "raft_site", "overhead_wire",
             },
             set(LINE_MEASURE_TYPE_LABELS)
         )
@@ -4867,6 +4897,7 @@ class TestBridgeOrGap(QgisTestCase):
 
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             _LINE_PLACEMENT_FLAGS_EXPRESSION,
+            LINE_MEASURE_TYPE_LABELS,
         )
 
         definition = QgsPalLayerSettings.propertyDefinitions()[
@@ -4881,9 +4912,9 @@ class TestBridgeOrGap(QgisTestCase):
 
         used = set(re.findall(r"'(\w+)'", _LINE_PLACEMENT_FLAGS_EXPRESSION))
 
-        # Drop the measure_type literal; what remains must all be
-        # documented placement tokens.
-        used.discard("bridge_or_gap")
+        # Drop the measure_type literals the CASE tests against; what
+        # remains must all be documented placement tokens.
+        used -= set(LINE_MEASURE_TYPE_LABELS)
 
         self.assertTrue(
             used <= documented,
@@ -5313,3 +5344,451 @@ class TestRoadblockFamily(QgisTestCase):
             "mct_roadblock_complete_geometry($geometry)",
             symbol.symbolLayer(0).geometryExpression()
         )
+
+
+class TestWaterCrossingSites(QgisTestCase):
+
+    """
+    Batch B7 - the water crossing sites and the last of Table H-XIX's
+    own lines: Bridge/Assault Crossing (271400 + 271300), Ford Easy
+    (271500), Ford Difficult (271600), Lane (290600), Ferry (290700),
+    Raft Site (290800) and Overhead Wire (282003).
+
+    Two merges here, both confirmed with the maintainer before
+    building rather than assumed - see B7_CROSSINGS_MEASURE_TYPE_LABELS
+    for the reasoning.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_every_b7_entry_is_offered_on_the_lines_layer(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            B7_CROSSINGS_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_CODES,
+            create_obstacle_control_measures_lines_layer,
+        )
+
+        expected = {
+            "bridge": "271400",
+            "ford_easy": "271500",
+            "ford_difficult": "271600",
+            "lane": "290600",
+            "ferry": "290700",
+            "raft_site": "290800",
+            "overhead_wire": "282003",
+        }
+
+        self.assertEqual(B7_CROSSINGS_MEASURE_TYPE_CODES, expected)
+
+        layer = create_obstacle_control_measures_lines_layer()
+
+        labels = {
+            rule.label() for rule in layer.renderer().rootRule().children()
+        }
+
+        for measure_type, code in expected.items():
+
+            with self.subTest(measure_type=measure_type):
+
+                self.assertEqual(
+                    LINE_MEASURE_TYPE_CODES[measure_type], code
+                )
+                self.assertIn(measure_type, labels)
+
+
+    def test_assault_crossing_is_merged_into_bridge_not_dropped(self):
+
+        # "assault crossing, merge it with the bridge i.e. just add the
+        # heading since it is same as bridge". 271300 has no
+        # measure_type of its own, so a plain coverage check would read
+        # it as missing - _B7_MERGED_CODES is what says otherwise.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE_MEASURE_TYPE_CODES,
+            LINE_MEASURE_TYPE_LABELS,
+            _B7_MERGED_CODES,
+        )
+
+        self.assertNotIn("271300", set(LINE_MEASURE_TYPE_CODES.values()))
+
+        self.assertEqual(_B7_MERGED_CODES["bridge"], ("271300",))
+
+        # The heading has to name both, or the merge is invisible to
+        # whoever picks from the dropdown.
+        self.assertIn("Assault Crossing", LINE_MEASURE_TYPE_LABELS["bridge"])
+        self.assertIn("Bridge", LINE_MEASURE_TYPE_LABELS["bridge"])
+
+
+    def test_every_buildable_line_code_is_built_or_deliberately_merged(self):
+
+        # The whole-table coverage check for the Lines layer, now that
+        # B7 closes it out: every LINE entry the audit calls buildable
+        # must be reachable, either as its own measure type or as a
+        # recorded merge.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            LINE,
+            LINE_MEASURE_TYPE_CODES,
+            TABLE_H_XIX_INVENTORY,
+            _B7_MERGED_CODES,
+            buildable_inventory,
+        )
+
+        built = set(LINE_MEASURE_TYPE_CODES.values())
+
+        for merged in _B7_MERGED_CODES.values():
+            built.update(merged)
+
+        expected = {
+            code for code, entry in buildable_inventory().items()
+            if entry["geometry"] == LINE
+        }
+
+        self.assertEqual(expected - built, set())
+
+
+    def test_bridge_and_the_fords_take_two_points_at_a_fixed_channel(self):
+
+        # "Fixed mm, 2 clicks" - the standard gives these three a third
+        # anchor point for width; it was dropped deliberately so the
+        # whole family stays consistent with Bridge or Gap.
+        from qgis.core import Qgis
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _BRIDGE_CHANNEL_MM,
+            _bridge_symbol,
+            _ford_difficult_symbol,
+            _ford_easy_symbol,
+        )
+
+        for builder in (
+            _bridge_symbol, _ford_easy_symbol, _ford_difficult_symbol
+        ):
+
+            with self.subTest(builder=builder.__name__):
+
+                symbol = builder()
+
+                offsets = []
+
+                for index in range(2):
+
+                    line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+
+                    self.assertEqual(
+                        line.offsetUnit(), Qgis.RenderUnit.Millimeters
+                    )
+
+                    offsets.append(line.offset())
+
+                self.assertAlmostEqual(
+                    offsets[0], _BRIDGE_CHANNEL_MM / 2.0
+                )
+                self.assertAlmostEqual(
+                    offsets[1], -_BRIDGE_CHANNEL_MM / 2.0
+                )
+
+
+    def test_bridge_draws_the_same_construction_as_bridge_or_gap(self):
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _bridge_or_gap_symbol,
+            _bridge_symbol,
+        )
+
+        bridge = _bridge_symbol()
+        gap = _bridge_or_gap_symbol()
+
+        self.assertEqual(
+            bridge.symbolLayerCount(), gap.symbolLayerCount()
+        )
+
+        for index in range(bridge.symbolLayerCount()):
+
+            self.assertEqual(
+                bridge.symbolLayer(index).geometryExpression(),
+                gap.symbolLayer(index).geometryExpression()
+            )
+
+
+    def test_the_fords_are_dashed_and_carry_no_end_wings(self):
+
+        from qgis.PyQt.QtCore import Qt
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _bridge_symbol,
+            _ford_difficult_symbol,
+            _ford_easy_symbol,
+        )
+
+        for builder in (_ford_easy_symbol, _ford_difficult_symbol):
+
+            with self.subTest(builder=builder.__name__):
+
+                symbol = builder()
+
+                for index in range(2):
+
+                    line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+
+                    self.assertEqual(line.penStyle(), Qt.PenStyle.DashLine)
+
+        # Ford Easy is the two dashed lines and nothing else; Bridge
+        # adds the two end wings on top of its own pair.
+        self.assertEqual(_ford_easy_symbol().symbolLayerCount(), 2)
+        self.assertEqual(_bridge_symbol().symbolLayerCount(), 4)
+
+
+    def test_ford_difficult_adds_a_zigzag_at_the_midpoint(self):
+
+        from qgis.core import Qgis, QgsMarkerLineSymbolLayer
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _ford_difficult_symbol,
+            _ford_easy_symbol,
+        )
+
+        easy = _ford_easy_symbol()
+        difficult = _ford_difficult_symbol()
+
+        # The zigzag is the ONLY thing the standard varies between the
+        # two, so it must be exactly one extra layer.
+        self.assertEqual(
+            difficult.symbolLayerCount(), easy.symbolLayerCount() + 1
+        )
+
+        marker_line = difficult.symbolLayer(2).subSymbol().symbolLayer(0)
+
+        self.assertIsInstance(marker_line, QgsMarkerLineSymbolLayer)
+
+        self.assertEqual(
+            marker_line.placements(), Qgis.MarkerLinePlacement.CentralPoint
+        )
+
+        self.assertTrue(marker_line.rotateSymbols())
+
+
+    def test_the_ford_zigzag_glyph_spans_and_overhangs_the_channel(self):
+
+        import base64
+        import re
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _BRIDGE_CHANNEL_MM,
+            _FORD_ZIGZAG_MM,
+        )
+
+        # It has to cross the channel and stick out, or it reads as
+        # sitting inside the ford rather than crossing it.
+        self.assertGreater(_FORD_ZIGZAG_MM, _BRIDGE_CHANNEL_MM)
+
+        svg = QgsExpression(
+            "mct_ford_zigzag_svg('rgb(0,0,0)', {}, 1.1, 4, 0.4)".format(
+                _FORD_ZIGZAG_MM
+            )
+        ).evaluate()
+
+        self.assertTrue(svg.startswith("base64:"))
+
+        markup = base64.b64decode(svg[len("base64:"):]).decode("utf-8")
+
+        ys = [
+            float(m) for m in re.findall(r"[-\d.]+,(-?[\d.]+)", markup)
+        ]
+
+        self.assertAlmostEqual(min(ys), -_FORD_ZIGZAG_MM / 2.0, places=3)
+        self.assertAlmostEqual(max(ys), _FORD_ZIGZAG_MM / 2.0, places=3)
+
+
+    def test_lane_ferry_and_raft_site_point_their_arrows_outward(self):
+
+        from qgis.core import Qgis, QgsMarkerLineSymbolLayer
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _ferry_symbol,
+            _lane_symbol,
+            _raft_site_symbol,
+        )
+
+        for builder in (_lane_symbol, _ferry_symbol, _raft_site_symbol):
+
+            with self.subTest(builder=builder.__name__):
+
+                symbol = builder()
+
+                # Shaft plus one arrowhead at each end.
+                self.assertEqual(symbol.symbolLayerCount(), 3)
+
+                angles = {}
+
+                for index in (1, 2):
+
+                    marker_line = (
+                        symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+                    )
+
+                    self.assertIsInstance(
+                        marker_line, QgsMarkerLineSymbolLayer
+                    )
+                    self.assertTrue(marker_line.rotateSymbols())
+
+                    angles[marker_line.placements()] = (
+                        marker_line.subSymbol().angle()
+                    )
+
+                # QGIS rotates a marker to the LINE's direction at both
+                # ends rather than reversing it at the start, so the
+                # first-vertex head has to be spun 180 by hand -
+                # otherwise both ends point the same way.
+                self.assertAlmostEqual(
+                    angles[Qgis.MarkerLinePlacement.FirstVertex], 180
+                )
+                self.assertAlmostEqual(
+                    angles[Qgis.MarkerLinePlacement.LastVertex], 0
+                )
+
+
+    def test_only_ferry_fills_its_arrowheads(self):
+
+        from qgis.core import QgsSimpleMarkerSymbolLayerBase
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _ferry_symbol,
+            _lane_symbol,
+            _raft_site_symbol,
+        )
+
+        def head_shape(symbol):
+
+            marker_line = symbol.symbolLayer(1).subSymbol().symbolLayer(0)
+
+            return marker_line.subSymbol().symbolLayer(0).shape()
+
+        # "The arrowheads will be filled-in versions of a common
+        # arrowhead" - Ferry only. Lane and Raft Site say instead that
+        # "the lines of the arrowhead will form an acute angle", i.e.
+        # an open chevron.
+        self.assertEqual(
+            head_shape(_ferry_symbol()),
+            QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHeadFilled
+        )
+
+        for builder in (_lane_symbol, _raft_site_symbol):
+
+            with self.subTest(builder=builder.__name__):
+
+                self.assertEqual(
+                    head_shape(builder()),
+                    QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead
+                )
+
+
+    def test_lane_and_raft_site_are_deliberately_identical(self):
+
+        # Their templates AND their draw rules are word for word the
+        # same; the only difference in the table is Lane's own W/W1
+        # amplifiers. Pinned so this reads as a confirmed decision
+        # rather than the duplication bug TestWireObstacles guards
+        # against.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _OBSTACLE_LINE_LABEL_EXPRESSION,
+            _lane_symbol,
+            _raft_site_symbol,
+        )
+
+        lane = _lane_symbol()
+        raft = _raft_site_symbol()
+
+        self.assertEqual(lane.symbolLayerCount(), raft.symbolLayerCount())
+
+        for index in range(lane.symbolLayerCount()):
+
+            self.assertEqual(
+                lane.symbolLayer(index).geometryExpression(),
+                raft.symbolLayer(index).geometryExpression()
+            )
+
+        # The one real difference: Lane is labelled, Raft Site is not.
+        self.assertIn("'lane'", _OBSTACLE_LINE_LABEL_EXPRESSION)
+        self.assertNotIn("'raft_site'", _OBSTACLE_LINE_LABEL_EXPRESSION)
+
+
+    def test_overhead_wire_reuses_the_tables_own_tower_symbol(self):
+
+        # The standard numbers nothing about the pylon it draws, but
+        # this table already HAS a tower symbol - Tower High (282002),
+        # built in B1 - so the glyph is reused rather than invented.
+        from qgis.core import QgsMarkerLineSymbolLayer
+
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _OVERHEAD_WIRE_TOWER_ENTITY,
+            _overhead_wire_symbol,
+        )
+        from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
+
+        self.assertEqual(
+            ENTITIES["control_measure"][_OVERHEAD_WIRE_TOWER_ENTITY], "282002"
+        )
+
+        symbol = _overhead_wire_symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 3)
+
+        for index in (1, 2):
+
+            marker_line = symbol.symbolLayer(index).subSymbol().symbolLayer(0)
+
+            self.assertIsInstance(marker_line, QgsMarkerLineSymbolLayer)
+
+            # A pylon stands upright however the wire runs.
+            self.assertFalse(marker_line.rotateSymbols())
+
+            expression = (
+                marker_line.subSymbol().symbolLayer(0)
+                .dataDefinedProperties()
+                .property(QgsSymbolLayer.Property.Name)
+                .expressionString()
+            )
+
+            self.assertIn(_OVERHEAD_WIRE_TOWER_ENTITY, expression)
+            self.assertIn("mct_sidc_svg", expression)
+
+
+    def test_the_overhead_wire_tower_resolves_to_a_real_glyph(self):
+
+        # The expression above is only correct if it actually renders -
+        # a bad entity name would silently produce the unknown icon,
+        # the defect class this module has already hit three times.
+        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
+            _OVERHEAD_WIRE_TOWER_ENTITY,
+        )
+
+        sidc = QgsExpression(
+            "mct_build_sidc('friend', '{}', 'control_measure',"
+            " 'unspecified', 'present', false)".format(
+                _OVERHEAD_WIRE_TOWER_ENTITY
+            )
+        ).evaluate()
+
+        # Set B's entity occupies digits 11-16 of the 20-digit SIDC.
+        self.assertEqual(sidc[10:16], "282002")
+
+        svg = QgsExpression(
+            "mct_sidc_svg('{}', '', 'uniqueDesignation',"
+            " 'rgb(0,155,0)', 1.0)".format(sidc)
+        ).evaluate()
+
+        self.assertTrue(svg.startswith("base64:"))

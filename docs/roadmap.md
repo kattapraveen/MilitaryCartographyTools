@@ -7076,6 +7076,69 @@ tested, not claimed as done here.
 
   988 tests passing on both QGIS versions.
 
+- **B7 built - water crossing sites, and Table H-XIX closes out**
+  (2026-08-13). Seven measure types covering eight code rows: Bridge/
+  Assault Crossing (271400 + 271300), Ford Easy (271500), Ford
+  Difficult (271600), Lane (290600), Ferry (290700), Raft Site
+  (290800) and Overhead Wire (282003).
+
+  Following the lesson B6 taught the hard way, the unnumbered parts
+  were put to the maintainer BEFORE building rather than guessed at,
+  and all three answers changed the work:
+
+  **Bridge and the Fords lost their third anchor point.** The standard
+  gives all three a PT3 for channel width; the maintainer chose "fixed
+  mm, 2 clicks" so they match Bridge or Gap. All four parallel-line
+  symbols now share `_parallel_channel_symbol()` at a fixed
+  `_BRIDGE_CHANNEL_MM`, differing only in dash, end wings and Ford
+  Difficult's own midpoint zigzag (a millimetre-sized rotating SVG, for
+  the same page-units reason as the bridge flares).
+
+  **Assault Crossing is merged into Bridge**, not built separately -
+  "assault crossing, merge it with the bridge i.e. just add the heading
+  since it is same as bridge". Its template really is identical, and
+  once Bridge lost PT3 so is its construction. `_B7_MERGED_CODES`
+  records 271300 explicitly so a coverage check can tell a deliberate
+  merge from a quiet drop, and a new whole-table test asserts every
+  buildable LINE code is either built or recorded as merged.
+
+  **Lane and Raft Site are deliberately identical.** Their templates
+  AND their draw rules are word for word the same; the only difference
+  in the entire table is that Lane carries the W/W1 amplifiers. Kept as
+  two entries sharing one builder, with the decision pinned by a test
+  so it does not later read as the duplication bug `TestWireObstacles`
+  guards against.
+
+  **Overhead Wire's pylons are the table's own Tower High (282002)**,
+  not an invented glyph - which came directly from the maintainer
+  asking "is there any sidc for tower?" rather than accepting a
+  hand-drawn one. There are four tower SIDCs in the vocabulary; two
+  (Tower Low 282001, Tower High 282002) are in this very table and
+  already rendered by milsymbol from B1. Overhead Wire now builds its
+  marker through the same `mct_build_sidc()`/`mct_sidc_svg()` pair the
+  Points layer uses, at the same size, so the two drawings of the same
+  real-world object cannot drift apart. A test asserts the entity
+  resolves to a real glyph rather than the unknown icon - the defect
+  class this module has already hit three times.
+
+  Also useful, and the reason the arrowheads here are fixed-size:
+  Lane, Ferry and Raft Site all say the symbol "varies only in length",
+  which is the standard's own way of stating exactly the principle the
+  maintainer applied to the bridge channel.
+
+  **The whole B7 family defaults to BLACK, not the table's usual
+  green** - "b7 all default colour black not green", the maintainer's
+  call on reviewing the batch. It is a sensible distinction: the green
+  marks obstacles, and a crossing site is the opposite of one. Lane was
+  already black in the original B0 audit; the other seven now match it.
+  Pinned twice over - by code in the audit test, and as a rule about
+  the BATCH, so a later addition to B7 cannot quietly come back green.
+
+  1002 tests passing on both QGIS versions. **Table H-XIX is now
+  COMPLETE - all seven batches, B1 through B7**, across four layers
+  (Points, Areas, Minefields, Lines). Mini-Phase H15/H16 is done;
+  H17 (Table H-XX, Field Fortification) is next.
+
 ---
 
 ## Suggested near-term order

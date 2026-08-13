@@ -330,14 +330,20 @@ TABLE_H_XIX_INVENTORY = {
                  LINE, B6_ROADBLOCKS, ASSUMED, GREEN),
     "271204": _e("Roadblock Complete (Executed)", LINE, B6_ROADBLOCKS,
                  ASSUMED, GREEN),
-    # -- Water crossing sites. The maintainer's audit notes Bridge is
-    #    the same construction as Assault Crossing and could share one
-    #    builder - a scope call for B7, not folded here, since they
-    #    remain two distinct SIDCs.
-    "271300": _e("Assault Crossing", LINE, B7_CROSSINGS, CONFIRMED),
-    "271400": _e("Bridge", LINE, B7_CROSSINGS, CONFIRMED),
-    "271500": _e("Ford Easy", LINE, B7_CROSSINGS, CONFIRMED),
-    "271600": _e("Ford Difficult", LINE, B7_CROSSINGS, CONFIRMED),
+    # -- Water crossing sites. Bridge and Assault Crossing DID end up
+    #    sharing one builder, and one dropdown entry, when B7 was built
+    #    - see B7_CROSSINGS_MEASURE_TYPE_LABELS.
+    #
+    #    **The whole B7 family defaults to BLACK, not the table's usual
+    #    green** - the maintainer's own call when the batch was built
+    #    ("b7 all default colour black not green"). A crossing site is
+    #    not itself an obstacle, which is what the green is for; Lane
+    #    was already black in the original audit and the rest now match
+    #    it. Per-feature override still available like everywhere else.
+    "271300": _e("Assault Crossing", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
+    "271400": _e("Bridge", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
+    "271500": _e("Ford Easy", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
+    "271600": _e("Ford Difficult", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
     # -- Protection points --
     "280000": _e("Protection Points", PARENT, B1_POINTS, CONFIRMED),
     # Abatis is a LINE, not a point - the maintainer's audit caught this
@@ -365,7 +371,8 @@ TABLE_H_XIX_INVENTORY = {
     "282001": _e("Tower, Low", POINT, B1_POINTS, ASSUMED, GREEN, FIELD_T),
     "282002": _e("Tower, High", POINT, B1_POINTS, ASSUMED, GREEN, FIELD_T),
     # Symbol + line together, kept on the Lines layer overall.
-    "282003": _e("Overhead Wire", LINE, B7_CROSSINGS, CONFIRMED),
+    # Black with the rest of B7 - see the water crossing block above.
+    "282003": _e("Overhead Wire", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
     # -- Protection lines --
     "290000": _e("Protection Lines", PARENT, B4_WIRE, CONFIRMED),
     "290100": _e("Obstacle Line", LINE, B4_WIRE, ASSUMED,
@@ -401,8 +408,8 @@ TABLE_H_XIX_INVENTORY = {
     # separately from the shared marker-line helper.
     "290500": _e("Trip Wire", LINE, B4_WIRE, CONFIRMED, GREEN),
     "290600": _e("Lane", LINE, B7_CROSSINGS, ASSUMED, BLACK),
-    "290700": _e("Ferry", LINE, B7_CROSSINGS),
-    "290800": _e("Raft Site", LINE, B7_CROSSINGS, CONFIRMED),
+    "290700": _e("Ferry", LINE, B7_CROSSINGS, ASSUMED, BLACK),
+    "290800": _e("Raft Site", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
 }
 
 
@@ -3552,6 +3559,59 @@ def _bridge_or_gap_symbol():
     this measure_type - see the constraint in the layer factory below.
     """
 
+    return _parallel_channel_symbol(dashed=False, flares=True)
+
+
+# Every symbol in the crossing family draws on the SAME centreline
+# helper - the first two clicked points. mct_bridge_or_gap_geometry is
+# named for the entry that first needed it (B6's Bridge or Gap), but
+# it is the shared one now: B7's Bridge/Assault Crossing, Ford Easy,
+# Ford Difficult, Lane, Ferry, Raft Site and Overhead Wire all take
+# exactly the same two points.
+_CROSSING_CENTRELINE = "mct_bridge_or_gap_geometry($geometry)"
+
+
+def _crossing_generator(sub_symbol_layer):
+
+    """Wrap one symbol layer in a generator keyed to the shared
+    centreline. Every layer needs its own - a generator transforms
+    geometry only for itself, never for its siblings."""
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, sub_symbol_layer)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(_CROSSING_CENTRELINE)
+
+    generator.setSubSymbol(inner)
+
+    return generator
+
+
+def _parallel_channel_symbol(dashed, flares, midpoint_layer=None):
+
+    """
+    The two-parallel-lines construction shared by Bridge or Gap
+    (271100), Bridge/Assault Crossing (271400 + 271300), Ford Easy
+    (271500) and Ford Difficult (271600).
+
+    All four take TWO clicked points and hold the channel at a fixed
+    _BRIDGE_CHANNEL_MM, per the maintainer's own ruling that a linear
+    feature's cross-section must not scale with its length. The
+    standard gives Bridge and the Fords a third anchor point for width
+    instead; that was dropped deliberately and at their direction
+    ("Fixed mm, 2 clicks"), so all four stay consistent and every one
+    of them can hold its own label.
+
+    `dashed` is the Fords' own heavy dashes; `flares` is the outward
+    end-wing pair Bridge draws and the Fords do not; `midpoint_layer`
+    is Ford Difficult's own zigzag.
+    """
+
     symbol = QgsLineSymbol()
 
     for index, sign in enumerate((1.0, -1.0)):
@@ -3566,51 +3626,348 @@ def _bridge_or_gap_symbol():
             _AREA_OUTLINE_COLOR_EXPRESSION
         )
 
-        line_layer.setDataDefinedProperty(
-            QgsSymbolLayer.Property.StrokeStyle,
-            QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-        )
+        if dashed:
+            # A fixed dash, not the status-driven one: the Fords are
+            # dashed in the standard's own template whatever their
+            # planned/present status, the same way the roadblock state
+            # variants are.
+            line_layer.setPenStyle(Qt.PenStyle.DashLine)
+        else:
+            line_layer.setDataDefinedProperty(
+                QgsSymbolLayer.Property.StrokeStyle,
+                QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+            )
 
         line_layer.setOffset(sign * _BRIDGE_HALF_CHANNEL_MM)
 
         line_layer.setOffsetUnit(Qgis.RenderUnit.Millimeters)
 
-        generator = QgsGeometryGeneratorSymbolLayer.create({})
-
-        generator.setSymbolType(QgsSymbol.SymbolType.Line)
-
-        generator.setGeometryExpression(
-            "mct_bridge_or_gap_geometry($geometry)"
-        )
-
-        inner = QgsLineSymbol()
-
-        inner.changeSymbolLayer(0, line_layer)
-
-        generator.setSubSymbol(inner)
+        generator = _crossing_generator(line_layer)
 
         if index == 0:
             symbol.changeSymbolLayer(0, generator)
         else:
             symbol.appendSymbolLayer(generator)
 
-    for at_end in (False, True):
+    if flares:
 
-        flare_inner = QgsLineSymbol()
+        for at_end in (False, True):
 
-        flare_inner.changeSymbolLayer(0, _bridge_flare_layer(at_end))
+            symbol.appendSymbolLayer(
+                _crossing_generator(_bridge_flare_layer(at_end))
+            )
 
-        flare_generator = QgsGeometryGeneratorSymbolLayer.create({})
+    if midpoint_layer is not None:
 
-        flare_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+        symbol.appendSymbolLayer(_crossing_generator(midpoint_layer))
 
-        flare_generator.setGeometryExpression(
-            "mct_bridge_or_gap_geometry($geometry)"
+    return symbol
+
+
+def _bridge_symbol():
+
+    """
+    Bridge (271400) AND Assault Crossing (271300) - one symbol for
+    both, at the maintainer's own instruction: "assault crossing, merge
+    it with the bridge i.e. just add the heading since it is same as
+    bridge." Their templates really are identical, and once Bridge lost
+    its third anchor point (see _parallel_channel_symbol) so are their
+    constructions.
+
+    Geometrically this is also the same as B6's Bridge or Gap (271100),
+    which stays a separate entry because it means a different thing -
+    a gap in a minefield rather than a water crossing - and defaults to
+    a different colour.
+    """
+
+    return _parallel_channel_symbol(dashed=False, flares=True)
+
+
+# Ford Difficult's own zigzag, crossing the channel at its midpoint.
+# Its length spans the channel and overhangs it at both ends, which is
+# what makes it read as crossing rather than sitting inside.
+_FORD_ZIGZAG_MM = _BRIDGE_CHANNEL_MM * 2.0
+_FORD_ZIGZAG_AMPLITUDE_MM = 1.1
+_FORD_ZIGZAG_TEETH = 4
+
+
+def _ford_zigzag_layer():
+
+    """Ford Difficult's own zigzag as a rotating SVG marker at the
+    centreline's midpoint - millimetre-sized like everything else in
+    this family, so it doesn't grow with the ford's own length."""
+
+    marker = QgsMarkerSymbol()
+
+    svg_layer = QgsSvgMarkerSymbolLayer("")
+
+    svg_layer.setSize(_FORD_ZIGZAG_MM)
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_ford_zigzag_svg({colour}, {length}, {amplitude}, {teeth},"
+            " {stroke})".format(
+                colour=_POINT_MONO_COLOR_EXPRESSION,
+                length=_FORD_ZIGZAG_MM,
+                amplitude=_FORD_ZIGZAG_AMPLITUDE_MM,
+                teeth=_FORD_ZIGZAG_TEETH,
+                stroke=_AREA_OUTLINE_WIDTH_MM,
+            )
+        )
+    )
+
+    marker.changeSymbolLayer(0, svg_layer)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(Qgis.MarkerLinePlacement.CentralPoint)
+
+    marker_line.setRotateSymbols(True)
+
+    return marker_line
+
+
+def _ford_easy_symbol():
+
+    """Ford Easy (271500) - the channel drawn as two dashed lines, no
+    end wings."""
+
+    return _parallel_channel_symbol(dashed=True, flares=False)
+
+
+def _ford_difficult_symbol():
+
+    """Ford Difficult (271600) - Ford Easy plus a zigzag across the
+    channel at its own midpoint, which is the only thing the standard
+    varies between the two."""
+
+    return _parallel_channel_symbol(
+        dashed=True, flares=False, midpoint_layer=_ford_zigzag_layer()
+    )
+
+
+# Lane/Ferry/Raft Site all say the symbol "varies only in length", so
+# their end decorations are a FIXED size rather than a proportion -
+# the same principle the channel above follows.
+_CROSSING_ARROW_MM = 5.0
+
+
+def _crossing_end_marker_layer(at_end, filled):
+
+    """
+    The end decoration shared by Lane (290600), Ferry (290700) and Raft
+    Site (290800): an arrowhead at each end of the shaft, pointing
+    OUTWARD.
+
+    QGIS rotates a marker to the LINE's direction at both ends rather
+    than reversing it at the start, so the first-vertex marker is spun
+    180 degrees by hand - otherwise both ends point the same way.
+
+    `filled` picks Ferry's own solid head ("the arrowheads will be
+    filled-in versions of a common arrowhead") over Lane's and Raft
+    Site's open one ("the lines of the arrowhead will form an acute
+    angle").
+    """
+
+    marker = QgsMarkerSymbol()
+
+    shape = (
+        QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHeadFilled if filled
+        else QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead
+    )
+
+    head = QgsSimpleMarkerSymbolLayer(shape, _CROSSING_ARROW_MM)
+
+    if filled:
+        _apply_obstacle_color(
+            head,
+            [
+                QgsSymbolLayer.Property.FillColor,
+                QgsSymbolLayer.Property.StrokeColor,
+            ],
+            _AREA_OUTLINE_COLOR_EXPRESSION
+        )
+    else:
+        head.setColor(QColor(0, 0, 0, 0))
+        head.setStrokeWidth(_AREA_OUTLINE_WIDTH_MM * 1.5)
+        _apply_obstacle_color(
+            head,
+            [QgsSymbolLayer.Property.StrokeColor],
+            _AREA_OUTLINE_COLOR_EXPRESSION
         )
 
-        flare_generator.setSubSymbol(flare_inner)
+    marker.changeSymbolLayer(0, head)
 
-        symbol.appendSymbolLayer(flare_generator)
+    if not at_end:
+        marker.setAngle(180)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(
+        Qgis.MarkerLinePlacement.LastVertex if at_end
+        else Qgis.MarkerLinePlacement.FirstVertex
+    )
+
+    marker_line.setRotateSymbols(True)
+
+    return marker_line
+
+
+def _shaft_with_end_arrows_symbol(filled):
+
+    """
+    Lane (290600), Ferry (290700) and Raft Site (290800) - a plain
+    shaft between the two clicked points with an arrowhead at each end
+    pointing outward.
+
+    **Lane and Raft Site are the same symbol.** Their templates are
+    identical and their draw rules are word for word identical; the
+    whole difference in the table is that Lane carries the W/W1 width
+    amplifiers and Raft Site does not. Confirmed with the maintainer
+    before building rather than assumed ("Identical geometry, Lane gets
+    Field W"), since two indistinguishable symbols would otherwise look
+    like the duplication bug this module already tests against.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, _crossing_generator(line_layer))
+
+    for at_end in (False, True):
+
+        symbol.appendSymbolLayer(
+            _crossing_generator(
+                _crossing_end_marker_layer(at_end, filled)
+            )
+        )
+
+    return symbol
+
+
+def _lane_symbol():
+
+    return _shaft_with_end_arrows_symbol(filled=False)
+
+
+def _ferry_symbol():
+
+    return _shaft_with_end_arrows_symbol(filled=True)
+
+
+def _raft_site_symbol():
+
+    return _shaft_with_end_arrows_symbol(filled=False)
+
+
+# Overhead Wire's own pylons. The standard draws a transmission tower
+# at each end and numbers nothing about it - but this table already
+# HAS a tower symbol of its own, Tower High (282002), built in B1 and
+# rendered by milsymbol. Reusing that glyph means no invented geometry
+# and no second drawing of the same real-world object; it was the
+# maintainer's own question that surfaced it ("is there any sidc for
+# tower?").
+_OVERHEAD_WIRE_TOWER_ENTITY = "tower_high"
+
+# The same size the Points layer draws its own Tower High at, rather
+# than a number of this symbol's own - it is literally the same glyph
+# for the same object, so the two should not disagree.
+_OVERHEAD_WIRE_TOWER_MM = _POINTS_DEFAULT_MARKER_SIZE_MM
+
+
+def _overhead_wire_tower_layer(at_end):
+
+    marker = QgsMarkerSymbol()
+
+    svg_layer = QgsSvgMarkerSymbolLayer("")
+
+    svg_layer.setSize(_OVERHEAD_WIRE_TOWER_MM)
+
+    # Built through the same build_sidc()/sidc_svg() pair the Points
+    # layer uses, rather than by hand-writing the SIDC string - so the
+    # glyph tracks this feature's own affiliation and status fields and
+    # stays correct if the vocabulary moves.
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_sidc_svg(mct_build_sidc("
+            "\"affiliation\", '{entity}', 'control_measure',"
+            " 'unspecified', \"status\", false), '', 'uniqueDesignation',"
+            " {colour}, 1.0)".format(
+                entity=_OVERHEAD_WIRE_TOWER_ENTITY,
+                colour=_POINT_MONO_COLOR_EXPRESSION,
+            )
+        )
+    )
+
+    marker.changeSymbolLayer(0, svg_layer)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(
+        Qgis.MarkerLinePlacement.LastVertex if at_end
+        else Qgis.MarkerLinePlacement.FirstVertex
+    )
+
+    # Towers stand upright regardless of which way the wire runs.
+    marker_line.setRotateSymbols(False)
+
+    return marker_line
+
+
+def _overhead_wire_symbol():
+
+    """
+    Overhead Wire (282003) - a plain line with a pylon at each end.
+    The one B7 entry that is a LINE despite its 28xxxx code, which is
+    the trap this module's own docstring opens with.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, _crossing_generator(line_layer))
+
+    for at_end in (False, True):
+
+        symbol.appendSymbolLayer(
+            _crossing_generator(_overhead_wire_tower_layer(at_end))
+        )
 
     return symbol
 
@@ -3824,12 +4181,62 @@ B6_ROADBLOCKS_MEASURE_TYPE_CODES = {
     "roadblock_complete": "271204",
 }
 
+# B7 - water crossing sites and the last of Table H-XIX's own lines,
+# closing the table out.
+#
+# TWO deliberate merges here, both confirmed with the maintainer rather
+# than assumed:
+#
+# - **Bridge (271400) and Assault Crossing (271300) are ONE entry** -
+#   "assault crossing, merge it with the bridge i.e. just add the
+#   heading since it is same as bridge". Their templates are identical
+#   and, once Bridge lost its third anchor point, so are their
+#   constructions. This is the same one-measure-type-covers-two-codes
+#   shape the minefield family already uses (see
+#   MINEFIELD_MEASURE_TYPE_CODES), and _B7_MERGED_CODES below records
+#   the code that would otherwise look missing from the build.
+#
+# - **Lane (290600) and Raft Site (290800) stay SEPARATE but draw
+#   identically** - their templates AND their draw rules are word for
+#   word the same, the only difference in the whole table being that
+#   Lane carries the W/W1 width amplifiers. Kept as two entries because
+#   they are two distinct real-world things with two SIDCs; sharing one
+#   builder is the honest way to say they look the same.
+B7_CROSSINGS_MEASURE_TYPE_LABELS = {
+    "bridge": "Bridge / Assault Crossing",
+    "ford_easy": "Ford - Easy",
+    "ford_difficult": "Ford - Difficult",
+    "lane": "Lane",
+    "ferry": "Ferry",
+    "raft_site": "Raft Site",
+    "overhead_wire": "Overhead Wire",
+}
+
+B7_CROSSINGS_MEASURE_TYPE_CODES = {
+    "bridge": "271400",
+    "ford_easy": "271500",
+    "ford_difficult": "271600",
+    "lane": "290600",
+    "ferry": "290700",
+    "raft_site": "290800",
+    "overhead_wire": "282003",
+}
+
+# Codes a measure type covers BEYOND its own primary one. Kept
+# explicit so a coverage check can tell "deliberately merged" apart
+# from "quietly dropped" - the failure this module's own audit tests
+# are built to catch.
+_B7_MERGED_CODES = {
+    "bridge": ("271300",),
+}
+
 LINE_MEASURE_TYPE_LABELS = dict(WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TOOTHED_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(MINE_CLUSTER_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TRIP_WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(B5_EFFECTS_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(B6_ROADBLOCKS_MEASURE_TYPE_LABELS)
+LINE_MEASURE_TYPE_LABELS.update(B7_CROSSINGS_MEASURE_TYPE_LABELS)
 
 LINE_MEASURE_TYPE_CODES = dict(WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TOOTHED_MEASURE_TYPE_CODES)
@@ -3837,6 +4244,7 @@ LINE_MEASURE_TYPE_CODES.update(MINE_CLUSTER_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TRIP_WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(B5_EFFECTS_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(B6_ROADBLOCKS_MEASURE_TYPE_CODES)
+LINE_MEASURE_TYPE_CODES.update(B7_CROSSINGS_MEASURE_TYPE_CODES)
 
 _LINE_SYMBOL_BUILDERS = {
     measure_type: (
@@ -3850,6 +4258,8 @@ _LINE_SYMBOL_BUILDERS = {
         "obstacle_bypass_impossible", "bridge_or_gap", "roadblock_planned",
         "roadblock_readiness_1", "roadblock_readiness_2",
         "roadblock_complete",
+        "bridge", "ford_easy", "ford_difficult", "lane", "ferry",
+        "raft_site", "overhead_wire",
     )
 }
 
@@ -3875,6 +4285,13 @@ _LINE_SYMBOL_BUILDERS["roadblock_planned"] = _roadblock_planned_symbol
 _LINE_SYMBOL_BUILDERS["roadblock_readiness_1"] = _roadblock_readiness_1_symbol
 _LINE_SYMBOL_BUILDERS["roadblock_readiness_2"] = _roadblock_readiness_2_symbol
 _LINE_SYMBOL_BUILDERS["roadblock_complete"] = _roadblock_complete_symbol
+_LINE_SYMBOL_BUILDERS["bridge"] = _bridge_symbol
+_LINE_SYMBOL_BUILDERS["ford_easy"] = _ford_easy_symbol
+_LINE_SYMBOL_BUILDERS["ford_difficult"] = _ford_difficult_symbol
+_LINE_SYMBOL_BUILDERS["lane"] = _lane_symbol
+_LINE_SYMBOL_BUILDERS["ferry"] = _ferry_symbol
+_LINE_SYMBOL_BUILDERS["raft_site"] = _raft_site_symbol
+_LINE_SYMBOL_BUILDERS["overhead_wire"] = _overhead_wire_symbol
 
 
 def _line_default_colour_expression():
@@ -3900,8 +4317,18 @@ def _line_default_colour_expression():
 # colour case in _configure_lines_labeling below (the label already
 # reuses the one fixed black).
 _OBSTACLE_LINE_LABEL_EXPRESSION = (
-    "CASE WHEN \"measure_type\" IN ('obstacle_line', 'bridge_or_gap')"
+    "CASE WHEN \"measure_type\" IN ("
+    "'obstacle_line', 'bridge_or_gap', 'bridge', 'ford_easy',"
+    " 'ford_difficult', 'lane')"
     " THEN upper(coalesce(\"unique_designation\", '')) ELSE '' END"
+)
+
+# Everything that draws a channel puts its label INSIDE it; Obstacle
+# Line and Lane keep theirs below. Lane's own W/W1 amplifiers are what
+# distinguish it from Raft Site, which draws identically and carries no
+# label at all.
+_CHANNEL_LABEL_TYPES = (
+    "bridge_or_gap", "bridge", "ford_easy", "ford_difficult",
 )
 
 
@@ -3919,8 +4346,9 @@ _OBSTACLE_LINE_LABEL_EXPRESSION = (
 # label entirely, which is how the first cut of this shipped a Bridge
 # or Gap with no designation at all.
 _LINE_PLACEMENT_FLAGS_EXPRESSION = (
-    "CASE WHEN \"measure_type\" = 'bridge_or_gap'"
-    " THEN 'OL' ELSE 'BL' END"
+    "CASE WHEN \"measure_type\" IN ("
+    + ", ".join(f"'{t}'" for t in _CHANNEL_LABEL_TYPES)
+    + ") THEN 'OL' ELSE 'BL' END"
 )
 
 

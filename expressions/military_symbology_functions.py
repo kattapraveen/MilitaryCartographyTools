@@ -2202,6 +2202,87 @@ def mct_bridge_flare_svg(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_ford_zigzag_svg',
+    group='Military Cartography Tools'
+)
+def mct_ford_zigzag_svg(values, feature=None, parent=None):
+
+    """
+    Ford Difficult's own zigzag (271600) - the single thing the
+    standard varies between Ford Easy and Ford Difficult - as an inline
+    "base64:<...>" SVG for a marker at the centreline's midpoint.
+
+    A glyph rather than generated geometry for the same reason as
+    Bridge or Gap's end wings: the whole crossing family is sized in
+    MILLIMETRES so it does not grow with the feature's own length, and
+    a geometry generator cannot see page units.
+
+    The zigzag runs ACROSS the channel (along the marker's own y, which
+    rotation then squares to the line) and overhangs it at both ends,
+    which is what makes it read as crossing the ford rather than
+    sitting inside it. Arguments: colour, length_mm, amplitude_mm,
+    teeth, stroke_mm.
+
+    The viewBox is symmetric about the origin so the glyph centres
+    itself on the midpoint. QGIS sizes an SVG marker by its WIDTH, so
+    the caller sets the marker size to `length_mm` and the viewBox is
+    emitted `length_mm` wide - making one viewBox unit one millimetre.
+    """
+
+    colour = str(values[0]) if values and values[0] else "rgb(0,0,0)"
+    length = float(values[1]) if len(values) > 1 else 9.0
+    amplitude = float(values[2]) if len(values) > 2 else 1.1
+    teeth = int(values[3]) if len(values) > 3 else 4
+    stroke = float(values[4]) if len(values) > 4 else 0.4
+
+    if length <= 0 or teeth < 1:
+        return ""
+
+    # Walk from one end of the crossing run to the other, alternating
+    # side to side. y is the crossing direction, x the zigzag's own
+    # swing.
+    steps = teeth * 2
+
+    points = []
+
+    for index in range(steps + 1):
+
+        y = -length / 2.0 + length * index / steps
+
+        if index == 0 or index == steps:
+            x = 0.0
+        else:
+            x = amplitude if index % 2 == 1 else -amplitude
+
+        points.append("{:.4f},{:.4f}".format(x, y))
+
+    path = "M " + " L ".join(points)
+
+    body = (
+        '<path d="{}" fill="none" stroke="{}" stroke-width="{:.4f}"'
+        ' stroke-linecap="round" stroke-linejoin="round"/>'
+    ).format(path, colour, stroke)
+
+    # Width is the caller's own marker size; height is the crossing
+    # run. Both halves of the viewBox are symmetric so the glyph sits
+    # centred on the midpoint.
+    half_width = max(amplitude, length / 2.0)
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+        ' viewBox="{minx:.4f} {miny:.4f} {width:.4f} {height:.4f}"'
+        ' width="{width:.4f}" height="{height:.4f}">{body}</svg>'
+    ).format(
+        minx=-half_width, miny=-length / 2.0,
+        width=2 * half_width, height=length, body=body
+    )
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
+@qgsfunction(
     'mct_scatter_points',
     group='Military Cartography Tools'
 )
@@ -4075,6 +4156,7 @@ _FUNCTIONS = [
     mct_roadblock_complete_geometry,
     mct_bridge_or_gap_geometry,
     mct_bridge_flare_svg,
+    mct_ford_zigzag_svg,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,
