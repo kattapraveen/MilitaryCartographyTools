@@ -6812,6 +6812,65 @@ tested, not claimed as done here.
 
   946 tests passing on both QGIS versions.
 
+- **B6 built: Obstacle Bypass and the Roadblock family** (2026-08-13),
+  all 8 of Table H-XIX's own bypasses/roadblocks (pages 578-581,
+  identified by the maintainer directly from the printed page numbers
+  after B4/B5 closed out). Unlike B5, every one of these has a fully
+  numeric draw rule, so all eight were read straight off the standard
+  rather than waiting for a dictated construction, at the maintainer's
+  own direction ("build from the standard now").
+
+  **Obstacle Bypass Easy/Difficult/Impossible (270601-270603)**: PT1/
+  PT2 are the two arrow tips, PT3's own perpendicular distance from
+  the PT1-PT2 line sets both the rear line's offset and the arrows'
+  own length - the same `_perpendicular_projection` helper B5's Block/
+  Disrupt/Fix already established. The three variants differ only in
+  the rear line's own decoration: Easy is plain, Difficult is a
+  "spring" zigzag bulging toward PT3, Impossible replaces the rear
+  line entirely with two independent hook stubs (no line spanning the
+  opening - the standard's own template shows it fully closed off at
+  each end, not bridged). BLACK, not green, per the module's own
+  audit - the one line-obstacle family that overrides the default
+  outright. The zigzag's amplitude and the hooks' own stub/tick
+  lengths have no numbered draw rule (same situation as Fix's own
+  teeth in B5) - built to a reasonable, documented proportion and
+  flagged for the maintainer's own render review, same as every
+  ASSUMED entry in this batch.
+
+  **Bridge or Gap (271100)**: the first four-anchor-point line this
+  project has built - "points 1 and 2 define one side of the gap and
+  points 3 and 4 define the opposite side," drawn as two independent
+  plain lines. The standard's own template also shows small flared
+  hook end-caps on all four endpoints, whose proportions the draw
+  rules never number - skipped here, the same call already made for
+  Overhead Wire's own tower icons, addable later if wanted. BLACK,
+  with Field T (a freeform "W - W1"-style designation, same mechanism
+  Obstacle Line already uses).
+
+  **The Roadblock family (271201-271204)**, GREEN: three "state"
+  variants share one construction - "points 1 and 2 determine the
+  centerline... point 3 determines its width" - a main line on PT1-PT2
+  with an arrowhead at PT1, and a second line parallel to it, offset
+  toward PT3 by PT3's own perpendicular distance. Planned (271201)
+  dashes both lines; Explosives State of Readiness 1/Safe (271202)
+  keeps the main line solid and dashes only the parallel one;
+  Explosives State of Readiness 2/Passable (271203) is fully solid -
+  fixed per variant, not status-driven, since the variant itself
+  already encodes a real-world readiness state rather than present/
+  planned. **Roadblock Complete/Executed (271204)** breaks from the
+  other three: its own template shows an "X" rather than two parallel
+  lines, read as one line from the parallel position's own PT2-side
+  end up to PT1 (arrowhead) crossing one from the parallel position's
+  own PT1-side end down to PT2 (arrowhead) - marked ASSUMED, not
+  CONFIRMED, since this was read off the picture rather than a
+  numbered rule, and the standard's own scan is ambiguous about
+  whether the real symbol doubles this X (flagged for the maintainer's
+  own review).
+
+  966 tests passing on both QGIS versions. **B6 is now complete, 8 of
+  8.** Only B7 (water crossing sites and the remaining lines) is left
+  before H-XIX's line obstacles close out entirely.
+
 ---
 
 ## Suggested near-term order

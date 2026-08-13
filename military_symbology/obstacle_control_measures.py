@@ -3260,6 +3260,338 @@ def _wire_obstacle_symbol(measure_type):
     return symbol
 
 
+def _obstacle_bypass_chevron_generator(geometry_expression):
+
+    """Shared unfilled-chevron arrowhead generator, keyed to whichever
+    geometry expression the caller's own line layers already use -
+    same LastVertex-needs-its-own-generator reasoning as Turn/Disrupt.
+    """
+
+    chevron_marker = QgsMarkerSymbol()
+
+    chevron_layer = QgsSimpleMarkerSymbolLayer(
+        QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
+        6
+    )
+
+    chevron_layer.setColor(QColor(0, 0, 0, 0))
+
+    chevron_layer.setStrokeWidth(_AREA_OUTLINE_WIDTH_MM * 1.5)
+
+    _apply_obstacle_color(
+        chevron_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    chevron_marker.changeSymbolLayer(0, chevron_layer)
+
+    chevron_line_layer = QgsMarkerLineSymbolLayer(True)
+
+    chevron_line_layer.setSubSymbol(chevron_marker)
+
+    chevron_line_layer.setPlacements(Qgis.MarkerLinePlacement.LastVertex)
+
+    chevron_inner = QgsLineSymbol()
+
+    chevron_inner.changeSymbolLayer(0, chevron_line_layer)
+
+    chevron_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    chevron_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    chevron_generator.setGeometryExpression(geometry_expression)
+
+    chevron_generator.setSubSymbol(chevron_inner)
+
+    return chevron_generator
+
+
+def _obstacle_bypass_symbol(rear_expression):
+
+    """
+    Shared by the Obstacle Bypass family (270601-270603): two arrows
+    (mct_obstacle_bypass_arrows, tips at PT1/PT2) plus a rear
+    line/decoration that is the one thing each variant changes
+    (`rear_expression`). Always BLACK per the module's own audit
+    ("symbol only, size set by the user, BLACK") - the one line-
+    obstacle family that overrides the green default outright rather
+    than per-feature. Ordinary status-driven present/planned dash, like
+    B5's own obstacle effects - nothing in the standard's own draw
+    rules says otherwise.
+    """
+
+    rear_layer = QgsSimpleLineSymbolLayer()
+
+    rear_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        rear_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    rear_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    rear_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    rear_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    rear_generator.setGeometryExpression(rear_expression)
+
+    rear_inner = QgsLineSymbol()
+
+    rear_inner.changeSymbolLayer(0, rear_layer)
+
+    rear_generator.setSubSymbol(rear_inner)
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, rear_generator)
+
+    arrows_layer = QgsSimpleLineSymbolLayer()
+
+    arrows_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        arrows_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    arrows_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    arrows_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    arrows_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    arrows_generator.setGeometryExpression(
+        "mct_obstacle_bypass_arrows($geometry)"
+    )
+
+    arrows_inner = QgsLineSymbol()
+
+    arrows_inner.changeSymbolLayer(0, arrows_layer)
+
+    arrows_generator.setSubSymbol(arrows_inner)
+
+    symbol.appendSymbolLayer(arrows_generator)
+
+    symbol.appendSymbolLayer(
+        _obstacle_bypass_chevron_generator(
+            "mct_obstacle_bypass_arrows($geometry)"
+        )
+    )
+
+    return symbol
+
+
+def _obstacle_bypass_easy_symbol():
+
+    return _obstacle_bypass_symbol("mct_obstacle_bypass_rear_easy($geometry)")
+
+
+def _obstacle_bypass_difficult_symbol():
+
+    return _obstacle_bypass_symbol(
+        "mct_obstacle_bypass_rear_difficult($geometry)"
+    )
+
+
+def _obstacle_bypass_impossible_symbol():
+
+    return _obstacle_bypass_symbol(
+        "mct_obstacle_bypass_rear_impossible($geometry)"
+    )
+
+
+def _bridge_or_gap_symbol():
+
+    """
+    Bridge or Gap (271100) - two independent sides, PT1-PT2 and
+    PT3-PT4 (mct_bridge_or_gap_geometry), each a plain line. BLACK per
+    the module's own audit. The standard's own template shows small
+    flared/hooked end-caps on all four endpoints, whose proportions the
+    draw rules never number - skipped here, same call already made for
+    Overhead Wire's own tower icons (see this module's own docstring),
+    and can be added if the maintainer wants them.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression("mct_bridge_or_gap_geometry($geometry)")
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, line_layer)
+
+    generator.setSubSymbol(inner)
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, generator)
+
+    return symbol
+
+
+def _roadblock_line_layer(dashed):
+
+    layer = QgsSimpleLineSymbolLayer()
+
+    layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    if dashed:
+        layer.setPenStyle(Qt.PenStyle.DashLine)
+
+    return layer
+
+
+def _roadblock_symbol(main_dashed, parallel_dashed):
+
+    """
+    Shared by Planned (271201, both lines dashed), Explosives State of
+    Readiness 1/Safe (271202, main solid with an arrowhead, parallel
+    dashed) and Explosives State of Readiness 2/Passable (271203, both
+    solid) - the standard's own three "state" variants of the same
+    two-line construction (mct_roadblock_main_line /
+    mct_roadblock_parallel_line: "points 1 and 2 determine the
+    centerline... point 3 determines its width"). Fixed dash per
+    variant, not status-driven - the variant itself already encodes a
+    real-world readiness state, not present/planned. Roadblock Complete
+    (271204) is a different shape (see _roadblock_complete_symbol).
+    """
+
+    symbol = QgsLineSymbol()
+
+    main_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    main_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    main_generator.setGeometryExpression("mct_roadblock_main_line($geometry)")
+
+    main_inner = QgsLineSymbol()
+
+    main_inner.changeSymbolLayer(0, _roadblock_line_layer(main_dashed))
+
+    main_generator.setSubSymbol(main_inner)
+
+    symbol.changeSymbolLayer(0, main_generator)
+
+    parallel_generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    parallel_generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    parallel_generator.setGeometryExpression(
+        "mct_roadblock_parallel_line($geometry)"
+    )
+
+    parallel_inner = QgsLineSymbol()
+
+    parallel_inner.changeSymbolLayer(
+        0, _roadblock_line_layer(parallel_dashed)
+    )
+
+    parallel_generator.setSubSymbol(parallel_inner)
+
+    symbol.appendSymbolLayer(parallel_generator)
+
+    symbol.appendSymbolLayer(
+        _obstacle_bypass_chevron_generator("mct_roadblock_main_line($geometry)")
+    )
+
+    return symbol
+
+
+def _roadblock_planned_symbol():
+
+    return _roadblock_symbol(main_dashed=True, parallel_dashed=True)
+
+
+def _roadblock_readiness_1_symbol():
+
+    return _roadblock_symbol(main_dashed=False, parallel_dashed=True)
+
+
+def _roadblock_readiness_2_symbol():
+
+    return _roadblock_symbol(main_dashed=False, parallel_dashed=False)
+
+
+def _roadblock_complete_symbol():
+
+    """
+    Roadblock Complete/Executed (271204) - an "X": two crossing lines,
+    each running to its own arrowhead
+    (mct_roadblock_complete_geometry). Read off the standard's own
+    picture rather than a numbered draw rule (this entry is ASSUMED,
+    not CONFIRMED, in the module's own audit) - flagged for the
+    render-and-compare pass.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
+
+    _apply_obstacle_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor],
+        _AREA_OUTLINE_COLOR_EXPRESSION
+    )
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression("mct_roadblock_complete_geometry($geometry)")
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, line_layer)
+
+    generator.setSubSymbol(inner)
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, generator)
+
+    symbol.appendSymbolLayer(
+        _obstacle_bypass_chevron_generator(
+            "mct_roadblock_complete_geometry($geometry)"
+        )
+    )
+
+    return symbol
+
+
 # B4 is now fully built (17 of 17) - all of Table H-XIX's own line
 # obstacles this project's audit confirmed buildable.
 #
@@ -3302,17 +3634,50 @@ B5_EFFECTS_MEASURE_TYPE_CODES = {
     "turn": "270504",
 }
 
+# B6 - bypasses and roadblocks, all 8 now built (270601-270603,
+# 271100, 271201-271204). The Obstacle Bypass family is BLACK, not
+# green - the module's own audit flagged this before any of these were
+# built. Roadblock Complete (271204) is ASSUMED, not CONFIRMED - its
+# own construction was read off the standard's own picture rather than
+# a numbered draw rule (see mct_roadblock_complete_geometry's own
+# docstring).
+B6_ROADBLOCKS_MEASURE_TYPE_LABELS = {
+    "obstacle_bypass_easy": "Obstacle Bypass Easy",
+    "obstacle_bypass_difficult": "Obstacle Bypass Difficult",
+    "obstacle_bypass_impossible": "Obstacle Bypass Impossible",
+    "bridge_or_gap": "Bridge or Gap",
+    "roadblock_planned": "Roadblock - Planned",
+    "roadblock_readiness_1": "Roadblock - Explosives State of Readiness 1 (Safe)",
+    "roadblock_readiness_2": (
+        "Roadblock - Explosives State of Readiness 2 (Passable)"
+    ),
+    "roadblock_complete": "Roadblock Complete (Executed)",
+}
+
+B6_ROADBLOCKS_MEASURE_TYPE_CODES = {
+    "obstacle_bypass_easy": "270601",
+    "obstacle_bypass_difficult": "270602",
+    "obstacle_bypass_impossible": "270603",
+    "bridge_or_gap": "271100",
+    "roadblock_planned": "271201",
+    "roadblock_readiness_1": "271202",
+    "roadblock_readiness_2": "271203",
+    "roadblock_complete": "271204",
+}
+
 LINE_MEASURE_TYPE_LABELS = dict(WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TOOTHED_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(MINE_CLUSTER_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TRIP_WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(B5_EFFECTS_MEASURE_TYPE_LABELS)
+LINE_MEASURE_TYPE_LABELS.update(B6_ROADBLOCKS_MEASURE_TYPE_LABELS)
 
 LINE_MEASURE_TYPE_CODES = dict(WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TOOTHED_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(MINE_CLUSTER_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TRIP_WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(B5_EFFECTS_MEASURE_TYPE_CODES)
+LINE_MEASURE_TYPE_CODES.update(B6_ROADBLOCKS_MEASURE_TYPE_CODES)
 
 _LINE_SYMBOL_BUILDERS = {
     measure_type: (
@@ -3322,6 +3687,10 @@ _LINE_SYMBOL_BUILDERS = {
     if measure_type not in (
         "abatis", "antitank_ditch_reinforced", "mine_cluster", "trip_wire",
         "block", "disrupt", "fix", "turn",
+        "obstacle_bypass_easy", "obstacle_bypass_difficult",
+        "obstacle_bypass_impossible", "bridge_or_gap", "roadblock_planned",
+        "roadblock_readiness_1", "roadblock_readiness_2",
+        "roadblock_complete",
     )
 }
 
@@ -3335,6 +3704,18 @@ _LINE_SYMBOL_BUILDERS["block"] = _block_symbol
 _LINE_SYMBOL_BUILDERS["disrupt"] = _disrupt_symbol
 _LINE_SYMBOL_BUILDERS["fix"] = _fix_symbol
 _LINE_SYMBOL_BUILDERS["turn"] = _turn_symbol
+_LINE_SYMBOL_BUILDERS["obstacle_bypass_easy"] = _obstacle_bypass_easy_symbol
+_LINE_SYMBOL_BUILDERS["obstacle_bypass_difficult"] = (
+    _obstacle_bypass_difficult_symbol
+)
+_LINE_SYMBOL_BUILDERS["obstacle_bypass_impossible"] = (
+    _obstacle_bypass_impossible_symbol
+)
+_LINE_SYMBOL_BUILDERS["bridge_or_gap"] = _bridge_or_gap_symbol
+_LINE_SYMBOL_BUILDERS["roadblock_planned"] = _roadblock_planned_symbol
+_LINE_SYMBOL_BUILDERS["roadblock_readiness_1"] = _roadblock_readiness_1_symbol
+_LINE_SYMBOL_BUILDERS["roadblock_readiness_2"] = _roadblock_readiness_2_symbol
+_LINE_SYMBOL_BUILDERS["roadblock_complete"] = _roadblock_complete_symbol
 
 
 def _line_default_colour_expression():
@@ -3354,10 +3735,13 @@ def _line_default_colour_expression():
     return "CASE " + " ".join(cases) + f" ELSE '{GREEN}' END"
 
 
-# Obstacle Line is the one line obstacle carrying Field T, and the
-# audit's "OT" applies: outline green, TEXT BLACK.
+# Obstacle Line and Bridge or Gap are the line obstacles carrying
+# Field T. Obstacle Line's own audit "OT" applies: outline green, TEXT
+# BLACK - Bridge or Gap is BLACK outright, so it needs no separate
+# colour case in _configure_lines_labeling below (the label already
+# reuses the one fixed black).
 _OBSTACLE_LINE_LABEL_EXPRESSION = (
-    "CASE WHEN \"measure_type\" = 'obstacle_line'"
+    "CASE WHEN \"measure_type\" IN ('obstacle_line', 'bridge_or_gap')"
     " THEN upper(coalesce(\"unique_designation\", '')) ELSE '' END"
 )
 
@@ -3384,8 +3768,9 @@ def _configure_lines_labeling(layer):
 def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     """
-    Table H-XIX's own line obstacles - batch B4 (all 17) and batch B5's
-    obstacle effects (all 4), sharing this one layer.
+    Table H-XIX's own line obstacles - batch B4 (all 17), batch B5's
+    obstacle effects (all 4) and batch B6's bypasses/roadblocks (all
+    8), sharing this one layer.
     """
 
     crs = QgsProject.instance().crs()

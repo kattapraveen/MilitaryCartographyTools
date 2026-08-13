@@ -1495,6 +1495,416 @@ def mct_fix_geometry(values, feature=None, parent=None):
     return QgsGeometry.fromPolylineXY(points)
 
 
+def _obstacle_bypass_frame(pt1, pt2, pt3):
+
+    """
+    Table H-XIX's own Obstacle Bypass family (270601-270603). Per the
+    standard's own draw rules: "Points 1 and 2 define the tips of the
+    arrowheads and point 3 defines the rear of the symbol... the
+    vertical line at the rear of the symbol will be the same length as
+    the opening" - so PT1/PT2 are the two arrow TIPS, and PT3's own
+    perpendicular distance from the PT1-PT2 line sets both the rear
+    line's offset and the arrows' own length.
+
+    Returns (rear_top, rear_bottom, arrow_top, arrow_bottom, depth) -
+    rear_top/rear_bottom are PT1/PT2 shifted toward PT3 by that
+    perpendicular distance (`depth`), and each arrow is a [rear, tip]
+    pair. Degenerate (PT1==PT2, or PT3 on the PT1-PT2 line) collapses
+    every part to PT1 rather than guessing, same convention as
+    _disrupt_arrows.
+    """
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+
+        return pt1, pt1, [pt1, pt1], [pt1, pt1], 0.0
+
+    (_ux, _uy), (nx, ny), depth = projection
+
+    rear_top = QgsPointXY(pt1.x() + depth * nx, pt1.y() + depth * ny)
+    rear_bottom = QgsPointXY(pt2.x() + depth * nx, pt2.y() + depth * ny)
+
+    return rear_top, rear_bottom, [rear_top, pt1], [rear_bottom, pt2], depth
+
+
+@qgsfunction(
+    'mct_obstacle_bypass_arrows',
+    group='Military Cartography Tools'
+)
+def mct_obstacle_bypass_arrows(values, feature=None, parent=None):
+
+    """
+    The two arrows shared by every Obstacle Bypass variant (Easy/
+    Difficult/Impossible) - from the rear line's own top/bottom ends
+    out to PT1/PT2's own tips. Used both to draw the arrow shafts and,
+    scoped to just this expression, to place the arrowhead markers
+    (LastVertex lands on PT1 and PT2, the tips).
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    _rear_top, _rear_bottom, arrow_top, arrow_bottom, _depth = (
+        _obstacle_bypass_frame(pt1, pt2, pt3)
+    )
+
+    return QgsGeometry.fromMultiPolylineXY([arrow_top, arrow_bottom])
+
+
+@qgsfunction(
+    'mct_obstacle_bypass_rear_easy',
+    group='Military Cartography Tools'
+)
+def mct_obstacle_bypass_rear_easy(values, feature=None, parent=None):
+
+    """Obstacle Bypass Easy (270601) - the plain rear line, PT1/PT2
+    shifted toward PT3 by PT3's own perpendicular distance."""
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    rear_top, rear_bottom, _at, _ab, _depth = _obstacle_bypass_frame(
+        pt1, pt2, pt3
+    )
+
+    return QgsGeometry.fromPolylineXY([rear_top, rear_bottom])
+
+
+# Obstacle Bypass Difficult's own zigzag amplitude, as a fraction of
+# `depth` (PT3's own perpendicular distance, which the plain Easy
+# variant uses as the rear line's fixed offset). The standard's own
+# draw rules give no number for this decoration - same situation as
+# Fix's own zigzag teeth before the maintainer's dictated construction
+# replaced it - so this is a placement call, not a measurement, sized
+# to look like the template's own "spring" motif rather than read off
+# it pixel by pixel. Flagged for the render-and-compare pass.
+_BYPASS_ZIGZAG_AMPLITUDE_RATIO = 0.4
+_BYPASS_ZIGZAG_SEGMENTS = 6
+
+
+@qgsfunction(
+    'mct_obstacle_bypass_rear_difficult',
+    group='Military Cartography Tools'
+)
+def mct_obstacle_bypass_rear_difficult(values, feature=None, parent=None):
+
+    """
+    Obstacle Bypass Difficult (270602) - the rear line's own "spring"
+    zigzag, bulging toward PT3 and touching the plain rear-line axis at
+    its own start, end and every other vertex (see
+    _BYPASS_ZIGZAG_AMPLITUDE_RATIO's own comment for the assumed
+    proportion).
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return QgsGeometry.fromPolylineXY([pt1, pt1])
+
+    (_ux, _uy), (nx, ny), depth = projection
+
+    rear_top, rear_bottom, _at, _ab, _depth = _obstacle_bypass_frame(
+        pt1, pt2, pt3
+    )
+
+    amplitude = depth * _BYPASS_ZIGZAG_AMPLITUDE_RATIO
+
+    segments = _BYPASS_ZIGZAG_SEGMENTS
+
+    points = []
+
+    for i in range(segments + 1):
+
+        t = i / segments
+
+        base_x = rear_top.x() + t * (rear_bottom.x() - rear_top.x())
+        base_y = rear_top.y() + t * (rear_bottom.y() - rear_top.y())
+
+        bulge = amplitude if (0 < i < segments and i % 2 == 1) else 0.0
+
+        points.append(
+            QgsPointXY(base_x + bulge * nx, base_y + bulge * ny)
+        )
+
+    return QgsGeometry.fromPolylineXY(points)
+
+
+# Obstacle Bypass Impossible's own hook stubs, as fractions of the
+# symbol's own height (|PT1-PT2|, the stub) and depth (PT3's own
+# perpendicular distance, the cap tick). Same "placement call, not a
+# measurement" situation as the zigzag above.
+_BYPASS_HOOK_STUB_RATIO = 0.25
+_BYPASS_HOOK_TICK_RATIO = 0.35
+
+
+@qgsfunction(
+    'mct_obstacle_bypass_rear_impossible',
+    group='Military Cartography Tools'
+)
+def mct_obstacle_bypass_rear_impossible(values, feature=None, parent=None):
+
+    """
+    Obstacle Bypass Impossible (270603) - the rear line is replaced by
+    two independent hook stubs (no connecting line between them,
+    matching the standard's own template, which shows the opening as
+    fully closed off at each end rather than spanned): from PT1's own
+    rear point, a short stub toward PT2's side, capped with a
+    perpendicular tick back toward PT3; mirrored from PT2's own rear
+    point toward PT1's side.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return QgsGeometry.fromMultiPolylineXY([[pt1, pt1], [pt1, pt1]])
+
+    (ux, uy), (nx, ny), depth = projection
+
+    rear_top, rear_bottom, _at, _ab, _depth = _obstacle_bypass_frame(
+        pt1, pt2, pt3
+    )
+
+    height = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
+
+    stub = height * _BYPASS_HOOK_STUB_RATIO
+    tick = depth * _BYPASS_HOOK_TICK_RATIO
+
+    stub_top_end = QgsPointXY(
+        rear_top.x() + stub * ux, rear_top.y() + stub * uy
+    )
+    tick_top_end = QgsPointXY(
+        stub_top_end.x() + tick * nx, stub_top_end.y() + tick * ny
+    )
+
+    stub_bottom_end = QgsPointXY(
+        rear_bottom.x() - stub * ux, rear_bottom.y() - stub * uy
+    )
+    tick_bottom_end = QgsPointXY(
+        stub_bottom_end.x() + tick * nx, stub_bottom_end.y() + tick * ny
+    )
+
+    top_hook = [rear_top, stub_top_end, tick_top_end]
+    bottom_hook = [rear_bottom, stub_bottom_end, tick_bottom_end]
+
+    return QgsGeometry.fromMultiPolylineXY([top_hook, bottom_hook])
+
+
+def _roadblock_frame(pt1, pt2, pt3):
+
+    """
+    Shared by the Roadblock family (271201-271204, under "Roadblocks,
+    Craters and Blown Bridges"): "Points 1 and 2 determine the
+    centerline of the symbol and point 3 determines its width" - the
+    drawn main line sits ON PT1-PT2 (arrowhead at PT1, per every
+    variant's own template), and a second line runs parallel to it,
+    offset toward PT3 by PT3's own perpendicular distance from the
+    PT1-PT2 line.
+
+    Returns (main, parallel, offset_pt1, offset_pt2) - main/parallel
+    are [start, end] pairs, offset_pt1/offset_pt2 are PT1/PT2 shifted
+    toward PT3 (also needed by Roadblock Complete's own crossed
+    variant). Degenerate cases collapse to PT1.
+    """
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return [pt1, pt1], [pt1, pt1], pt1, pt1
+
+    (_ux, _uy), (nx, ny), depth = projection
+
+    offset_pt1 = QgsPointXY(pt1.x() + depth * nx, pt1.y() + depth * ny)
+    offset_pt2 = QgsPointXY(pt2.x() + depth * nx, pt2.y() + depth * ny)
+
+    return [pt1, pt2], [offset_pt1, offset_pt2], offset_pt1, offset_pt2
+
+
+def _roadblock_vertices(geometry):
+
+    if geometry is None or geometry.isEmpty():
+        return None
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return None
+
+    return tuple(QgsPointXY(v) for v in vertices[:3])
+
+
+@qgsfunction(
+    'mct_roadblock_main_line',
+    group='Military Cartography Tools'
+)
+def mct_roadblock_main_line(values, feature=None, parent=None):
+
+    """
+    The Roadblock family's own main line, PT1-PT2 - drawn on every
+    variant (Planned/Readiness 1/Readiness 2), with an arrowhead at
+    PT1 (LastVertex needs the tip last, so this returns [PT2, PT1]).
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    points = _roadblock_vertices(values[0])
+
+    if points is None:
+        return values[0]
+
+    pt1, pt2, _pt3 = points
+
+    return QgsGeometry.fromPolylineXY([pt2, pt1])
+
+
+@qgsfunction(
+    'mct_roadblock_parallel_line',
+    group='Military Cartography Tools'
+)
+def mct_roadblock_parallel_line(values, feature=None, parent=None):
+
+    """The Roadblock family's own second line, parallel to PT1-PT2,
+    offset toward PT3 by PT3's own perpendicular distance. No
+    arrowhead - every variant's own template draws it plain."""
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    points = _roadblock_vertices(values[0])
+
+    if points is None:
+        return values[0]
+
+    pt1, pt2, pt3 = points
+
+    _main, parallel, _op1, _op2 = _roadblock_frame(pt1, pt2, pt3)
+
+    return QgsGeometry.fromPolylineXY(parallel)
+
+
+@qgsfunction(
+    'mct_roadblock_complete_geometry',
+    group='Military Cartography Tools'
+)
+def mct_roadblock_complete_geometry(values, feature=None, parent=None):
+
+    """
+    Roadblock Complete/Executed (271204) - the one variant that
+    doesn't draw two parallel lines. Its own template shows an "X":
+    one line from the parallel line's own PT2-side end up to PT1
+    (arrowhead at PT1), the other from the parallel line's own PT1-side
+    end down to PT2 (arrowhead at PT2), crossing in the middle. Read
+    off the standard's own picture rather than a numbered draw rule
+    (this entry is ASSUMED, not CONFIRMED, in the module's own audit) -
+    flagged for the render-and-compare pass same as every ASSUMED
+    entry.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    points = _roadblock_vertices(values[0])
+
+    if points is None:
+        return values[0]
+
+    pt1, pt2, pt3 = points
+
+    _main, _parallel, offset_pt1, offset_pt2 = _roadblock_frame(
+        pt1, pt2, pt3
+    )
+
+    line_to_pt1 = [offset_pt2, pt1]
+    line_to_pt2 = [offset_pt1, pt2]
+
+    return QgsGeometry.fromMultiPolylineXY([line_to_pt1, line_to_pt2])
+
+
+@qgsfunction(
+    'mct_bridge_or_gap_geometry',
+    group='Military Cartography Tools'
+)
+def mct_bridge_or_gap_geometry(values, feature=None, parent=None):
+
+    """
+    Bridge or Gap (271100) - four anchor points: "points 1 and 2 define
+    one side of the gap and points 3 and 4 define the opposite side."
+    Returned as two independent line parts (PT1-PT2, PT3-PT4).
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 4:
+        return geometry
+
+    pt1, pt2, pt3, pt4 = (QgsPointXY(v) for v in vertices[:4])
+
+    return QgsGeometry.fromMultiPolylineXY([[pt1, pt2], [pt3, pt4]])
+
+
 @qgsfunction(
     'mct_scatter_points',
     group='Military Cartography Tools'
@@ -3359,6 +3769,14 @@ _FUNCTIONS = [
     mct_disrupt_geometry,
     mct_disrupt_arrow_tips,
     mct_fix_geometry,
+    mct_obstacle_bypass_arrows,
+    mct_obstacle_bypass_rear_easy,
+    mct_obstacle_bypass_rear_difficult,
+    mct_obstacle_bypass_rear_impossible,
+    mct_roadblock_main_line,
+    mct_roadblock_parallel_line,
+    mct_roadblock_complete_geometry,
+    mct_bridge_or_gap_geometry,
     mct_wire_glyph_svg,
     mct_axis_of_advance_ribbon,
     mct_axis_of_advance_crossing_point,
