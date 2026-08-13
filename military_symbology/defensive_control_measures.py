@@ -41,7 +41,12 @@ entry-by-entry against Table H-IX's own template pictures the way Table
 H-VI was flagged pending in task #33 - worth the same kind of follow-up
 audit, not urgent.
 
-**Two entries skipped outright, not silently dropped** (see
+**Contain (151204) and Retain (151205) are now BUILT** (2026-08-14),
+on the maintainer's own dictated geometry - see
+LINE_MEASURE_TYPE_LABELS. The note below is kept because its reasoning
+is why they are LINES rather than areas, which is still true.
+
+**Two entries deferred from the 2026-08-09 build** (see
 _AREA_SYMBOL_BUILDERS' own comment for the full reasoning): **Contain**
 (151204) and **Retain** (151205) are both PROCEDURAL circle/arc
 constructions - Retain in particular is defined by a CENTER point plus a
@@ -132,6 +137,7 @@ from qgis.core import (
     QgsEditorWidgetSetup,
     QgsField,
     QgsFillSymbol,
+    QgsFontMarkerSymbolLayer,
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
@@ -145,7 +151,10 @@ from qgis.core import (
     QgsSimpleMarkerSymbolLayerBase,
     QgsSingleSymbolRenderer,
     QgsSvgMarkerSymbolLayer,
+    QgsSymbol,
     QgsSymbolLayer,
+    QgsSymbolLayerReference,
+    QgsTextMaskSettings,
     QgsVectorLayer,
     QgsVectorLayerSimpleLabeling,
 )
@@ -157,6 +166,8 @@ from ..core.text_format import build_text_format
 
 from ._control_measure_shared import (
     AFFILIATION_LABELS,
+    LABEL_FONT_SIZE,
+    _AFFILIATION_COLOR_EXPRESSION,
     ECHELON_LABELS,
     POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
@@ -177,24 +188,29 @@ from ._control_measure_shared import (
 
 
 AREAS_LAYER_NAME = "Defensive Control Measures (Areas)"
+LINES_LAYER_NAME = "Defensive Control Measures (Lines)"
 POINTS_LAYER_NAME = "Defensive Control Measures (Points)"
 
 __all__ = [
     "AREAS_LAYER_NAME",
+    "LINES_LAYER_NAME",
     "POINTS_LAYER_NAME",
     "AREA_MEASURE_TYPE_LABELS",
+    "LINE_MEASURE_TYPE_LABELS",
     "POINT_ENTITY_LABELS",
     "AFFILIATION_LABELS",
     "STATUS_LABELS",
     "ECHELON_LABELS",
     "create_defensive_control_measures_areas_layer",
     "add_defensive_control_measures_areas_layer",
+    "create_defensive_control_measures_lines_layer",
+    "add_defensive_control_measures_lines_layer",
     "create_defensive_control_measures_points_layer",
     "add_defensive_control_measures_points_layer",
 ]
 
-# Table H-VIII, H.5.12.1. "Contain"/"Retain" (151204/151205) are
-# deliberately excluded - see module docstring.
+# Table H-VIII, H.5.12.1. Contain and Retain are NOT here - they are
+# lines, not areas; see LINE_MEASURE_TYPE_LABELS below.
 AREA_MEASURE_TYPE_LABELS = {
     "battle_position": "Battle Position",
     "strong_point": "Strong Point",
@@ -227,6 +243,244 @@ _BATTLE_POSITION_LINE_STYLE_EXPRESSION = (
     "CASE WHEN \"status\" = 'planned' OR \"prepared\" = 'P'"
     " THEN 'dash' ELSE 'solid' END"
 )
+
+
+# --- Table H-VIII's own two procedural constructions --------------
+#
+# **Contain (151204) and Retain (151205), built 2026-08-14** to the
+# maintainer's own dictated construction after this module deferred
+# them on 2026-08-09 as "procedural circle/arc constructions [that
+# don't] fit this module's one-polygon-one-symbol pattern".
+#
+# That reasoning still holds - which is why they are LINES rather than
+# areas. Neither is a boundary a user digitizes: Contain takes three
+# anchor points (PT1/PT2 the ends of the semicircle's opening, PT3 the
+# arrow's length and side) and Retain takes two (centre, then start
+# point and radius). Base Defense Zone in airspace_control_measures.py
+# already made exactly this call for the same reason.
+#
+# Every dimension is a FRACTION OF THE RADIUS, never a millimetre -
+# see the expression module's own section comment for why that is what
+# makes them buildable inside a geometry generator at all.
+LINE_MEASURE_TYPE_LABELS = {
+    "contain": "Contain",
+    "retain": "Retain",
+}
+
+LINE_MEASURE_TYPE_CODES = {
+    "contain": "151204",
+    "retain": "151205",
+}
+
+# Contain's arrow and its ENY label are RED regardless of affiliation -
+# the maintainer's own instruction, and the template's own reading: the
+# arrow represents the enemy force being contained, not the friendly
+# unit doing the containing. Field N ("ENY") is the same fixed marker
+# this appendix drops elsewhere when colour already carries the
+# meaning; here it is drawn because the arrow is a separate object from
+# the symbol's own affiliation-coloured arc.
+_ENEMY_RED = QColor(255, 0, 0)
+
+# The arrow's own symbol layer id, so the ENY label can cut a real hole
+# in it - the same QgsSymbolLayerReference-by-id mechanism Boundary's
+# echelon label uses. A marker glyph could not: it has no
+# QgsTextMaskSettings of its own (established in
+# offensive_control_measures.py).
+_CONTAIN_ARROW_SYMBOL_LAYER_ID = "contain_arrow"
+
+# The two arcs carry ids for the same reason: the "C" and "R" sit ON
+# the perimeter and cut their own gap in it.
+_CONTAIN_ARC_SYMBOL_LAYER_ID = "contain_arc"
+_RETAIN_ARC_SYMBOL_LAYER_ID = "retain_arc"
+
+# **Both arrowheads are OPEN, not filled.** Read off the templates at
+# 480 dpi after the maintainer reported Retain's: the only filled black
+# triangles on either page are the annotation pointers to the "PT. 1"/
+# "PT. 2"/"PT. 3" labels, which are not part of the symbol at all. That
+# is the same annotation-arrow trap this appendix has now walked into
+# four times (Light Line, Boundary, B6's roadblocks, and here), so it
+# is worth saying plainly: a solid triangle in a TEMPLATE column is
+# almost always a pointer, not geometry.
+_ARROWHEAD_MM = 4.5
+
+# How far the masked letters/text cut back the line they sit on.
+_LABEL_MASK_MM = 0.6
+
+# Stand-in layer id, replaced with the real one the moment the layer
+# exists - see _bind_label_masks_to_layer().
+_MASK_LAYER_ID_PLACEHOLDER = "pending"
+
+
+def _arc_generator_layer(expression, colour=None, symbol_layer_id=None,
+                         status_driven=True):
+
+    """One geometry-generator line layer for Contain/Retain."""
+
+    line = QgsSimpleLineSymbolLayer()
+
+    line.setWidth(0.4)
+
+    if symbol_layer_id:
+        line.setId(symbol_layer_id)
+
+    if colour is None:
+        _apply_affiliation_color(line, [QgsSymbolLayer.Property.StrokeColor])
+    else:
+        line.setColor(colour)
+
+    if status_driven:
+
+        line.setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeStyle,
+            QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+        )
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, line)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(expression)
+
+    generator.setSubSymbol(inner)
+
+    return generator
+
+
+def _arrowhead_layer(expression, colour, placement):
+
+    """An OPEN arrowhead on the last vertex of a generated line."""
+
+    head = QgsSimpleMarkerSymbolLayer(
+        QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
+        _ARROWHEAD_MM
+    )
+
+    # ArrowHead is a stroke-only glyph; QGIS still fills it unless the
+    # fill is made transparent outright.
+    head.setColor(QColor(0, 0, 0, 0))
+    head.setFillColor(QColor(0, 0, 0, 0))
+    head.setStrokeColor(colour)
+    head.setStrokeWidth(0.4)
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, head)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(placement)
+
+    marker_line.setRotateSymbols(True)
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, marker_line)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(expression)
+
+    generator.setSubSymbol(inner)
+
+    return generator
+
+
+def _contain_symbol():
+
+    """
+    Contain (151204) - a 180-degree arc with inward ticks, opening
+    toward PT3, and a red arrow running down the perpendicular through
+    the arc's centre with "ENY" masked into its shaft.
+    """
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(
+        0,
+        _arc_generator_layer(
+            "mct_contain_arc($geometry)",
+            symbol_layer_id=_CONTAIN_ARC_SYMBOL_LAYER_ID,
+        )
+    )
+
+    symbol.appendSymbolLayer(
+        _arc_generator_layer("mct_contain_teeth($geometry)")
+    )
+
+    symbol.appendSymbolLayer(
+        _arc_generator_layer(
+            "mct_contain_arrow($geometry)",
+            colour=_ENEMY_RED,
+            symbol_layer_id=_CONTAIN_ARROW_SYMBOL_LAYER_ID,
+            status_driven=False,
+        )
+    )
+
+    symbol.appendSymbolLayer(
+        _arrowhead_layer(
+            "mct_contain_arrow($geometry)",
+            _ENEMY_RED,
+            Qgis.MarkerLinePlacement.LastVertex,
+        )
+    )
+
+    return symbol
+
+
+def _retain_symbol():
+
+    """
+    Retain (151205) - 330 degrees of arc clockwise from PT2, outward
+    ticks, an arrowhead where the arc ends, and "R" half way round.
+    """
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(
+        0,
+        _arc_generator_layer(
+            "mct_retain_arc($geometry)",
+            symbol_layer_id=_RETAIN_ARC_SYMBOL_LAYER_ID,
+        )
+    )
+
+    symbol.appendSymbolLayer(
+        _arc_generator_layer("mct_retain_teeth($geometry)")
+    )
+
+    arrowhead = _arrowhead_layer(
+        "mct_retain_arc($geometry)",
+        QColor(0, 0, 0),
+        Qgis.MarkerLinePlacement.LastVertex,
+    )
+
+    # Held step by step, never chained: chaining off these by-value
+    # accessors frees the C++ object mid-expression and segfaults.
+    marker_line = arrowhead.subSymbol().symbolLayer(0)
+    marker = marker_line.subSymbol()
+    head = marker.symbolLayer(0)
+
+    _apply_affiliation_color(
+        head, [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    symbol.appendSymbolLayer(arrowhead)
+
+    return symbol
+
+
+_LINE_SYMBOL_BUILDERS = {
+    "contain": _contain_symbol,
+    "retain": _retain_symbol,
+}
 
 
 def _battle_position_symbol():
@@ -681,6 +935,216 @@ def create_defensive_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     )
 
     return layer
+
+
+def _arc_label_rule(measure_type, text, position_function, mask_id,
+                    colour=None):
+
+    """
+    One labelling rule for the Lines layer.
+
+    All three labels here - Contain's "ENY" and "C", Retain's "R" -
+    exist as LABELS rather than as marker glyphs for one reason: only
+    the label engine can cut a real hole in the line it sits on. A
+    marker has no QgsTextMaskSettings of its own, established in
+    offensive_control_measures.py. And all three take a DATA-DEFINED
+    position, because every one of them belongs on generated geometry
+    (an arc, or an arrow) rather than on the feature's own clicked
+    points.
+    """
+
+    settings = QgsPalLayerSettings()
+
+    settings.fieldName = "'{}'".format(text)
+
+    settings.isExpression = True
+
+    settings.placement = Qgis.LabelPlacement.OverPoint
+
+    for prop, axis in (
+        (QgsPalLayerSettings.Property.PositionX, "x"),
+        (QgsPalLayerSettings.Property.PositionY, "y"),
+    ):
+        settings.dataDefinedProperties().setProperty(
+            prop,
+            QgsProperty.fromExpression(
+                "{}({}($geometry))".format(axis, position_function)
+            )
+        )
+
+    text_format = build_text_format(LABEL_FONT_SIZE)
+
+    if colour is None:
+
+        # "C" and "R" follow the affiliation hue, the same as the arc
+        # they sit on - they were left black in the first build and
+        # read as a different object from their own symbol.
+        settings.dataDefinedProperties().setProperty(
+            QgsPalLayerSettings.Property.Color,
+            QgsProperty.fromExpression(_AFFILIATION_COLOR_EXPRESSION)
+        )
+
+    else:
+
+        text_format.setColor(colour)
+
+    mask = QgsTextMaskSettings()
+
+    mask.setEnabled(True)
+
+    mask.setSize(_LABEL_MASK_MM)
+
+    mask.setSizeUnit(Qgis.RenderUnit.Millimeters)
+
+    mask.setMaskedSymbolLayers(
+        [QgsSymbolLayerReference(_MASK_LAYER_ID_PLACEHOLDER, mask_id)]
+    )
+
+    text_format.setMask(mask)
+
+    settings.setFormat(text_format)
+
+    rule = QgsRuleBasedLabeling.Rule(settings)
+
+    rule.setFilterExpression(
+        "\"measure_type\" = '{}'".format(measure_type)
+    )
+
+    rule.setDescription(text)
+
+    return rule
+
+
+def _configure_lines_labeling(layer):
+
+    """
+    Three masked labels: Contain's "ENY" on its arrow and "C" on its
+    arc, Retain's "R" on its arc.
+
+    Rule-BASED rather than simple labelling, because each one needs its
+    own text format - a different colour, and a different symbol layer
+    to mask.
+    """
+
+    rules = QgsRuleBasedLabeling.Rule(QgsPalLayerSettings())
+
+    for rule in (
+        _arc_label_rule(
+            "contain", "ENY", "mct_contain_arrow_midpoint",
+            _CONTAIN_ARROW_SYMBOL_LAYER_ID, _ENEMY_RED,
+        ),
+        _arc_label_rule(
+            "contain", "C", "mct_contain_letter_point",
+            _CONTAIN_ARC_SYMBOL_LAYER_ID,
+        ),
+        _arc_label_rule(
+            "retain", "R", "mct_retain_letter_point",
+            _RETAIN_ARC_SYMBOL_LAYER_ID,
+        ),
+    ):
+        rules.appendChild(rule)
+
+    layer.setLabeling(QgsRuleBasedLabeling(rules))
+
+    layer.setLabelsEnabled(True)
+
+    _bind_label_masks_to_layer(layer)
+
+
+def _bind_label_masks_to_layer(layer):
+
+    """
+    Re-stamp every mask reference with the layer's own id.
+
+    A QgsSymbolLayerReference is scoped by layer id, and the layer does
+    not have one until it exists - so the rules above are built with a
+    placeholder and fixed up here, once, with the real id.
+    """
+
+    labeling = layer.labeling()
+
+    root = labeling.rootRule()
+
+    for rule in root.children():
+
+        settings = rule.settings()
+
+        text_format = settings.format()
+
+        mask = text_format.mask()
+
+        mask.setMaskedSymbolLayers(
+            [
+                QgsSymbolLayerReference(
+                    layer.id(), reference.symbolLayerIdV2()
+                )
+                for reference in mask.maskedSymbolLayers()
+            ]
+        )
+
+        text_format.setMask(mask)
+
+        settings.setFormat(text_format)
+
+        rule.setSettings(settings)
+
+    layer.setLabeling(labeling)
+
+
+def create_defensive_control_measures_lines_layer(name=LINES_LAYER_NAME):
+
+    """
+    Table H-VIII's own two procedural constructions, Contain (151204)
+    and Retain (151205) - see LINE_MEASURE_TYPE_LABELS for why they are
+    lines rather than areas.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", name, "memory")
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+        ]
+    )
+
+    layer.updateFields()
+
+    fields = layer.fields()
+
+    layer.setEditorWidgetSetup(
+        fields.indexOf("measure_type"),
+        QgsEditorWidgetSetup(
+            "ValueMap", {"map": _value_map(LINE_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        fields.indexOf("measure_type"), QgsDefaultValue("'contain'")
+    )
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
+    )
+
+    _configure_lines_labeling(layer)
+
+    return layer
+
+
+def add_defensive_control_measures_lines_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        LINES_LAYER_NAME,
+        create_defensive_control_measures_lines_layer
+    )
 
 
 def add_defensive_control_measures_areas_layer(iface):

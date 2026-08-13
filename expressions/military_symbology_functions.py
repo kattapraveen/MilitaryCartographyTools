@@ -2408,6 +2408,484 @@ def mct_rampart_svg(values, feature=None, parent=None):
     return "base64:" + encoded
 
 
+# ============================================================
+# Table H-VIII: Contain (151204) and Retain (151205)
+# ============================================================
+#
+# The two entries H4 deferred in 2026-08-09 as "procedural circle/arc
+# constructions [that] don't fit the one-polygon-one-symbol pattern".
+# They still don't - so they are built as LINES from their own anchor
+# points instead, the same call Base Defense Zone already made in
+# airspace_control_measures.py.
+#
+# **Everything below is a fraction of the construction's own radius,
+# never a millimetre.** That is what makes them buildable at all: a
+# geometry generator works in layer units and cannot see page units
+# (`@map_scale` does not resolve there - confirmed twice, see
+# offensive_control_measures.py). A tick length of "1/3 of the radius"
+# is scale-free and generates cleanly; the standard's own rule ties
+# tick length to the echelon field's text height instead, which is a
+# page unit this project cannot reach from here and which the
+# maintainer replaced with these fractions on 2026-08-14.
+
+# Contain: 180 degrees of arc, opening on PT3's own side.
+_CONTAIN_TOOTH_STEP_DEG = 18.0
+_CONTAIN_TOOTH_LENGTH_RATIO = 1.0 / 3.0
+
+# Retain: 300 degrees drawn, leaving a 60-degree opening.
+#
+# **The standard contradicts itself here, and the picture wins.** Its
+# DRAW RULES text says "The opening will be a 30-degree arc of the
+# circle", which would make the drawn arc 330 - but its own template
+# and example both draw an opening of roughly 55-60 degrees, and the
+# maintainer's own instruction was "draw a circle of 300deg". Two of
+# the three agree, so 300 it is. Built as a single constant so the
+# other reading is one line away if it ever matters.
+_RETAIN_ARC_DEG = 300.0
+_RETAIN_TOOTH_STEP_DEG = 15.0
+_RETAIN_TOOTH_LENGTH_RATIO = 1.0 / 5.0
+
+# Both letters sit ON the perimeter, cutting their own gap in the arc
+# rather than floating beside it - the maintainer's own instruction
+# ("should be on the perimeter, not next to it, with mask") and what
+# both templates draw. That mask is why they are LABELS and not marker
+# glyphs; see defensive_control_measures.py's own
+# _configure_lines_labeling().
+_LETTER_RADIUS_RATIO = 1.0
+
+# Points per 180 degrees when flattening an arc to a polyline. High
+# enough that the curve reads as a curve at any zoom this plugin is
+# used at.
+_ARC_SEGMENTS_PER_SEMICIRCLE = 72
+
+
+def _arc_points(centre, radius, start_rad, sweep_rad, segments):
+
+    """A flattened arc as a list of QgsPointXY, inclusive of both ends."""
+
+    return [
+        QgsPointXY(
+            centre.x() + radius * math.cos(start_rad + sweep_rad * i / segments),
+            centre.y() + radius * math.sin(start_rad + sweep_rad * i / segments),
+        )
+        for i in range(segments + 1)
+    ]
+
+
+def _radial_teeth(centre, radius, start_rad, sweep_rad, step_deg,
+                  length, inward):
+
+    """
+    Ticks along an arc, every `step_deg` of sweep, INCLUSIVE of both
+    ends - so the first and last land exactly on the arc's own two
+    endpoints.
+
+    A half-step offset was tried first, on the reading that both
+    templates leave their ends bare. They do not: "the last tooth in
+    contain on both ends should be at pt1 and pt2, not slightly
+    inside", and Retain's template draws a tick hard against each end
+    of its opening too.
+    """
+
+    step = math.radians(step_deg) * (1 if sweep_rad >= 0 else -1)
+
+    if step == 0:
+        return []
+
+    count = int(round(abs(sweep_rad) / math.radians(step_deg)))
+
+    teeth = []
+
+    for i in range(count + 1):
+
+        angle = start_rad + step * i
+
+        cos_a, sin_a = math.cos(angle), math.sin(angle)
+
+        outer = QgsPointXY(
+            centre.x() + radius * cos_a, centre.y() + radius * sin_a
+        )
+
+        reach = -length if inward else length
+
+        teeth.append(
+            [
+                outer,
+                QgsPointXY(
+                    outer.x() + reach * cos_a, outer.y() + reach * sin_a
+                ),
+            ]
+        )
+
+    return teeth
+
+
+def _contain_frame(geometry):
+
+    """
+    (centre, radius, start_rad, sweep_rad, n) for Contain, or None.
+
+    PT1 and PT2 are the endpoints of the semicircle's OPENING, so they
+    are the ends of the diameter; PT3 sets the arrow's length and which
+    side the opening faces. `n` is the unit vector from the PT1-PT2
+    line toward PT3 - the arc bulges the OTHER way, leaving the opening
+    facing PT3, which is the template's own layout.
+    """
+
+    if geometry is None or geometry.isEmpty():
+        return None
+
+    try:
+        vertices = geometry.asPolyline()
+    except (TypeError, ValueError):
+        return None
+
+    if len(vertices) < 3:
+        return None
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None:
+        return None
+
+    (_ux, _uy), (nx, ny), _depth = projection
+
+    centre = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+    )
+
+    radius = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y()) / 2.0
+
+    if radius == 0:
+        return None
+
+    start = math.atan2(pt1.y() - centre.y(), pt1.x() - centre.x())
+
+    # Of the two 180-degree arcs from PT1 to PT2, take the one whose
+    # own midpoint lies AWAY from PT3.
+    sweep = math.pi
+
+    mid = start + sweep / 2.0
+
+    if math.cos(mid) * nx + math.sin(mid) * ny > 0:
+        sweep = -sweep
+
+    return centre, radius, start, sweep, (nx, ny)
+
+
+@qgsfunction(
+    'mct_contain_arc',
+    group='Military Cartography Tools'
+)
+def mct_contain_arc(values, feature=None, parent=None):
+
+    """
+    Contain's own semicircle (151204) - PT1 to PT2, bulging away from
+    PT3. The chord is deliberately NOT drawn: it is the symbol's
+    opening.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _contain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, sweep, _n = frame
+
+    return QgsGeometry.fromPolylineXY(
+        _arc_points(
+            centre, radius, start, sweep, _ARC_SEGMENTS_PER_SEMICIRCLE
+        )
+    )
+
+
+@qgsfunction(
+    'mct_contain_teeth',
+    group='Military Cartography Tools'
+)
+def mct_contain_teeth(values, feature=None, parent=None):
+
+    """
+    Contain's own ticks - every 18 degrees, one third of the radius
+    long, pointing INWARD from the arc. Inward is the template's own
+    (read off the picture at 480 dpi, and confirmed by the maintainer);
+    Retain's point the other way.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _contain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, sweep, _n = frame
+
+    return QgsGeometry.fromMultiPolylineXY(
+        _radial_teeth(
+            centre, radius, start, sweep,
+            _CONTAIN_TOOTH_STEP_DEG,
+            radius * _CONTAIN_TOOTH_LENGTH_RATIO,
+            inward=True,
+        )
+    )
+
+
+@qgsfunction(
+    'mct_contain_arrow',
+    group='Military Cartography Tools'
+)
+def mct_contain_arrow(values, feature=None, parent=None):
+
+    """
+    Contain's own arrow - drawn along the perpendicular through the
+    semicircle's centre, tip AT that centre.
+
+    PT3 sets the length and the side, not the tail's own position: the
+    standard says the arrow "will project perpendicularly from the line
+    between points 1 and 2", so a PT3 clicked off that perpendicular is
+    projected onto it rather than bending the arrow.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    frame = _contain_frame(geometry)
+
+    if frame is None:
+        return geometry
+
+    centre, _radius, _start, _sweep, (nx, ny) = frame
+
+    pt3 = QgsPointXY(geometry.asPolyline()[2])
+
+    depth = (pt3.x() - centre.x()) * nx + (pt3.y() - centre.y()) * ny
+
+    if depth <= 0:
+        return geometry
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            QgsPointXY(centre.x() + depth * nx, centre.y() + depth * ny),
+            centre,
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_contain_arrow_midpoint',
+    group='Military Cartography Tools'
+)
+def mct_contain_arrow_midpoint(values, feature=None, parent=None):
+
+    """
+    The midpoint of Contain's own arrow - where the "ENY" label sits.
+
+    A LABEL rather than a marker glyph, because the label engine is the
+    only thing in QGIS that can cut a real hole in the shaft it sits
+    on: this project established in offensive_control_measures.py that
+    a marker glyph has no QgsTextMaskSettings of its own. Labels place
+    on the FEATURE's geometry, and the feature here is the three
+    clicked points, not the arrow - so the arrow's own midpoint is
+    handed to the label's data-defined position instead.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    frame = _contain_frame(geometry)
+
+    if frame is None:
+        return geometry
+
+    centre, _radius, _start, _sweep, (nx, ny) = frame
+
+    pt3 = QgsPointXY(geometry.asPolyline()[2])
+
+    depth = (pt3.x() - centre.x()) * nx + (pt3.y() - centre.y()) * ny
+
+    if depth <= 0:
+        return geometry
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            centre.x() + depth * nx / 2.0,
+            centre.y() + depth * ny / 2.0,
+        )
+    )
+
+
+@qgsfunction(
+    'mct_contain_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_contain_letter_point(values, feature=None, parent=None):
+
+    """The anchor for Contain's own "C", just outside the arc's midpoint."""
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _contain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, sweep, _n = frame
+
+    mid = start + sweep / 2.0
+
+    reach = radius * _LETTER_RADIUS_RATIO
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            centre.x() + reach * math.cos(mid),
+            centre.y() + reach * math.sin(mid),
+        )
+    )
+
+
+def _retain_frame(geometry):
+
+    """
+    (centre, radius, start_rad, sweep_rad) for Retain, or None.
+
+    PT1 is the centre and PT2 is both the start point and the radius.
+    The sweep runs CLOCKWISE from PT2 - negative, since these are map
+    coordinates with y increasing northward.
+    """
+
+    if geometry is None or geometry.isEmpty():
+        return None
+
+    try:
+        vertices = geometry.asPolyline()
+    except (TypeError, ValueError):
+        return None
+
+    if len(vertices) < 2:
+        return None
+
+    centre, start_point = QgsPointXY(vertices[0]), QgsPointXY(vertices[1])
+
+    radius = math.hypot(
+        start_point.x() - centre.x(), start_point.y() - centre.y()
+    )
+
+    if radius == 0:
+        return None
+
+    start = math.atan2(
+        start_point.y() - centre.y(), start_point.x() - centre.x()
+    )
+
+    return centre, radius, start, -math.radians(_RETAIN_ARC_DEG)
+
+
+@qgsfunction(
+    'mct_retain_arc',
+    group='Military Cartography Tools'
+)
+def mct_retain_arc(values, feature=None, parent=None):
+
+    """
+    Retain's own arc (151205) - 330 degrees clockwise from PT2, leaving
+    the standard's own 30-degree opening.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _retain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, sweep = frame
+
+    segments = int(
+        _ARC_SEGMENTS_PER_SEMICIRCLE * abs(sweep) / math.pi
+    )
+
+    return QgsGeometry.fromPolylineXY(
+        _arc_points(centre, radius, start, sweep, max(segments, 2))
+    )
+
+
+@qgsfunction(
+    'mct_retain_teeth',
+    group='Military Cartography Tools'
+)
+def mct_retain_teeth(values, feature=None, parent=None):
+
+    """
+    Retain's own ticks - every 15 degrees, one fifth of the radius
+    long, pointing OUTWARD. The opposite of Contain's.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _retain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, sweep = frame
+
+    return QgsGeometry.fromMultiPolylineXY(
+        _radial_teeth(
+            centre, radius, start, sweep,
+            _RETAIN_TOOTH_STEP_DEG,
+            radius * _RETAIN_TOOTH_LENGTH_RATIO,
+            inward=False,
+        )
+    )
+
+
+@qgsfunction(
+    'mct_retain_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_retain_letter_point(values, feature=None, parent=None):
+
+    """
+    The anchor for Retain's own "R" - half way round the sweep, just
+    outside the perimeter.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _retain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, _sweep = frame
+
+    mid = start - math.pi
+
+    reach = radius * _LETTER_RADIUS_RATIO
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            centre.x() + reach * math.cos(mid),
+            centre.y() + reach * math.sin(mid),
+        )
+    )
+
+
 @qgsfunction(
     'mct_rampart_connector_svg',
     group='Military Cartography Tools'
@@ -4420,6 +4898,14 @@ _FUNCTIONS = [
     mct_bridge_or_gap_geometry,
     mct_bridge_flare_svg,
     mct_ford_zigzag_svg,
+    mct_contain_arc,
+    mct_contain_arrow_midpoint,
+    mct_contain_teeth,
+    mct_contain_arrow,
+    mct_contain_letter_point,
+    mct_retain_arc,
+    mct_retain_teeth,
+    mct_retain_letter_point,
     mct_rampart_connector_svg,
     mct_rampart_svg,
     mct_overhead_wire_tower_svg,

@@ -13,6 +13,8 @@ points.py does. See the module's own docstring for what was scoped out
 Military Cartography Tools
 """
 
+import math
+
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
@@ -22,6 +24,7 @@ from qgis.core import (
     QgsMarkerLineSymbolLayer,
     QgsPalLayerSettings,
     QgsProject,
+    QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
     QgsSymbolLayer,
     QgsSymbolLayerUtils,
@@ -41,12 +44,20 @@ from MilitaryCartographyTools.military_symbology.defensive_control_measures impo
     AREAS_LAYER_NAME,
     AREA_MEASURE_TYPE_LABELS,
     ECHELON_LABELS,
+    LINES_LAYER_NAME,
+    LINE_MEASURE_TYPE_CODES,
+    LINE_MEASURE_TYPE_LABELS,
     POINTS_LAYER_NAME,
     POINT_ENTITY_LABELS,
     STATUS_LABELS,
+    _CONTAIN_ARC_SYMBOL_LAYER_ID,
+    _CONTAIN_ARROW_SYMBOL_LAYER_ID,
+    _RETAIN_ARC_SYMBOL_LAYER_ID,
     add_defensive_control_measures_areas_layer,
+    add_defensive_control_measures_lines_layer,
     add_defensive_control_measures_points_layer,
     create_defensive_control_measures_areas_layer,
+    create_defensive_control_measures_lines_layer,
     create_defensive_control_measures_points_layer,
 )
 
@@ -917,3 +928,491 @@ class TestAddDefensiveControlMeasuresAreasLayer(QgisTestCase):
         names = [child.name() for child in root.children()]
 
         self.assertEqual(names[0], AREAS_LAYER_NAME)
+
+
+class TestContainAndRetain(QgisTestCase):
+
+    """
+    Table H-VIII's own two procedural constructions, built 2026-08-14
+    from the maintainer's own dictated geometry after being deferred in
+    H4 as not fitting the one-polygon-one-symbol model.
+
+    Every assertion here is on EVALUATED geometry, not on expression
+    strings - this appendix has shipped three separate defects that a
+    string-level check passed straight through.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    # PT1 (0,10) and PT2 (0,-10) are the ends of the opening, so the
+    # centre is the origin and the radius is 10. PT3 sits to the east.
+    _CONTAIN = "LineString(0 10, 0 -10, 25 0)"
+
+    # PT1 the centre, PT2 due north of it - radius 10.
+    _RETAIN = "LineString(0 0, 0 10)"
+
+
+    def _evaluate(self, function, wkt):
+
+        expression = QgsExpression(
+            "{}(geom_from_wkt('{}'))".format(function, wkt)
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_the_two_codes_match_the_table(self):
+
+        self.assertEqual(
+            LINE_MEASURE_TYPE_CODES,
+            {"contain": "151204", "retain": "151205"}
+        )
+
+        self.assertEqual(
+            set(LINE_MEASURE_TYPE_LABELS), set(LINE_MEASURE_TYPE_CODES)
+        )
+
+
+    def test_contain_opens_toward_pt3(self):
+
+        # The standard's own layout: "Points 1 and 2 define the
+        # endpoints of the semicircle's opening", and the opening
+        # "typically faces enemy forces" - which is where PT3, the
+        # arrow's own end, is. So the ARC must bulge the other way.
+        arc = self._evaluate("mct_contain_arc", self._CONTAIN).asPolyline()
+
+        self.assertLess(min(point.x() for point in arc), -9.5)
+
+        self.assertLessEqual(max(point.x() for point in arc), 0.01)
+
+
+    def test_contain_teeth_point_inward_at_a_third_of_the_radius(self):
+
+        teeth = self._evaluate(
+            "mct_contain_teeth", self._CONTAIN
+        ).asMultiPolyline()
+
+        # 180 degrees at 18-degree spacing, INCLUSIVE of both ends -
+        # "the last tooth in contain on both ends should be at pt1 and
+        # pt2, not slightly inside".
+        self.assertEqual(len(teeth), 11)
+
+        for end, tooth in ((10.0, teeth[0]), (-10.0, teeth[-1])):
+
+            self.assertAlmostEqual(tooth[0].x(), 0.0, places=6)
+            self.assertAlmostEqual(tooth[0].y(), end, places=6)
+
+        for outer, inner in teeth:
+
+            outer_radius = math.hypot(outer.x(), outer.y())
+            inner_radius = math.hypot(inner.x(), inner.y())
+
+            self.assertAlmostEqual(outer_radius, 10.0, places=6)
+
+            # INWARD - the opposite of Retain's, read off the template
+            # at 480 dpi and confirmed by the maintainer.
+            self.assertLess(inner_radius, outer_radius)
+
+            self.assertAlmostEqual(
+                outer_radius - inner_radius, 10.0 / 3.0, places=6
+            )
+
+
+    def test_contain_arrow_is_perpendicular_with_its_tip_at_the_centre(self):
+
+        # "The tip of the arrowhead will be at the center point of the
+        # semicircle's diameter and will project perpendicularly from
+        # the line between points 1 and 2." PT3 sets the LENGTH, not
+        # the tail's own position.
+        arrow = self._evaluate(
+            "mct_contain_arrow", self._CONTAIN
+        ).asPolyline()
+
+        self.assertEqual(len(arrow), 2)
+
+        tail, tip = arrow
+
+        self.assertAlmostEqual(tip.x(), 0.0, places=6)
+        self.assertAlmostEqual(tip.y(), 0.0, places=6)
+
+        # Perpendicular to the PT1-PT2 chord, which runs north-south.
+        self.assertAlmostEqual(tail.y(), 0.0, places=6)
+        self.assertAlmostEqual(tail.x(), 25.0, places=6)
+
+
+    def test_a_pt3_off_the_perpendicular_is_projected_onto_it(self):
+
+        # The arrow may not bend. A PT3 well off the axis still yields
+        # a perpendicular arrow, just a shorter one.
+        arrow = self._evaluate(
+            "mct_contain_arrow", "LineString(0 10, 0 -10, 25 40)"
+        ).asPolyline()
+
+        tail, tip = arrow
+
+        self.assertAlmostEqual(tip.x(), 0.0, places=6)
+        self.assertAlmostEqual(tail.y(), 0.0, places=6)
+        self.assertAlmostEqual(tail.x(), 25.0, places=6)
+
+
+    def test_retain_sweeps_330_degrees_clockwise_from_pt2(self):
+
+        # 300 drawn, a 60-degree opening. The standard's own text says
+        # the opening is 30 degrees; its own picture draws nearer 60,
+        # and the maintainer asked for 300. See _RETAIN_ARC_DEG.
+        arc = self._evaluate("mct_retain_arc", self._RETAIN).asPolyline()
+
+        def bearing(point):
+            return math.degrees(math.atan2(point.y(), point.x()))
+
+        self.assertAlmostEqual(bearing(arc[0]), 90.0, places=4)
+
+        sweep = (bearing(arc[0]) - bearing(arc[-1])) % 360
+
+        self.assertAlmostEqual(sweep, 300.0, places=4)
+
+        # Clockwise: the second point's bearing is BELOW the first's.
+        self.assertLess(bearing(arc[1]), bearing(arc[0]))
+
+
+    def test_retain_teeth_point_outward_at_a_fifth_of_the_radius(self):
+
+        teeth = self._evaluate(
+            "mct_retain_teeth", self._RETAIN
+        ).asMultiPolyline()
+
+        # 300 degrees at 15-degree spacing, inclusive of both ends.
+        self.assertEqual(len(teeth), 21)
+
+        for inner, outer in teeth:
+
+            inner_radius = math.hypot(inner.x(), inner.y())
+            outer_radius = math.hypot(outer.x(), outer.y())
+
+            self.assertAlmostEqual(inner_radius, 10.0, places=6)
+
+            self.assertGreater(outer_radius, inner_radius)
+
+            self.assertAlmostEqual(
+                outer_radius - inner_radius, 10.0 / 5.0, places=6
+            )
+
+
+    def test_each_letter_sits_on_the_perimeter(self):
+
+        # ON the arc, not beside it - they cut their own gap in it, so
+        # they have to be on it. An earlier build floated them outside
+        # and had to give the two different clearances to keep the "R"
+        # out of its own teeth; on the perimeter that problem is gone.
+        contain = self._evaluate(
+            "mct_contain_letter_point", self._CONTAIN
+        ).asPoint()
+
+        self.assertAlmostEqual(
+            math.hypot(contain.x(), contain.y()), 10.0, places=6
+        )
+
+        # Half way round the arc, which bulges away from PT3.
+        self.assertAlmostEqual(contain.x(), -10.0, places=6)
+
+        retain = self._evaluate(
+            "mct_retain_letter_point", self._RETAIN
+        ).asPoint()
+
+        self.assertAlmostEqual(
+            math.hypot(retain.x(), retain.y()), 10.0, places=6
+        )
+
+        # 180 degrees round the sweep from PT2, which was due north.
+        self.assertAlmostEqual(retain.x(), 0.0, places=6)
+        self.assertAlmostEqual(retain.y(), -10.0, places=6)
+
+
+    def test_degenerate_input_returns_the_geometry_untouched(self):
+
+        # PT1 == PT2 (no radius) and a two-point Contain both have to
+        # fall through rather than raise mid-render.
+        for function, wkt in (
+            ("mct_contain_arc", "LineString(0 0, 0 0, 5 5)"),
+            ("mct_contain_arc", "LineString(0 10, 0 -10)"),
+            ("mct_retain_arc", "LineString(0 0, 0 0)"),
+        ):
+            self.assertIsNotNone(self._evaluate(function, wkt))
+
+
+class TestDefensiveLinesLayer(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.iface = FakeIface()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_the_layer_builds_with_a_default_measure_type(self):
+
+        layer = create_defensive_control_measures_lines_layer()
+
+        self.assertTrue(layer.isValid())
+
+        default = layer.defaultValueDefinition(
+            layer.fields().indexOf("measure_type")
+        ).expression()
+
+        self.assertEqual(default, "'contain'")
+
+
+    def _label_rules(self, layer):
+
+        """
+        {description: (settings, format, mask)} - every accessor held
+        in its own variable. Chaining off these by-value accessors
+        frees the C++ object mid-expression and segfaults, which is
+        exactly how the first version of this test died.
+        """
+
+        labeling = layer.labeling()
+        root = labeling.rootRule()
+
+        rules = {}
+
+        for rule in root.children():
+
+            settings = rule.settings()
+            text_format = settings.format()
+            mask = text_format.mask()
+
+            rules[rule.description()] = (settings, text_format, mask)
+
+        return rules
+
+
+    def test_all_three_labels_exist_one_per_text(self):
+
+        layer = create_defensive_control_measures_lines_layer()
+
+        self.assertEqual(
+            set(self._label_rules(layer)), {"ENY", "C", "R"}
+        )
+
+
+    def test_each_label_masks_the_line_it_sits_on(self):
+
+        # "C" and "R" sit ON the perimeter and "ENY" on the arrow
+        # shaft, so each has to cut its own gap. Labels, not marker
+        # glyphs, purely because a marker has no QgsTextMaskSettings.
+        layer = create_defensive_control_measures_lines_layer()
+
+        expected = {
+            "ENY": _CONTAIN_ARROW_SYMBOL_LAYER_ID,
+            "C": _CONTAIN_ARC_SYMBOL_LAYER_ID,
+            "R": _RETAIN_ARC_SYMBOL_LAYER_ID,
+        }
+
+        for text, (_settings, _fmt, mask) in self._label_rules(layer).items():
+
+            self.assertTrue(mask.enabled(), text)
+
+            references = mask.maskedSymbolLayers()
+
+            self.assertEqual(
+                [
+                    reference.symbolLayerIdV2()
+                    for reference in references
+                ],
+                [expected[text]],
+                text
+            )
+
+            # The reference is scoped by layer id, and the layer had
+            # none when the rule was built - so it must have been
+            # re-stamped with the real one.
+            self.assertEqual(
+                [reference.layerId() for reference in references],
+                [layer.id()],
+                text
+            )
+
+
+    def test_only_eny_is_red(self):
+
+        layer = create_defensive_control_measures_lines_layer()
+
+        rules = self._label_rules(layer)
+
+        self.assertEqual(rules["ENY"][1].color().name(), "#ff0000")
+
+        # "C" and "R" instead follow the affiliation hue, like the arc
+        # they sit on - a fixed colour on the format would override it.
+        for text in ("C", "R"):
+
+            settings = rules[text][0]
+
+            properties = settings.dataDefinedProperties()
+
+            self.assertIn(
+                "affiliation",
+                properties.property(
+                    QgsPalLayerSettings.Property.Color
+                ).expressionString(),
+                text
+            )
+
+
+    def test_each_label_is_positioned_on_its_own_generated_geometry(self):
+
+        # None of the three belongs on the feature's own clicked
+        # points, so all three take a data-defined position.
+        layer = create_defensive_control_measures_lines_layer()
+
+        expected = {
+            "ENY": "mct_contain_arrow_midpoint",
+            "C": "mct_contain_letter_point",
+            "R": "mct_retain_letter_point",
+        }
+
+        for text, (settings, _fmt, _mask) in self._label_rules(layer).items():
+
+            properties = settings.dataDefinedProperties()
+
+            for prop in (
+                QgsPalLayerSettings.Property.PositionX,
+                QgsPalLayerSettings.Property.PositionY,
+            ):
+                self.assertIn(
+                    expected[text],
+                    properties.property(prop).expressionString(),
+                    text
+                )
+
+
+    def test_each_label_is_filtered_to_its_own_measure_type(self):
+
+        layer = create_defensive_control_measures_lines_layer()
+
+        labeling = layer.labeling()
+        root = labeling.rootRule()
+
+        for rule in root.children():
+
+            expected = "retain" if rule.description() == "R" else "contain"
+
+            self.assertEqual(
+                rule.filterExpression(),
+                "\"measure_type\" = '{}'".format(expected)
+            )
+
+
+    def test_adding_the_layer_inserts_exactly_one(self):
+
+        layer = add_defensive_control_measures_lines_layer(self.iface)
+
+        self.assertIsNotNone(layer)
+
+        self.assertIsNone(
+            add_defensive_control_measures_lines_layer(self.iface)
+        )
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(LINES_LAYER_NAME)), 1
+        )
+
+
+class TestArrowheadsAreOpen(QgisTestCase):
+
+    """
+    Neither arrowhead is filled. The only solid triangles on either
+    template page are the annotation pointers to the PT. 1/2/3 labels -
+    the fourth time this appendix has had to separate those from real
+    geometry.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_both_arrowheads_are_stroke_only(self):
+
+        for builder in (
+            defensive_control_measures._contain_symbol,
+            defensive_control_measures._retain_symbol,
+        ):
+
+            symbol = builder()
+
+            heads = []
+
+            for index in range(symbol.symbolLayerCount()):
+
+                generator = symbol.symbolLayer(index)
+
+                inner = generator.subSymbol()
+
+                if inner is None:
+                    continue
+
+                candidate = inner.symbolLayer(0)
+
+                if not isinstance(candidate, QgsMarkerLineSymbolLayer):
+                    continue
+
+                marker = candidate.subSymbol()
+                head = marker.symbolLayer(0)
+
+                if isinstance(head, QgsSimpleMarkerSymbolLayer):
+                    heads.append(head)
+
+            self.assertEqual(len(heads), 1, builder.__name__)
+
+            head = heads[0]
+
+            self.assertEqual(
+                head.shape(),
+                QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
+                builder.__name__
+            )
+
+            self.assertEqual(head.fillColor().alpha(), 0, builder.__name__)

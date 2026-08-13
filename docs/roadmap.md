@@ -7626,6 +7626,63 @@ harmless, and removed.
 
 ---
 
+### Table H-VIII: Contain and Retain built (2026-08-14)
+
+The first two of the appendix's own 59 remaining symbols, and the first
+of the "deferred because it needs computed geometry" family to actually
+land. H4 put them off in 2026-08-09 as "procedural circle/arc
+constructions [that don't] fit this module's one-polygon-one-symbol
+pattern" - which was right, and is why they are built as **lines**, not
+areas, on a new Defensive Control Measures (Lines) layer. Base Defense
+Zone had already made that call for the same reason.
+
+**Why they are buildable now when Weapon/Sensor Range Fan still is
+not.** Every dimension the maintainer dictated is a FRACTION OF THE
+RADIUS - tick length 1/3 (Contain) or 1/5 (Retain), spacing 18 and 15
+degrees. Fractions are scale-free, so a geometry generator can produce
+them in layer units; the standard's own rule instead ties tick length
+to the echelon field's text height, a page unit that a geometry
+generator cannot see (`@map_scale` does not resolve there - re-probed
+again this session).
+
+**Four corrections came out of the first render, all from the
+maintainer.**
+
+- **Contain's ticks point INWARD**, Retain's outward. Read off the
+  template at 480 dpi to confirm.
+- **Neither arrowhead is filled.** The only solid black triangles on
+  either page are the annotation pointers to the "PT. 1"/"PT. 2"/
+  "PT. 3" labels. That is the FOURTH time this appendix has confused an
+  annotation pointer for geometry (Light Line, Boundary, B6's
+  roadblocks, and now here), which is worth stating as a rule: a filled
+  triangle in a TEMPLATE column is almost always a pointer.
+- **Ticks are inclusive of both ends** - the first and last land
+  exactly on PT1 and PT2. A half-step inset was tried first on the
+  reading that the templates leave their ends bare; they do not.
+- **"C" and "R" sit ON the perimeter and mask it**, rather than
+  floating outside. That forced both letters to become LABELS: only
+  the label engine can cut a real hole in the line it sits on, since a
+  marker glyph has no QgsTextMaskSettings (established in
+  offensive_control_measures.py). All three labels here - those two
+  plus Contain's red "ENY" on its arrow shaft - therefore take a
+  DATA-DEFINED position, because every one of them belongs on
+  generated geometry rather than on the feature's own clicked points.
+
+**One number where the standard contradicts itself.** Its DRAW RULES
+say Retain's "opening will be a 30-degree arc", making the drawn arc
+330 - but its own template and example both draw an opening nearer 60,
+and the maintainer asked for 300. Two of the three agree, so 300 it is,
+in a single constant with the disagreement recorded beside it.
+
+The by-value-temporary segfault trap bit again on the way, in a test
+chaining `layer.labeling().settings().dataDefinedProperties()`. Every
+such accessor is now held in its own variable, and the test that hit it
+says why.
+
+1084 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

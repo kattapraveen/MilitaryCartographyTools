@@ -55,6 +55,7 @@ from .military_symbology.maneuver_control_measures import (
 )
 from .military_symbology.defensive_control_measures import (
     add_defensive_control_measures_areas_layer,
+    add_defensive_control_measures_lines_layer,
     add_defensive_control_measures_points_layer,
 )
 from .military_symbology.offensive_control_measures import (
@@ -2124,13 +2125,19 @@ class MilitaryCartographyTools:
     def create_defensive_control_measures(self):
         """
         Add the Defensive Control Measures layers (areas: Battle
-        Position, Strong Point, Engagement Area, Table H-VIII; points:
-        Observation Post and its variants, Target Reference Point,
-        Table H-IX - MIL-STD-2525D Appendix H.5.12), ready for
-        digitizing with QGIS's own native editing tools.
+        Position, Strong Point, Engagement Area, Table H-VIII; lines:
+        Contain and Retain, the same table's own two procedural
+        arc constructions; points: Observation Post and its variants,
+        Target Reference Point, Table H-IX - MIL-STD-2525D Appendix
+        H.5.12), ready for digitizing with QGIS's own native editing
+        tools.
         """
 
         add_defensive_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_defensive_control_measures_lines_layer(
             self.iface
         )
 
