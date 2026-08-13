@@ -494,6 +494,32 @@ POINT_GROUP_LABELS = {
 
 # entity -> (group, name within that group). 105 entries, the full
 # vocabulary of pages 474-501.
+#
+# **Two deliberate departures from the table's own printed layout, both
+# from the maintainer's 2026-08-13 review.**
+#
+# 1. The six HARBOUR entries (212800-212904) sit under Surface Stations
+#    here, not Sub-Surface Warfare. The standard really does print them
+#    under its own "Sub-Surface Warfare" rule - checked on the page
+#    image, there is no intervening heading - but a harbour and its
+#    entrance points are surface features, and the group in this form
+#    is a menu, not a citation. Their codes and glyphs are untouched;
+#    only which submenu they appear under changes.
+#
+# 2. Every name in both station groups is now the standard's own
+#    CONTROL MEASURE column verbatim. They previously carried an
+#    invented "Sea" ("General Sea Surface Station" for the table's own
+#    "General Surface Station"), and two were wrong outright - 216800
+#    is "Remote Multi-Mission Vehicle Unmanned Underwater Vehicle
+#    Surface Station", not "...Mine Warfare Unmanned Underwater Sea
+#    Surface Station", and 216900 is "Surface Warfare Unmanned
+#    Underwater Vehicle Surface Station" with no "Mine Warfare" in it
+#    at all. That padding is what made the two groups read as
+#    duplicates of each other, which is how this surfaced. They are
+#    not duplicates: the Subsurface Stations (214900-215500) draw a
+#    DASHED line above and a solid line below, the Surface Stations
+#    (215600-217000) draw both lines solid, and the render bears that
+#    out entity by entity.
 _POINT_ENTITIES = {
     # General
     "plan_ship": ("general", "Plan Ship"),
@@ -521,12 +547,6 @@ _POINT_ENTITIES = {
     "electromagnetic_magnetic_anomaly_detection": ("sub_surface_warfare", "Electromagnetic - Magnetic Anomaly Detection (MAD)"),
     "optical_fix": ("sub_surface_warfare", "Optical Fix"),
     "formation": ("sub_surface_warfare", "Formation"),
-    "harbor": ("sub_surface_warfare", "Harbor"),
-    "harbor_entrance_point": ("sub_surface_warfare", "Harbor Entrance Point"),
-    "harbor_entrance_point_a": ("sub_surface_warfare", "Harbor Entrance Point A"),
-    "harbor_entrance_point_q": ("sub_surface_warfare", "Harbor Entrance Point Q"),
-    "harbor_entrance_point_x": ("sub_surface_warfare", "Harbor Entrance Point X"),
-    "harbor_entrance_point_y": ("sub_surface_warfare", "Harbor Entrance Point Y"),
     # Search
     "dip_position": ("search", "Dip Position"),
     "search": ("search", "Search"),
@@ -564,28 +584,34 @@ _POINT_ENTITIES = {
     "estimated_position": ("reference_points", "Estimated Position (EP)"),
     "waypoint": ("reference_points", "Waypoint"),
     # Subsurface Stations
-    "general_sea_subsurface_station": ("subsurface_stations", "General Sea Subsurface Station"),
-    "submarine_sea_subsurface_station": ("subsurface_stations", "Submarine Sea Subsurface Station"),
-    "submarine_antisubmarine_warfare_sea_subsurface_station": ("subsurface_stations", "Submarine Antisubmarine Warfare Sea Subsurface Station"),
-    "unmanned_underwater_vehicle_sea_subsurface_station": ("subsurface_stations", "Unmanned Underwater Vehicle Sea Subsurface Station"),
-    "antisubmarine_warfare_unmanned_underwater_vehicle_sea_subsurface_station": ("subsurface_stations", "Antisubmarine Warfare (ASW) Unmanned Underwater Vehicle Sea Subsurface Station"),
-    "mine_warfare_unmanned_underwater_vehicle_sea_subsurface_station": ("subsurface_stations", "Mine Warfare Unmanned Underwater Vehicle Sea Subsurface Station"),
-    "sea_surface_warfare_unmanned_underwater_vehicle_subsurface_station": ("subsurface_stations", "Sea Surface Warfare Unmanned Underwater Vehicle Subsurface Station"),
+    "general_subsurface_station": ("subsurface_stations", "General Subsurface Station"),
+    "submarine_subsurface_station": ("subsurface_stations", "Submarine Subsurface Station"),
+    "submarine_antisubmarine_warfare_subsurface_station": ("subsurface_stations", "Submarine Antisubmarine Warfare Subsurface Station"),
+    "unmanned_underwater_vehicle_subsurface_station": ("subsurface_stations", "Unmanned Underwater Vehicle Subsurface Station"),
+    "antisubmarine_warfare_unmanned_underwater_vehicle_subsurface_station": ("subsurface_stations", "Antisubmarine Warfare (ASW) Unmanned Underwater Vehicle Subsurface Station"),
+    "mine_warfare_unmanned_underwater_vehicle_subsurface_station": ("subsurface_stations", "Mine Warfare Unmanned Underwater Vehicle Subsurface Station"),
+    "surface_warfare_unmanned_underwater_vehicle_subsurface_station": ("subsurface_stations", "Surface Warfare Unmanned Underwater Vehicle Subsurface Station"),
     # Surface Stations
-    "general_sea_surface_station": ("surface_stations", "General Sea Surface Station"),
-    "antisubmarine_warfare_sea_surface_station": ("surface_stations", "Antisubmarine Warfare (ASW) Sea Surface Station"),
-    "mine_warfare_sea_surface_station": ("surface_stations", "Mine Warfare Sea Surface Station"),
-    "non_combatant_sea_surface_station": ("surface_stations", "Non-Combatant Sea Surface Station"),
-    "picket_sea_surface_station": ("surface_stations", "Picket Sea Surface Station"),
-    "rendezvous_sea_surface_station": ("surface_stations", "Rendezvous Sea Surface Station"),
+    "harbor": ("surface_stations", "Harbor"),
+    "harbor_entrance_point": ("surface_stations", "Harbor Entrance Point"),
+    "harbor_entrance_point_a": ("surface_stations", "Harbor Entrance Point A"),
+    "harbor_entrance_point_q": ("surface_stations", "Harbor Entrance Point Q"),
+    "harbor_entrance_point_x": ("surface_stations", "Harbor Entrance Point X"),
+    "harbor_entrance_point_y": ("surface_stations", "Harbor Entrance Point Y"),
+    "general_surface_station": ("surface_stations", "General Surface Station"),
+    "antisubmarine_warfare_surface_station": ("surface_stations", "Antisubmarine Warfare (ASW) Surface Station"),
+    "mine_warfare_surface_station": ("surface_stations", "Mine Warfare Surface Station"),
+    "non_combatant_surface_station": ("surface_stations", "Non-Combatant Surface Station"),
+    "picket_surface_station": ("surface_stations", "Picket Surface Station"),
+    "rendezvous_surface_station": ("surface_stations", "Rendezvous Surface Station"),
     "replenishment_at_sea_surface_station": ("surface_stations", "Replenishment at Sea Surface Station"),
-    "rescue_sea_surface_station": ("surface_stations", "Rescue Sea Surface Station"),
-    "surface_warfare_sea_surface_station": ("surface_stations", "Surface Warfare Sea Surface Station"),
-    "unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Unmanned Underwater Vehicle Sea Surface Station"),
-    "antisubmarine_warfare_unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Antisubmarine Warfare (ASW) Unmanned Underwater Vehicle Sea Surface Station"),
-    "mine_warfare_unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Mine Warfare Unmanned Underwater Vehicle Sea Surface Station"),
-    "remote_multi_mission_vehicle_mine_warfare_unmanned_underwater_sea_surface_station": ("surface_stations", "Remote Multi-Mission Vehicle Mine Warfare Unmanned Underwater Sea Surface Station"),
-    "surface_warfare_mine_warfare_unmanned_underwater_vehicle_sea_surface_station": ("surface_stations", "Surface Warfare Mine Warfare Unmanned Underwater Vehicle Sea Surface Station"),
+    "rescue_surface_station": ("surface_stations", "Rescue Surface Station"),
+    "surface_warfare_surface_station": ("surface_stations", "Surface Warfare Surface Station"),
+    "unmanned_underwater_vehicle_surface_station": ("surface_stations", "Unmanned Underwater Vehicle Surface Station"),
+    "antisubmarine_warfare_unmanned_underwater_vehicle_surface_station": ("surface_stations", "Antisubmarine Warfare (ASW) Unmanned Underwater Vehicle Surface Station"),
+    "mine_warfare_unmanned_underwater_vehicle_surface_station": ("surface_stations", "Mine Warfare Unmanned Underwater Vehicle Surface Station"),
+    "remote_multi_mission_vehicle_unmanned_underwater_vehicle_surface_station": ("surface_stations", "Remote Multi-Mission Vehicle Unmanned Underwater Vehicle Surface Station"),
+    "surface_warfare_unmanned_underwater_vehicle_surface_station": ("surface_stations", "Surface Warfare Unmanned Underwater Vehicle Surface Station"),
     "shore_control_station": ("surface_stations", "Shore Control Station"),
     # Routes
     "general_route": ("routes", "General Route"),

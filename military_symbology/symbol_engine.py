@@ -111,11 +111,105 @@ def render_symbol_svg(sidc, options=None):
             + result.toString()
         )
 
-    svg = result.toString()
+    svg = _correct_viewbox(
+        sidc,
+        _apply_dominant_baseline(result.toString())
+    )
 
     _svg_cache[key] = svg
 
     return svg
+
+
+_TEXT_PATTERN = re.compile(r"<text\b[^>]*>")
+
+_DOMINANT_BASELINE_PATTERN = re.compile(r'\s*dominant-baseline="middle"')
+
+_FONT_SIZE_PATTERN = re.compile(r'font-size="([\d.]+)"')
+
+_TEXT_Y_PATTERN = re.compile(r'\by="(-?[\d.]+)"')
+
+# SVG's own definition of the "middle" dominant baseline: half the
+# font's x-height above the alphabetic baseline. Arial's x-height is
+# 0.519 em, and every <text> milsymbol emits asks for Arial, so this
+# is that font's own ratio rather than a tuned constant. Qt is asked
+# for the metrics at run time instead of hardcoding 0.2595 only
+# because macOS substitutes Helvetica for Arial and the two differ in
+# the third decimal; the fallback below is the Arial figure.
+_MIDDLE_BASELINE_RATIO = None
+
+
+def _middle_baseline_ratio():
+
+    global _MIDDLE_BASELINE_RATIO
+
+    if _MIDDLE_BASELINE_RATIO is None:
+
+        try:
+
+            from qgis.PyQt.QtGui import QFont, QFontMetricsF
+
+            font = QFont("Arial", -1)
+            font.setPixelSize(1000)
+            font.setBold(True)
+
+            _MIDDLE_BASELINE_RATIO = (
+                QFontMetricsF(font).xHeight() / 1000.0 / 2.0
+            )
+
+        except Exception:
+
+            _MIDDLE_BASELINE_RATIO = 0.2595
+
+    return _MIDDLE_BASELINE_RATIO
+
+
+def _apply_dominant_baseline(svg):
+
+    """
+    Bakes milsymbol's own `dominant-baseline="middle"` into an explicit
+    `y`, because **Qt's SVG renderer silently ignores that attribute**.
+
+    Probed directly: the same <text> renders pixel-for-pixel identically
+    with and without it, so every label milsymbol means to CENTRE on its
+    own y instead sits with its BASELINE there - roughly 0.26 em too
+    high. Usually that only looks a touch off; where an icon puts a
+    letter just under a centre dot it is a real collision, which is how
+    this surfaced (Table H-XIV's Reference Points - Corridor Tab Point's
+    "C", Data Link's "D", Marshall's "M" and the rest all sat ON the
+    dot, unreadable). The attribute is left in place afterwards so the
+    markup still says what it means to any renderer that does honour it;
+    only `y` moves.
+    """
+
+    if 'dominant-baseline="middle"' not in svg:
+        return svg
+
+    def shift(match):
+
+        tag = match.group(0)
+
+        if 'dominant-baseline="middle"' not in tag:
+            return tag
+
+        font_size = _FONT_SIZE_PATTERN.search(tag)
+        y = _TEXT_Y_PATTERN.search(tag)
+
+        if not font_size or not y:
+            return tag
+
+        shifted = (
+            float(y.group(1))
+            + float(font_size.group(1)) * _middle_baseline_ratio()
+        )
+
+        return _TEXT_Y_PATTERN.sub(
+            'y="{:g}"'.format(shifted),
+            tag,
+            count=1
+        )
+
+    return _TEXT_PATTERN.sub(shift, svg)
 
 
 _STROKE_WIDTH_PATTERN = re.compile(r'stroke-width="([\d.]+)"')
@@ -167,3 +261,167 @@ def render_symbol_base64_path(sidc, options=None, stroke_scale=None):
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
     return "base64:" + encoded
+
+
+# --- milsymbol bbox corrections -------------------------------------
+#
+# milsymbol declares a bounding box per icon by hand, and a handful do
+# not match what the icon actually draws. QGIS sizes an SVG marker by
+# its WIDTH, so an over-generous box makes the icon render SMALLER at
+# the same marker size than its own siblings - the symbol is right, the
+# scale is not.
+#
+# Keyed by the SIDC's own entity digits (11-16). Only entries verified
+# against milsymbol's own drawn geometry belong here, never a guess:
+# each one below was read off the generated SVG itself, not inferred.
+#
+# **Sonobuoys (Table H-XIV, 213500-213515).** Every sonobuoy in the
+# family is the same drawing - a circle r=40 centred at (100,100) plus
+# a lead - so every one truly spans x 60..140, and milsymbol says so
+# for 213500-213509 (bbox x1:60 x2:140, viewBox 88 wide). For
+# 213510-213515 it declares x1:40 x2:160 instead, 128 wide, purely
+# generous padding: the letter each of them adds sits INSIDE the
+# circle at font-size 45 and widens nothing. The result was that
+# Expired, Kingpin, LOFAR, Pattern Center, Range Only and VLAD all
+# rendered ~31% smaller than the ten sonobuoys beside them, which is
+# what the maintainer reported ("these symbols are smaller than others
+# significantly").
+#
+# 213510 (Expired) is the one whose extra ink is real - its cross does
+# run x 40..160. It is corrected to the family box anyway, deliberately:
+# the sonobuoy's CIRCLE is what has to match its siblings, and the
+# cross reads as struck THROUGH that circle exactly as the standard's
+# own picture draws it. Qt does not clip an SVG to its viewBox
+# (probed directly), so the overhanging arms still draw.
+_SONOBUOY_FAMILY_VIEWBOX = "56 -14 88 178"
+
+_VIEWBOX_CORRECTIONS = {
+    "213510": _SONOBUOY_FAMILY_VIEWBOX,
+    "213511": _SONOBUOY_FAMILY_VIEWBOX,
+    "213512": _SONOBUOY_FAMILY_VIEWBOX,
+    "213513": _SONOBUOY_FAMILY_VIEWBOX,
+    "213514": _SONOBUOY_FAMILY_VIEWBOX,
+    "213515": _SONOBUOY_FAMILY_VIEWBOX,
+}
+
+_VIEWBOX_PATTERN = re.compile(r'viewBox="([^"]*)"')
+
+_SVG_WIDTH_PATTERN = re.compile(r'\bwidth="[\d.]+"')
+
+_SVG_HEIGHT_PATTERN = re.compile(r'\bheight="[\d.]+"')
+
+_TEXT_ELEMENT_PATTERN = re.compile(r"<text\b([^>]*)>(.*?)</text>", re.S)
+
+_TEXT_X_PATTERN = re.compile(r'\bx="(-?[\d.]+)"')
+
+_TEXT_ANCHOR_PATTERN = re.compile(r'text-anchor="(\w+)"')
+
+
+def _text_extent(attributes, content):
+
+    """
+    (left, right) of one <text> element in the icon's own coordinates.
+
+    Measured with the same Qt font machinery that will draw it, so the
+    answer matches what actually lands on the canvas rather than an
+    estimate. Returns None if the element is missing anything needed,
+    in which case the caller leaves the viewBox alone rather than
+    guessing narrow and clipping.
+    """
+
+    x = _TEXT_X_PATTERN.search(attributes)
+    font_size = _FONT_SIZE_PATTERN.search(attributes)
+
+    if not x or not font_size or not content:
+        return None
+
+    try:
+
+        from qgis.PyQt.QtGui import QFont, QFontMetricsF
+
+        font = QFont("Arial", -1)
+        font.setPixelSize(1000)
+        font.setBold('font-weight="bold"' in attributes)
+
+        width = (
+            QFontMetricsF(font).horizontalAdvance(content)
+            / 1000.0
+            * float(font_size.group(1))
+        )
+
+    except Exception:
+
+        return None
+
+    x = float(x.group(1))
+
+    anchor = _TEXT_ANCHOR_PATTERN.search(attributes)
+    anchor = anchor.group(1) if anchor else "start"
+
+    if anchor == "middle":
+        return x - width / 2.0, x + width / 2.0
+
+    if anchor == "end":
+        return x - width, x
+
+    return x, x + width
+
+
+def _correct_viewbox(sidc, svg):
+
+    """
+    Swaps in the corrected horizontal bounds for the icons listed in
+    _VIEWBOX_CORRECTIONS - see that table for which and why - then
+    widens the result back out over any amplifier text the symbol
+    carries.
+
+    That second step is not optional. The correction fixes the ICON's
+    own declared box, but milsymbol's viewBox is the union of the icon
+    and every amplifier on it, and Table H-XIV's own sonobuoy examples
+    put the T and H fields OUTSIDE the circle ("99", "HOT", to the
+    upper right). Swapping in the bare icon box alone therefore clipped
+    a unique designation clean off - confirmed in a render before this
+    was added. Measuring the text back in keeps the circle the same
+    size as its siblings, which is the actual defect, while leaving the
+    amplifiers exactly where the standard draws them.
+    """
+
+    corrected = _VIEWBOX_CORRECTIONS.get(sidc[10:16])
+
+    if not corrected:
+        return svg
+
+    current = _VIEWBOX_PATTERN.search(svg)
+
+    if not current:
+        return svg
+
+    left, top, width, height = (float(v) for v in corrected.split())
+
+    right = left + width
+
+    for attributes, content in _TEXT_ELEMENT_PATTERN.findall(svg):
+
+        extent = _text_extent(attributes, content.strip())
+
+        if extent is None:
+            return svg
+
+        left = min(left, extent[0])
+        right = max(right, extent[1])
+
+    width = right - left
+
+    svg = _VIEWBOX_PATTERN.sub(
+        'viewBox="{:g} {:g} {:g} {:g}"'.format(left, top, width, height),
+        svg,
+        count=1
+    )
+
+    svg = _SVG_WIDTH_PATTERN.sub(
+        'width="{:g}"'.format(width), svg, count=1
+    )
+
+    return _SVG_HEIGHT_PATTERN.sub(
+        'height="{:g}"'.format(height), svg, count=1
+    )

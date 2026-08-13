@@ -7355,6 +7355,76 @@ tested, not claimed as done here.
   every older layer module has had all along, and precisely why none
   of them shipped this bug. 1031 tests passing on both QGIS versions.
 
+- **Table H-XIV reopened: four maritime defects from the maintainer's
+  own review** (2026-08-13, same day). Two turned out to be general
+  rendering bugs living in `symbol_engine.py`, not maritime bugs at
+  all, and both are fixed at the root so every appendix benefits.
+
+  **1. Qt's SVG renderer silently ignores `dominant-baseline`.** Probed
+  directly through QSvgRenderer: the same `<text>` rasterises
+  pixel-for-pixel identically with and without the attribute. Every
+  label milsymbol means to CENTRE on its own `y` was therefore sitting
+  with its BASELINE there, about 0.26 em too high. On most icons that
+  reads as slightly-off; on any icon that puts a letter just under a
+  centre dot it is a collision, which is how it surfaced - Reference
+  Points' Corridor Tab "C", Data Link "D", Marshall "M", Enemy "ENY"
+  and the rest all printed ON the dot ("touching the dot in center
+  making it unreadable"). `_apply_dominant_baseline()` now bakes the
+  shift into `y` before the SVG ever reaches Qt, using half the font's
+  own x-height as SVG defines that baseline - measured from Qt's own
+  metrics rather than hardcoded, since macOS substitutes Helvetica for
+  Arial. The attribute is left in the markup so it still says what it
+  means to a renderer that honours it. Re-rendered the obstacle points
+  and the airspace points as well: letters that were high in their
+  boxes are now centred, nothing regressed.
+
+  **2. milsymbol's declared bbox is wrong for six of the sixteen
+  sonobuoys.** 213510-213515 (Expired, Kingpin, LOFAR, Pattern Center,
+  Range Only, VLAD) declare `x1:40 x2:160`, a 128-wide box, for content
+  that is the same circle r=40 at (100,100) every other sonobuoy draws
+  - genuinely 80 wide, and correctly declared as such for
+  213500-213509. QGIS sizes an SVG marker by its WIDTH, so those six
+  rendered ~31% smaller than the ten beside them: the maintainer's
+  "these symbols are smaller than others significantly", and their list
+  matched the six exactly. `_VIEWBOX_CORRECTIONS` now swaps in the
+  family's own box. The correction has to widen back out over any
+  amplifier text, and that is not optional - Table H-XIV's own sonobuoy
+  examples hang the T and H fields OUTSIDE the circle ("99", "HOT",
+  upper right), and a first cut that swapped the bare icon box in
+  clipped a unique designation clean off, caught in a render. The text
+  extent is measured with the same Qt font machinery that will draw it.
+
+  **3. The six harbour entries moved to Surface Stations.** A
+  deliberate departure from the printed table, at the maintainer's
+  request. The standard really does print Harbor (212800) and the five
+  Harbor Entrance Points under its own "Sub-Surface Warfare" rule -
+  checked on the page image, there is no intervening heading - but a
+  harbour and its entrance points are surface features and the group
+  here is a menu, not a citation. Codes and glyphs untouched.
+
+  **4. The two station groups are NOT duplicates - the names were.**
+  Reported as "a lot of underwater symbols repeated or are populated
+  here ... remove duplicates". They are not duplicates: Subsurface
+  Stations (214900-215500) and Surface Stations (215600-217000) are
+  separate codes and milsymbol draws them differently - dashed line
+  above and solid below for subsurface, both solid for surface -
+  verified entity by entity in a render and now pinned by a test that
+  asserts on the GLYPH, not the name. What was wrong was our own
+  labelling: every station name carried an invented "Sea" ("General
+  Sea Surface Station" for the table's own "General Surface Station"),
+  and two were wrong outright - 216800 is "Remote Multi-Mission
+  Vehicle Unmanned Underwater Vehicle Surface Station", not "...Mine
+  Warfare Unmanned Underwater Sea Surface Station", and 216900 has no
+  "Mine Warfare" in it at all. That padding is exactly what made the
+  two groups read as each other's duplicates. All 22 station names are
+  now the table's own CONTROL MEASURE column verbatim, entity keys
+  included; the one name the table really does spell with "Sea" is
+  Replenishment at Sea Surface Station, and a test says so. Nothing was
+  deleted - deleting five real codes on the strength of a misleading
+  label would have been the actual defect.
+
+  1041 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

@@ -47,7 +47,13 @@ from MilitaryCartographyTools.military_symbology.maritime_control_measures impor
 from MilitaryCartographyTools.military_symbology.control_measure_points import (
     _ENTITY_LABELS as _CONTROL_MEASURE_POINT_ENTITY_LABELS,
 )
-from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
+from MilitaryCartographyTools.military_symbology.sidc import (
+    ENTITIES,
+    build_sidc,
+)
+from MilitaryCartographyTools.military_symbology.symbol_engine import (
+    render_symbol_svg,
+)
 
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
@@ -760,6 +766,121 @@ class TestCreateMaritimeControlMeasuresPointsLayer(QgisTestCase):
         populated = {group for group, _name in _POINT_ENTITIES.values()}
 
         self.assertEqual(populated, set(POINT_GROUP_LABELS))
+
+
+    def test_harbours_are_grouped_under_surface_stations(self):
+
+        # A deliberate departure from the table's own printed layout,
+        # at the maintainer's request: the standard prints all six
+        # under its own "Sub-Surface Warfare" rule (checked on the page
+        # image - there is no intervening heading), but a harbour and
+        # its entrance points are surface features and the group here
+        # is a menu, not a citation. Codes and glyphs are untouched.
+        for entity in (
+            "harbor",
+            "harbor_entrance_point",
+            "harbor_entrance_point_a",
+            "harbor_entrance_point_q",
+            "harbor_entrance_point_x",
+            "harbor_entrance_point_y",
+        ):
+
+            self.assertEqual(
+                _POINT_ENTITIES[entity][0],
+                "surface_stations",
+                entity
+            )
+
+
+    def test_station_names_are_the_tables_own_wording(self):
+
+        # These carried an invented "Sea" throughout, and two were
+        # wrong outright, which is what made the two station groups
+        # read as duplicates of each other.
+        for entity, expected in {
+            "general_subsurface_station": "General Subsurface Station",
+            "general_surface_station": "General Surface Station",
+            "unmanned_underwater_vehicle_subsurface_station":
+                "Unmanned Underwater Vehicle Subsurface Station",
+            "unmanned_underwater_vehicle_surface_station":
+                "Unmanned Underwater Vehicle Surface Station",
+            "remote_multi_mission_vehicle_unmanned_underwater_vehicle"
+            "_surface_station":
+                "Remote Multi-Mission Vehicle Unmanned Underwater "
+                "Vehicle Surface Station",
+            "surface_warfare_unmanned_underwater_vehicle_surface_station":
+                "Surface Warfare Unmanned Underwater Vehicle Surface "
+                "Station",
+            "surface_warfare_unmanned_underwater_vehicle_subsurface_station":
+                "Surface Warfare Unmanned Underwater Vehicle Subsurface "
+                "Station",
+        }.items():
+
+            self.assertEqual(POINT_ENTITY_LABELS[entity], expected)
+
+        # "Replenishment at Sea Surface Station" is the one name the
+        # table really does spell with a "Sea" in it - it is part of
+        # "Replenishment at Sea", not the station's dimension.
+        self.assertEqual(
+            POINT_ENTITY_LABELS["replenishment_at_sea_surface_station"],
+            "Replenishment at Sea Surface Station"
+        )
+
+
+    def test_the_two_station_groups_are_not_duplicates_of_each_other(self):
+
+        # The maintainer's own reading of the layer was that Surface
+        # Stations repeated the underwater ones. They do not: the
+        # standard gives each its own code, and milsymbol draws the
+        # subsurface ones with a DASHED line above and the surface ones
+        # with both lines solid. Asserted on the rendered glyph, not on
+        # the names, because the names were the misleading part.
+        military_symbology_functions.register()
+
+        try:
+
+            for subsurface, surface in (
+                ("unmanned_underwater_vehicle_subsurface_station",
+                 "unmanned_underwater_vehicle_surface_station"),
+                ("antisubmarine_warfare_unmanned_underwater_vehicle"
+                 "_subsurface_station",
+                 "antisubmarine_warfare_unmanned_underwater_vehicle"
+                 "_surface_station"),
+                ("mine_warfare_unmanned_underwater_vehicle"
+                 "_subsurface_station",
+                 "mine_warfare_unmanned_underwater_vehicle"
+                 "_surface_station"),
+                ("surface_warfare_unmanned_underwater_vehicle"
+                 "_subsurface_station",
+                 "surface_warfare_unmanned_underwater_vehicle"
+                 "_surface_station"),
+            ):
+
+                svgs = []
+
+                for entity in (subsurface, surface):
+
+                    svgs.append(
+                        render_symbol_svg(
+                            build_sidc(
+                                "friend",
+                                entity,
+                                symbol_set="control_measure",
+                                echelon="unspecified",
+                                status="present",
+                            )
+                        )
+                    )
+
+                self.assertNotEqual(svgs[0], svgs[1], subsurface)
+
+                self.assertIn("stroke-dasharray", svgs[0], subsurface)
+
+                self.assertNotIn("stroke-dasharray", svgs[1], surface)
+
+        finally:
+
+            military_symbology_functions.unregister()
 
 
     def test_the_maritime_family_left_the_shared_points_layer(self):
