@@ -41,6 +41,7 @@ from .military_symbology.sustainment_control_measures import (
 from .military_symbology.supply_points import (
     add_supply_points_layer,
     add_supply_routes_lines_layer,
+    add_sustainment_areas_layer,
 )
 from .military_symbology.mission_task_control_measures import (
     add_mission_task_points_layer,
@@ -2442,6 +2443,10 @@ class MilitaryCartographyTools:
         )
 
         add_supply_routes_lines_layer(
+            self.iface
+        )
+
+        add_sustainment_areas_layer(
             self.iface
         )
 

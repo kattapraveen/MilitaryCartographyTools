@@ -8095,6 +8095,34 @@ glyph colour reaches the SVG as a STRING for the same reason as ever -
 
 45 symbols left, in 3 units. 1127 tests passing on both QGIS versions.
 
+### Table H-XXIII's seven sustainment areas (2026-08-14)
+
+The construction was the easy part - "at least three anchor points to
+define the boundary", the same freeform-area build Table H-V already
+uses here. **What needed reading was the lettering, and the obvious
+derivation was wrong twice.**
+
+- The three SUPPORT areas letter with an abbreviation - RSA, BSA, DSA -
+  and **carry no Field T at all**, drawn bare in both the TEMPLATE and
+  EXAMPLE columns.
+- The other four spell their name out IN FULL, on two lines exactly as
+  drawn ("DETAINEE" / "HOLDING AREA"), and do take Field T beneath it
+  ("GB", "15MP", "2AVN", "8MEB" in the standard's own examples).
+
+Had these been derived from the measure names, three of them would
+have been captioned "DHA", "EPWHA" and "RHA" - forms that appear
+nowhere in MIL-STD-2525D. That is the same class of mistake as
+inventing a "Sea" prefix on Table H-XIV's station names, caught there
+by the maintainer's own smoke test; caught here by rendering the
+templates before writing anything.
+
+Table H-XXIII is now 33 of its 37 rows: 18 points, 8 supply routes,
+7 areas. What remains is the two convoy lines and two parent rows that
+draw nothing.
+
+38 symbols left, in 2 units plus the range fans. 1133 tests passing on
+both QGIS versions.
+
 ---
 
 ## Suggested near-term order
@@ -8117,9 +8145,9 @@ glyph colour reaches the SVG as a STRING for the same reason as ever -
 ## Appendix H — what is left to construct (audited 2026-08-14)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **45 symbols in 3 units** (54 in 5 before Maritime's Navigational
-and H-XXIII's eight supply routes were built on 2026-08-14), and every
-one of them is a LINE or an AREA - not a coincidence, since milsymbol renders points and nothing
+is **38 symbols in 3 units** (54 in 5 before Maritime's Navigational,
+H-XXIII's eight supply routes and its seven sustainment areas were all
+built on 2026-08-14), and every one of them is a LINE or an AREA - not a coincidence, since milsymbol renders points and nothing
 else, so the whole remainder is hand-built QGIS symbology.
 
 **The total was wrong until 2026-08-14** - written as 53, then 52, by
@@ -8133,7 +8161,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 | Unit | Table | Left | What |
 |---|---|---|---|
 | 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
-| 2 | H-XXIII Supply | 9 | 7 holding/support areas; 2 lines (Moving and Halted Convoy). **The 8 supply routes were built 2026-08-14.** |
+| 2 | H-XXIII Supply | 2 | Moving and Halted Convoy. **The 8 supply routes and 7 sustainment areas were built 2026-08-14.** |
 | 3 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line |
 | 4 | H-XVIII Target Acquisition | 2 | Weapon/Sensor Range Fan - Circular, Sector |
 | ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |

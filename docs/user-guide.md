@@ -1371,6 +1371,17 @@ route traced along a real road has dozens of short segments, and an
 arrow and label on each is unreadable. Same simplification already made
 for Boundary and the Fire Support lines.
 
+**Sustainment Areas** comes with the same menu entry — the table's seven
+holding and support areas, drawn as a freeform outline with at least
+three points and captioned inside.
+
+How each is lettered is the standard's own, and it isn't uniform: the
+three support areas use an abbreviation (**RSA**, **BSA**, **DSA**) and
+carry no designation at all, while **Detainee Holding Area**, **EPW
+Holding Area**, **Refugee Holding Area** and **FARP** spell their name
+out and take a **unique designation** on a line beneath it. There is no
+"DHA" or "RHA" — those forms appear nowhere in the standard.
+
 **Two things to know.** NATO Multiple Supply Class Point draws the same
 plain box as General Supply Point, with no icon of its own — that is the
 standard's doing, and the Supply class field above is what tells the two

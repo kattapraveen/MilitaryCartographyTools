@@ -5,11 +5,11 @@ MIL-STD-2525D Appendix H.5.25 (Table H-XXIII, "Supply point control
 measure symbols") - Mini-Phase H20. Printed pages 623-635, 37 code
 rows.
 
-**This module builds 26 of the table's 37 rows**: its 18 POINTS, and
-(from 2026-08-14) the 8 SUPPLY ROUTES on a second, Lines layer. The
-remaining 11 are the seven sustainment areas, the two convoy lines and
-two parent rows that draw nothing; they are audited and listed in
-TABLE_H_XXIII_REMAINING below rather than dropped.
+**This module builds 33 of the table's 37 rows**, across three layers:
+its 18 POINTS, and (from 2026-08-14) the 8 SUPPLY ROUTES on a Lines
+layer and the 7 SUSTAINMENT AREAS on an Areas layer. The remaining 4
+are the two convoy lines and two parent rows that draw nothing; they
+are audited in TABLE_H_XXIII_REMAINING below rather than dropped.
 
 **The point/line split is the standard's own, not a convenience.**
 Every one of the 18 point codes (321700-321800) is backed by a real
@@ -83,6 +83,7 @@ from qgis.core import (
     QgsSvgMarkerSymbolLayer,
     QgsSymbolLayer,
     QgsVectorLayer,
+    QgsVectorLayerSimpleLabeling,
 )
 
 from qgis.PyQt.QtCore import QMetaType
@@ -97,6 +98,7 @@ from ._control_measure_shared import (
     _build_rule_based_renderer,
     _configure_affiliation_field,
     _configure_status_field,
+    _status_driven_area_outline_symbol,
     _value_map,
     add_layer_if_absent,
 )
@@ -268,25 +270,189 @@ SUPPLY_CLASS_FIELD = {
 # arrow), repeated per line segment - the same per-segment repeat
 # Table H-III's own Boundary already does here.
 #
-# **Eight of the original nineteen were built on 2026-08-14** - the
-# whole supply-route family, 330300-330403 - and are gone from this
-# list. What is left is the seven areas, the two convoys and the two
-# parent rows.
+# **Fifteen of the original nineteen were built on 2026-08-14** - the
+# eight supply routes (330300-330403) and the seven sustainment areas
+# (310100-310700) - and are gone from this list. What is left is the
+# two convoys and the two parent rows that draw nothing.
 TABLE_H_XXIII_REMAINING = {
     "310000": "Sustainment Areas (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
-    "310100": "Detainee Holding Area",
-    "310200": "Enemy Prisoner of War Holding Area",
-    "310300": "Forward Arming and Refueling Point (FARP)",
-    "310400": "Refugee Holding Area",
-    "310500": "Regimental Support Area",
-    "310600": "Brigade Support Area (BSA)",
-    "310700": "Division Support Area",
     "330000": "Sustainment Lines (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
     "330100": "Moving Convoy",
     "330200": "Halted Convoy",
 }
+
+
+# ---------------------------------------------------------------
+# Sustainment areas - Table H-XXIII's own 310100-310700
+# ---------------------------------------------------------------
+
+AREAS_LAYER_NAME = "Sustainment Areas"
+
+AREA_MEASURE_TYPE_LABELS = {
+    "detainee_holding_area": "Detainee Holding Area",
+    "epw_holding_area": "Enemy Prisoner of War Holding Area",
+    "farp": "Forward Arming and Refueling Point (FARP)",
+    "refugee_holding_area": "Refugee Holding Area",
+    "regimental_support_area": "Regimental Support Area (RSA)",
+    "brigade_support_area": "Brigade Support Area (BSA)",
+    "division_support_area": "Division Support Area (DSA)",
+}
+
+AREA_MEASURE_TYPE_CODES = {
+    "detainee_holding_area": "310100",
+    "epw_holding_area": "310200",
+    "farp": "310300",
+    "refugee_holding_area": "310400",
+    "regimental_support_area": "310500",
+    "brigade_support_area": "310600",
+    "division_support_area": "310700",
+}
+
+# **What each area is lettered with, read off the templates rather than
+# derived from its name** - which matters, because the obvious guess is
+# wrong twice over:
+#
+# - The three SUPPORT areas use a three-letter abbreviation (RSA, BSA,
+#   DSA), and the four others spell their name out in full, on two
+#   lines, exactly as drawn ("DETAINEE" / "HOLDING AREA"). Abbreviating
+#   those to "DHA"/"EPWHA"/"RHA" would have been an invention - the
+#   standard never uses those forms.
+# - FARP is a single line, because its name IS the abbreviation.
+_AREA_CAPTIONS = {
+    "detainee_holding_area": "DETAINEE\nHOLDING AREA",
+    "epw_holding_area": "EPW\nHOLDING AREA",
+    "farp": "FARP",
+    "refugee_holding_area": "REFUGEE\nHOLDING AREA",
+    "regimental_support_area": "RSA",
+    "brigade_support_area": "BSA",
+    "division_support_area": "DSA",
+}
+
+# **Only four of the seven carry Field T**, and again this is the
+# templates' own doing rather than a simplification: the four holding/
+# FARP templates draw a "T" box beneath the caption and fill it in
+# their examples ("GB", "15MP", "2AVN", "8MEB"), while the three
+# support areas have no such box at all - RSA, BSA and DSA are drawn
+# bare in both the TEMPLATE and the EXAMPLE column.
+_AREA_DESIGNATED = (
+    "detainee_holding_area",
+    "epw_holding_area",
+    "farp",
+    "refugee_holding_area",
+)
+
+
+def _area_label_expression(measure_type):
+
+    caption = "'{}'".format(_AREA_CAPTIONS[measure_type])
+
+    if measure_type not in _AREA_DESIGNATED:
+        return caption
+
+    # The designation on its own line beneath, and only when there is
+    # one - otherwise the label ends in a blank line and centres wrong.
+    return (
+        "{caption} || CASE WHEN coalesce(\"unique_designation\",'') <> '' "
+        "THEN '\n' || upper(\"unique_designation\") ELSE '' END"
+    ).format(caption=caption)
+
+
+_AREA_LABEL_EXPRESSION = "CASE " + " ".join(
+    "WHEN \"measure_type\" = '{}' THEN {}".format(
+        measure_type, _area_label_expression(measure_type)
+    )
+    for measure_type in AREA_MEASURE_TYPE_LABELS
+) + " ELSE '' END"
+
+_AREA_SYMBOL_BUILDERS = {
+    measure_type: _status_driven_area_outline_symbol
+    for measure_type in AREA_MEASURE_TYPE_LABELS
+}
+
+
+def create_sustainment_areas_layer(name=AREAS_LAYER_NAME):
+
+    """
+    Table H-XXIII's own seven sustainment areas, 310100-310700.
+
+    All seven are the same construction - "at least three anchor points
+    to define the boundary of the area", a plain outline with its
+    caption centred inside - which is the same freeform-area build
+    Table H-V's own areas already use here. What differs between them
+    is only what the caption says and whether it carries Field T.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(
+        f"Polygon?crs={crs.authid()}",
+        name,
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("area_km2", QMetaType.Type.Double),
+        ]
+    )
+
+    layer.updateFields()
+
+    measure_type_idx = layer.fields().indexOf("measure_type")
+
+    layer.setEditorWidgetSetup(
+        measure_type_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(AREA_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        measure_type_idx,
+        QgsDefaultValue("'brigade_support_area'")
+    )
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("area_km2"),
+        QgsDefaultValue("mct_area_km2($geometry)", True)
+    )
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _AREA_SYMBOL_BUILDERS)
+    )
+
+    layer.setLabeling(
+        QgsVectorLayerSimpleLabeling(
+            _build_pal_layer_settings(
+                layer,
+                Qgis.LabelPlacement.Horizontal,
+                _AREA_LABEL_EXPRESSION,
+            )
+        )
+    )
+
+    layer.setLabelsEnabled(True)
+
+    return layer
+
+
+def add_sustainment_areas_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        AREAS_LAYER_NAME,
+        create_sustainment_areas_layer,
+    )
 
 
 # ---------------------------------------------------------------

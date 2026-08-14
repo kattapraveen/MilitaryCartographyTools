@@ -20,8 +20,13 @@ from MilitaryCartographyTools.military_symbology.supply_points import (
     add_supply_routes_lines_layer,
     create_supply_routes_lines_layer,
     LINES_LAYER_NAME,
+    AREAS_LAYER_NAME,
+    AREA_MEASURE_TYPE_CODES,
+    AREA_MEASURE_TYPE_LABELS,
     LINE_MEASURE_TYPE_CODES,
     LINE_MEASURE_TYPE_LABELS,
+    add_sustainment_areas_layer,
+    create_sustainment_areas_layer,
     POINTS_LAYER_NAME,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
@@ -83,15 +88,16 @@ class TestSupplyPointVocabulary(QgisTestCase):
 
     def test_every_row_of_the_table_is_accounted_for(self):
 
-        # 18 points + 8 supply routes + 11 still unbuilt = the table's
-        # own 37. The routes were built 2026-08-14 and left the unbuilt
-        # list then; this arithmetic is what stops one going missing
-        # between the two.
-        self.assertEqual(len(TABLE_H_XXIII_REMAINING), 11)
+        # 18 points + 8 supply routes + 7 sustainment areas + 4 still
+        # unbuilt = the table's own 37. The routes and areas were built
+        # 2026-08-14 and left the unbuilt list then; this arithmetic is
+        # what stops one going missing between the two.
+        self.assertEqual(len(TABLE_H_XXIII_REMAINING), 4)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
             + len(LINE_MEASURE_TYPE_CODES)
+            + len(AREA_MEASURE_TYPE_CODES)
             + len(TABLE_H_XXIII_REMAINING),
             37
         )
@@ -99,6 +105,7 @@ class TestSupplyPointVocabulary(QgisTestCase):
         built = (
             set(POINT_ENTITY_CODES.values())
             | set(LINE_MEASURE_TYPE_CODES.values())
+            | set(AREA_MEASURE_TYPE_CODES.values())
         )
 
         self.assertEqual(built & set(TABLE_H_XXIII_REMAINING), set())
@@ -697,4 +704,151 @@ class TestSupplyRoutesLinesLayer(QgisTestCase):
 
         self.assertEqual(
             len(QgsProject.instance().mapLayersByName(LINES_LAYER_NAME)), 1
+        )
+
+
+class TestSustainmentAreasLayer(QgisTestCase):
+
+    """
+    Table H-XXIII's own seven sustainment areas (310100-310700).
+
+    All seven share one construction; what differs is only what the
+    caption says and whether it carries Field T. Both of those were
+    read off the templates rather than derived from the measure's name,
+    because the obvious derivation is wrong twice - see _AREA_CAPTIONS.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.iface = FakeIface()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _label(self, layer, measure_type, designation=""):
+
+        settings = layer.labeling().settings()
+
+        expression = QgsExpression(settings.fieldName)
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("measure_type", measure_type)
+        feature.setAttribute("unique_designation", designation)
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        result = expression.evaluate(context)
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_the_seven_codes_match_the_table(self):
+
+        self.assertEqual(
+            set(AREA_MEASURE_TYPE_CODES.values()),
+            {"310100", "310200", "310300",
+             "310400", "310500", "310600", "310700"}
+        )
+
+        self.assertEqual(
+            set(AREA_MEASURE_TYPE_LABELS), set(AREA_MEASURE_TYPE_CODES)
+        )
+
+
+    def test_the_captions_are_the_templates_own_lettering(self):
+
+        # The support areas abbreviate; the holding areas spell their
+        # name out on two lines. "DHA"/"EPWHA"/"RHA" appear nowhere in
+        # the standard and would have been an invention.
+        layer = create_sustainment_areas_layer()
+
+        for measure_type, expected in (
+            ("detainee_holding_area", "DETAINEE\nHOLDING AREA"),
+            ("epw_holding_area", "EPW\nHOLDING AREA"),
+            ("refugee_holding_area", "REFUGEE\nHOLDING AREA"),
+            ("farp", "FARP"),
+            ("regimental_support_area", "RSA"),
+            ("brigade_support_area", "BSA"),
+            ("division_support_area", "DSA"),
+        ):
+
+            with self.subTest(measure_type=measure_type):
+
+                self.assertEqual(self._label(layer, measure_type), expected)
+
+
+    def test_only_the_four_with_a_t_box_take_a_designation(self):
+
+        # The three support areas are drawn bare in both the TEMPLATE
+        # and EXAMPLE columns - no T box at all - so a designation typed
+        # on one must not appear.
+        layer = create_sustainment_areas_layer()
+
+        for measure_type, expected in (
+            ("detainee_holding_area", "DETAINEE\nHOLDING AREA\nGB"),
+            ("farp", "FARP\n2AVN"),
+            ("brigade_support_area", "BSA"),
+            ("division_support_area", "DSA"),
+        ):
+
+            with self.subTest(measure_type=measure_type):
+
+                self.assertEqual(
+                    self._label(layer, measure_type, "gb"
+                                if measure_type == "detainee_holding_area"
+                                else "2AVN"),
+                    expected
+                )
+
+
+    def test_a_blank_designation_leaves_no_trailing_line(self):
+
+        # Otherwise the caption ends in an empty line and centres
+        # visibly high inside the area.
+        layer = create_sustainment_areas_layer()
+
+        self.assertEqual(
+            self._label(layer, "farp", ""), "FARP"
+        )
+
+
+    def test_the_layer_is_a_polygon_layer_with_the_expected_fields(self):
+
+        layer = create_sustainment_areas_layer()
+
+        self.assertTrue(layer.isValid())
+
+        self.assertEqual(
+            [field.name() for field in layer.fields()],
+            [
+                "measure_type", "affiliation", "status",
+                "unique_designation", "area_km2",
+            ]
+        )
+
+
+    def test_adding_the_layer_inserts_exactly_one(self):
+
+        self.assertIsNotNone(add_sustainment_areas_layer(self.iface))
+
+        self.assertIsNone(add_sustainment_areas_layer(self.iface))
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(AREAS_LAYER_NAME)), 1
         )
