@@ -8,6 +8,7 @@ Military Cartography Tools
 """
 
 import base64
+import re
 
 from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
                        QgsProject)
@@ -18,6 +19,7 @@ from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.sustainment_control_measures import (
     POINTS_LAYER_NAME,
     POINT_ENTITY_CODES,
+    POINT_DESIGNATION_SLOTS,
     POINT_ENTITY_LABELS,
     TABLE_H_XXII_NOT_A_SYMBOL,
     add_sustainment_points_layer,
@@ -158,6 +160,83 @@ class TestSustainmentPointsLayer(QgisTestCase):
             )
 
             drawn[svg] = entity
+
+
+    def _render(self, entity, text=None, slot=None):
+
+        """The SVG mct_sidc_svg returns for one entity, decoded."""
+
+        arguments = (
+            "mct_build_sidc('friend', '{}', 'control_measure', "
+            "'unspecified', 'present', false)".format(entity)
+        )
+
+        if text is not None:
+
+            arguments += ", '{}', '{}'".format(
+                text,
+                slot or POINT_DESIGNATION_SLOTS.get(
+                    entity, "uniqueDesignation"
+                )
+            )
+
+        expression = QgsExpression(f"mct_sidc_svg({arguments})")
+
+        path = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+
+    def test_the_designation_goes_to_field_t1_not_field_t(self):
+
+        # Table H-XXII draws the designation INSIDE the lower part of
+        # the box (the "T1" box on every template; "4077" under "AXP",
+        # "MNSE" under "ASP" in the standard's own examples), not in
+        # the Field T box outside it. Passing a slot an icon does not
+        # define draws NOTHING, silently, which is why this asserts on
+        # the rendered SVG.
+        #
+        # (100, 30) is milsymbol's own T1 anchor here and (150, -30)
+        # its Field T one, both read off the rendered markup.
+        self.assertEqual(len(POINT_DESIGNATION_SLOTS), 15)
+
+        for entity in POINT_DESIGNATION_SLOTS:
+
+            with self.subTest(entity=entity):
+
+                svg = self._render(entity, "4077")
+
+                designation = re.search(
+                    r'<text[^>]*>4077</text>', svg
+                ).group(0)
+
+                self.assertIn('x="100"', designation)
+                self.assertNotIn('x="150"', designation)
+
+
+    def test_ambulance_exchange_point_can_draw_no_designation_at_all(self):
+
+        # Not an oversight, and not fixable here: its own template has
+        # a T1 box and the standard's own example fills it with "4077",
+        # but milsymbol defines no text option for this icon - neither
+        # T nor T1 - so nothing reaches it. Pinned so the day milsymbol
+        # grows one, this test fails and says so.
+        self.assertNotIn(
+            "ambulance_exchange_point", POINT_DESIGNATION_SLOTS
+        )
+
+        for slot in ("uniqueDesignation", "uniqueDesignation1"):
+
+            with self.subTest(slot=slot):
+
+                self.assertNotIn(
+                    "4077",
+                    self._render("ambulance_exchange_point", "4077", slot)
+                )
 
 
     def test_adding_the_layer_inserts_exactly_one(self):

@@ -152,8 +152,6 @@ from qgis.core import (
     QgsSvgMarkerSymbolLayer,
     QgsSymbol,
     QgsSymbolLayer,
-    QgsSymbolLayerReference,
-    QgsTextMaskSettings,
     QgsVectorLayer,
     QgsVectorLayerSimpleLabeling,
 )
@@ -280,19 +278,23 @@ LINE_MEASURE_TYPE_CODES = {
 # the symbol's own affiliation-coloured arc.
 _ENEMY_RED = QColor(255, 0, 0)
 
-# The arrow's own symbol layer id, so the ENY label can cut a real hole
-# in it - the same QgsSymbolLayerReference-by-id mechanism Boundary's
-# echelon label uses. A marker glyph could not: it has no
-# QgsTextMaskSettings of its own (established in
-# offensive_control_measures.py).
+# A stable id on the arrow so a test can name the layer it is checking.
+# **NOTHING masks it**, and that is a correction: this was built with a
+# painted mask on the belief that Selective Masking worked here even
+# though it demonstrably did not on the arc beside it. It does not work
+# here either - the arrow is a geometry generator like everything else
+# in these two symbols, and QGIS cannot reach a symbol layer nested
+# inside one. Reported by the maintainer 2026-08-14, "the ENY text on
+# the shaft is not masked, so the shaft is running through the text".
+# The gap is cut into the shaft's own geometry instead, the same as the
+# "C" and "R" gaps; see the expression module's _CONTAIN_ENY_GAP_RATIO.
 _CONTAIN_ARROW_SYMBOL_LAYER_ID = "contain_arrow"
 
 # Stable ids on the two arcs, so the symbol tree reads as something
 # other than four anonymous generators - and so a test can name the
-# layer it is checking. NOTHING masks them: see
-# _configure_lines_labeling() for why only the arrow can be, and the
-# expression module's own _LETTER_GAP_DEG for how the "C"/"R" gap is
-# cut into the geometry instead.
+# layer it is checking. Nothing masks these either; see the expression
+# module's own _LETTER_GAP_DEG for how the "C"/"R" gap is cut into the
+# geometry.
 _CONTAIN_ARC_SYMBOL_LAYER_ID = "contain_arc"
 _RETAIN_ARC_SYMBOL_LAYER_ID = "retain_arc"
 
@@ -305,17 +307,6 @@ _RETAIN_ARC_SYMBOL_LAYER_ID = "retain_arc"
 # is worth saying plainly: a solid triangle in a TEMPLATE column is
 # almost always a pointer, not geometry.
 _ARROWHEAD_MM = 4.5
-
-# How far the masked letters/text cut back the line they sit on.
-# 0.6 left the shaft showing through the gap BETWEEN two letters of
-# "ENY"; the mask follows each glyph's own outline, so it has to be
-# wide enough to bridge inter-letter spacing as well.
-_LABEL_MASK_MM = 1.1
-
-# Stand-in layer id, replaced with the real one the moment the layer
-# exists - see _bind_label_masks_to_layer().
-_MASK_LAYER_ID_PLACEHOLDER = "pending"
-
 
 def _arc_generator_layer(expression, colour=None, symbol_layer_id=None,
                          status_driven=True):
@@ -404,7 +395,7 @@ def _contain_symbol():
     """
     Contain (151204) - a 180-degree arc with inward ticks, opening
     toward PT3, and a red arrow running down the perpendicular through
-    the arc's centre with "ENY" masked into its shaft.
+    the arc's centre with "ENY" set into a gap in its shaft.
     """
 
     symbol = QgsLineSymbol()
@@ -431,8 +422,13 @@ def _contain_symbol():
     )
 
     symbol.appendSymbolLayer(
+        # The arrowhead rides on the tip HALF of the shaft, not on the
+        # whole thing: the shaft is two parts now (the "ENY" gap), and
+        # a marker at LastVertex fires on the last vertex of every
+        # part - which would drop a second arrowhead where the gap
+        # starts. The same trap Retain hit, fixed the same way.
         _arrowhead_layer(
-            "mct_contain_arrow($geometry)",
+            "mct_contain_arrow_head($geometry)",
             _ENEMY_RED,
             Qgis.MarkerLinePlacement.LastVertex,
         )
@@ -943,20 +939,21 @@ def create_defensive_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     return layer
 
 
-def _arc_label_rule(measure_type, text, position_function, mask_ids=(),
-                    colour=None):
+def _arc_label_rule(measure_type, text, position_function, colour=None):
 
     """
     One labelling rule for the Lines layer.
 
     All three labels here - Contain's "ENY" and "C", Retain's "R" -
-    exist as LABELS rather than as marker glyphs for one reason: only
-    the label engine can cut a real hole in the line it sits on. A
-    marker has no QgsTextMaskSettings of its own, established in
-    offensive_control_measures.py. And all three take a DATA-DEFINED
-    position, because every one of them belongs on generated geometry
-    (an arc, or an arrow) rather than on the feature's own clicked
-    points.
+    take a DATA-DEFINED position, because every one of them belongs on
+    generated geometry (an arc, or an arrow) rather than on the
+    feature's own clicked points.
+
+    **None of them carries a painted mask**, and none can: QGIS's own
+    Selective Masking cannot reach a symbol layer nested inside a
+    geometry generator, and every line in both symbols is one. Each
+    label's gap is cut into the geometry it sits on instead - see the
+    expression module's own _LETTER_GAP_DEG and _CONTAIN_ENY_GAP_RATIO.
     """
 
     settings = QgsPalLayerSettings()
@@ -1009,25 +1006,6 @@ def _arc_label_rule(measure_type, text, position_function, mask_ids=(),
 
         text_format.setColor(colour)
 
-    if mask_ids:
-
-        mask = QgsTextMaskSettings()
-
-        mask.setEnabled(True)
-
-        mask.setSize(_LABEL_MASK_MM)
-
-        mask.setSizeUnit(Qgis.RenderUnit.Millimeters)
-
-        mask.setMaskedSymbolLayers(
-            [
-                QgsSymbolLayerReference(_MASK_LAYER_ID_PLACEHOLDER, mask_id)
-                for mask_id in mask_ids
-            ]
-        )
-
-        text_format.setMask(mask)
-
     settings.setFormat(text_format)
 
     rule = QgsRuleBasedLabeling.Rule(settings)
@@ -1047,25 +1025,27 @@ def _configure_lines_labeling(layer):
     Three labels: Contain's "ENY" on its arrow, its "C" on the arc, and
     Retain's "R" on the arc.
 
-    **Only "ENY" carries a painted mask.** Selective Masking works on
-    the arrow, and does not on the arc or the ticks - probed both ways,
-    referencing the nested line layer's own id and the generator's.
-    Rather than leave the two letters sitting on top of their own line,
-    their gap is cut into the GEOMETRY instead; see the expression
-    module's own _LETTER_GAP_DEG. That is also more faithful, since it
-    breaks the line by a fixed amount of ARC rather than by whatever
-    the glyph happens to cover.
+    **No painted masks anywhere.** Selective Masking cannot reach a
+    symbol layer nested inside a geometry generator, and every line in
+    both symbols is one - probed both ways, referencing the nested line
+    layer's own id and the generator's. "ENY" was the last one still
+    trying: it kept a mask on the arrow until the maintainer reported,
+    2026-08-14, that the shaft still ran through the text. Every gap is
+    cut into the GEOMETRY now - see the expression module's own
+    _LETTER_GAP_DEG and _CONTAIN_ENY_GAP_RATIO. That is also more
+    faithful, since it breaks the line by a fixed amount of the
+    symbol's own geometry rather than by whatever the glyph covers.
 
-    Rule-BASED rather than simple labelling, because each label needs
-    its own text format - a different colour, and its own mask or none.
+    Rule-BASED rather than simple labelling, because each label still
+    needs its own text format - "ENY" is red, the other two follow the
+    affiliation.
     """
 
     rules = QgsRuleBasedLabeling.Rule(QgsPalLayerSettings())
 
     for rule in (
         _arc_label_rule(
-            "contain", "ENY", "mct_contain_arrow_midpoint",
-            [_CONTAIN_ARROW_SYMBOL_LAYER_ID], _ENEMY_RED,
+            "contain", "ENY", "mct_contain_arrow_midpoint", _ENEMY_RED,
         ),
         _arc_label_rule(
             "contain", "C", "mct_contain_letter_point",
@@ -1079,51 +1059,6 @@ def _configure_lines_labeling(layer):
     layer.setLabeling(QgsRuleBasedLabeling(rules))
 
     layer.setLabelsEnabled(True)
-
-    _bind_label_masks_to_layer(layer)
-
-
-def _bind_label_masks_to_layer(layer):
-
-    """
-    Re-stamp every mask reference with the layer's own id.
-
-    A QgsSymbolLayerReference is scoped by layer id, and the layer does
-    not have one until it exists - so the rules above are built with a
-    placeholder and fixed up here, once, with the real id.
-    """
-
-    labeling = layer.labeling()
-
-    root = labeling.rootRule()
-
-    for rule in root.children():
-
-        settings = rule.settings()
-
-        text_format = settings.format()
-
-        mask = text_format.mask()
-
-        if not mask.maskedSymbolLayers():
-            continue
-
-        mask.setMaskedSymbolLayers(
-            [
-                QgsSymbolLayerReference(
-                    layer.id(), reference.symbolLayerIdV2()
-                )
-                for reference in mask.maskedSymbolLayers()
-            ]
-        )
-
-        text_format.setMask(mask)
-
-        settings.setFormat(text_format)
-
-        rule.setSettings(settings)
-
-    layer.setLabeling(labeling)
 
 
 def create_defensive_control_measures_lines_layer(name=LINES_LAYER_NAME):

@@ -97,6 +97,38 @@ TABLE_H_XXII_NOT_A_SYMBOL = {
 }
 
 
+# **Field T1, not Field T** - where each icon's own unique designation
+# actually sits.
+#
+# Every template in Table H-XXII draws the designation INSIDE the lower
+# part of the box, in the box marked "T1", and the standard's own
+# examples fill it: "4077" under Ambulance Exchange Point's own "AXP",
+# "MNSE" under Ammunition Supply Point's "ASP". Field T is a separate
+# box outside the symbol, to its upper right. Until 2026-08-14 every
+# one of these points put the designation in T; raised by the
+# maintainer after live testing, as the same fix already applied to
+# Table H-XXIII's supply points.
+#
+# milsymbol exposes that position as `uniqueDesignation1`, confirmed by
+# probing all 16 icons for which text options they actually define and
+# where each one lands: `uniqueDesignation` draws at (150, -30),
+# outside and above-right, and `uniqueDesignation1` at (100, 30),
+# inside the box's lower part.
+#
+# **Ambulance Exchange Point (320100) is deliberately absent**, and not
+# because its template lacks a T1 box - it has one, and the standard's
+# own example fills it with "4077". milsymbol defines NO text option
+# whatsoever for that icon, neither T nor T1, so no slot reaches it and
+# its designation cannot be drawn at all. The same milsymbol gap Table
+# H-XXIII's own NATO Multiple Supply Class Point has. Recorded rather
+# than quietly skipped.
+POINT_DESIGNATION_SLOTS = {
+    entity: "uniqueDesignation1"
+    for entity in POINT_ENTITY_CODES
+    if entity != "ambulance_exchange_point"
+}
+
+
 def create_sustainment_points_layer(name=POINTS_LAYER_NAME):
 
     """
@@ -114,6 +146,7 @@ def create_sustainment_points_layer(name=POINTS_LAYER_NAME):
         "ambulance_exchange_point",
         include_echelon=False,
         include_headquarters=False,
+        entity_designation_slots=POINT_DESIGNATION_SLOTS,
     )
 
 

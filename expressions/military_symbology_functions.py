@@ -2469,6 +2469,31 @@ _LETTER_RADIUS_RATIO = 1.0
 # drawn at.
 _LETTER_GAP_DEG = 14.0
 
+# The gap cut into Contain's own arrow shaft for the "ENY" label, as a
+# fraction of the RADIUS - scale-free, the same principle as
+# _LETTER_GAP_DEG above and for the same reason.
+#
+# **The gap is geometry because the mask is not available here.**
+# "ENY" was built with a painted mask on the arrow, on the belief that
+# Selective Masking worked there even though it demonstrably did not on
+# the arc. It does not work there either - the arrow is a geometry
+# generator like everything else in these two symbols, and QGIS cannot
+# reach a symbol layer nested inside one. Reported by the maintainer
+# 2026-08-14: "the ENY text on the shaft is not masked, so the shaft is
+# running through the text". The mask is gone; the shaft is cut
+# instead, exactly as the "C" and "R" gaps are.
+#
+# Three glyphs against the letters' one, so this is wider than
+# _LETTER_GAP_DEG's own 0.244 radians of arc - settled by render at a
+# typical symbol size, like that one.
+_CONTAIN_ENY_GAP_RATIO = 0.62
+
+# ...but never more than this fraction of the arrow's own LENGTH. The
+# radius and the arrow are independent - PT3 sets the arrow, PT1/PT2
+# the radius - so a short arrow on a wide semicircle would otherwise be
+# cut away completely, leaving the arrowhead floating with no shaft.
+_CONTAIN_ENY_MAX_GAP_OF_ARROW = 0.5
+
 # Points per 180 degrees when flattening an arc to a polyline. High
 # enough that the curve reads as a curve at any zoom this plugin is
 # used at.
@@ -2719,6 +2744,46 @@ def mct_contain_teeth(values, feature=None, parent=None):
     )
 
 
+def _contain_arrow_axis(geometry, frame):
+
+    """
+    (centre, tail, unit normal, depth, radius) for Contain's own arrow,
+    or None when PT3 falls on the wrong side.
+
+    The tip is the arc's own centre; the tail is `depth` back along the
+    perpendicular, where `depth` is PT3's own distance from the PT1-PT2
+    line. A PT3 clicked off that perpendicular is projected onto it
+    rather than bending the arrow - the standard says the arrow "will
+    project perpendicularly from the line between points 1 and 2".
+    """
+
+    centre, radius, _start, _sweep, (nx, ny) = frame
+
+    try:
+        pt3 = QgsPointXY(geometry.asPolyline()[2])
+    except (IndexError, TypeError, ValueError):
+        return None
+
+    depth = (pt3.x() - centre.x()) * nx + (pt3.y() - centre.y()) * ny
+
+    if depth <= 0:
+        return None
+
+    tail = QgsPointXY(centre.x() + depth * nx, centre.y() + depth * ny)
+
+    return centre, tail, (nx, ny), depth, radius
+
+
+def _contain_eny_gap(depth, radius):
+
+    """The gap in the shaft the "ENY" label sits in - see its ratio."""
+
+    return min(
+        _CONTAIN_ENY_GAP_RATIO * radius,
+        _CONTAIN_ENY_MAX_GAP_OF_ARROW * depth,
+    )
+
+
 @qgsfunction(
     'mct_contain_arrow',
     group='Military Cartography Tools'
@@ -2745,18 +2810,80 @@ def mct_contain_arrow(values, feature=None, parent=None):
     if frame is None:
         return geometry
 
-    centre, _radius, _start, _sweep, (nx, ny) = frame
+    axis = _contain_arrow_axis(geometry, frame)
 
-    pt3 = QgsPointXY(geometry.asPolyline()[2])
-
-    depth = (pt3.x() - centre.x()) * nx + (pt3.y() - centre.y()) * ny
-
-    if depth <= 0:
+    if axis is None:
         return geometry
+
+    centre, tail, (nx, ny), depth, radius = axis
+
+    gap = _contain_eny_gap(depth, radius)
+
+    # Two parts with the label's own gap between them. The tip half is
+    # returned LAST so the shaft still reads tail-to-tip.
+    return QgsGeometry.fromMultiPolylineXY(
+        [
+            [
+                tail,
+                QgsPointXY(
+                    centre.x() + (depth / 2.0 + gap / 2.0) * nx,
+                    centre.y() + (depth / 2.0 + gap / 2.0) * ny,
+                ),
+            ],
+            [
+                QgsPointXY(
+                    centre.x() + (depth / 2.0 - gap / 2.0) * nx,
+                    centre.y() + (depth / 2.0 - gap / 2.0) * ny,
+                ),
+                centre,
+            ],
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_contain_arrow_head',
+    group='Military Cartography Tools'
+)
+def mct_contain_arrow_head(values, feature=None, parent=None):
+
+    """
+    The tip half of Contain's own arrow, as ONE unbroken part - what
+    the arrowhead marker rides on.
+
+    It cannot ride on mct_contain_arrow() itself any more: that returns
+    two parts now, and **a marker at LastVertex fires on the last
+    vertex of EVERY part**, which would put a second arrowhead in the
+    middle of the shaft where the "ENY" gap starts. Exactly the bug
+    Retain hit when its arc was split, and fixed there the same way
+    (see mct_retain_arc_end).
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    frame = _contain_frame(geometry)
+
+    if frame is None:
+        return geometry
+
+    axis = _contain_arrow_axis(geometry, frame)
+
+    if axis is None:
+        return geometry
+
+    centre, _tail, (nx, ny), depth, radius = axis
+
+    gap = _contain_eny_gap(depth, radius)
 
     return QgsGeometry.fromPolylineXY(
         [
-            QgsPointXY(centre.x() + depth * nx, centre.y() + depth * ny),
+            QgsPointXY(
+                centre.x() + (depth / 2.0 - gap / 2.0) * nx,
+                centre.y() + (depth / 2.0 - gap / 2.0) * ny,
+            ),
             centre,
         ]
     )
@@ -2790,14 +2917,12 @@ def mct_contain_arrow_midpoint(values, feature=None, parent=None):
     if frame is None:
         return geometry
 
-    centre, _radius, _start, _sweep, (nx, ny) = frame
+    axis = _contain_arrow_axis(geometry, frame)
 
-    pt3 = QgsPointXY(geometry.asPolyline()[2])
-
-    depth = (pt3.x() - centre.x()) * nx + (pt3.y() - centre.y()) * ny
-
-    if depth <= 0:
+    if axis is None:
         return geometry
+
+    centre, _tail, (nx, ny), depth, _radius = axis
 
     return QgsGeometry.fromPointXY(
         QgsPointXY(
@@ -5020,6 +5145,7 @@ _FUNCTIONS = [
     mct_contain_arrow_midpoint,
     mct_contain_teeth,
     mct_contain_arrow,
+    mct_contain_arrow_head,
     mct_contain_letter_point,
     mct_retain_arc,
     mct_retain_arc_end,

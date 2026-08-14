@@ -7812,6 +7812,49 @@ draws bare. Its own template asks for A/A1/A2 (up to three supply class
 numbers, or ALL) plus T1, and the maintainer has asked for that class
 input. Being built next.
 
+### Contain's "ENY" gap, and Table H-XXII moves to Field T1 (2026-08-14)
+
+Two smoke-test findings, both corrections to work signed off earlier
+the same day.
+
+**"ENY" was still trying to use a mask that cannot work.** The
+maintainer's report: "the ENY text on the shaft is not masked, so the
+shaft is running through the text". When the "C" and "R" gaps were cut
+into geometry on 2026-08-14, the conclusion recorded was that
+Selective Masking "works on the arrow, and does not on the arc" - and
+that was simply wrong. The arrow is a geometry generator like every
+other line in both symbols, and QGIS cannot reach a symbol layer
+nested inside one. There was never a case where the mask took; the
+arrow's own render happened to look plausible.
+
+So the arrow is now cut the same way the arcs are: two parts with a
+gap at the shaft's midpoint, sized as a fraction of the RADIUS
+(`_CONTAIN_ENY_GAP_RATIO`, 0.62) and clamped to half the arrow's own
+length so a short arrow on a wide semicircle is not cut away
+completely. **The arrowhead moved to its own ungapped tip segment**
+(`mct_contain_arrow_head`) - a marker at LastVertex fires on the last
+vertex of EVERY part, so on the split shaft it would have dropped a
+second arrowhead at the gap. Exactly the bug Retain hit when its arc
+was split, caught here before it shipped rather than after.
+
+Every mask is now gone from this layer, along with the placeholder-id
+machinery that re-stamped them - the module is honest that nothing
+here can be masked.
+
+**Table H-XXII's designations move to Field T1**, the same fix and the
+same reason as Table H-XXIII's earlier today: every template draws the
+designation inside the box, and the standard's own examples fill it -
+"4077" under "AXP", "MNSE" under "ASP". 15 of the 16 move.
+
+**Ambulance Exchange Point (320100) cannot be fixed here.** Its
+template has a T1 box and its example fills it, but milsymbol defines
+no text option for that icon at all - neither T nor T1 - so no slot
+reaches it and its designation cannot be drawn. The same gap Table
+H-XXIII's NATO Multiple Supply Class Point has. Both are pinned by
+tests that will fail the day milsymbol grows one.
+
+1108 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

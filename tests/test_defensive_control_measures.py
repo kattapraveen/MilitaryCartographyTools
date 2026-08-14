@@ -1049,13 +1049,18 @@ class TestContainAndRetain(QgisTestCase):
         # semicircle's diameter and will project perpendicularly from
         # the line between points 1 and 2." PT3 sets the LENGTH, not
         # the tail's own position.
-        arrow = self._evaluate(
+        #
+        # TWO parts, with the "ENY" gap between them - the shaft cannot
+        # be masked (nothing inside a geometry generator can), so the
+        # gap is cut into it.
+        parts = self._evaluate(
             "mct_contain_arrow", self._CONTAIN
-        ).asPolyline()
+        ).asMultiPolyline()
 
-        self.assertEqual(len(arrow), 2)
+        self.assertEqual(len(parts), 2)
 
-        tail, tip = arrow
+        tail = parts[0][0]
+        tip = parts[1][-1]
 
         self.assertAlmostEqual(tip.x(), 0.0, places=6)
         self.assertAlmostEqual(tip.y(), 0.0, places=6)
@@ -1064,20 +1069,75 @@ class TestContainAndRetain(QgisTestCase):
         self.assertAlmostEqual(tail.y(), 0.0, places=6)
         self.assertAlmostEqual(tail.x(), 25.0, places=6)
 
+        # Both inner ends sit on the axis, symmetric about the shaft's
+        # own midpoint at x=12.5.
+        self.assertAlmostEqual(
+            (parts[0][-1].x() + parts[1][0].x()) / 2.0, 12.5, places=6
+        )
+
+        self.assertGreater(parts[0][-1].x(), parts[1][0].x())
+
 
     def test_a_pt3_off_the_perpendicular_is_projected_onto_it(self):
 
         # The arrow may not bend. A PT3 well off the axis still yields
         # a perpendicular arrow, just a shorter one.
-        arrow = self._evaluate(
+        parts = self._evaluate(
             "mct_contain_arrow", "LineString(0 10, 0 -10, 25 40)"
-        ).asPolyline()
+        ).asMultiPolyline()
 
-        tail, tip = arrow
+        tail = parts[0][0]
+        tip = parts[1][-1]
 
         self.assertAlmostEqual(tip.x(), 0.0, places=6)
         self.assertAlmostEqual(tail.y(), 0.0, places=6)
         self.assertAlmostEqual(tail.x(), 25.0, places=6)
+
+        for part in parts:
+            for point in part:
+                self.assertAlmostEqual(point.y(), 0.0, places=6)
+
+
+    def test_the_arrowhead_rides_on_the_tip_half_alone(self):
+
+        # A marker at LastVertex fires on the last vertex of EVERY
+        # part, so putting the arrowhead on the two-part shaft would
+        # drop a second one where the "ENY" gap starts - the bug Retain
+        # hit when its own arc was split.
+        head = self._evaluate(
+            "mct_contain_arrow_head", self._CONTAIN
+        ).asPolyline()
+
+        self.assertEqual(len(head), 2)
+
+        self.assertAlmostEqual(head[-1].x(), 0.0, places=6)
+        self.assertAlmostEqual(head[-1].y(), 0.0, places=6)
+
+        # It starts where the gap ends, not at the shaft's own tail.
+        shaft = self._evaluate(
+            "mct_contain_arrow", self._CONTAIN
+        ).asMultiPolyline()
+
+        self.assertAlmostEqual(head[0].x(), shaft[1][0].x(), places=6)
+
+
+    def test_the_eny_gap_never_eats_the_whole_arrow(self):
+
+        # The radius and the arrow length are independent - PT3 sets
+        # one, PT1/PT2 the other - so a short arrow on a wide
+        # semicircle would otherwise be cut away completely, leaving
+        # the arrowhead floating with no shaft.
+        parts = self._evaluate(
+            "mct_contain_arrow", "LineString(0 100, 0 -100, 2 0)"
+        ).asMultiPolyline()
+
+        self.assertEqual(len(parts), 2)
+
+        drawn = sum(
+            abs(part[0].x() - part[-1].x()) for part in parts
+        )
+
+        self.assertAlmostEqual(drawn, 1.0, places=6)
 
 
     def test_retain_sweeps_330_degrees_clockwise_from_pt2(self):
@@ -1238,40 +1298,24 @@ class TestDefensiveLinesLayer(QgisTestCase):
         )
 
 
-    def test_only_the_arrow_carries_a_painted_mask(self):
+    def test_no_label_here_carries_a_painted_mask(self):
 
         # "C" and "R" sit ON the perimeter and "ENY" on the arrow
-        # shaft, so each needs a gap - but only one of the three can be
-        # painted by the label engine.
+        # shaft, so each needs a gap - and NONE of the three can be
+        # painted by the label engine. Selective Masking does not reach
+        # a symbol layer nested inside a geometry generator, and every
+        # line in both symbols is one. "ENY" kept a mask on the arrow
+        # until the maintainer reported the shaft still running through
+        # the text; every gap is cut into the geometry now.
         layer = create_defensive_control_measures_lines_layer()
 
         rules = self._label_rules(layer)
 
-        # ONLY the arrow. Selective Masking does not reach symbol
-        # layers inside a geometry generator, so the arc and the ticks
-        # get a real gap cut into their geometry instead - see
-        # _configure_lines_labeling(). The arrow's mask does take, and
-        # is kept.
-        eny_mask = rules["ENY"][2]
+        for text in ("ENY", "C", "R"):
 
-        self.assertTrue(eny_mask.enabled())
+            with self.subTest(text=text):
 
-        references = eny_mask.maskedSymbolLayers()
-
-        self.assertEqual(
-            [reference.symbolLayerIdV2() for reference in references],
-            [_CONTAIN_ARROW_SYMBOL_LAYER_ID]
-        )
-
-        # The reference is scoped by layer id, and the layer had none
-        # when the rule was built - so it must have been re-stamped.
-        self.assertEqual(
-            [reference.layerId() for reference in references],
-            [layer.id()]
-        )
-
-        for text in ("C", "R"):
-            self.assertFalse(rules[text][2].enabled(), text)
+                self.assertFalse(rules[text][2].enabled())
 
 
     def test_only_eny_is_red(self):
@@ -1381,6 +1425,37 @@ class TestArrowheadsAreOpen(QgisTestCase):
         military_symbology_functions.unregister()
 
         super().tearDown()
+
+
+    def test_contains_shaft_and_arrowhead_use_different_geometries(self):
+
+        # The shaft is gapped for "ENY"; the arrowhead must ride on the
+        # ungapped tip half, or LastVertex drops a second head at the
+        # gap. Pinned at the symbol level, not just the expression one.
+        symbol = defensive_control_measures._contain_symbol()
+
+        expressions = {}
+
+        for index in range(symbol.symbolLayerCount()):
+
+            generator = symbol.symbolLayer(index)
+
+            inner = generator.subSymbol()
+
+            if inner is None:
+                continue
+
+            expressions[
+                generator.geometryExpression()
+            ] = inner.symbolLayer(0)
+
+        self.assertIn("mct_contain_arrow($geometry)", expressions)
+        self.assertIn("mct_contain_arrow_head($geometry)", expressions)
+
+        self.assertEqual(
+            expressions["mct_contain_arrow($geometry)"].id(),
+            _CONTAIN_ARROW_SYMBOL_LAYER_ID
+        )
 
 
     def test_both_arrowheads_are_stroke_only(self):
