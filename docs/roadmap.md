@@ -7929,6 +7929,56 @@ single position.
 Three tables, one defect, one shared mechanism
 (`entity_designation_slots`). 1114 tests passing on both QGIS versions.
 
+### Icon-size stability, for real this time; Retain settles at 330 (2026-08-14)
+
+**The size fix shipped broken, and the reason is worth recording.** On
+2026-08-13 the maintainer reported that a symbol SHRANK the moment a
+unique designation was typed into it - QGIS sizes an SVG marker by its
+width, and milsymbol widens an icon's declared box to take in its
+amplifier text. That was fixed the same day, inside
+`_point_symbol_layer.py`, as a private expression.
+
+It was never engine-wide. **Seven modules in this appendix build their
+own point renderer** rather than going through that shared builder -
+c2_measures, airspace, maritime, obstacle, target, defensive and
+offensive - and not one of them had the compensation. Reported again
+2026-08-14 against Table H-VI's own Checkpoint and Contact Point:
+"icon size changes in case of C2 measures points... icon remained same
+in case of land units and land eqpt".
+
+The compensation now lives in
+`_control_measure_shared.stabilised_point_size_expression()` and every
+point renderer in the project shares it, the builder included. Two
+things it does that the private copy did not:
+
+- **Derives BOTH widths from the module's own `mct_sidc_svg(...)`
+  call** rather than taking them as separate arguments, so the
+  amplified and plain widths cannot drift apart. The plain one is that
+  call's `mct_build_sidc(...)` argument, extracted by counting
+  parentheses - a regex stops at the first `)` inside a nested call,
+  and every one of these expressions has several.
+- **Guards the ratio** with `coalesce`/`nullif`. QGIS nulls a whole
+  function call on any NULL argument, so one unset attribute would
+  otherwise null the size expression and silently drop a per-entity
+  multiplier back to the base size.
+
+`tests/test_point_icon_size_stability.py` is the new guard: it sweeps
+every point layer in the plugin, drives each one's OWN configured
+defaults, and compares millimetres-per-icon-unit with and without a
+designation. It imports its layer list from
+`test_point_layer_affiliations` rather than restating it, so a new
+Points layer cannot be added to one sweep and missed by the other. A
+second test guards the guard - if no layer's box actually widened,
+the first would pass for the wrong reason.
+
+**Retain is now 330 degrees**, a 30-degree opening. Built at 300 on
+the maintainer's own dictated geometry, then settled at 330 by them
+after seeing it rendered: the standard's DRAW RULES text says the
+opening is 30 degrees while its own picture draws nearer 60, and the
+written rule wins. One constant.
+
+1118 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

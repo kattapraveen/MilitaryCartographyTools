@@ -56,6 +56,8 @@ from qgis.PyQt.QtCore import QMetaType
 
 from ..core._layer_utils import add_layer_at_default_position
 
+from ._control_measure_shared import stabilised_point_size_expression
+
 
 DEFAULT_MARKER_SIZE_MM = 8.0
 
@@ -514,28 +516,16 @@ def _build_renderer(
 
         base_size_expression = f"{marker_size_mm:g}"
 
-    # **Hold the ICON still when a designation is added.** Same root
-    # cause as above, from the other direction: milsymbol widens an
-    # icon's own box to take in whatever amplifier text it carries, so
-    # at a fixed marker size a symbol SHRANK the moment someone typed a
-    # unique designation into it. The maintainer's own report on Table
-    # H-XXI: "now the symbol size is reducing when the Field T is added
-    # - inconsistent from a UI point of view. can we have the size of
-    # the main symbol remaining same?"
-    #
-    # Scaling the marker by (amplified width / plain width) cancels
-    # that exactly - the icon keeps the size it has with no text, and
-    # the text hangs outside it, which is how the standard's own
-    # examples draw amplifiers anyway (Table H-XXI puts Field T to the
-    # right of the box, not inside it).
+    # **Hold the ICON still when a designation is added** - see
+    # stabilised_point_size_expression(), which every point renderer in
+    # this project now shares. This one had its own copy until
+    # 2026-08-14, which is exactly why the seven modules that build
+    # their own renderer never got the fix.
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
-            "({base}) * mct_sidc_svg_width({sidc}, {amplifiers}) "
-            "/ mct_sidc_svg_width({sidc})".format(
-                base=base_size_expression,
-                sidc=sidc_expression,
-                amplifiers=amplifiers,
+            stabilised_point_size_expression(
+                base_size_expression, expression
             )
         )
     )

@@ -1142,9 +1142,12 @@ class TestContainAndRetain(QgisTestCase):
 
     def test_retain_sweeps_330_degrees_clockwise_from_pt2(self):
 
-        # 300 drawn, a 60-degree opening. The standard's own text says
-        # the opening is 30 degrees; its own picture draws nearer 60,
-        # and the maintainer asked for 300. See _RETAIN_ARC_DEG.
+        # 330 drawn, a 30-degree opening - the standard's own DRAW
+        # RULES text ("The opening will be a 30-degree arc of the
+        # circle"). Its own picture draws nearer 60, and this was built
+        # at 300 on the maintainer's dictated geometry first; they
+        # settled it at 330 after seeing it rendered. See
+        # _RETAIN_ARC_DEG.
         parts = self._evaluate(
             "mct_retain_arc", self._RETAIN
         ).asMultiPolyline()
@@ -1158,7 +1161,7 @@ class TestContainAndRetain(QgisTestCase):
 
         sweep = (bearing(first[0]) - bearing(last[-1])) % 360
 
-        self.assertAlmostEqual(sweep, 300.0, places=4)
+        self.assertAlmostEqual(sweep, 330.0, places=4)
 
         # Clockwise: the second point's bearing is BELOW the first's.
         self.assertLess(bearing(first[1]), bearing(first[0]))
@@ -1170,11 +1173,11 @@ class TestContainAndRetain(QgisTestCase):
             "mct_retain_teeth", self._RETAIN
         ).asMultiPolyline()
 
-        # 300 degrees at 15-degree spacing inclusive of both ends is
-        # 21, less the last, which sits under the arrowhead ("the last
+        # 330 degrees at 15-degree spacing inclusive of both ends is
+        # 23, less the last, which sits under the arrowhead ("the last
         # tooth near the arrow head can be dropped, it is confusing").
         # The one at the "R" stays, just shortened.
-        self.assertEqual(len(teeth), 20)
+        self.assertEqual(len(teeth), 22)
 
         # Every tick's own TIP is at 1.2 radii; its foot is on the
         # perimeter except for the one shortened to clear the "R".

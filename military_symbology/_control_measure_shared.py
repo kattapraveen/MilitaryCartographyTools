@@ -216,6 +216,88 @@ _ECHELON_CHARACTER_EXPRESSION = "CASE " + " ".join(
 _PLAIN_DESIGNATION_LABEL_EXPRESSION = 'upper("unique_designation")'
 
 
+def stabilised_point_size_expression(size_expression, svg_expression):
+
+    """
+    `size_expression`, scaled so the ICON stays exactly the same size
+    when a unique designation is typed into it.
+
+    **QGIS sizes an SVG marker by its WIDTH, and milsymbol widens an
+    icon's declared box to take in whatever amplifier text it carries.**
+    So at a fixed marker size, adding a designation SHRINKS the symbol
+    it belongs to. Multiplying by (amplified width / plain width)
+    cancels that exactly: the icon keeps the size it has with no text,
+    and the text hangs outside it, which is how the standard's own
+    examples draw amplifiers anyway.
+
+    First fixed in _point_symbol_layer.py on 2026-08-13, after the
+    maintainer's report on Table H-XXI - "now the symbol size is
+    reducing when the Field T is added - inconsistent from a UI point
+    of view". **That fix only reached layers built through the shared
+    point-layer builder**, and seven modules in this appendix build
+    their own point renderer instead; every one of them still shrank.
+    Reported again 2026-08-14 against Table H-VI's own Checkpoint and
+    Contact Point, and fixed here, once, for all of them.
+
+    `svg_expression` is the module's own complete `mct_sidc_svg(...)`
+    call. Both widths are derived from it rather than passed
+    separately, so the two can never drift apart: the amplified one is
+    that same call routed to mct_sidc_svg_width(), and the plain one is
+    its `mct_build_sidc(...)` argument alone.
+
+    **The ratio is guarded, and that is not defensive padding.** QGIS
+    short-circuits a whole function call to NULL the moment any
+    argument is NULL, so one unset attribute on a feature - an
+    affiliation left empty on a hand-edited layer, say - would null the
+    ratio and take the size expression with it, silently dropping any
+    per-entity multiplier back to the layer's base size. nullif() also
+    covers a width of 0, which is what mct_sidc_svg_width() returns for
+    a SIDC it cannot render. Either way the fallback is 1: no
+    compensation, rather than no size.
+    """
+
+    sidc_expression = _build_sidc_argument(svg_expression)
+
+    amplified = svg_expression.replace(
+        "mct_sidc_svg(", "mct_sidc_svg_width(", 1
+    )
+
+    return (
+        f"({size_expression}) * coalesce({amplified}"
+        f" / nullif(mct_sidc_svg_width({sidc_expression}), 0), 1)"
+    )
+
+
+def _build_sidc_argument(svg_expression):
+
+    """
+    The `mct_build_sidc(...)` call inside `svg_expression`, matched by
+    counting parentheses rather than by a regex - the argument itself
+    contains nested calls and quoted strings, and a lazy regex stops at
+    the first ')' inside one.
+    """
+
+    start = svg_expression.index("mct_build_sidc(")
+
+    depth = 0
+
+    for offset, character in enumerate(svg_expression[start:], start):
+
+        if character == "(":
+            depth += 1
+
+        elif character == ")":
+
+            depth -= 1
+
+            if depth == 0:
+                return svg_expression[start:offset + 1]
+
+    raise ValueError(
+        "unbalanced mct_build_sidc() in: " + svg_expression
+    )
+
+
 def _apply_affiliation_color(symbol_layer, properties):
 
     """

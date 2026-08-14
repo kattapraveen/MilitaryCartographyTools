@@ -158,6 +158,7 @@ from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QColor
 
 from ._control_measure_shared import (
+    stabilised_point_size_expression,
     AFFILIATION_LABELS,
     POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
@@ -1036,9 +1037,15 @@ def _build_points_renderer():
         QgsProperty.fromExpression(_POINTS_SIDC_EXPRESSION)
     )
 
+    # Holds the icon still when a designation is typed -
+    # see stabilised_point_size_expression().
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
-        QgsProperty.fromExpression(_POINT_SIZE_EXPRESSION)
+        QgsProperty.fromExpression(
+            stabilised_point_size_expression(
+                _POINT_SIZE_EXPRESSION, _POINTS_SIDC_EXPRESSION
+            )
+        )
     )
 
     svg_layer.setDataDefinedProperty(

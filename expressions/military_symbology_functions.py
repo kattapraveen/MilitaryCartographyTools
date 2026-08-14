@@ -2463,16 +2463,16 @@ def mct_rampart_svg(values, feature=None, parent=None):
 _CONTAIN_TOOTH_STEP_DEG = 18.0
 _CONTAIN_TOOTH_LENGTH_RATIO = 1.0 / 3.0
 
-# Retain: 300 degrees drawn, leaving a 60-degree opening.
+# Retain: 330 degrees drawn, leaving a 30-degree opening.
 #
-# **The standard contradicts itself here, and the picture wins.** Its
-# DRAW RULES text says "The opening will be a 30-degree arc of the
-# circle", which would make the drawn arc 330 - but its own template
-# and example both draw an opening of roughly 55-60 degrees, and the
-# maintainer's own instruction was "draw a circle of 300deg". Two of
-# the three agree, so 300 it is. Built as a single constant so the
-# other reading is one line away if it ever matters.
-_RETAIN_ARC_DEG = 300.0
+# **The standard contradicts itself here.** Its DRAW RULES text says
+# "The opening will be a 30-degree arc of the circle", which makes the
+# drawn arc 330 - but its own template and example both draw an opening
+# of roughly 55-60 degrees. Built at 300 first, on the maintainer's own
+# dictated geometry ("draw a circle of 300deg"), then settled at 330 by
+# them after seeing it rendered, 2026-08-14: the written rule wins over
+# the drawing. One constant, so either reading stays one line away.
+_RETAIN_ARC_DEG = 330.0
 _RETAIN_TOOTH_STEP_DEG = 15.0
 _RETAIN_TOOTH_LENGTH_RATIO = 1.0 / 5.0
 
