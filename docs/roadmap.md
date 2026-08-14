@@ -7774,7 +7774,7 @@ versions; render-verified across designated/undesignated, all three
 line colours, present and planned, a multi-vertex bend and a steep
 diagonal.
 
-**Five units, 52 symbols left in Appendix H.**
+**Five units, 54 symbols left in Appendix H.**
 
 ### Table H-XXIII: the designation moves to Field T1 (2026-08-14)
 
@@ -7979,6 +7979,44 @@ written rule wins. One constant.
 
 1118 tests passing on both QGIS versions.
 
+### Smoke test signed off: every built Appendix H symbol (2026-08-14)
+
+The maintainer's own hands-on QGIS pass over everything built on
+2026-08-13/14 is complete and clear. Tables H-VIII (Contain/Retain),
+H-XIV, H-XX, H-XXI, H-XXII, H-XXIII, H-XXIV and H-XXV, plus the three
+engine-wide changes that touch every milsymbol-rendered layer in the
+plugin.
+
+**Eight real defects came out of it, and the split is worth keeping in
+mind for the units still to build.** Three were engine-wide rather
+than table-local, and all three had shipped looking fine:
+
+- Qt's SVG renderer silently ignores `dominant-baseline`, so every
+  milsymbol label sat ~0.26 em too high.
+- The unique designation was collected on every layer built through
+  the shared point-layer builder and never passed to the symbol at all.
+- The icon-size compensation reached only that same builder, leaving
+  the seven modules with their own point renderer still shrinking.
+
+The other five were readings of a table: the designation belonged in
+Field T1 on three separate tables, two icons needed text milsymbol
+draws no slot for, Contain's "ENY" mask could never have worked,
+Retain's sweep was 330 rather than 300, and six sonobuoys rendered
+small because milsymbol over-declared their box.
+
+**The pattern across all eight**: not one was found by the test suite,
+and several had tests that passed while asserting the wrong thing -
+Table H-XXI's own designation test pinned Field T explicitly, with a
+comment explaining why T1 was rejected. String-level assertions on
+expressions are what let that happen. The tests written in response
+render and measure instead, and three of them are cross-module sweeps
+that a new layer joins automatically.
+
+What remains in Appendix H is construction, not correction: 54
+symbols in five units, all lines and areas - recounted from each
+module's own audit the same day, the ledger's summary line having
+drifted from its own rows.
+
 ---
 
 ## Suggested near-term order
@@ -8001,9 +8039,14 @@ written rule wins. One constant.
 ## Appendix H — what is left to construct (audited 2026-08-14)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **52 symbols in 5 units**, and every one of them is a LINE or an
+is **54 symbols in 5 units**, and every one of them is a LINE or an
 AREA - not a coincidence, since milsymbol renders points and nothing
 else, so the whole remainder is hand-built QGIS symbology.
+
+**The total was wrong until 2026-08-14** - written as 53, then 52, by
+arithmetic on the summary line rather than on the table's own rows,
+which have always added to 54 (25 + 17 + 9 + 2 + 1). Re-derived from
+each module's own recorded audit and corrected. Trust the rows.
 
 Unit 5, H-XXV's own Intelligence Coordination Line, was built
 2026-08-14 and its table is closed - see that entry above.
