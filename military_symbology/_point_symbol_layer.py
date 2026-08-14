@@ -287,6 +287,26 @@ def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides, dime
     return f"CASE {clauses} ELSE '{default_symbol_set}' END"
 
 
+def _designation_slot_expression(entity_designation_slots):
+
+    """
+    The milsymbol option name the unique designation rides on, as an
+    expression: a plain literal when every entity on the layer uses
+    the default, or a CASE keyed on "entity" when some don't.
+    """
+
+    if not entity_designation_slots:
+
+        return "'uniqueDesignation'"
+
+    clauses = " ".join(
+        f"WHEN \"entity\" = '{entity}' THEN '{slot}'"
+        for entity, slot in entity_designation_slots.items()
+    )
+
+    return f"CASE {clauses} ELSE 'uniqueDesignation' END"
+
+
 def _build_renderer(
     symbol_set,
     marker_size_mm,
@@ -297,6 +317,7 @@ def _build_renderer(
     sector2_labels=None,
     dimension_symbol_sets=None,
     entity_marker_size_scales=None,
+    entity_designation_slots=None,
 ):
 
     """
@@ -356,9 +377,33 @@ def _build_renderer(
 
     designation_expression = 'upper(coalesce("unique_designation", \'\'))'
 
+    # WHICH milsymbol option the designation is passed through, which
+    # decides WHERE on the icon it lands. `uniqueDesignation` is Field
+    # T, outside and above-right of the icon, and is what almost every
+    # icon here wants.
+    #
+    # It is not universal, though, and milsymbol's own option NAMING
+    # does not line up with the standard's own field naming or even
+    # with itself across icons - so this is a per-entity choice a
+    # caller opts into, checked icon by icon rather than assumed. Table
+    # H-XXIII is the first to need it: its own templates put the
+    # designation in Field T1, INSIDE the lower part of the supply box
+    # ("1AD", "3SUST" in the standard's own examples), and milsymbol
+    # exposes that position as `uniqueDesignation1` on exactly the
+    # icons that have it. Raised by the maintainer 2026-08-14: "i want
+    # the unique designation to fill field T1 as per manual and not
+    # field T".
+    #
+    # A slot passed to an icon that does not define it is a harmless
+    # no-op, but that means a WRONG slot fails silently, drawing
+    # nothing - so callers pin theirs with a test.
+    designation_slot_expression = _designation_slot_expression(
+        entity_designation_slots
+    )
+
     expression = (
         f"mct_sidc_svg({sidc_expression}, {designation_expression}, "
-        "'uniqueDesignation')"
+        f"{designation_slot_expression})"
     )
 
     symbol = QgsMarkerSymbol()
@@ -404,10 +449,11 @@ def _build_renderer(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
             "({base}) * mct_sidc_svg_width({sidc}, {text}, "
-            "'uniqueDesignation') / mct_sidc_svg_width({sidc})".format(
+            "{slot}) / mct_sidc_svg_width({sidc})".format(
                 base=base_size_expression,
                 sidc=sidc_expression,
                 text=designation_expression,
+                slot=designation_slot_expression,
             )
         )
     )
@@ -437,6 +483,7 @@ def build_single_domain_point_layer(
     dimension_symbol_sets=None,
     default_dimension=None,
     entity_marker_size_scales=None,
+    entity_designation_slots=None,
 ):
 
     """
@@ -551,6 +598,7 @@ def build_single_domain_point_layer(
             sector2_labels,
             dimension_symbol_sets,
             entity_marker_size_scales,
+            entity_designation_slots,
         )
     )
 
@@ -585,6 +633,7 @@ def add_single_domain_point_layer(
     dimension_symbol_sets=None,
     default_dimension=None,
     entity_marker_size_scales=None,
+    entity_designation_slots=None,
 ):
 
     """
@@ -624,6 +673,7 @@ def add_single_domain_point_layer(
         dimension_symbol_sets,
         default_dimension,
         entity_marker_size_scales,
+        entity_designation_slots,
     )
 
     return add_layer_at_default_position(

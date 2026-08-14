@@ -8,6 +8,7 @@ Military Cartography Tools
 """
 
 import base64
+import re
 
 from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
                        QgsProject)
@@ -19,6 +20,7 @@ from MilitaryCartographyTools.military_symbology.supply_points import (
     POINTS_LAYER_NAME,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
+    POINT_DESIGNATION_SLOTS,
     SHARED_GLYPH_CODES,
     TABLE_H_XXIII_REMAINING,
     add_supply_points_layer,
@@ -116,6 +118,34 @@ class TestSupplyPointsLayer(QgisTestCase):
         super().tearDown()
 
 
+    def _render(self, entity, text=None, slot=None):
+
+        """The SVG mct_sidc_svg returns for one entity, decoded."""
+
+        arguments = (
+            "mct_build_sidc('friend', '{}', 'control_measure', "
+            "'unspecified', 'present', false)".format(entity)
+        )
+
+        if text is not None:
+
+            arguments += ", '{}', '{}'".format(
+                text, slot or POINT_DESIGNATION_SLOTS.get(
+                    entity, "uniqueDesignation"
+                )
+            )
+
+        expression = QgsExpression(f"mct_sidc_svg({arguments})")
+
+        path = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+
     def test_the_layer_builds_without_echelon_or_headquarters(self):
 
         layer = create_supply_points_layer()
@@ -129,6 +159,62 @@ class TestSupplyPointsLayer(QgisTestCase):
 
         # Field T, which every row of the table carries.
         self.assertIn("unique_designation", fields)
+
+
+    def test_the_designation_goes_to_field_t1_not_field_t(self):
+
+        # Table H-XXIII draws the designation INSIDE the lower part of
+        # the supply box (the "T1" box on every template; "1AD",
+        # "3SUST" in the standard's own examples), not in the Field T
+        # box outside it. milsymbol exposes that position as
+        # `uniqueDesignation1`, and passing it to an icon that does not
+        # define the slot draws NOTHING AT ALL, silently - which is why
+        # this asserts on the rendered SVG rather than on the map.
+        #
+        # (100, 20) is milsymbol's own T1 anchor and (150, -30) its
+        # Field T one, both read off the rendered markup.
+        for entity in POINT_DESIGNATION_SLOTS:
+
+            with self.subTest(entity=entity):
+
+                svg = self._render(entity, "1AD")
+
+                self.assertIn("1AD", svg)
+
+                designation = re.search(
+                    r'<text[^>]*>1AD</text>', svg
+                ).group(0)
+
+                self.assertIn('x="100"', designation)
+                self.assertNotIn('x="150"', designation)
+
+
+    def test_the_us_classes_keep_field_t_because_they_have_no_t1(self):
+
+        # Not an oversight: none of 321707-321716 defines
+        # `uniqueDesignation1` at all, so Field T is the only text
+        # position those ten icons have. Reversing this would draw
+        # nothing rather than moving anything, so it is pinned here.
+        us_classes = [
+            entity for entity in POINT_ENTITY_LABELS
+            if entity.startswith("supply_point_us_class_")
+        ]
+
+        self.assertEqual(len(us_classes), 10)
+
+        for entity in us_classes:
+
+            with self.subTest(entity=entity):
+
+                self.assertNotIn(entity, POINT_DESIGNATION_SLOTS)
+
+                self.assertNotIn(
+                    "1AD", self._render(entity, "1AD", "uniqueDesignation1")
+                )
+
+                self.assertIn(
+                    "1AD", self._render(entity, "1AD")
+                )
 
 
     def test_every_entity_renders_a_real_glyph(self):

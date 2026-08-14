@@ -7776,6 +7776,42 @@ diagonal.
 
 **Five units, 52 symbols left in Appendix H.**
 
+### Table H-XXIII: the designation moves to Field T1 (2026-08-14)
+
+Smoke-test finding, and a real misreading of the table rather than a
+placement nicety: **every template in Table H-XXIII puts the unique
+designation INSIDE the supply box**, in the box labelled T1, and fills
+it in its own examples - "1AD" on General Supply Point, "3SUST" on
+NATO Class I, "55ORD" on NATO Class V. Field T on those templates is a
+separate box outside the symbol to its upper right. This built them
+all in T.
+
+milsymbol exposes the T1 position as `uniqueDesignation1`, at (100,
+20) against Field T's (150, -30) - established by probing all 18 icons
+for which text options they actually define and where each one lands,
+rather than by reading milsymbol's source, since its option NAMING
+does not line up with the standard's own field naming or even with
+itself across icons.
+
+**Only 7 of the 18 move.** The probe's other finding is that not one
+of the ten US class icons (321707-321716) defines `uniqueDesignation1`
+at all - Field T is the only text position they have, which is exactly
+why they read as correct in the smoke test. They keep it. A slot
+passed to an icon that does not define it is a silent no-op, so
+"fixing" those would have deleted their designation rather than moved
+it; both directions are now pinned by tests.
+
+The mechanism is a new opt-in `entity_designation_slots` on the shared
+point-layer builder, mirroring `entity_marker_size_scales` next to it:
+a per-entity CASE feeding both the symbol expression and the
+size-compensation one. Every other layer is untouched.
+
+**Still open on this table**: NATO Multiple Supply Class Point (321706)
+defines NO text option whatsoever - not Field T, not T1 - so its box
+draws bare. Its own template asks for A/A1/A2 (up to three supply class
+numbers, or ALL) plus T1, and the maintainer has asked for that class
+input. Being built next.
+
 ---
 
 ## Suggested near-term order

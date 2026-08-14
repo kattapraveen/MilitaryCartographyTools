@@ -106,6 +106,47 @@ POINT_ENTITY_CODES = {
     "medical_supply_point": "321800",
 }
 
+# **Field T1, not Field T** - where each icon's own unique designation
+# actually sits.
+#
+# Every template in this table draws the designation INSIDE the lower
+# part of the supply box, in the box marked "T1", and the standard's
+# own examples fill it: "1AD" on General Supply Point, "3SUST" on NATO
+# Class I. Field T on these templates is a separate box outside the
+# symbol, to its upper right. Until 2026-08-14 every one of these
+# points put the designation in T - raised by the maintainer after
+# live testing: "i want the unique designation to fill field T1 as per
+# manual and not field T".
+#
+# milsymbol exposes that position as `uniqueDesignation1`, confirmed by
+# probing all 18 icons for which text options they actually define and
+# where each one lands: `uniqueDesignation` draws at (150, -30), which
+# is outside and above-right (Field T), and `uniqueDesignation1` at
+# (100, 20), inside the box's lower part (Field T1).
+#
+# **The US classes are deliberately NOT in this map**, and that is the
+# probe's finding, not an oversight: not one of 321707-321716 defines
+# `uniqueDesignation1` at all. Field T is the only text position those
+# ten icons have, so they keep it - passing them a slot they don't
+# define would silently draw nothing at all.
+#
+# **321706 is not here either, for the opposite reason**: it defines NO
+# text option whatsoever, so neither slot reaches it. See
+# SHARED_GLYPH_CODES above.
+POINT_DESIGNATION_SLOTS = {
+    entity: "uniqueDesignation1"
+    for entity in (
+        "general_supply_point",
+        "supply_point_nato_class_i",
+        "supply_point_nato_class_ii",
+        "supply_point_nato_class_iii",
+        "supply_point_nato_class_iv",
+        "supply_point_nato_class_v",
+        "medical_supply_point",
+    )
+}
+
+
 # --- Audited, NOT built. ---
 #
 # The 19 remaining rows of Table H-XXIII, all areas or lines, none
@@ -166,6 +207,7 @@ def create_supply_points_layer(name=POINTS_LAYER_NAME):
         "general_supply_point",
         include_echelon=False,
         include_headquarters=False,
+        entity_designation_slots=POINT_DESIGNATION_SLOTS,
     )
 
 
