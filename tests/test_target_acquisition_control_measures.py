@@ -5,7 +5,8 @@ Tests for military_symbology/target_acquisition_control_measures.py -
 the Target Acquisition Control Measures Areas layer (Table H-XVIII,
 Mini-Phase H13/H14), styled via a QgsRuleBasedRenderer keyed on
 "measure_type". See that module's own docstring for what's skipped
-(both Weapon/Sensor Range Fan variants).
+(nothing now - both Weapon/Sensor Range Fan variants were built
+2026-08-14 and are covered by TestRangeFans at the foot of this file).
 
 Military Cartography Tools
 """
@@ -15,6 +16,7 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsFeature,
+    QgsPointXY,
     QgsProject,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -25,7 +27,14 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 
+from MilitaryCartographyTools.expressions.military_symbology_functions import (
+    _distance_area,
+)
 from MilitaryCartographyTools.military_symbology.target_acquisition_control_measures import (
+    RANGE_FANS_LAYER_NAME,
+    RANGE_FAN_MAX_RINGS,
+    add_range_fans_layer,
+    create_range_fans_layer,
     AREAS_LAYER_NAME,
     AREA_MEASURE_TYPE_LABELS,
     add_target_acquisition_control_measures_areas_layer,
@@ -339,3 +348,216 @@ class TestAddTargetAcquisitionControlMeasuresAreasLayer(QgisTestCase):
         names = [child.name() for child in root.children()]
 
         self.assertEqual(names[0], AREAS_LAYER_NAME)
+
+
+class TestRangeFans(QgisTestCase):
+
+    """
+    Weapon/Sensor Range Fans - 242100 (Circular) and 242200 (Sector),
+    built 2026-08-14 to the maintainer's own dictated construction.
+
+    **Two codes, one symbol.** Circular is Sector with the 0/360
+    default, so nothing here distinguishes them but the numbers typed.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.iface = FakeIface()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _ring(self, left, right, range_m, wkt="Point(0 0)"):
+
+        return QgsExpression(
+            "mct_range_fan_ring(geom_from_wkt('{}'), {}, {}, {})".format(
+                wkt, left, right, range_m
+            )
+        ).evaluate()
+
+
+    def test_the_default_angles_draw_a_closed_circle(self):
+
+        # 0/360 is the default every ring starts at, and it is also
+        # what makes this symbol the Circular code.
+        ring = self._ring(0, 360, 5000).asPolyline()
+
+        self.assertGreater(len(ring), 100)
+
+        # Closed, and never returning to the centre - a circle has no
+        # radial sides.
+        self.assertAlmostEqual(ring[0].x(), ring[-1].x(), places=6)
+        self.assertAlmostEqual(ring[0].y(), ring[-1].y(), places=6)
+
+        for point in ring:
+            self.assertGreater(abs(point.y()) + abs(point.x()), 0.001)
+
+
+    def test_a_sector_closes_back_to_the_centre(self):
+
+        # "connect the arc end to pt1 using line segments" - without
+        # them a sector is a floating arc.
+        ring = self._ring(30, 120, 5000).asPolyline()
+
+        centre = QgsPointXY(0, 0)
+
+        self.assertAlmostEqual(ring[0].x(), centre.x(), places=9)
+        self.assertAlmostEqual(ring[0].y(), centre.y(), places=9)
+        self.assertAlmostEqual(ring[-1].x(), centre.x(), places=9)
+        self.assertAlmostEqual(ring[-1].y(), centre.y(), places=9)
+
+
+    def test_angles_are_compass_bearings_from_north(self):
+
+        # "the centerline is always north". A sector from 0 to 90 must
+        # occupy the NORTH-EAST quadrant - x and y both positive - which
+        # is the opposite of a maths convention measuring anticlockwise
+        # from east.
+        ring = self._ring(0, 90, 5000).asPolyline()
+
+        arc = ring[1:-1]
+
+        for point in arc:
+
+            self.assertGreaterEqual(point.x(), -1e-9)
+            self.assertGreaterEqual(point.y(), -1e-9)
+
+
+    def test_a_sector_may_cross_north(self):
+
+        # 300 to 60 is a 120-degree sector straddling north, not a
+        # 240-degree one going the other way round.
+        wide = self._ring(300, 60, 5000).asPolyline()
+        narrow = self._ring(0, 120, 5000).asPolyline()
+
+        self.assertEqual(len(wide), len(narrow))
+
+
+    def test_the_range_is_a_real_ground_distance(self):
+
+        # Unlike every glyph in this appendix, which is millimetres on
+        # the page. A ring of 10 km must measure 10 km on the ellipsoid,
+        # not 10 km of coordinate.
+        ring = self._ring(0, 360, 10000).asPolyline()
+
+        measured = _distance_area().measureLine(
+            QgsPointXY(0, 0), ring[0]
+        )
+
+        self.assertAlmostEqual(measured, 10000.0, delta=1.0)
+
+
+    def test_a_ring_with_no_range_draws_nothing(self):
+
+        # Which is how one symbol carrying five ring layers draws only
+        # the rings actually filled in.
+        for range_m in (0, -100):
+
+            with self.subTest(range_m=range_m):
+
+                self.assertTrue(self._ring(0, 360, range_m).isEmpty())
+
+        # An UNFILLED ring is a different path and worth pinning
+        # separately: QGIS short-circuits a whole function call to NULL
+        # the moment any argument is NULL, so the function never runs
+        # at all. A NULL geometry generator draws nothing either, so
+        # the outcome matches - but it is QGIS's doing, not this
+        # function's, and a guard here would be dead code.
+        self.assertIsNone(self._ring(0, 360, "NULL"))
+
+
+    def test_the_layer_has_four_fields_per_ring_and_five_rings(self):
+
+        layer = create_range_fans_layer()
+
+        names = [field.name() for field in layer.fields()]
+
+        for ring in range(1, RANGE_FAN_MAX_RINGS + 1):
+
+            for suffix in ("left", "right", "range", "alt"):
+
+                self.assertIn(f"ring{ring}_{suffix}", names)
+
+        self.assertNotIn("ring6_range", names)
+
+        # Every ring starts as a full circle.
+        for ring in range(1, RANGE_FAN_MAX_RINGS + 1):
+
+            self.assertEqual(
+                layer.defaultValueDefinition(
+                    layer.fields().indexOf(f"ring{ring}_left")
+                ).expression(),
+                "0"
+            )
+
+            self.assertEqual(
+                layer.defaultValueDefinition(
+                    layer.fields().indexOf(f"ring{ring}_right")
+                ).expression(),
+                "360"
+            )
+
+
+    def test_one_symbol_layer_and_one_label_rule_per_ring(self):
+
+        layer = create_range_fans_layer()
+
+        self.assertEqual(
+            layer.renderer().symbol().symbolLayerCount(),
+            RANGE_FAN_MAX_RINGS
+        )
+
+        # QGIS places one label per RULE, and five rings want five.
+        self.assertEqual(
+            len(layer.labeling().rootRule().children()),
+            RANGE_FAN_MAX_RINGS
+        )
+
+
+    def test_each_rings_label_is_rg_over_alt(self):
+
+        layer = create_range_fans_layer()
+
+        settings = layer.labeling().rootRule().children()[0].settings()
+
+        expression = QgsExpression(settings.fieldName)
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("ring1_range", 5000)
+        feature.setAttribute("ring1_alt", "300")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        self.assertEqual(expression.evaluate(context), "RG 5000\nALT 300")
+
+        # No altitude, no second line - rather than a bare "ALT".
+        feature.setAttribute("ring1_alt", None)
+        context.setFeature(feature)
+
+        self.assertEqual(expression.evaluate(context), "RG 5000")
+
+
+    def test_adding_the_layer_inserts_exactly_one(self):
+
+        self.assertIsNotNone(add_range_fans_layer(self.iface))
+
+        self.assertIsNone(add_range_fans_layer(self.iface))
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(
+                RANGE_FANS_LAYER_NAME
+            )),
+            1
+        )

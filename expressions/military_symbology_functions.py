@@ -3160,6 +3160,173 @@ def mct_retain_letter_point(values, feature=None, parent=None):
     )
 
 
+# --- Weapon/Sensor Range Fan (Table H-XVIII, 242100 and 242200) ---
+#
+# **Two codes, one construction** - Circular (242100) is the Sector
+# (242200) case with the default angles, which is the maintainer's own
+# reading and the reason this is built once rather than twice.
+#
+# Angles are COMPASS BEARINGS: degrees clockwise from north, because
+# "the centerline is always north". A sweep of 0 (or 360, or left equal
+# to right) means the whole circle.
+_RANGE_FAN_FULL_CIRCLE_SEGMENTS = 144
+
+_RANGE_FAN_MIN_SEGMENTS = 12
+
+
+def _range_fan_arc_points(centre, radius_m, start_deg, sweep_deg):
+
+    """
+    Points along one ring's arc, projected GEODESICALLY.
+
+    The range is a real ground distance - unlike every glyph in this
+    appendix, which is millimetres on the page - so the ring cannot be
+    a circle of constant coordinate radius: at any distance from the
+    equator that draws an ellipse, and the further from it the worse.
+    QgsDistanceArea.computeSpheroidProject() walks the ellipsoid
+    surface instead, the same machinery core/coordinate_utils.py's own
+    bearing/range tool uses.
+    """
+
+    distance_area = _distance_area()
+
+    segments = max(
+        _RANGE_FAN_MIN_SEGMENTS,
+        int(round(_RANGE_FAN_FULL_CIRCLE_SEGMENTS * abs(sweep_deg) / 360.0))
+    )
+
+    points = []
+
+    for step in range(segments + 1):
+
+        bearing = start_deg + sweep_deg * step / segments
+
+        points.append(
+            distance_area.computeSpheroidProject(
+                centre, radius_m, math.radians(bearing)
+            )
+        )
+
+    return points
+
+
+def _range_fan_frame(values):
+
+    """(centre, left, right, radius) for one ring, or None."""
+
+    if len(values) < 4:
+        return None
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return None
+
+    try:
+        centre = geometry.asPoint()
+    except (TypeError, ValueError):
+        return None
+
+    try:
+        left = float(values[1]) if values[1] is not None else 0.0
+        right = float(values[2]) if values[2] is not None else 360.0
+        radius = float(values[3]) if values[3] is not None else 0.0
+    except (TypeError, ValueError):
+        return None
+
+    if radius <= 0:
+        return None
+
+    return centre, left, right, radius
+
+
+@qgsfunction(
+    'mct_range_fan_ring',
+    group='Military Cartography Tools'
+)
+def mct_range_fan_ring(values, feature=None, parent=None):
+
+    """
+    One ring of a Weapon/Sensor Range Fan: `mct_range_fan_ring(
+    $geometry, left_deg, right_deg, range_metres)`.
+
+    A full CIRCLE when the two angles describe the whole turn (the
+    0/360 default), and otherwise an ARC from the left angle clockwise
+    to the right one **with a straight segment from each end back to
+    the centre** - the maintainer's own construction, and what closes
+    the sector into a readable fan rather than a floating arc.
+
+    Returns an empty geometry for a ring with no range, which is how a
+    symbol carrying five ring layers draws only the ones filled in.
+    """
+
+    frame = _range_fan_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    centre, left, right, radius = frame
+
+    sweep = (right - left) % 360.0
+
+    # Left equal to right, or a full turn, means the whole circle -
+    # not a zero-width sector. The 0/360 default lands here.
+    if sweep == 0:
+
+        return QgsGeometry.fromPolylineXY(
+            _range_fan_arc_points(centre, radius, 0.0, 360.0)
+        )
+
+    return QgsGeometry.fromPolylineXY(
+        [centre]
+        + _range_fan_arc_points(centre, radius, left, sweep)
+        + [centre]
+    )
+
+
+@qgsfunction(
+    'mct_range_fan_label_point',
+    group='Military Cartography Tools'
+)
+def mct_range_fan_label_point(values, feature=None, parent=None):
+
+    """
+    Where one ring's own "RG/ALT" label sits: `mct_range_fan_label_point(
+    $geometry, left_deg, right_deg, range_metres, inner_range_metres)`.
+
+    Inside the ring and outside the one before it - half way between
+    the two radii - and on the sector's own CENTRELINE, so a narrow fan
+    labels down its middle rather than off its edge. For the full-circle
+    case that centreline is north, which is where the standard's own
+    example puts its ring numbers.
+    """
+
+    frame = _range_fan_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    centre, left, right, radius = frame
+
+    try:
+        inner = float(values[4]) if len(values) > 4 and values[4] else 0.0
+    except (TypeError, ValueError):
+        inner = 0.0
+
+    if inner >= radius:
+        inner = 0.0
+
+    sweep = (right - left) % 360.0
+
+    bearing = 0.0 if sweep == 0 else left + sweep / 2.0
+
+    return QgsGeometry.fromPointXY(
+        _distance_area().computeSpheroidProject(
+            centre, (inner + radius) / 2.0, math.radians(bearing)
+        )
+    )
+
+
 @qgsfunction(
     'mct_supply_route_arrow_svg',
     group='Military Cartography Tools'
@@ -5406,6 +5573,8 @@ _FUNCTIONS = [
     mct_retain_arc_end,
     mct_retain_teeth,
     mct_retain_letter_point,
+    mct_range_fan_ring,
+    mct_range_fan_label_point,
     mct_supply_route_arrow_svg,
     mct_navigational_flank_svg,
     mct_rampart_connector_svg,

@@ -8123,6 +8123,54 @@ draw nothing.
 38 symbols left, in 2 units plus the range fans. 1133 tests passing on
 both QGIS versions.
 
+### Weapon/Sensor Range Fans built; the last blocked unit clears (2026-08-14)
+
+Deferred when the rest of Table H-XVIII was built, on the grounds that
+they "need genuinely computed geometry rather than a boundary you
+digitize" - which was right, and stayed blocked until the maintainer
+dictated the construction.
+
+**Two codes, one symbol.** Circular (242100) is Sector (242200) with
+the default angles, so nothing in the build distinguishes them but the
+numbers typed. One clicked centre, then up to five rings of left angle,
+right angle, range and altitude.
+
+**The range is a real ground distance, which makes this the only symbol
+in the appendix that is not page units.** Everything else built here -
+rampart tiles, traffic arrows, Navigational's flanks - is millimetres
+on the page and deliberately does not scale. A range ring must, so the
+arc is projected GEODESICALLY via
+`QgsDistanceArea.computeSpheroidProject()`, the same machinery the
+bearing/range tool uses. A constant-coordinate circle would draw an
+ellipse anywhere off the equator, and worse the further from it.
+
+Decisions worth recording:
+
+- **Angles are compass bearings** - clockwise from north - because the
+  construction says "the centerline is always north". A sector may
+  cross north; 300 to 60 is the 120-degree sector straddling it, not
+  the 240-degree one going the other way. Pinned by a test, since the
+  maths convention (anticlockwise from east) is the natural thing to
+  write by accident.
+- **Metres is an assumption**, named as such in the module. The
+  construction gives the range as a distance but never its unit;
+  metres is conventional for weapon and sensor ranges and for the
+  Minimum Safe Distance Zone beside it. One constant if not.
+- **Five rings is a hard cap**, not a paging problem - the maintainer's
+  own instruction is that a sixth means a second symbol at the same
+  point.
+- **One label rule per ring.** QGIS places a single label per rule, so
+  five rings need five rules, each with its own data-defined position
+  and filtered to features where that ring has a range. Same pattern
+  as Contain/Retain.
+
+A ring with a range of 0 or less returns an empty geometry; a ring left
+UNFILLED never runs the function at all, because QGIS short-circuits a
+call to NULL on any NULL argument. Both draw nothing, but for different
+reasons, and both are pinned.
+
+36 symbols left, in 2 units. 1143 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
@@ -8145,7 +8193,7 @@ both QGIS versions.
 ## Appendix H — what is left to construct (audited 2026-08-14)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **38 symbols in 3 units** (54 in 5 before Maritime's Navigational,
+is **36 symbols in 2 units** (54 in 5 before Maritime's Navigational,
 H-XXIII's eight supply routes and its seven sustainment areas were all
 built on 2026-08-14), and every one of them is a LINE or an AREA - not a coincidence, since milsymbol renders points and nothing
 else, so the whole remainder is hand-built QGIS symbology.
@@ -8163,7 +8211,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 | 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
 | 2 | H-XXIII Supply | 2 | Moving and Halted Convoy. **The 8 supply routes and 7 sustainment areas were built 2026-08-14.** |
 | 3 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line |
-| 4 | H-XVIII Target Acquisition | 2 | Weapon/Sensor Range Fan - Circular, Sector |
+| ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |
 | ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |
 
 Each module records its own unbuilt rows by CODE, with a test asserting

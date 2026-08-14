@@ -1301,6 +1301,28 @@ yet — both need genuinely computed geometry from a single anchor point
 azimuth centreline and left/right limits) rather than a boundary you
 directly digitize. They are on the list to build.
 
+**Weapon/Sensor Range Fans** comes with the same menu entry, and covers
+both of the table's range-fan codes with one symbol — Circular (242100)
+is simply Sector (242200) left at its default angles.
+
+Click **one point** for the centre, then fill in up to **five rings**.
+Each ring takes a **max left angle**, a **max right angle**, a **range**
+and an **Alt**:
+
+- Angles are **compass bearings** — degrees clockwise from north — and
+  a ring left at the **0/360** default draws a **full circle**.
+- Any other pair draws a **sector** from left to right, with straight
+  sides back to the centre. A sector may cross north (300 → 60 is a
+  120° sector straddling it).
+- **Range is in metres of real ground distance**, so the fan grows and
+  shrinks with the map rather than staying a fixed size on the page.
+- Each ring is labelled `RG <range>` over `ALT <alt>` on its own
+  centreline, between its radius and the ring inside it. Leave Alt blank
+  and only the range line is drawn.
+
+Rings you leave blank draw nothing. **Five is the limit** — if you need
+more, place a second range fan at the same point.
+
 ### Sustainment, Supply and Mission Task Points
 
 Three separate layers, one per table, added 2026-08-14 — the last of

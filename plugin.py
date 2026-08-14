@@ -108,6 +108,7 @@ from .military_symbology.target_control_measures import (
 )
 from .military_symbology.target_acquisition_control_measures import (
     add_target_acquisition_control_measures_areas_layer,
+    add_range_fans_layer,
 )
 from .terrain import (
     show_tanaka_contour_dialog,
@@ -1253,7 +1254,9 @@ class MilitaryCartographyTools:
             "Target Intelligence Zone, Call For Fire Zone, Censor Zone, "
             "Critical Friendly Zone, Dead Space Area, Sensor Zone, "
             "Target Build-up/Value Area, Zone of Responsibility, Blue/"
-            "Purple Kill Box)"
+            "Purple Kill Box), plus a Weapon/Sensor Range Fans layer - "
+            "one clicked centre and up to five rings, each a full "
+            "circle or a sector"
         )
 
         self.target_acquisition_control_measures_action.triggered.connect(
@@ -2411,6 +2414,10 @@ class MilitaryCartographyTools:
         """
 
         add_target_acquisition_control_measures_areas_layer(
+            self.iface
+        )
+
+        add_range_fans_layer(
             self.iface
         )
 
