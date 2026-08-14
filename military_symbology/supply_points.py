@@ -5,12 +5,15 @@ MIL-STD-2525D Appendix H.5.25 (Table H-XXIII, "Supply point control
 measure symbols") - Mini-Phase H20. Printed pages 623-635, 37 code
 rows.
 
-**This module builds the table's POINTS only - 18 of the 37.** The
-other 19 are areas and lines; they are audited and listed in
+**This module builds 26 of the table's 37 rows**: its 18 POINTS, and
+(from 2026-08-14) the 8 SUPPLY ROUTES on a second, Lines layer. The
+remaining 11 are the seven sustainment areas, the two convoy lines and
+two parent rows that draw nothing; they are audited and listed in
 TABLE_H_XXIII_REMAINING below rather than dropped.
 
-**The split is the standard's own, not a convenience.** Every one of
-the 18 point codes (321700-321800) is backed by a real milsymbol icon,
+**The point/line split is the standard's own, not a convenience.**
+Every one of the 18 point codes (321700-321800) is backed by a real
+milsymbol icon,
 checked directly against milsymbol's own
 src/numbersidc/sidc/control-measure.js entry by entry. None of the 19
 area/line codes (310000-310700, 330000-330403) is, which is expected:
@@ -65,12 +68,44 @@ Military Cartography Tools
 
 import itertools
 
-from ._control_measure_shared import add_layer_if_absent
+from qgis.core import (
+    Qgis,
+    QgsDefaultValue,
+    QgsEditorWidgetSetup,
+    QgsField,
+    QgsLineSymbol,
+    QgsMarkerLineSymbolLayer,
+    QgsMarkerSymbol,
+    QgsPalLayerSettings,
+    QgsProject,
+    QgsProperty,
+    QgsSimpleLineSymbolLayer,
+    QgsSvgMarkerSymbolLayer,
+    QgsSymbolLayer,
+    QgsVectorLayer,
+)
+
+from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtGui import QColor
+
+from ._control_measure_shared import (
+    AFFILIATION_LABELS,
+    STATUS_LABELS,
+    _STATUS_LINE_STYLE_EXPRESSION,
+    _apply_affiliation_color,
+    _build_pal_layer_settings,
+    _build_rule_based_renderer,
+    _configure_affiliation_field,
+    _configure_status_field,
+    _value_map,
+    add_layer_if_absent,
+)
 
 from ._point_symbol_layer import build_single_domain_point_layer
 
 
 POINTS_LAYER_NAME = "Supply Points"
+LINES_LAYER_NAME = "Supply Routes (Lines)"
 
 POINT_ENTITY_LABELS = {
     "general_supply_point": "General Supply Point",
@@ -232,6 +267,11 @@ SUPPLY_CLASS_FIELD = {
 # two-way (two opposed arrows) or alternating (a two-headed "ALT"
 # arrow), repeated per line segment - the same per-segment repeat
 # Table H-III's own Boundary already does here.
+#
+# **Eight of the original nineteen were built on 2026-08-14** - the
+# whole supply-route family, 330300-330403 - and are gone from this
+# list. What is left is the seven areas, the two convoys and the two
+# parent rows.
 TABLE_H_XXIII_REMAINING = {
     "310000": "Sustainment Areas (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
@@ -246,15 +286,358 @@ TABLE_H_XXIII_REMAINING = {
               "both N/A)",
     "330100": "Moving Convoy",
     "330200": "Halted Convoy",
-    "330300": "Main Supply Route (MSR)",
-    "330301": "Main Supply Route - One Way Traffic",
-    "330302": "Main Supply Route - Two Way Traffic",
-    "330303": "Main Supply Route - Alternating Traffic",
-    "330400": "Alternate Supply Route (ASR)",
-    "330401": "Alternate Supply Route - One Way Traffic",
-    "330402": "Alternate Supply Route - Two Way Traffic",
-    "330403": "Alternate Supply Route - Alternating Traffic",
 }
+
+
+# ---------------------------------------------------------------
+# Supply routes - Table H-XXIII's own 330300-330403 (Mini-Phase H23)
+# ---------------------------------------------------------------
+
+LINE_MEASURE_TYPE_LABELS = {
+    "msr": "Main Supply Route (MSR)",
+    "msr_one_way": "MSR - One Way Traffic",
+    "msr_two_way": "MSR - Two Way Traffic",
+    "msr_alternating": "MSR - Alternating Traffic",
+    "asr": "Alternate Supply Route (ASR)",
+    "asr_one_way": "ASR - One Way Traffic",
+    "asr_two_way": "ASR - Two Way Traffic",
+    "asr_alternating": "ASR - Alternating Traffic",
+}
+
+LINE_MEASURE_TYPE_CODES = {
+    "msr": "330300",
+    "msr_one_way": "330301",
+    "msr_two_way": "330302",
+    "msr_alternating": "330303",
+    "asr": "330400",
+    "asr_one_way": "330401",
+    "asr_two_way": "330402",
+    "asr_alternating": "330403",
+}
+
+# **Eight codes, ONE construction.** The MSR and ASR halves differ only
+# in the abbreviation they label with, and within each half the three
+# traffic variants differ only in which arrows ride above the line. The
+# standard draws all eight the same way otherwise, which is why they are
+# built from one symbol function and one label expression rather than
+# eight of each.
+_LINE_ABBREVIATIONS = {
+    measure_type: ("ASR" if measure_type.startswith("asr") else "MSR")
+    for measure_type in LINE_MEASURE_TYPE_LABELS
+}
+
+_TRAFFIC_ARROWS = {
+    "msr": (),
+    "asr": (),
+    "msr_one_way": ("forward",),
+    "asr_one_way": ("forward",),
+    # Inner arrow FIRST - the tuple is ordered outward from the line,
+    # so Two Way's "backward" sits nearest the road and "forward" above
+    # it. That is the order the standard's own example draws
+    # ("MSR SUMMER": top arrow with the direction of travel, bottom
+    # against it), and it was the other way round in the first build.
+    "msr_two_way": ("backward", "forward"),
+    "asr_two_way": ("backward", "forward"),
+    "msr_alternating": ("alternating",),
+    "asr_alternating": ("alternating",),
+}
+
+# --- The four numbers the standard never gives. ---
+#
+# It draws the arrows and labels them and dimensions none of it, so
+# these were put to the project maintainer before building rather than
+# guessed - the lesson from Table H-XIX, where every unnumbered guess
+# needed correcting and every question asked first did not. Settled
+# 2026-08-14.
+_ARROW_LENGTH_MM = 12.0
+
+# Alternating Traffic gets a LONGER glyph than the other two, because
+# its own arrow is not one arrow but two heads with the word "ALT"
+# between them - at 12 mm the text eats the whole shaft and leaves two
+# heads floating either side of it, which the first render showed
+# plainly. This is the length of the whole "<- ALT ->" assembly.
+_ALTERNATING_LENGTH_MM = 20.0
+
+# The "ALT" itself, sized to sit alongside the route's own label rather
+# than scale with the glyph around it.
+_ALTERNATING_TEXT_MM = 3.4
+_ARROW_OFFSET_MM = 3.0
+_ARROW_SPACING_MM = 3.0
+_LABEL_CLEARANCE_MM = 2.0
+
+_LINE_WIDTH_MM = 0.4
+
+# A colour STRING for the SVG glyphs. The shared affiliation expression
+# is built from color_rgb(), which evaluates to a bare "0,0,255" -
+# right for a colour property, silently invalid inside an SVG, where it
+# draws the glyph as nothing at all.
+_ROUTE_GLYPH_COLOR_EXPRESSION = (
+    "CASE "
+    "WHEN \"affiliation\" = 'friend' THEN 'rgb(0,0,255)' "
+    "WHEN \"affiliation\" = 'hostile' THEN 'rgb(255,0,0)' "
+    "WHEN \"affiliation\" = 'neutral' THEN 'rgb(0,255,0)' "
+    "WHEN \"affiliation\" = 'unknown' THEN 'rgb(255,255,0)' "
+    "ELSE 'rgb(0,0,0)' "
+    "END"
+)
+
+# "MSR CAMEL", "ASR 3" - the abbreviation plus Field T, which is what
+# every one of the standard's own examples shows. trim() so a blank
+# designation leaves "MSR" rather than a trailing space.
+_LINE_LABEL_EXPRESSION = "CASE " + " ".join(
+    "WHEN \"measure_type\" = '{measure_type}' THEN "
+    "trim('{abbreviation} ' || upper(coalesce(\"unique_designation\",'')))"
+    .format(measure_type=measure_type, abbreviation=abbreviation)
+    for measure_type, abbreviation in _LINE_ABBREVIATIONS.items()
+) + " ELSE '' END"
+
+
+def _arrow_length_mm(mode):
+
+    return (
+        _ALTERNATING_LENGTH_MM if mode == "alternating"
+        else _ARROW_LENGTH_MM
+    )
+
+
+def _traffic_arrow_layer(mode, offset_mm):
+
+    """
+    One traffic arrow, riding above the route on a marker line.
+
+    Fixed at the line's CENTRAL POINT and drawn once per feature. The
+    draw rules say "the line segment between each pair of anchor points
+    will repeat all information associated with the line segment" - but
+    a route digitized along a real road has many short segments, and
+    repeating an arrow and a label on each is unreadable. Once, centred,
+    at the maintainer's own call, and the same simplification this
+    project already made for Boundary and the FSCL family.
+
+    The offset is PERPENDICULAR and negative, which is QGIS's own "to
+    the left of the direction of travel" - above the line as the
+    template draws it, for a route running left to right.
+    """
+
+    glyph = QgsSvgMarkerSymbolLayer("")
+
+    glyph.setSize(_arrow_length_mm(mode))
+
+    glyph.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_supply_route_arrow_svg({colour}, {length}, {stroke}, "
+            "'{mode}', 'ALT', {text})".format(
+                colour=_ROUTE_GLYPH_COLOR_EXPRESSION,
+                length=_arrow_length_mm(mode),
+                stroke=_LINE_WIDTH_MM,
+                mode=mode,
+                text=_ALTERNATING_TEXT_MM,
+            )
+        )
+    )
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, glyph)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(Qgis.MarkerLinePlacement.CentralPoint)
+
+    marker_line.setRotateSymbols(True)
+
+    marker_line.setOffset(-offset_mm)
+
+    marker_line.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+    return marker_line
+
+
+def _supply_route_symbol(measure_type):
+
+    """
+    One of Table H-XXIII's eight supply routes - the road itself, plus
+    whichever traffic arrows this variant carries.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setColor(QColor(0, 0, 0))
+
+    line_layer.setWidth(_LINE_WIDTH_MM)
+
+    _apply_affiliation_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, line_layer)
+
+    for index, mode in enumerate(_TRAFFIC_ARROWS[measure_type]):
+
+        symbol.appendSymbolLayer(
+            _traffic_arrow_layer(
+                mode,
+                _ARROW_OFFSET_MM + index * _ARROW_SPACING_MM,
+            )
+        )
+
+    return symbol
+
+
+def _label_offset_mm(measure_type):
+
+    """
+    How far above the line the "MSR CAMEL" label sits - clear of
+    whatever arrows this variant stacked there, so the reading order is
+    always line, then arrows, then label.
+    """
+
+    arrows = len(_TRAFFIC_ARROWS[measure_type])
+
+    if not arrows:
+        return _LABEL_CLEARANCE_MM
+
+    topmost = _ARROW_OFFSET_MM + (arrows - 1) * _ARROW_SPACING_MM
+
+    # Half the glyph's own drawn height, which is its arrowhead - see
+    # mct_supply_route_arrow_svg(), where the head's half-width is a
+    # thirteenth of the length.
+    half_height = max(
+        _arrow_length_mm(mode) / 13.0
+        for mode in _TRAFFIC_ARROWS[measure_type]
+    )
+
+    return topmost + half_height + _LABEL_CLEARANCE_MM
+
+
+_LINE_SYMBOL_BUILDERS = {
+    measure_type: (lambda measure_type=measure_type:
+                   _supply_route_symbol(measure_type))
+    for measure_type in LINE_MEASURE_TYPE_LABELS
+}
+
+
+def _configure_lines_labeling(layer):
+
+    """
+    One label per feature, centred, upright and clear of the arrows.
+
+    Upright rather than following the line, the same call already made
+    for Table H-XIV's own bearing lines: a route drawn right-to-left or
+    steeply downhill would otherwise read upside-down. That means an
+    OverPoint label on the line's own centre rather than Line placement,
+    and a per-variant vertical offset so it clears however many arrows
+    are stacked underneath it.
+    """
+
+    from qgis.core import QgsRuleBasedLabeling
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    for measure_type in LINE_MEASURE_TYPE_LABELS:
+
+        settings = _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.OverPoint,
+            _LINE_LABEL_EXPRESSION,
+            label_geometry_expression=(
+                "line_interpolate_point($geometry, length($geometry) / 2)"
+            ),
+            quadrant=Qgis.LabelQuadrantPosition.Above,
+        )
+
+        settings.yOffset = -_label_offset_mm(measure_type)
+
+        settings.offsetUnits = Qgis.RenderUnit.Millimeters
+
+        rule = QgsRuleBasedLabeling.Rule(settings)
+
+        rule.setFilterExpression(
+            "\"measure_type\" = '{}'".format(measure_type)
+        )
+
+        rule.setDescription(measure_type)
+
+        root_rule.appendChild(rule)
+
+    layer.setLabeling(QgsRuleBasedLabeling(root_rule))
+
+    layer.setLabelsEnabled(True)
+
+
+def create_supply_routes_lines_layer(name=LINES_LAYER_NAME):
+
+    """Table H-XXIII's own eight supply routes, 330300-330403."""
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(
+        f"LineString?crs={crs.authid()}",
+        name,
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("length_km", QMetaType.Type.Double),
+        ]
+    )
+
+    layer.updateFields()
+
+    measure_type_idx = layer.fields().indexOf("measure_type")
+
+    layer.setEditorWidgetSetup(
+        measure_type_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(LINE_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        measure_type_idx,
+        QgsDefaultValue("'msr'")
+    )
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("length_km"),
+        QgsDefaultValue("mct_length_km($geometry)", True)
+    )
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
+    )
+
+    _configure_lines_labeling(layer)
+
+    return layer
+
+
+def add_supply_routes_lines_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        LINES_LAYER_NAME,
+        create_supply_routes_lines_layer,
+    )
 
 
 def create_supply_points_layer(name=POINTS_LAYER_NAME):

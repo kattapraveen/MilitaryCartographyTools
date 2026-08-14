@@ -8054,6 +8054,47 @@ the kind of thing that looks plausible and is 90 degrees out.
 
 53 symbols left, in 4 units. 1120 tests passing on both QGIS versions.
 
+### Table H-XXIII's eight supply routes (2026-08-14)
+
+Eight codes, **one construction** - which is the whole reason this unit
+was worth doing before the bigger ones. The MSR and ASR halves differ
+only in the abbreviation they label with; the three traffic variants
+differ only in which arrows ride above the line. One symbol function,
+one label expression, one glyph function.
+
+**The unnumbered choices went to the maintainer BEFORE building**, not
+after - the lesson from Table H-XIX, where every guess at a dimension
+the standard omits needed correcting and every question asked first did
+not. Arrow 12 mm, 3 mm above the line, 3 mm between the pair, label
+2 mm clear of the topmost arrow, and everything drawn **once per
+feature, centred**.
+
+That last one is a deliberate departure from the text. The draw rules
+say "the line segment between each pair of anchor points will repeat
+all information associated with the line segment" - but a route
+digitized along a real road has dozens of short segments, and an arrow
+and a label on each is unreadable. Same call already made for Boundary
+and the FSCL family; made explicitly here rather than by drift.
+
+**Two things the first render caught**, both against the standard's own
+examples rather than by eye:
+
+- **Two Way had its arrows the wrong way up.** "MSR SUMMER" draws the
+  arrow WITH the direction of travel ABOVE the one against it; the
+  build had them swapped. The arrow tuple is now ordered outward from
+  the line, which makes that ordering explicit rather than incidental.
+- **Alternating's "ALT" ate its own shafts.** The text size was derived
+  from the glyph's length, so lengthening the assembly enlarged the
+  word too and the two heads stayed pressed against it. The size is an
+  explicit argument now, and lengthening buys shaft.
+
+The arrows are marker glyphs in millimetres, the same page-unit
+technique as Navigational's flanks and Fortified Line's rampart. The
+glyph colour reaches the SVG as a STRING for the same reason as ever -
+`color_rgb()` yields a bare "0,0,255" that an SVG silently ignores.
+
+45 symbols left, in 3 units. 1127 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
@@ -8076,9 +8117,9 @@ the kind of thing that looks plausible and is 90 degrees out.
 ## Appendix H — what is left to construct (audited 2026-08-14)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **53 symbols in 4 units** (54 in 5 until Maritime's own
-Navigational was built on 2026-08-14), and every one of them is a LINE
-or an AREA - not a coincidence, since milsymbol renders points and nothing
+is **45 symbols in 3 units** (54 in 5 before Maritime's Navigational
+and H-XXIII's eight supply routes were built on 2026-08-14), and every
+one of them is a LINE or an AREA - not a coincidence, since milsymbol renders points and nothing
 else, so the whole remainder is hand-built QGIS symbology.
 
 **The total was wrong until 2026-08-14** - written as 53, then 52, by
@@ -8092,7 +8133,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 | Unit | Table | Left | What |
 |---|---|---|---|
 | 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
-| 2 | H-XXIII Supply | 17 | 7 holding/support areas; 10 lines (Moving/Halted Convoy, MSR and ASR each with three traffic variants) |
+| 2 | H-XXIII Supply | 9 | 7 holding/support areas; 2 lines (Moving and Halted Convoy). **The 8 supply routes were built 2026-08-14.** |
 | 3 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line |
 | 4 | H-XVIII Target Acquisition | 2 | Weapon/Sensor Range Fan - Circular, Sector |
 | ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |

@@ -1357,6 +1357,20 @@ There's no "Symbol Set" field on any of them the way the Units layer
 has one — these only ever draw from Appendix H's control-measure set,
 so there's nothing to choose between.
 
+**Supply Routes (Lines)** comes with the same menu entry — Table
+H-XXIII's eight route codes, which are really one construction: **Main**
+or **Alternate** Supply Route, each plain or carrying **one-way**,
+**two-way** or **alternating** traffic arrows. Digitize along the road
+with as many points as you like; the label (`MSR CAMEL`, `ASR 3`) and
+the arrows are drawn **once, centred**, and stay upright whichever way
+you draw the line.
+
+The standard's own draw rules say that information repeats on *every*
+segment between anchor points. That's deliberately not done here — a
+route traced along a real road has dozens of short segments, and an
+arrow and label on each is unreadable. Same simplification already made
+for Boundary and the Fire Support lines.
+
 **Two things to know.** NATO Multiple Supply Class Point draws the same
 plain box as General Supply Point, with no icon of its own — that is the
 standard's doing, and the Supply class field above is what tells the two

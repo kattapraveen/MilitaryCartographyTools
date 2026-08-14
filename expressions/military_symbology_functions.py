@@ -3161,6 +3161,168 @@ def mct_retain_letter_point(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_supply_route_arrow_svg',
+    group='Military Cartography Tools'
+)
+def mct_supply_route_arrow_svg(values, feature=None, parent=None):
+
+    """
+    One traffic arrow for Table H-XXIII's own supply routes (330301-
+    330303, 330401-330403), as an inline "base64:<...>" SVG.
+
+    `mode` picks which of the table's three variants this is:
+
+    - "forward"     - one arrow along the direction of travel (One Way)
+    - "backward"    - one arrow against it (the second of Two Way's pair)
+    - "alternating" - a head at BOTH ends with "ALT" set into the gap
+                      between them, which is how the standard draws
+                      Alternating Traffic: a literal "<- ALT ->".
+
+    **The heads are FILLED**, unlike every arrowhead this project has
+    drawn so far. That is not an inconsistency: the open heads on
+    Contain and Retain were open because the solid triangles on those
+    pages turned out to be annotation pointers to the "PT. 1" labels
+    rather than symbol geometry. Here the arrows ARE the symbol - they
+    appear in the EXAMPLE column, filled, on a route that has no
+    anchor-point callouts at all.
+
+    Sized in MILLIMETRES on the page, like Navigational's own flanks and
+    for the same reason - the route's length is the user's, the arrow's
+    is the standard's. The viewBox is symmetric about the origin so the
+    glyph centres on whatever point the marker line puts it at, and one
+    viewBox unit is one millimetre (QGIS sizes an SVG marker by its
+    WIDTH, so the caller sets the marker size to `length_mm`).
+    """
+
+    colour = str(values[0]) if values and values[0] else "rgb(0,0,0)"
+    length = float(values[1]) if len(values) > 1 and values[1] else 12.0
+    stroke = float(values[2]) if len(values) > 2 and values[2] else 0.4
+    mode = str(values[3]) if len(values) > 3 and values[3] else "forward"
+    text = str(values[4]) if len(values) > 4 and values[4] else "ALT"
+
+    # Explicit rather than a fraction of the glyph, which is the whole
+    # point: the text is the same size whatever the assembly's length,
+    # so lengthening the glyph buys shaft rather than bigger letters.
+    # Deriving it from the length instead made the first Alternating
+    # render two heads pressed against the word with no shaft at all,
+    # and lengthening the glyph changed nothing.
+    text_height = (
+        float(values[5]) if len(values) > 5 and values[5]
+        else length / 3.6
+    )
+
+    if length <= 0:
+        return ""
+
+    half = length / 2.0
+
+    # Proportions of the arrow itself. Nothing in the standard gives
+    # these - it draws the arrow and never dimensions it - so they are
+    # fractions of the arrow's own length, which keeps the head in
+    # proportion if the length is ever retuned.
+    head_length = length / 6.0
+    head_half_width = length / 13.0
+
+    parts = []
+
+    def head(tip_x, direction):
+
+        base = tip_x - direction * head_length
+
+        return (
+            '<path d="M {tip:.4f},0 L {base:.4f},{up:.4f} '
+            'L {base:.4f},{down:.4f} Z" fill="{colour}" '
+            'stroke="{colour}" stroke-width="{stroke:.4f}"/>'
+        ).format(
+            tip=tip_x, base=base,
+            up=-head_half_width, down=head_half_width,
+            colour=colour, stroke=stroke,
+        )
+
+    if mode == "alternating":
+
+        gap = _text_width_mm(text, text_height) / 2.0 + text_height * 0.3
+
+        parts.append(
+            '<path d="M {left:.4f},0 L {gap_left:.4f},0 M {gap_right:.4f},0 '
+            'L {right:.4f},0" fill="none" stroke="{colour}" '
+            'stroke-width="{stroke:.4f}"/>'.format(
+                left=-half, right=half,
+                gap_left=-gap, gap_right=gap,
+                colour=colour, stroke=stroke,
+            )
+        )
+
+        parts.append(head(-half, -1))
+        parts.append(head(half, 1))
+
+        # Qt's SVG renderer ignores dominant-baseline (established in
+        # symbol_engine.py), so the baseline is placed explicitly: half
+        # the cap height below the centre line puts the text visually
+        # centred on it.
+        parts.append(
+            '<text x="0" y="{y:.4f}" text-anchor="middle" '
+            'font-family="Arial" font-weight="bold" '
+            'font-size="{size:.4f}" fill="{colour}" '
+            'stroke="none">{text}</text>'.format(
+                y=text_height * 0.36, size=text_height,
+                colour=colour, text=text,
+            )
+        )
+
+    else:
+
+        direction = -1 if mode == "backward" else 1
+
+        parts.append(
+            '<path d="M {tail:.4f},0 L {tip:.4f},0" fill="none" '
+            'stroke="{colour}" stroke-width="{stroke:.4f}"/>'.format(
+                tail=-direction * half, tip=direction * half,
+                colour=colour, stroke=stroke,
+            )
+        )
+
+        parts.append(head(direction * half, direction))
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+        ' viewBox="{minx:.4f} {minx:.4f} {size:.4f} {size:.4f}"'
+        ' width="{size:.4f}" height="{size:.4f}">{body}</svg>'
+    ).format(minx=-half, size=length, body="".join(parts))
+
+    return "base64:" + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def _text_width_mm(text, font_size_mm):
+
+    """
+    How wide `text` renders at `font_size_mm`, measured with the same Qt
+    font machinery that will draw it rather than estimated - the same
+    approach symbol_engine.py uses to fit injected amplifier text.
+    """
+
+    try:
+
+        from qgis.PyQt.QtGui import QFont, QFontMetricsF
+
+        font = QFont("Arial", -1)
+        font.setPixelSize(1000)
+        font.setBold(True)
+
+        return (
+            QFontMetricsF(font).horizontalAdvance(text)
+            / 1000.0
+            * font_size_mm
+        )
+
+    except Exception:
+
+        # Arial bold averages a shade over 0.6 em per upper-case
+        # character; only reached if Qt fonts are unavailable.
+        return len(text) * font_size_mm * 0.62
+
+
+@qgsfunction(
     'mct_navigational_flank_svg',
     group='Military Cartography Tools'
 )
@@ -5244,6 +5406,7 @@ _FUNCTIONS = [
     mct_retain_arc_end,
     mct_retain_teeth,
     mct_retain_letter_point,
+    mct_supply_route_arrow_svg,
     mct_navigational_flank_svg,
     mct_rampart_connector_svg,
     mct_rampart_svg,

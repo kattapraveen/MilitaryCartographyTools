@@ -17,6 +17,11 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.supply_points import (
+    add_supply_routes_lines_layer,
+    create_supply_routes_lines_layer,
+    LINES_LAYER_NAME,
+    LINE_MEASURE_TYPE_CODES,
+    LINE_MEASURE_TYPE_LABELS,
     POINTS_LAYER_NAME,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
@@ -76,19 +81,27 @@ class TestSupplyPointVocabulary(QgisTestCase):
             self.assertTrue(POINT_ENTITY_LABELS[entity].startswith("US "))
 
 
-    def test_the_nineteen_unbuilt_rows_are_recorded_not_forgotten(self):
+    def test_every_row_of_the_table_is_accounted_for(self):
 
-        # 18 points + 19 areas/lines = the table's own 37.
-        self.assertEqual(len(TABLE_H_XXIII_REMAINING), 19)
+        # 18 points + 8 supply routes + 11 still unbuilt = the table's
+        # own 37. The routes were built 2026-08-14 and left the unbuilt
+        # list then; this arithmetic is what stops one going missing
+        # between the two.
+        self.assertEqual(len(TABLE_H_XXIII_REMAINING), 11)
 
         self.assertEqual(
-            len(POINT_ENTITY_CODES) + len(TABLE_H_XXIII_REMAINING), 37
+            len(POINT_ENTITY_CODES)
+            + len(LINE_MEASURE_TYPE_CODES)
+            + len(TABLE_H_XXIII_REMAINING),
+            37
         )
 
-        self.assertEqual(
-            set(POINT_ENTITY_CODES.values()) & set(TABLE_H_XXIII_REMAINING),
-            set()
+        built = (
+            set(POINT_ENTITY_CODES.values())
+            | set(LINE_MEASURE_TYPE_CODES.values())
         )
+
+        self.assertEqual(built & set(TABLE_H_XXIII_REMAINING), set())
 
 
     def test_every_entity_is_registered_in_sidc(self):
@@ -484,3 +497,204 @@ class TestSupplyPointsLayer(QgisTestCase):
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0].id(), first.id())
         self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+class TestSupplyRoutesLinesLayer(QgisTestCase):
+
+    """
+    Table H-XXIII's own eight supply routes (330300-330403).
+
+    Eight codes but ONE construction: the MSR and ASR halves differ
+    only in the abbreviation, and the three traffic variants only in
+    which arrows ride above the line. These tests are written against
+    that, so a new variant that breaks the pattern fails loudly.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.iface = FakeIface()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _symbol(self, layer, measure_type):
+
+        rule = next(
+            rule for rule in layer.renderer().rootRule().children()
+            if rule.filterExpression()
+            == f'"measure_type" = \'{measure_type}\''
+        )
+
+        return rule.symbol()
+
+
+    def test_the_eight_codes_match_the_table(self):
+
+        self.assertEqual(
+            set(LINE_MEASURE_TYPE_CODES.values()),
+            {
+                "330300", "330301", "330302", "330303",
+                "330400", "330401", "330402", "330403",
+            }
+        )
+
+        self.assertEqual(
+            set(LINE_MEASURE_TYPE_LABELS), set(LINE_MEASURE_TYPE_CODES)
+        )
+
+
+    def test_each_variant_carries_the_arrows_the_table_draws(self):
+
+        layer = create_supply_routes_lines_layer()
+
+        # Symbol layer 0 is the road itself; the rest are arrows.
+        for measure_type, expected in (
+            ("msr", 0),
+            ("asr", 0),
+            ("msr_one_way", 1),
+            ("asr_one_way", 1),
+            ("msr_two_way", 2),
+            ("msr_alternating", 1),
+        ):
+
+            with self.subTest(measure_type=measure_type):
+
+                symbol = self._symbol(layer, measure_type)
+
+                self.assertEqual(symbol.symbolLayerCount(), expected + 1)
+
+
+    def test_two_way_puts_the_forward_arrow_on_top(self):
+
+        # The standard's own example ("MSR SUMMER") draws the arrow
+        # WITH the direction of travel above the one against it. The
+        # first build had them the other way round.
+        layer = create_supply_routes_lines_layer()
+
+        symbol = self._symbol(layer, "msr_two_way")
+
+        arrows = []
+
+        for index in range(1, symbol.symbolLayerCount()):
+
+            marker_line = symbol.symbolLayer(index)
+
+            expression = marker_line.subSymbol().symbolLayer(
+                0
+            ).dataDefinedProperties().property(
+                QgsSymbolLayer.Property.Name
+            ).expressionString()
+
+            arrows.append((marker_line.offset(), expression))
+
+        # A negative offset is to the LEFT of travel, which is above
+        # the line - so the more negative one is the higher.
+        inner, outer = sorted(arrows, key=lambda arrow: -arrow[0])
+
+        self.assertIn("'backward'", inner[1])
+        self.assertIn("'forward'", outer[1])
+
+        self.assertLess(outer[0], inner[0])
+
+
+    def test_the_label_clears_however_many_arrows_are_stacked(self):
+
+        layer = create_supply_routes_lines_layer()
+
+        offsets = {}
+
+        for rule in layer.labeling().rootRule().children():
+
+            settings = rule.settings()
+
+            offsets[rule.description()] = settings.yOffset
+
+        # Every label sits ABOVE the line, and the more arrows a
+        # variant stacks the further out its own label has to go.
+        for measure_type, offset in offsets.items():
+            self.assertLess(offset, 0.0, measure_type)
+
+        self.assertLess(offsets["msr_two_way"], offsets["msr_one_way"])
+        self.assertLess(offsets["msr_one_way"], offsets["msr"])
+
+
+    def test_the_label_is_the_abbreviation_plus_field_t(self):
+
+        layer = create_supply_routes_lines_layer()
+
+        settings = layer.labeling().rootRule().children()[0].settings()
+
+        expression = QgsExpression(settings.fieldName)
+
+        for measure_type, designation, expected in (
+            ("msr", "CAMEL", "MSR CAMEL"),
+            ("asr_two_way", "winter", "ASR WINTER"),
+            ("msr_alternating", "", "MSR"),
+        ):
+
+            with self.subTest(measure_type=measure_type):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("measure_type", measure_type)
+                feature.setAttribute("unique_designation", designation)
+
+                context = layer.createExpressionContext()
+                context.setFeature(feature)
+
+                self.assertEqual(expression.evaluate(context), expected)
+
+
+    def test_the_alternating_glyph_keeps_a_shaft_either_side_of_alt(self):
+
+        # The first build derived the text size from the glyph's own
+        # length, so lengthening the assembly enlarged the word too and
+        # the heads stayed pressed against it. The size is explicit now.
+        import base64
+        import re
+
+        svg = base64.b64decode(
+            QgsExpression(
+                "mct_supply_route_arrow_svg('rgb(0,0,0)', 20, 0.4, "
+                "'alternating', 'ALT', 3.4)"
+            ).evaluate()[len("base64:"):]
+        ).decode("utf-8")
+
+        self.assertIn(">ALT</text>", svg)
+
+        shaft = re.search(
+            r"M (-?[\d.]+),0 L (-?[\d.]+),0 M (-?[\d.]+),0 L (-?[\d.]+),0",
+            svg
+        )
+
+        left_start, left_end, right_start, right_end = (
+            float(value) for value in shaft.groups()
+        )
+
+        # A real gap in the middle for the word...
+        self.assertLess(left_end, right_start)
+
+        # ...and real shaft outside it, on both sides.
+        self.assertGreater(left_end - left_start, 1.0)
+        self.assertGreater(right_end - right_start, 1.0)
+
+
+    def test_adding_the_layer_inserts_exactly_one(self):
+
+        self.assertIsNotNone(add_supply_routes_lines_layer(self.iface))
+
+        self.assertIsNone(add_supply_routes_lines_layer(self.iface))
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(LINES_LAYER_NAME)), 1
+        )

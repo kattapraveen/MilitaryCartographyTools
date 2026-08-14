@@ -40,6 +40,7 @@ from .military_symbology.sustainment_control_measures import (
 )
 from .military_symbology.supply_points import (
     add_supply_points_layer,
+    add_supply_routes_lines_layer,
 )
 from .military_symbology.mission_task_control_measures import (
     add_mission_task_points_layer,
@@ -1287,9 +1288,11 @@ class MilitaryCartographyTools:
         )
 
         self.supply_points_action.setToolTip(
-            "Add a Supply Points layer (general and medical supply "
-            "points plus the NATO and US supply classes - Table "
-            "H-XXIII)"
+            "Add the Table H-XXIII layers: Supply Points (general and "
+            "medical supply points plus the NATO and US supply "
+            "classes) and Supply Routes (Lines) (Main and Alternate "
+            "Supply Routes, each plain or with one-way, two-way or "
+            "alternating traffic arrows)"
         )
 
         self.supply_points_action.triggered.connect(
@@ -2425,14 +2428,20 @@ class MilitaryCartographyTools:
 
     def create_supply_points(self):
         """
-        Add a "Supply Points" layer - Table H-XXIII's own eighteen
-        point symbols, general and medical supply points plus the NATO
-        and US supply classes (MIL-STD-2525D Appendix H.5.25). That
-        table's own areas and lines are not built; see
+        Add Table H-XXIII's own two layers (MIL-STD-2525D Appendix
+        H.5.25): "Supply Points", its eighteen point symbols - general
+        and medical supply points plus the NATO and US supply classes -
+        and "Supply Routes (Lines)", the Main and Alternate Supply
+        Routes with their traffic variants. That table's own seven
+        sustainment AREAS and its two convoy lines are not built; see
         supply_points.py's own docstring.
         """
 
         add_supply_points_layer(
+            self.iface
+        )
+
+        add_supply_routes_lines_layer(
             self.iface
         )
 
