@@ -1326,19 +1326,29 @@ fill in the attribute form:
   friendly/neutral/unknown draw in black, hostile draws in red.
 - **Entity** — which point control measure this is.
 - **Status** — Present or Planned.
-- **Unique designation** — Field T, drawn beside the symbol.
+- **Unique designation** — drawn in **Field T1**, inside the lower part
+  of the box, which is where every template in these two tables puts it
+  ("1AD", "3SUST", "MNSE" in the standard's own examples). The ten US
+  supply classes are the exception: their icons have no T1 position at
+  all, so theirs draws in Field T, outside the box to its upper right.
+- **Supply class** — Supply Points only, and drawn only on **NATO
+  Multiple Supply Class Point**, whose box otherwise carries no icon of
+  its own. Pick one to three classes, or ALL. The list stops at three
+  because the template's own A field is three sub-fields wide (A/A1/A2)
+  and there is nowhere to put a fourth; a long combination is shrunk to
+  fit the box.
 
 There's no "Symbol Set" field on any of them the way the Units layer
 has one — these only ever draw from Appendix H's control-measure set,
 so there's nothing to choose between.
 
 **Two things to know.** NATO Multiple Supply Class Point draws the same
-plain box as General Supply Point: the standard gives it no icon of its
-own, only a user-typed A field ("I/III/V", or "ALL"), and that field
-isn't offered on these layers yet. And Table H-XXIII's own eight
-holding/support areas and eleven convoy and supply-route lines are not
-built — see `military_symbology/supply_points.py` for the full audit of
-what remains.
+plain box as General Supply Point, with no icon of its own — that is the
+standard's doing, and the Supply class field above is what tells the two
+apart on the map. And Table H-XXIII's own eight holding/support areas and
+eleven convoy and supply-route lines are not built — see
+`military_symbology/supply_points.py` for the full audit of what
+remains.
 
 ### Intelligence Control Measures
 

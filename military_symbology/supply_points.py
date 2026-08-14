@@ -32,26 +32,38 @@ things, so both the entity keys and the labels say which is which
 rather than leaving "Class I" to be guessed at.
 
 **One quirk worth knowing before anyone reports it as a bug**: NATO
-Multiple Supply Class Point (321706) draws the SAME glyph as General
-Supply Point (321700) - the plain supply-point box. That is the
-standard's own doing, not a milsymbol gap: 321706's box carries no
-drawn icon at all, only a user-typed A field ("Use supply class
-numbers (I, II, III, IV and V) for A field or ALL for all classes of
-supply"), and the table's own example fills it with "I/III/V". A test
-pins this as the ONLY glyph collision among the 18, so the known case
-reads as a fact and an accidental one still fails loudly.
+Multiple Supply Class Point (321706) draws the SAME empty box as
+General Supply Point (321700). That is the standard's own doing, not a
+milsymbol gap: 321706's box carries no drawn icon at all, only a
+user-typed A field ("Use supply class numbers (I, II, III, IV and V)
+for A field or ALL for all classes of supply"), and the table's own
+example fills it with "I/III/V". A test pins this as the ONLY glyph
+collision among the 18, so the known case reads as a fact and an
+accidental one still fails loudly.
 
-**That A field is not offered yet.** These layers carry Field T
-(unique designation) and nothing else, which is what the shared
-point-layer builder provides; 321706 is the one row here that is less
-useful without its own amplifier. Recorded rather than quietly
-skipped.
+**That A field is now offered**, as a "Supply class" dropdown - added
+2026-08-14 at the maintainer's own request. Its options are exactly
+what the template permits and no more: the template's own box reads
+A/A1/A2, three sub-fields, so a combination is at most THREE of the
+five classes - every such combination in ascending order, plus "ALL".
+25 combinations and ALL; four classes is not offerable because the
+symbol has nowhere to put the fourth.
+
+**Both of 321706's amplifiers are drawn by this plugin, not by
+milsymbol**, which defines no text option for that icon at all -
+neither the A field nor T1, so its designation drew nothing until now
+either. See symbol_engine.py's own _INJECTED_TEXT: the text is placed
+at coordinates lifted from the sibling icons milsymbol does define
+(321701-321705 for the class numeral's position, 321700 for T1), and
+shrunk to fit the box when a long combination would overrun it.
 
 **Colour: affiliation, not green** - the green is H.5.21.1's own
 explicit obstacles exception and H.5.25 claims nothing like it.
 
 Military Cartography Tools
 """
+
+import itertools
 
 from ._control_measure_shared import add_layer_if_absent
 
@@ -133,7 +145,16 @@ POINT_ENTITY_CODES = {
 # **321706 is not here either, for the opposite reason**: it defines NO
 # text option whatsoever, so neither slot reaches it. See
 # SHARED_GLYPH_CODES above.
+# 321706's own two positions, both injected rather than milsymbol's -
+# see the module docstring. Named here so the entity reads as handled
+# rather than missing.
+_MULTIPLE_CLASS_ENTITY = "supply_point_nato_multiple_class"
+
 POINT_DESIGNATION_SLOTS = {
+    _MULTIPLE_CLASS_ENTITY: "mctFieldT1",
+}
+
+POINT_DESIGNATION_SLOTS.update({
     entity: "uniqueDesignation1"
     for entity in (
         "general_supply_point",
@@ -144,6 +165,46 @@ POINT_DESIGNATION_SLOTS = {
         "supply_point_nato_class_v",
         "medical_supply_point",
     )
+})
+
+
+def _supply_class_combinations():
+
+    """
+    "ALL", then every combination of at most THREE supply classes in
+    ascending order - which is exactly what the template's own A/A1/A2
+    box has room for, and the reason a fourth class is not offered.
+    """
+
+    combinations = {"ALL": "ALL classes of supply"}
+
+    classes = ("I", "II", "III", "IV", "V")
+
+    for size in (1, 2, 3):
+
+        for combination in itertools.combinations(classes, size):
+
+            joined = "/".join(combination)
+
+            combinations[joined] = (
+                "Class {}".format(joined)
+                if size == 1
+                else "Classes {}".format(joined)
+            )
+
+    return combinations
+
+
+SUPPLY_CLASS_LABELS = _supply_class_combinations()
+
+# The A field, offered on the whole layer but drawn only on 321706 -
+# see _EXTRA_TEXT_FIELD_KEYS in _point_symbol_layer.py.
+SUPPLY_CLASS_FIELD = {
+    "name": "supply_class",
+    "labels": SUPPLY_CLASS_LABELS,
+    "default": "ALL",
+    "slot": "mctFieldA",
+    "entities": (_MULTIPLE_CLASS_ENTITY,),
 }
 
 
@@ -208,6 +269,7 @@ def create_supply_points_layer(name=POINTS_LAYER_NAME):
         include_echelon=False,
         include_headquarters=False,
         entity_designation_slots=POINT_DESIGNATION_SLOTS,
+        extra_text_field=SUPPLY_CLASS_FIELD,
     )
 
 

@@ -202,7 +202,7 @@ class TestSustainmentPointsLayer(QgisTestCase):
         #
         # (100, 30) is milsymbol's own T1 anchor here and (150, -30)
         # its Field T one, both read off the rendered markup.
-        self.assertEqual(len(POINT_DESIGNATION_SLOTS), 15)
+        self.assertEqual(len(POINT_DESIGNATION_SLOTS), 16)
 
         for entity in POINT_DESIGNATION_SLOTS:
 
@@ -218,15 +218,15 @@ class TestSustainmentPointsLayer(QgisTestCase):
                 self.assertNotIn('x="150"', designation)
 
 
-    def test_ambulance_exchange_point_can_draw_no_designation_at_all(self):
+    def test_ambulance_exchange_points_designation_is_injected(self):
 
-        # Not an oversight, and not fixable here: its own template has
-        # a T1 box and the standard's own example fills it with "4077",
-        # but milsymbol defines no text option for this icon - neither
-        # T nor T1 - so nothing reaches it. Pinned so the day milsymbol
-        # grows one, this test fails and says so.
-        self.assertNotIn(
-            "ambulance_exchange_point", POINT_DESIGNATION_SLOTS
+        # milsymbol defines no text option for this icon at all -
+        # neither T nor T1 - so its designation drew nothing until the
+        # position was injected here. Both halves are pinned: milsymbol
+        # still draws nothing, and the injected slot does.
+        self.assertEqual(
+            POINT_DESIGNATION_SLOTS["ambulance_exchange_point"],
+            "mctFieldT1"
         )
 
         for slot in ("uniqueDesignation", "uniqueDesignation1"):
@@ -237,6 +237,16 @@ class TestSustainmentPointsLayer(QgisTestCase):
                     "4077",
                     self._render("ambulance_exchange_point", "4077", slot)
                 )
+
+        injected = self._render("ambulance_exchange_point", "4077")
+
+        designation = re.search(
+            r'<text[^>]*>4077</text>', injected
+        ).group(0)
+
+        # The same position its own siblings put T1 in.
+        self.assertIn('x="100"', designation)
+        self.assertIn('y="30"', designation)
 
 
     def test_adding_the_layer_inserts_exactly_one(self):

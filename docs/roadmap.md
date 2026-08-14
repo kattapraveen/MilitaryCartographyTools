@@ -7855,6 +7855,50 @@ tests that will fail the day milsymbol grows one.
 
 1108 tests passing on both QGIS versions.
 
+### Two icons milsymbol draws no text on at all (2026-08-14)
+
+The T1 work above turned up a harder case behind it. **NATO Multiple
+Supply Class Point (321706) and Ambulance Exchange Point (320100)
+define NO milsymbol text option whatsoever** - not Field T, not T1, not
+anything. Both have amplifier boxes in their own templates that the
+standard fills in its own EXAMPLE column ("I/III/V" over "ISAF";
+"4077"), and both drew a bare box no matter what was typed.
+
+So this plugin now draws that text itself, into the returned SVG,
+under slot names of its own (`mctFieldA`, `mctFieldT1`) that
+`render_symbol_svg()` intercepts rather than passing to milsymbol.
+**Every coordinate is lifted from a sibling icon milsymbol does
+define** rather than invented - 321706's two from 321701-321705 and
+321700, 320100's from 320200 - which is what makes the result line up
+with the icons beside it. Three details that had to come across with
+them:
+
+- **The baseline flag is per-slot.** milsymbol draws the class numeral
+  with `dominant-baseline="middle"` and the T1 designation without it.
+  Injection happens BEFORE `_apply_dominant_baseline()` runs, so each
+  slot carries its sibling's own flag and gets the same treatment.
+- **Colour is read off the rendered markup**, not resolved from the
+  affiliation a second time - so injected text follows whatever the
+  icon actually did, monoColor included.
+- **Long text is shrunk to fit the box**, measured with the same Qt
+  font machinery that will draw it. "I/III/V" at the sibling's own 45
+  would overrun the frame.
+
+**The class field itself stops at three classes, and that is the
+template's own limit**: its A field reads A/A1/A2, three sub-fields, so
+the dropdown offers every combination of one, two or three of the five
+NATO classes in ascending order plus ALL - 26 options, and no
+four-class one, because the symbol has nowhere to put a fourth.
+
+The shared point-layer builder gained one opt-in `extra_text_field`
+parameter for this. **One QGIS trap on the way**: the second amplifier
+needs mct_sidc_svg's arguments 4 and 5 skipped, and skipping them with
+NULL blanked the icon entirely - QGIS short-circuits a whole function
+call to NULL the moment any argument is NULL. Empty strings, which the
+function already reads as "not given".
+
+1113 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

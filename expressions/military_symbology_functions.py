@@ -109,6 +109,15 @@ def mct_sidc_svg(values, feature=None, parent=None):
     assumed and has to be checked per icon. A slot passed on an icon
     that doesn't define it is a harmless no-op (confirmed live).
 
+    **A few slots are not milsymbol's at all.** Some icons have an
+    amplifier box in the standard's own template that milsymbol defines
+    NO option for - Table H-XXIII's NATO Multiple Supply Class Point
+    and Table H-XXII's Ambulance Exchange Point both draw as a bare box
+    otherwise. Those positions are drawn by this plugin instead, under
+    the slot names in symbol_engine.INJECTED_TEXT_SLOTS, at coordinates
+    lifted from a sibling icon milsymbol does define; see that module's
+    own _INJECTED_TEXT table.
+
     **2026-08-10 fix, found by the project maintainer's own live
     testing**: every Points layer's own "Unique designation" field
     (c2_measures.py's Points layer, defensive_control_measures.py's,
@@ -147,10 +156,21 @@ def mct_sidc_svg(values, feature=None, parent=None):
     mono_color = str(values[3]) if len(values) > 3 and values[3] else None
     stroke_scale = float(values[4]) if len(values) > 4 and values[4] else None
 
+    # Optional SIXTH and SEVENTH arguments: a SECOND text and its own
+    # slot, for the one icon that needs two amplifiers at once - Table
+    # H-XXIII's NATO Multiple Supply Class Point, which carries its
+    # supply class numbers in field A and its designation in T1. Every
+    # other caller omits them.
+    extra_text = values[5] if len(values) > 5 else None
+    extra_slot = str(values[6]) if len(values) > 6 and values[6] else None
+
     options = {}
 
     if text:
         options[slot] = str(text)
+
+    if extra_text and extra_slot:
+        options[extra_slot] = str(extra_text)
 
     if mono_color:
         options["monoColor"] = mono_color
@@ -204,10 +224,21 @@ def mct_sidc_svg_width(values, feature=None, parent=None):
     mono_color = str(values[3]) if len(values) > 3 and values[3] else None
     stroke_scale = float(values[4]) if len(values) > 4 and values[4] else None
 
+    # Optional SIXTH and SEVENTH arguments: a SECOND text and its own
+    # slot, for the one icon that needs two amplifiers at once - Table
+    # H-XXIII's NATO Multiple Supply Class Point, which carries its
+    # supply class numbers in field A and its designation in T1. Every
+    # other caller omits them.
+    extra_text = values[5] if len(values) > 5 else None
+    extra_slot = str(values[6]) if len(values) > 6 and values[6] else None
+
     options = {}
 
     if text:
         options[slot] = str(text)
+
+    if extra_text and extra_slot:
+        options[extra_slot] = str(extra_text)
 
     if mono_color:
         options["monoColor"] = mono_color

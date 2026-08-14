@@ -133,6 +133,7 @@ def _configure_attribute_form(
     sector2_labels,
     dimension_labels=None,
     default_dimension=None,
+    extra_text_field=None,
 ):
 
     fields = layer.fields()
@@ -236,6 +237,23 @@ def _configure_attribute_form(
 
         layer.setDefaultValueDefinition(sector2_idx, QgsDefaultValue("''"))
 
+    if extra_text_field:
+
+        extra_idx = fields.indexOf(extra_text_field["name"])
+
+        layer.setEditorWidgetSetup(
+            extra_idx,
+            QgsEditorWidgetSetup(
+                "ValueMap",
+                {"map": _value_map(extra_text_field["labels"])}
+            )
+        )
+
+        layer.setDefaultValueDefinition(
+            extra_idx,
+            QgsDefaultValue("'{}'".format(extra_text_field["default"]))
+        )
+
 
 def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides, dimension_symbol_sets=None):
 
@@ -287,6 +305,47 @@ def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides, dime
     return f"CASE {clauses} ELSE '{default_symbol_set}' END"
 
 
+# An `extra_text_field` spec, as passed by a caller that needs one:
+#
+#     {
+#         "name":     the attribute's own name,
+#         "labels":   {stored value: display label} for its dropdown,
+#         "default":  the stored value a new feature starts with,
+#         "slot":     the milsymbol (or injected) option it is drawn in,
+#         "entities": which entities actually draw it,
+#     }
+#
+# One field, opt-in, and one caller so far: Table H-XXIII's own supply
+# class numbers (field A on NATO Multiple Supply Class Point). The
+# field exists on the whole layer - QGIS has no per-value field
+# visibility worth the complexity here - but only the named entities
+# ever draw it, so it reads as blank noise on the others rather than
+# putting text on a symbol that should not have any.
+_EXTRA_TEXT_FIELD_KEYS = ("name", "labels", "default", "slot", "entities")
+
+
+def _extra_text_expression(extra_text_field):
+
+    """
+    The value drawn in the extra field's own slot: the field, upper-cased
+    per H.5.4, but only for the entities that actually carry it.
+    """
+
+    if not extra_text_field:
+        return None
+
+    entities = " OR ".join(
+        f"\"entity\" = '{entity}'"
+        for entity in extra_text_field["entities"]
+    )
+
+    return (
+        f"CASE WHEN {entities} THEN "
+        f"upper(coalesce(\"{extra_text_field['name']}\", '')) "
+        "ELSE '' END"
+    )
+
+
 def _designation_slot_expression(entity_designation_slots):
 
     """
@@ -318,6 +377,7 @@ def _build_renderer(
     dimension_symbol_sets=None,
     entity_marker_size_scales=None,
     entity_designation_slots=None,
+    extra_text_field=None,
 ):
 
     """
@@ -401,10 +461,33 @@ def _build_renderer(
         entity_designation_slots
     )
 
-    expression = (
-        f"mct_sidc_svg({sidc_expression}, {designation_expression}, "
-        f"{designation_slot_expression})"
-    )
+    # A SECOND amplifier, when the caller asked for one - see
+    # _EXTRA_TEXT_FIELD_KEYS. mct_sidc_svg's own arguments 4 and 5
+    # (mono colour, stroke scale) are skipped rather than reordered, so
+    # every other caller's expression is unchanged.
+    #
+    # They are skipped with EMPTY STRINGS, not NULL: QGIS short-circuits
+    # a whole function call to NULL the moment any argument is NULL, so
+    # a NULL placeholder blanks the icon entirely rather than being
+    # ignored. Both are read as "not given" by mct_sidc_svg, the same
+    # way an untouched designation field is.
+    extra_text_expression = _extra_text_expression(extra_text_field)
+
+    if extra_text_expression:
+
+        amplifiers = (
+            f"{designation_expression}, {designation_slot_expression}, "
+            f"'', '', {extra_text_expression}, "
+            f"'{extra_text_field['slot']}'"
+        )
+
+    else:
+
+        amplifiers = (
+            f"{designation_expression}, {designation_slot_expression}"
+        )
+
+    expression = f"mct_sidc_svg({sidc_expression}, {amplifiers})"
 
     symbol = QgsMarkerSymbol()
 
@@ -448,12 +531,11 @@ def _build_renderer(
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
-            "({base}) * mct_sidc_svg_width({sidc}, {text}, "
-            "{slot}) / mct_sidc_svg_width({sidc})".format(
+            "({base}) * mct_sidc_svg_width({sidc}, {amplifiers}) "
+            "/ mct_sidc_svg_width({sidc})".format(
                 base=base_size_expression,
                 sidc=sidc_expression,
-                text=designation_expression,
-                slot=designation_slot_expression,
+                amplifiers=amplifiers,
             )
         )
     )
@@ -484,6 +566,7 @@ def build_single_domain_point_layer(
     default_dimension=None,
     entity_marker_size_scales=None,
     entity_designation_slots=None,
+    extra_text_field=None,
 ):
 
     """
@@ -536,6 +619,12 @@ def build_single_domain_point_layer(
     `default_dimension` sets the field's default value. All three must
     be given together or not at all - dimension_labels' keys and
     dimension_symbol_sets' keys should match exactly.
+
+    `entity_designation_slots` (optional {entity_key: milsymbol option})
+    changes WHERE the unique designation lands on the named entities -
+    see _designation_slot_expression(). `extra_text_field` (optional)
+    adds ONE more dropdown-backed amplifier field, drawn only on the
+    entities that name it - see _EXTRA_TEXT_FIELD_KEYS.
     """
 
     crs = QgsProject.instance().crs()
@@ -571,6 +660,11 @@ def build_single_domain_point_layer(
 
     attributes.append(QgsField("unique_designation", QMetaType.Type.QString))
 
+    if extra_text_field:
+        attributes.append(
+            QgsField(extra_text_field["name"], QMetaType.Type.QString)
+        )
+
     layer.dataProvider().addAttributes(attributes)
 
     layer.updateFields()
@@ -585,6 +679,7 @@ def build_single_domain_point_layer(
         sector2_labels,
         dimension_labels,
         default_dimension,
+        extra_text_field,
     )
 
     layer.setRenderer(
@@ -599,6 +694,7 @@ def build_single_domain_point_layer(
             dimension_symbol_sets,
             entity_marker_size_scales,
             entity_designation_slots,
+            extra_text_field,
         )
     )
 
@@ -634,6 +730,7 @@ def add_single_domain_point_layer(
     default_dimension=None,
     entity_marker_size_scales=None,
     entity_designation_slots=None,
+    extra_text_field=None,
 ):
 
     """
@@ -674,6 +771,7 @@ def add_single_domain_point_layer(
         default_dimension,
         entity_marker_size_scales,
         entity_designation_slots,
+        extra_text_field,
     )
 
     return add_layer_at_default_position(

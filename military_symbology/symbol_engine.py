@@ -88,6 +88,10 @@ def render_symbol_svg(sidc, options=None):
     `new ms.Symbol(sidc, options).asSVG()` - options is milsymbol's own
     options object (e.g. {"size": 35}), passed through as-is. Cached per
     (sidc, options) combination - see _svg_cache's own comment.
+
+    Options naming one of INJECTED_TEXT_SLOTS are NOT milsymbol's: they
+    are drawn here instead, on icons milsymbol gives no text position
+    at all. See _inject_text().
     """
 
     key = _cache_key(sidc, options)
@@ -97,9 +101,21 @@ def render_symbol_svg(sidc, options=None):
 
     engine = _get_engine()
 
+    options = options or {}
+
+    injected = {
+        slot: text for slot, text in options.items()
+        if slot in INJECTED_TEXT_SLOTS
+    }
+
     js = "new ms.Symbol({}, {}).asSVG()".format(
         json.dumps(sidc),
-        json.dumps(options or {})
+        json.dumps(
+            {
+                slot: value for slot, value in options.items()
+                if slot not in INJECTED_TEXT_SLOTS
+            }
+        )
     )
 
     result = engine.evaluate(js)
@@ -113,7 +129,9 @@ def render_symbol_svg(sidc, options=None):
 
     svg = _correct_viewbox(
         sidc,
-        _apply_dominant_baseline(result.toString())
+        _apply_dominant_baseline(
+            _inject_text(sidc, result.toString(), injected)
+        )
     )
 
     _svg_cache[key] = svg
@@ -301,6 +319,177 @@ _VIEWBOX_CORRECTIONS = {
     "213514": _SONOBUOY_FAMILY_VIEWBOX,
     "213515": _SONOBUOY_FAMILY_VIEWBOX,
 }
+
+# ---------------------------------------------------------------
+# Text milsymbol will not draw
+# ---------------------------------------------------------------
+#
+# A handful of Appendix H icons have amplifier boxes in the standard's
+# own template that milsymbol defines NO option for - not the one this
+# project wants, not any at all. Established by probing every icon in
+# the affected tables for which text options it actually accepts and
+# where each one lands, not by reading milsymbol's source (its option
+# NAMING lines up with neither the standard's field naming nor itself
+# across icons).
+#
+# Two so far, both boxes the standard fills in its own EXAMPLE column:
+#
+# - **321706, NATO Multiple Supply Class Point.** Its milsymbol entry
+#   is the bare supply-box path and nothing else. Its template asks for
+#   A/A1/A2 (up to three supply class numbers, or ALL - drawn as one
+#   slash-joined string, "I/III/V" in the standard's own example) plus
+#   T1 below it ("ISAF").
+# - **320100, Ambulance Exchange Point.** Same story, one box: T1,
+#   filled with "4077" in its own example.
+#
+# So the text is drawn HERE, into the returned SVG, at coordinates
+# LIFTED FROM A SIBLING ICON milsymbol does define rather than invented
+# - 321706's two positions from 321701-321705 (the class numeral) and
+# 321700 (T1), 320100's from 320200. Keyed by SIDC digits 11-16, the
+# same key _VIEWBOX_CORRECTIONS uses.
+#
+# Each entry is (x, y, font size, bold, middle-baseline), every field
+# copied from the sibling's own markup - including the last one, which
+# matters: milsymbol draws the class numeral with
+# dominant-baseline="middle" and its T1 designation WITHOUT it, on a
+# plain alphabetic baseline. Injection happens BEFORE
+# _apply_dominant_baseline() runs, so a slot that says middle gets the
+# same correction milsymbol's own labels get, and one that does not is
+# left alone - which is the only way both land where the sibling's do.
+_FIELD_A_SLOT = "mctFieldA"
+_FIELD_T1_SLOT = "mctFieldT1"
+
+_INJECTED_TEXT = {
+    "321706": {
+        _FIELD_A_SLOT: (100, -18.3327, 45, True, True),
+        _FIELD_T1_SLOT: (100, 20, 30, False, False),
+    },
+    "320100": {
+        _FIELD_T1_SLOT: (100, 30, 30, False, False),
+    },
+}
+
+INJECTED_TEXT_SLOTS = frozenset([_FIELD_A_SLOT, _FIELD_T1_SLOT])
+
+# The widest the injected text may be drawn, in icon units. The supply
+# box's own walls are at x=60 and x=140; this leaves a little air
+# inside them. A longer string is scaled down to fit rather than
+# spilling over the frame, which is what "I/III/V" at the sibling's own
+# 45 would do.
+_INJECTED_TEXT_MAX_WIDTH = 72.0
+
+_PATH_STROKE_PATTERN = re.compile(r'<path\b[^>]*\bstroke="([^"]+)"')
+
+
+def _injected_text_colour(svg):
+
+    """
+    The colour milsymbol drew this icon's own frame in.
+
+    Read off the markup rather than resolved from the affiliation
+    again, so injected text follows whatever the icon actually did -
+    including monoColor, which recolours the whole symbol.
+    """
+
+    match = _PATH_STROKE_PATTERN.search(svg)
+
+    return match.group(1) if match else "black"
+
+
+def _fitted_font_size(text, font_size, bold):
+
+    """
+    `font_size`, or smaller if the text would otherwise overrun
+    _INJECTED_TEXT_MAX_WIDTH. Measured with the same Qt font machinery
+    that will draw it, like _text_extent().
+    """
+
+    try:
+
+        from qgis.PyQt.QtGui import QFont, QFontMetricsF
+
+        font = QFont("Arial", -1)
+        font.setPixelSize(1000)
+        font.setBold(bold)
+
+        width = (
+            QFontMetricsF(font).horizontalAdvance(text)
+            / 1000.0
+            * font_size
+        )
+
+    except Exception:
+
+        return font_size
+
+    if width <= _INJECTED_TEXT_MAX_WIDTH:
+        return font_size
+
+    return font_size * _INJECTED_TEXT_MAX_WIDTH / width
+
+
+def _inject_text(sidc, svg, texts):
+
+    """
+    Draws `texts` ({slot: string}) into `svg` at this icon's own
+    positions - see _INJECTED_TEXT for which icons have any and where
+    the numbers come from.
+
+    A slot this icon has no position for is dropped rather than guessed
+    at, the same way milsymbol itself no-ops an option an icon does not
+    define.
+    """
+
+    if not texts:
+        return svg
+
+    positions = _INJECTED_TEXT.get(sidc[10:16])
+
+    if not positions:
+        return svg
+
+    colour = _injected_text_colour(svg)
+
+    elements = []
+
+    for slot, text in sorted(texts.items()):
+
+        text = str(text).strip()
+
+        placement = positions.get(slot)
+
+        if not text or placement is None:
+            continue
+
+        x, y, font_size, bold, middle_baseline = placement
+
+        elements.append(
+            '<text x="{:g}" y="{:g}" text-anchor="middle" '
+            'font-size="{:g}" font-family="Arial"{}{} '
+            'stroke="none" fill="{}" >'
+            "{}</text>".format(
+                x,
+                y,
+                _fitted_font_size(text, font_size, bold),
+                ' font-weight="bold"' if bold else "",
+                ' dominant-baseline="middle"' if middle_baseline else "",
+                colour,
+                _escape_text(text),
+            )
+        )
+
+    if not elements:
+        return svg
+
+    return svg.replace("</svg>", "".join(elements) + "</svg>")
+
+
+def _escape_text(text):
+
+    return (
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    )
+
 
 _VIEWBOX_PATTERN = re.compile(r'viewBox="([^"]*)"')
 

@@ -115,18 +115,25 @@ TABLE_H_XXII_NOT_A_SYMBOL = {
 # outside and above-right, and `uniqueDesignation1` at (100, 30),
 # inside the box's lower part.
 #
-# **Ambulance Exchange Point (320100) is deliberately absent**, and not
-# because its template lacks a T1 box - it has one, and the standard's
-# own example fills it with "4077". milsymbol defines NO text option
-# whatsoever for that icon, neither T nor T1, so no slot reaches it and
-# its designation cannot be drawn at all. The same milsymbol gap Table
-# H-XXIII's own NATO Multiple Supply Class Point has. Recorded rather
-# than quietly skipped.
+# **Ambulance Exchange Point (320100) is the one exception, and its
+# designation is drawn by this plugin rather than by milsymbol.** Its
+# template has a T1 box like every other row here, and the standard's
+# own example fills it with "4077" - but milsymbol defines NO text
+# option for that icon at all, neither T nor T1, so nothing reached it
+# and its designation drew nothing. The same milsymbol gap Table
+# H-XXIII's own NATO Multiple Supply Class Point has, and handled the
+# same way: `mctFieldT1` is not a milsymbol option but an injected one,
+# placed at the position lifted from its own siblings here. See
+# symbol_engine.py's _INJECTED_TEXT.
 POINT_DESIGNATION_SLOTS = {
+    "ambulance_exchange_point": "mctFieldT1",
+}
+
+POINT_DESIGNATION_SLOTS.update({
     entity: "uniqueDesignation1"
     for entity in POINT_ENTITY_CODES
     if entity != "ambulance_exchange_point"
-}
+})
 
 
 def create_sustainment_points_layer(name=POINTS_LAYER_NAME):
