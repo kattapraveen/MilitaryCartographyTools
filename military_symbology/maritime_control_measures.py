@@ -87,8 +87,9 @@ its own reason:
 - **218400 (Navigational)** is not a point at all: its own draw rules
   say "This symbol requires two anchor points. Points 1 and 2 define
   the corner points of the symbol" - a two-vertex hooked line, which is
-  why milsymbol has no point icon for it either. It belongs on the
-  Lines layer as a hand-built construction; not built yet.
+  why milsymbol has no point icon for it either. **Built 2026-08-14 on
+  the LINES layer**, hand-constructed; see _navigational_symbol(). With
+  it, Table H-XIV is closed.
 
 **The whole "(AEGIS only)" family of fixed-graphic overlay constructs
 remains out of scope** (printed pages 467-473, which the maintainer
@@ -114,6 +115,7 @@ from qgis.core import (
     QgsField,
     QgsFieldConstraints,
     QgsLineSymbol,
+    QgsMarkerLineSymbolLayer,
     QgsProject,
     QgsMarkerSymbol,
     QgsProperty,
@@ -170,6 +172,7 @@ __all__ = [
 # Table H-XIV, codes 220100-220108 - see module docstring for the much
 # larger AEGIS/ASW-sonar/Sonobuoy family deliberately left out.
 LINE_MEASURE_TYPE_LABELS = {
+    "navigational": "Navigational",
     "bearing_line": "Bearing Line (B)",
     "bearing_line_electronic": "Bearing Line, Electronic (E)",
     "bearing_line_electronic_warfare": "Bearing Line, Electronic Warfare (EW)",
@@ -306,7 +309,138 @@ def _bearing_line_acoustic_ambiguous_symbol():
     return symbol
 
 
+# --- Navigational (218400) ---
+
+# The two corner flanks, in MILLIMETRES on the page, and their angles
+# counter-clockwise from the direction of travel (PT1 toward PT2) - the
+# maintainer's own dictated construction: "at pt 1 draw a line segment
+# of 6mm at 40 deg angle relative to the pt1-pt2 line, at pt2 draw a
+# line at 220deg angle relative to the pt1-pt2 line, 6mm".
+#
+# 220 is 40 + 180, so the pair is anti-parallel - which is exactly the
+# Z the template draws, and the reason the symbol reads the same either
+# way round. The standard's own Size/Shape rule agrees that only the
+# middle run varies: "The symbol varies only in length."
+_NAVIGATIONAL_FLANK_MM = 6.0
+_NAVIGATIONAL_FIRST_ANGLE_DEG = 40.0
+_NAVIGATIONAL_LAST_ANGLE_DEG = 220.0
+
+_NAVIGATIONAL_LINE_WIDTH_MM = 0.4
+
+# A colour STRING for the SVG glyphs, not a QGIS colour. The shared
+# _AFFILIATION_COLOR_EXPRESSION is built from color_rgb(), which
+# evaluates to a bare "0,0,255" - right for a colour property and
+# silently invalid inside an SVG, where it draws the glyph as nothing
+# at all. Same reason field_fortification.py carries its own.
+_NAVIGATIONAL_GLYPH_COLOR_EXPRESSION = (
+    "CASE "
+    "WHEN \"affiliation\" = 'friend' THEN 'rgb(0,0,255)' "
+    "WHEN \"affiliation\" = 'hostile' THEN 'rgb(255,0,0)' "
+    "WHEN \"affiliation\" = 'neutral' THEN 'rgb(0,255,0)' "
+    "WHEN \"affiliation\" = 'unknown' THEN 'rgb(255,255,0)' "
+    "ELSE 'rgb(0,0,0)' "
+    "END"
+)
+
+
+def _navigational_flank_layer(placement, angle_deg):
+
+    """
+    One corner flank, as a glyph on a marker line.
+
+    `setRotateSymbols(True)` is what makes the angle RELATIVE to the
+    line: QGIS turns the marker with the segment it sits on, and the
+    glyph itself is drawn at `angle_deg` from its own +x axis, so the
+    two compose to "so many degrees off the direction of travel".
+
+    The marker's size is TWICE the flank length, because the glyph's
+    viewBox is symmetric about the origin so it can centre on the
+    vertex - and QGIS sizes an SVG marker by its width.
+    """
+
+    glyph = QgsSvgMarkerSymbolLayer("")
+
+    glyph.setSize(_NAVIGATIONAL_FLANK_MM * 2.0)
+
+    glyph.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_navigational_flank_svg({colour}, {length}, {angle}, "
+            "{stroke})".format(
+                colour=_NAVIGATIONAL_GLYPH_COLOR_EXPRESSION,
+                length=_NAVIGATIONAL_FLANK_MM,
+                angle=angle_deg,
+                stroke=_NAVIGATIONAL_LINE_WIDTH_MM,
+            )
+        )
+    )
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, glyph)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(placement)
+
+    marker_line.setRotateSymbols(True)
+
+    return marker_line
+
+
+def _navigational_symbol():
+
+    """
+    Navigational (218400) - the last row of Table H-XIV, and the only
+    one of its hazards that is a LINE rather than a point, which is why
+    milsymbol has no icon for it: "This symbol requires two anchor
+    points. Points 1 and 2 define the corner points of the symbol."
+
+    The clicked points are the CORNERS, not the ends: the run between
+    them is drawn as given, and each corner grows a fixed 6 mm flank.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setColor(QColor(0, 0, 0))
+
+    line_layer.setWidth(_NAVIGATIONAL_LINE_WIDTH_MM)
+
+    _apply_affiliation_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, line_layer)
+
+    symbol.appendSymbolLayer(
+        _navigational_flank_layer(
+            Qgis.MarkerLinePlacement.FirstVertex,
+            _NAVIGATIONAL_FIRST_ANGLE_DEG,
+        )
+    )
+
+    symbol.appendSymbolLayer(
+        _navigational_flank_layer(
+            Qgis.MarkerLinePlacement.LastVertex,
+            _NAVIGATIONAL_LAST_ANGLE_DEG,
+        )
+    )
+
+    return symbol
+
+
 _LINE_SYMBOL_BUILDERS = {
+    "navigational": _navigational_symbol,
     "bearing_line": _bearing_line_symbol,
     "bearing_line_electronic": _bearing_line_symbol,
     "bearing_line_electronic_warfare": _bearing_line_symbol,

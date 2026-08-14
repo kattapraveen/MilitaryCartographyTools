@@ -3161,6 +3161,68 @@ def mct_retain_letter_point(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_navigational_flank_svg',
+    group='Military Cartography Tools'
+)
+def mct_navigational_flank_svg(values, feature=None, parent=None):
+
+    """
+    One of Navigational's own two corner flanks (Table H-XIV, 218400),
+    as an inline "base64:<...>" SVG for a marker.
+
+    **A glyph rather than generated geometry, because the length is in
+    MILLIMETRES.** The standard's own draw rules say the symbol "varies
+    only in length" - the two clicked points set the middle run, and the
+    flanks are a fixed size on the page whatever the map scale. Nothing
+    inside a geometry generator can express that: `@map_scale` does not
+    resolve there (probed, twice), so anything in page units has to be a
+    mm-sized symbol layer or a marker glyph. Same reasoning as Fortified
+    Line's own rampart tile.
+
+    `angle_deg` is measured COUNTER-CLOCKWISE from the direction of
+    travel, PT1 toward PT2 - 40 at the first vertex and 220 at the last,
+    per the maintainer's own dictated construction, which is 180 apart
+    and so draws the anti-parallel pair the template shows.
+
+    The viewBox is square and symmetric about the origin so the glyph
+    centres on the vertex the marker line puts it at, with the segment
+    radiating from that centre. One viewBox unit is one millimetre, and
+    QGIS sizes an SVG marker by its WIDTH - so the caller sets the
+    marker size to TWICE `length_mm`, not to `length_mm`.
+    """
+
+    colour = str(values[0]) if values and values[0] else "rgb(0,0,0)"
+    length = float(values[1]) if len(values) > 1 and values[1] else 6.0
+    angle = float(values[2]) if len(values) > 2 and values[2] is not None else 40.0
+    stroke = float(values[3]) if len(values) > 3 and values[3] else 0.4
+
+    if length <= 0:
+        return ""
+
+    radians = math.radians(angle)
+
+    # SVG's own y axis points DOWN, so a counter-clockwise angle on the
+    # map is a negative y here.
+    end_x = length * math.cos(radians)
+    end_y = -length * math.sin(radians)
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+        ' viewBox="{minx:.4f} {minx:.4f} {size:.4f} {size:.4f}"'
+        ' width="{size:.4f}" height="{size:.4f}">'
+        '<path d="M 0,0 L {end_x:.4f},{end_y:.4f}" fill="none"'
+        ' stroke="{colour}" stroke-width="{stroke:.4f}"'
+        ' stroke-linecap="butt"/></svg>'
+    ).format(
+        minx=-length, size=length * 2.0,
+        end_x=end_x, end_y=end_y,
+        colour=colour, stroke=stroke,
+    )
+
+    return "base64:" + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+@qgsfunction(
     'mct_rampart_connector_svg',
     group='Military Cartography Tools'
 )
@@ -5182,6 +5244,7 @@ _FUNCTIONS = [
     mct_retain_arc_end,
     mct_retain_teeth,
     mct_retain_letter_point,
+    mct_navigational_flank_svg,
     mct_rampart_connector_svg,
     mct_rampart_svg,
     mct_overhead_wire_tower_svg,

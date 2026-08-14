@@ -8017,6 +8017,43 @@ symbols in five units, all lines and areas - recounted from each
 module's own audit the same day, the ledger's summary line having
 drifted from its own rows.
 
+### Maritime Navigational (218400) built; Table H-XIV closed (2026-08-14)
+
+The first of the 54 remaining line/area symbols, and the smallest unit:
+one row, and it closes Table H-XIV outright.
+
+Built to the maintainer's own dictated construction - "user clicks pt1
+and pt2, draw a line joining them, at pt 1 draw a line segment of 6mm
+at 40 deg angle relative to the pt1-pt2 line, at pt2 draw a line at
+220deg angle relative to the pt1-pt2 line, 6mm" - and checked against
+the template, which draws exactly that Z. 220 is 40 + 180, so the pair
+is anti-parallel and the symbol reads the same whichever way round the
+two points were clicked.
+
+**The flanks are marker GLYPHS, not generated geometry, because 6 mm is
+a page unit.** The standard's own Size/Shape rule agrees that only the
+middle run varies ("The symbol varies only in length"), and nothing
+inside a geometry generator can express millimetres - `@map_scale` does
+not resolve there, probed twice. Same reasoning as Fortified Line's own
+rampart tile. `setRotateSymbols(True)` on each marker line is what makes
+the angle relative to the direction of travel rather than to north.
+
+Two details carried over from earlier rounds rather than rediscovered:
+the glyph's viewBox is symmetric about the origin so it centres on the
+vertex, which means the marker size is TWICE the flank length (QGIS
+sizes an SVG marker by its width); and the colour reaches the SVG as a
+STRING, since the shared `_AFFILIATION_COLOR_EXPRESSION` is built from
+`color_rgb()`, which evaluates to a bare "0,0,255" - valid for a colour
+property, silently invalid inside an SVG, and it draws the glyph as
+nothing at all. That one cost a debugging round on H-XIX's towers.
+
+**Verified by measuring the render, not by eye**: the drawn flanks come
+out at 40.0 and 219 degrees relative to the line for east, west and
+north-east headings alike. QGIS's marker-rotation convention is exactly
+the kind of thing that looks plausible and is 90 degrees out.
+
+53 symbols left, in 4 units. 1120 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order
@@ -8039,8 +8076,9 @@ drifted from its own rows.
 ## Appendix H — what is left to construct (audited 2026-08-14)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **54 symbols in 5 units**, and every one of them is a LINE or an
-AREA - not a coincidence, since milsymbol renders points and nothing
+is **53 symbols in 4 units** (54 in 5 until Maritime's own
+Navigational was built on 2026-08-14), and every one of them is a LINE
+or an AREA - not a coincidence, since milsymbol renders points and nothing
 else, so the whole remainder is hand-built QGIS symbology.
 
 **The total was wrong until 2026-08-14** - written as 53, then 52, by
@@ -8057,7 +8095,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 | 2 | H-XXIII Supply | 17 | 7 holding/support areas; 10 lines (Moving/Halted Convoy, MSR and ASR each with three traffic variants) |
 | 3 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line |
 | 4 | H-XVIII Target Acquisition | 2 | Weapon/Sensor Range Fan - Circular, Sector |
-| 5 | H-XIV Maritime | 1 | Navigational (218400), a two-vertex hooked line |
+| ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |
 
 Each module records its own unbuilt rows by CODE, with a test asserting
 built + unbuilt equals the printed table's own count:

@@ -994,7 +994,17 @@ this section is heavily curated as a result, and (unlike every other
 Appendix H section built so far) has no Areas layer at all, since the
 table's own content never reaches an "Areas" heading.
 
-**Lines** offers the **Bearing Line** family — a simple 2-point line
+**Lines** offers **Navigational** plus the **Bearing Line** family.
+
+**Navigational** is the hazard-marker Z: click the two corner points and
+it draws the run between them, then a fixed **6 mm** flank at each
+corner — 40° off the direction of travel at the first, 220° at the
+second. Those two are 180° apart, so the symbol reads the same whichever
+way round you click. The flanks stay 6 mm on the page at any zoom, which
+is the standard's own rule that the symbol "varies only in length"; only
+the middle run grows.
+
+The **Bearing Line** family is a simple 2-point line
 with a fixed abbreviation centred along it: **Bearing Line (B)**,
 **Electronic (E)**, **Electronic Warfare (EW)**, **Acoustic (A)**,
 **Acoustic (Ambiguous)** (a separate, always-dashed SIDC code, not a

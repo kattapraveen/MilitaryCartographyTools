@@ -17,6 +17,7 @@ from qgis.core import (
     QgsExpression,
     QgsFeature,
     QgsFieldConstraints,
+    QgsMarkerLineSymbolLayer,
     QgsProject,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -182,6 +183,107 @@ class TestCreateMaritimeControlMeasuresLinesLayer(QgisTestCase):
                 for measure_type in LINE_MEASURE_TYPE_LABELS
             }
         )
+
+
+    def test_navigational_draws_two_fixed_millimetre_flanks(self):
+
+        # Table H-XIV's own last row, and the only one of its hazards
+        # that is a line. The flanks are 6 mm on the PAGE - the draw
+        # rules say the symbol "varies only in length" - so they are
+        # marker glyphs, not generated geometry: nothing inside a
+        # geometry generator can express page units, @map_scale not
+        # resolving there.
+        layer = create_maritime_control_measures_lines_layer()
+
+        rule = next(
+            rule for rule in layer.renderer().rootRule().children()
+            if rule.filterExpression() == '"measure_type" = \'navigational\''
+        )
+
+        symbol = rule.symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 3)
+
+        flanks = [
+            symbol.symbolLayer(index)
+            for index in range(symbol.symbolLayerCount())
+            if isinstance(symbol.symbolLayer(index), QgsMarkerLineSymbolLayer)
+        ]
+
+        self.assertEqual(len(flanks), 2)
+
+        self.assertEqual(
+            [flank.placements() for flank in flanks],
+            [
+                Qgis.MarkerLinePlacement.FirstVertex,
+                Qgis.MarkerLinePlacement.LastVertex,
+            ]
+        )
+
+        for flank, angle in zip(flanks, (40.0, 220.0)):
+
+            # Rotating with the line is what makes the angle RELATIVE
+            # to the direction of travel rather than to north.
+            self.assertTrue(flank.rotateSymbols())
+
+            glyph = flank.subSymbol().symbolLayer(0)
+
+            # Twice the flank length: the glyph's viewBox is symmetric
+            # about the origin so it can centre on the vertex, and QGIS
+            # sizes an SVG marker by its WIDTH.
+            self.assertAlmostEqual(glyph.size(), 12.0)
+
+            expression = glyph.dataDefinedProperties().property(
+                QgsSymbolLayer.Property.Name
+            ).expressionString()
+
+            self.assertIn("mct_navigational_flank_svg(", expression)
+            self.assertIn(f", 6.0, {angle},", expression)
+
+            # A colour STRING, not color_rgb() - the latter evaluates
+            # to a bare "0,0,255", which is silently invalid inside an
+            # SVG and draws the glyph as nothing at all.
+            self.assertIn("'rgb(0,0,255)'", expression)
+            self.assertNotIn("color_rgb", expression)
+
+
+    def test_the_navigational_flanks_are_anti_parallel(self):
+
+        # 220 is 40 + 180, which is what makes the symbol a Z with
+        # rotational symmetry - it reads the same whichever way round
+        # the two points were clicked, and matches the template.
+        # This class does not register the expression functions in
+        # setUp - only the two that evaluate expressions need them.
+        military_symbology_functions.register()
+        self.addCleanup(military_symbology_functions.unregister)
+
+        first = QgsExpression(
+            "mct_navigational_flank_svg('rgb(0,0,0)', 6, 40, 0.4)"
+        ).evaluate()
+
+        last = QgsExpression(
+            "mct_navigational_flank_svg('rgb(0,0,0)', 6, 220, 0.4)"
+        ).evaluate()
+
+        import base64
+        import re
+
+        def endpoint(path):
+            svg = base64.b64decode(path[len("base64:"):]).decode("utf-8")
+            match = re.search(r"L (-?[\d.]+),(-?[\d.]+)", svg)
+            return float(match.group(1)), float(match.group(2))
+
+        fx, fy = endpoint(first)
+        lx, ly = endpoint(last)
+
+        self.assertAlmostEqual(fx, -lx, places=4)
+        self.assertAlmostEqual(fy, -ly, places=4)
+
+        # 6 mm long, both of them.
+        self.assertAlmostEqual((fx ** 2 + fy ** 2) ** 0.5, 6.0, places=4)
+
+        # Counter-clockwise on the map is negative y in SVG.
+        self.assertLess(fy, 0.0)
 
 
     def test_bearing_line_labels_use_the_expected_fixed_characters(self):
