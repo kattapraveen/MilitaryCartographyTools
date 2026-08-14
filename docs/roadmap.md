@@ -7899,6 +7899,36 @@ function already reads as "not given".
 
 1113 tests passing on both QGIS versions.
 
+### Table H-XXI's decontamination points move to Field T1 too (2026-08-14)
+
+The third and last table with this defect, and the one that had
+already been signed off. Raised while fixing H-XXII and H-XXIII -
+their supply/sustainment boxes are the same shape with the same T1
+box - reported to the maintainer rather than changed unilaterally, and
+applied on their instruction.
+
+All ten decontamination points (281800-281809) put their designation
+in Field T, outside and above-right of the box. Every one of their
+templates draws it INSIDE, in T1, and the standard's own examples fill
+it: "1/2COY" under Forward Troop Decontamination Point/Site's own "DCN
+(F) T", "4CBRN" under Wounded Personnel Decontamination Site's "DCN W".
+
+**The eight events are untouched, and that is a finding rather than a
+skip**: they are a different icon family - a wide inverted triangle,
+not the box - and milsymbol gives them exactly one text position, at
+(40, 90) beside the triangle. There is nothing to move.
+
+Worth recording that this table's own test asserted the WRONG
+behaviour, explicitly: it checked the designation landed to the right
+of the box, with a comment noting that uniqueDesignation1 "would have
+put it inside the box, which is the template's T1". The test was
+written to pin a choice that had never been checked against the
+template. It now pins the template's own answer, plus the events'
+single position.
+
+Three tables, one defect, one shared mechanism
+(`entity_designation_slots`). 1114 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

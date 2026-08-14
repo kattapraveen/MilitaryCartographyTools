@@ -153,6 +153,32 @@ POINT_MARKER_SIZE_SCALES = {
     entity: _EVENT_MARKER_SIZE_SCALE for entity in _EVENT_ENTITIES
 }
 
+# **Field T1, not Field T, on the ten decontamination points** - where
+# their own templates put the designation.
+#
+# Every 2818xx template draws it INSIDE the lower part of the box, in
+# the box marked "T1", and the standard's own examples fill it -
+# "1/2COY" under Forward Troop Decontamination Point/Site's own "DCN
+# (F) T", "4CBRN" under Wounded Personnel Decontamination Site's "DCN
+# W". Field T is a separate box outside the symbol, to its upper right.
+# Until 2026-08-14 all ten put it in T.
+#
+# Found while fixing the identical defect on Tables H-XXII and H-XXIII,
+# whose supply/sustainment boxes are the same shape with the same T1
+# box; applied here at the maintainer's own instruction after being
+# raised, since this table had already been signed off. milsymbol
+# exposes the position as `uniqueDesignation1` at (100, 30), against
+# Field T's (150, -30) - probed per icon, not assumed.
+#
+# **The eight EVENTS are deliberately not here.** They are a different
+# icon family - a wide inverted triangle, not the box - and milsymbol
+# gives them one text position only, at (40, 90). Nothing to move.
+POINT_DESIGNATION_SLOTS = {
+    entity: "uniqueDesignation1"
+    for entity in POINT_ENTITY_CODES
+    if entity not in _EVENT_ENTITIES
+}
+
 # --- Audited, NOT built. ---
 #
 # The nine remaining rows of Table H-XXI, all areas or lines, none
@@ -209,6 +235,7 @@ def create_cbrn_defense_points_layer(name=POINTS_LAYER_NAME):
         include_echelon=False,
         include_headquarters=False,
         entity_marker_size_scales=POINT_MARKER_SIZE_SCALES,
+        entity_designation_slots=POINT_DESIGNATION_SLOTS,
     )
 
 

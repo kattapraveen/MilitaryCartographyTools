@@ -1255,10 +1255,15 @@ and its radiation dose-rate contour line are not built yet.
 **Points** offers 18: the **Chemical**, **Biological**, **Nuclear** and
 **Radiological** event markers, a **Toxic Industrial Material** variant
 of the chemical, biological and radiological ones, a **Nuclear Fallout
-Producing Event**, and eleven decontamination point/site types
-(general, alternate, equipment, troops, equipment and troops,
-operational, thorough, main equipment, forward troop, and wounded
-personnel).
+Producing Event**, and ten decontamination point/site types (general,
+alternate, equipment, troops, equipment and troops, operational,
+thorough, main equipment, forward troop, and wounded personnel).
+
+On the ten decontamination points the **unique designation** draws in
+**Field T1**, inside the lower part of the box, which is where their
+templates put it ("1/2COY", "4CBRN" in the standard's own examples).
+The eight event markers are a different shape and have only one text
+position, beside the triangle.
 
 The four CBRN event markers moved here out of the general Control
 Measure Points layer, so they are no longer in that dropdown.

@@ -13,6 +13,7 @@ from .qgis_test_case import FakeIface, QgisTestCase
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     POINTS_LAYER_NAME,
+    POINT_DESIGNATION_SLOTS,
     POINT_MARKER_SIZE_SCALES,
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
@@ -339,15 +340,50 @@ class TestCbrnSmokeTestFixes(QgisTestCase):
 
         svg = base64.b64decode(path[len("base64:"):]).decode("utf-8")
 
-        # Upper-cased per H.5.4, and to the RIGHT of the box, which is
-        # where the template puts Field T - milsymbol's own
-        # uniqueDesignation1 slot would have put it inside the box,
-        # which is the template's T1.
+        # Upper-cased per H.5.4, and INSIDE the box - Field T1, which
+        # is where every 2818xx template draws it ("1/2COY", "4CBRN" in
+        # the standard's own examples). This asserted the opposite until
+        # 2026-08-14, with a comment saying so: the designation was in
+        # Field T, outside and to the right. Corrected across Tables
+        # H-XXI, H-XXII and H-XXIII together, all three being the same
+        # box symbol with the same T1 box.
         self.assertIn(">V2</text>", svg)
 
         placed = re.search(r'<text x="([\d.]+)"[^>]*>V2</text>', svg)
 
-        self.assertGreater(float(placed.group(1)), 140.0)
+        self.assertEqual(float(placed.group(1)), 100.0)
+
+
+    def test_only_the_decontamination_points_moved_to_field_t1(self):
+
+        # The eight EVENTS are a different icon family - a wide
+        # inverted triangle, not the box - and milsymbol gives them one
+        # text position only. Nothing to move, and a slot they do not
+        # define would draw nothing at all.
+        self.assertEqual(len(POINT_DESIGNATION_SLOTS), 10)
+
+        for entity, code in POINT_ENTITY_CODES.items():
+
+            with self.subTest(entity=entity):
+
+                self.assertEqual(
+                    entity in POINT_DESIGNATION_SLOTS,
+                    code.startswith("2818")
+                )
+
+        for entity in ("chemical_event", "nuclear_event"):
+
+            with self.subTest(entity=entity):
+
+                svg = render_symbol_svg(
+                    build_sidc(
+                        "friend", entity, "control_measure",
+                        "unspecified", "present", False
+                    ),
+                    {"uniqueDesignation1": "V2"}
+                )
+
+                self.assertNotIn(">V2</text>", svg)
 
 
     def test_an_empty_designation_leaves_the_icon_alone(self):
