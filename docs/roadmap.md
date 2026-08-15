@@ -8514,6 +8514,55 @@ what a stale claim in a comment costs.
 
 ---
 
+### The remaining 27: plan and decisions taken (2026-08-15)
+
+Agreed with the maintainer before starting, so nothing here is
+guesswork later.
+
+**The two convoys (H-XXIII, 330100/330200).** Both are fully numbered:
+Moving Convoy is two anchor points, PT1 the arrowhead's tip, PT2 the
+rear, "varies only in length"; Halted Convoy is the same body with an
+OPEN triangle instead of a filled head, at least two points, repeating
+per segment - the repeat the supply routes on this layer already do.
+
+**Field A is deliberately not built.** Both examples draw a vehicle
+ICON in the middle box (an M1A2, an M915). The maintainer's own call:
+"drop the Field A, if required, user will insert additionally; lot of
+symbols where we have not included multiple fields". Consistent with
+the rest of this appendix, where partial amplifier sets are the norm.
+
+**Mission Tasks (H-XXIV, 25).** Better specified than the earlier audit
+implied: every row derives its whole shape from numbered anchor points,
+so the only page-unit choices are the arrowhead length, the bracket
+ticks and the letter glyph - all reusing sizes already signed off here.
+Three batches, in this order: **arrows (9), brackets (9 of 12),
+security (4)**.
+
+**Three rows are held back to the very end**, not to be built without
+the maintainer's explicit word: **Block (340100), Disrupt (341000) and
+Fix (341100)**. They are the only three whose names match a symbol
+ALREADY BUILT in this plugin - all three are obstacle effects in
+`obstacle_control_measures.py`, under different codes and different
+drawn forms.
+
+**That number is three, not nine, and the correction matters.** An
+earlier audit recorded nine rows as sharing a name with something
+elsewhere in Appendix H, and this session repeated the figure without
+checking it. Verified against the built vocabularies directly: Breach,
+Bypass, Canalize, Clear, Delay, Isolate, Penetrate, Seize and Withdraw
+have no counterpart built here at all. The near-misses that made the
+old count look right are different names, not the same one - "Obstacle
+Bypass Easy/Difficult/Impossible" and "Penetration Box". Six rows were
+about to be deferred for no reason.
+
+**Destroy (340900), Interdict (341400) and Neutralize (341600) are
+already built** - one-anchor-point X glyphs on the Mission Task Points
+layer, milsymbol-rendered, sized +30%. Which is why the remaining count
+is 25 and not 28. They are back on the tracker at the maintainer's
+request for a second look.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
