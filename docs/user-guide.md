@@ -1258,9 +1258,9 @@ plugin fixes a consistent convention instead.
 
 ### CBRN Defense Control Measures
 
-MIL-STD-2525D Appendix H.5.23 (Table H-XXI) — **points only so far.**
-The table's seven contaminated areas, its Minimum Safe Distance Zone
-and its radiation dose-rate contour line are not built yet.
+MIL-STD-2525D Appendix H.5.23 (Table H-XXI) — two layers, 25 of the
+table's 27 rows. Its Minimum Safe Distance Zone and its radiation
+dose-rate contour line are not built yet.
 
 **Points** offers 18: the **Chemical**, **Biological**, **Nuclear** and
 **Radiological** event markers, a **Toxic Industrial Material** variant
@@ -1281,6 +1281,25 @@ Measure Points layer, so they are no longer in that dropdown.
 Note that **Nuclear Event** and **Nuclear Fallout Producing Event**
 draw the same icon. That is the standard's own doing — it gives them
 separate names and codes but no separate symbol.
+
+**Contaminated Areas** offers seven, one for each of **Biological**,
+**Chemical**, **Nuclear** and **Radiological**, plus a **Toxic
+Industrial Material** variant of all but Nuclear. Digitize the area
+with at least three points; QGIS's own polygon tools do the rest.
+
+Each one draws with a **yellow hatched fill** — the standard's own
+colour for contamination, not an affiliation colour — an outline in the
+usual affiliation colour, solid for present and dashed for planned, and
+the matching **B / C / N / R triangle centred inside it**, with a **T**
+beneath the letter on the Toxic Industrial Material variants. The
+hatching is cut away behind the triangle so the glyph stays readable.
+
+**The triangle sizes itself to the area.** Draw a bigger area and the
+glyph grows with it, always keeping at least 3 mm of clear space
+between itself and the outline at any zoom. In a long thin or
+crescent-shaped area the glyph will look small for its area: it is
+sized to the largest circle that fits inside the shape, which is what
+lets the 3 mm hold for any shape you draw.
 
 ### Target Acquisition Control Measures
 

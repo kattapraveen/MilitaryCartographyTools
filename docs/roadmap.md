@@ -8218,6 +8218,121 @@ than a bare render**:
 
 ---
 
+### Table H-XXI's seven contaminated areas; the last blocker was imaginary (2026-08-15)
+
+The seven contaminated areas (271700-272001) - Biological, Chemical,
+Nuclear and Radiological, each with a Toxic Industrial Material variant
+except Nuclear - built as a new **CBRN Contaminated Areas** polygon
+layer on `cbrn_defense.py`. Table H-XXI now has 25 of its 27 rows; only
+the Minimum Safe Distance Zone and the dose-rate contour line remain,
+and neither is blocked on anything.
+
+**The blocker was a framing error, not a real gap.** These seven had
+been held since 2026-08-13 on this project's own recorded audit: the
+centred triangle carrying B/C/N/R "does not exist in milsymbol", and
+its proportions "are not" given by the standard, so it would have to be
+drawn - and, by the hard-won rule that where the standard is silent you
+ask rather than guess, it was put to the maintainer and left. Their
+answer was one sentence: the appropriate milsymbol inside, masked.
+
+They were right, and the audit was wrong twice over. The triangle in
+every one of the seven template pictures is - path for path - the icon
+milsymbol already draws for the matching EVENT point in this same
+table: 271800 Chemical Contaminated Area carries 281300 Chemical
+Event's own glyph, 271801 carries 281301's (which is where the "T"
+under the letter comes from, for free), and so on for all seven.
+Probed and confirmed before building: all seven event icons render
+into an identical viewBox with an identical triangle path. There were
+no proportions to invent, because there was nothing to draw.
+
+The lesson worth keeping is not "the audit was wrong" but WHERE it went
+wrong: it asked whether the standard specified the glyph before asking
+whether the glyph already existed. Checking milsymbol for the AREA's
+own codes had been done (all seven render nothing at all, which is
+still true and is why the glyph is addressed by the event's entity),
+but not for the icon the picture actually showed.
+
+**The construction.** A yellow hatched fill, an affiliation-coloured
+status-driven outline, and one glyph centred inside, sized to fill the
+area with at least 3 mm of clearance from the outline - the
+maintainer's own specification. Each part had something to learn:
+
+- **The glyph is sized from the polygon's own inscribed circle**, via
+  two new expression functions - `mct_inscribed_centre()` for where the
+  circle sits (the pole of inaccessibility) and
+  `mct_inscribed_radius_mm()` for how big it is. A glyph whose furthest
+  corner sits at (radius - 3 mm) from that circle's centre is, by the
+  definition of the circle, at least 3 mm from every edge, whatever
+  shape the user digitizes. Conservative for a long thin area, where
+  only the two top corners ever reach that far - see the note at the
+  end.
+- **NOT point_on_surface().** Built first on a centroid fill, whose
+  only choice is the true centroid or a point-on-surface, the glyph's
+  corners crossed the outline: the size was right for a circle centred
+  where the glyph wasn't. It draws in a geometry generator at the pole
+  instead, so placement and sizing agree by construction.
+- **The radius is in PAGE millimetres, deliberately not ground
+  metres**, and getting that wrong cost the most time here. Measured
+  geodesically - the way `mct_area_km2()` and every other measurement
+  in this plugin is measured, and a perfectly defensible measurement of
+  the Earth - the glyph rendered 29% oversized, corners well outside
+  the area. A map drawn in a geographic CRS gives a degree of longitude
+  and a degree of latitude the same width on the page while they are
+  not the same distance on the ground. The page is what the 3 mm is
+  measured on, so the radius is measured plainly in map units and only
+  the units-to-millimetres factor is derived on the ellipsoid.
+- **And that factor is asked of QGIS, not recomputed.** The obvious
+  derivation - geodesic width of the extent, divided by its width in
+  map units - is also wrong: for a view 0.2 degrees wide at 28 degrees
+  north it gives 98,344 m per degree, while the number QGIS itself used
+  to arrive at `@map_scale` is 76,402. Since the whole point is to
+  agree with `@map_scale`, `_map_millimetres_per_unit()` recovers it
+  from `QgsScaleCalculator` instead, at an arbitrary reference DPI and
+  pixel width that both cancel exactly.
+- **The hatch is masked behind the triangle**, which is what the
+  maintainer meant by "(masked)" and what the template draws - the
+  hatch stops at the triangle's outline and its interior is clean.
+  A `QgsMaskMarkerSymbolLayer` carrying a filled-triangle SVG in
+  milsymbol's own coordinate system, at the same data-defined size as
+  the glyph, so the cut lands exactly on the drawn triangle.
+
+**Two QGIS findings worth carrying forward**, both established by
+render rather than by reading:
+
+- **A mask nested inside a geometry generator DOES reach a sibling fill
+  layer of the same symbol.** Worth stating because the reverse is not
+  true and this project has hit the reverse twice: a MASKED layer
+  nested inside a geometry generator cannot be reached at all.
+- **Inside a geometry generator's (or a centroid fill's) sub-symbol,
+  `$geometry` is the POINT being drawn, not the feature's polygon** -
+  and so is `geometry(@feature)`'s geometry... except that it isn't:
+  `geometry(@feature)` DOES return the polygon, while `$geometry` does
+  not. The size expression uses the former. `get_feature_by_id(@layer,
+  $id)` also returns it but deadlocked the renderer, and is not used.
+
+**Yellow is the standard's own colour, not an affiliation.** All seven
+templates fill with the same yellow hatch whatever the symbol's
+identity, exactly as Table H-XIX's obstacles are green whatever theirs.
+The outline still follows affiliation per H.5.3, which nothing in
+H.5.23 overrides.
+
+No `unique_designation` field: alone among the areas in this appendix,
+not one of the seven templates carries a text amplifier at all. The
+glyph is the whole symbol.
+
+**One thing for the maintainer to call.** The inscribed-circle rule is
+shape-proof but conservative: in a long thin plume or a crescent - both
+realistic for a downwind hazard area, though neither is what the
+template draws - the largest circle that fits is small, so the glyph
+comes out small with it. Filling those tightly would mean fitting the
+triangle itself rather than its circumcircle, which is a real search
+rather than a formula. Shown in the render alongside the template
+shape.
+
+1161 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
@@ -8235,15 +8350,18 @@ than a bare render**:
 
 ---
 
-## Appendix H — what is left to construct (audited 2026-08-14)
+## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **36 symbols in 2 units**, all of it construction rather than
-correction - every table's own point vocabulary is built and signed
-off, and the only blocker left is one unnumbered glyph. It (54 in 5 before Maritime's Navigational,
-H-XXIII's eight supply routes and its seven sustainment areas were all
-built on 2026-08-14), and every one of them is a LINE or an AREA - not a coincidence, since milsymbol renders points and nothing
-else, so the whole remainder is hand-built QGIS symbology.
+is **29 symbols in 2 units**, all of it construction rather than
+correction, and **nothing in Appendix H is blocked any more** - the one
+standing blocker, the CBRN contaminated areas' centred triangle, turned
+out not to be a blocker at all (see below). It was 36 in 2 before the
+seven contaminated areas were built on 2026-08-15, and 54 in 5 before
+Maritime's Navigational, H-XXIII's eight supply routes and its seven
+sustainment areas were all built on 2026-08-14. Every one of the 29 is
+a LINE or an AREA - not a coincidence, since milsymbol renders points
+and nothing else, so the whole remainder is hand-built QGIS symbology.
 
 **The total was wrong until 2026-08-14** - written as 53, then 52, by
 arithmetic on the summary line rather than on the table's own rows,
@@ -8257,7 +8375,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 |---|---|---|---|
 | 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
 | 2 | H-XXIII Supply | 2 | Moving and Halted Convoy. **The 8 supply routes and 7 sustainment areas were built 2026-08-14.** |
-| 2 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line. **7 of the 9 are the only thing in Appendix H still blocked** - see below. |
+| 2 | H-XXI CBRN | 2 | Minimum Safe Distance Zone, Radiation Dose Rate Contour Line. **The 7 contaminated areas were built 2026-08-15**, and with them the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |
 | ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |
 
@@ -8266,16 +8384,25 @@ built + unbuilt equals the printed table's own count:
 `TABLE_H_XXI_REMAINING`, `TABLE_H_XXIII_REMAINING`,
 `TABLE_H_XXIV_REMAINING`.
 
-**Two sub-groups need a decision before they can start.** The seven
-CBRN contaminated areas are blocked on the unnumbered centred triangle
-glyph (B/C/N/R, optional "T" beneath), which does not exist in
-milsymbol and whose proportions the standard never gives. And unit 4
-was deferred for the same reason Contain/Retain were until
-2026-08-14 - it needs genuinely computed geometry (concentric rings, or
-a sector with an azimuth centreline and left/right limits) rather than
-a digitized polygon. Contain and Retain became buildable the moment the
-maintainer expressed every dimension as a FRACTION OF THE RADIUS, which
-is scale-free; the same trick may or may not apply to the range fans.
+**Nothing is blocked.** Both of the sub-groups that were have since
+been built, and both for the same reason: the maintainer answered a
+question this project had framed too hard.
+
+The seven CBRN contaminated areas were held from 2026-08-13 to
+2026-08-15 on the belief that their centred triangle (B/C/N/R, optional
+"T" beneath) "does not exist in milsymbol" and had proportions the
+standard never gives. Both halves of that were wrong. The triangle in
+every one of the seven template pictures is the icon milsymbol already
+draws for the matching EVENT point in the same table - so there were no
+proportions to invent and nothing to draw. Recording that here rather
+than only in the module, because the failure was one of framing: the
+audit reached "the standard is silent, so ask" without first checking
+whether the thing being asked about already existed. Ask sooner.
+
+Unit 4 was deferred for the same reason Contain/Retain were until
+2026-08-14 - it needed genuinely computed geometry rather than a
+digitized polygon - and was built on 2026-08-14 once the maintainer
+dictated the construction.
 
 **Closed, not pending** (so they never come back as apparent gaps):
 

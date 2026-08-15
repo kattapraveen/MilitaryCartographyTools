@@ -2,8 +2,8 @@
 
 """
 Tests for military_symbology/cbrn_defense.py - Table H-XXI,
-Mini-Phase H18 (points only; see that module's own docstring for the
-nine area/line rows it deliberately leaves unbuilt).
+Mini-Phase H18: the table's 18 points and its 7 contaminated areas.
+Two rows remain unbuilt - see that module's own TABLE_H_XXI_REMAINING.
 
 Military Cartography Tools
 """
@@ -12,6 +12,10 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+    AREAS_LAYER_NAME,
+    AREA_GLYPH_ENTITIES,
+    AREA_MEASURE_TYPE_CODES,
+    AREA_MEASURE_TYPE_LABELS,
     POINTS_LAYER_NAME,
     POINT_DESIGNATION_SLOTS,
     POINT_MARKER_SIZE_SCALES,
@@ -19,7 +23,9 @@ from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     POINT_ENTITY_LABELS,
     SHARED_GLYPH_CODES,
     TABLE_H_XXI_REMAINING,
+    add_cbrn_contaminated_areas_layer,
     add_cbrn_defense_points_layer,
+    create_cbrn_contaminated_areas_layer,
     create_cbrn_defense_points_layer,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
@@ -35,7 +41,12 @@ import re
 
 from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
                        QgsExpressionContext, QgsExpressionContextScope,
-                       QgsFeature, QgsProject, QgsSymbolLayer)
+                       QgsExpressionContextUtils, QgsFeature, QgsGeometry,
+                       QgsLinePatternFillSymbolLayer, QgsMapSettings,
+                       QgsMaskMarkerSymbolLayer, QgsProject,
+                       QgsSimpleLineSymbolLayer, QgsSymbolLayer)
+
+from qgis.PyQt.QtCore import QSize
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
@@ -74,15 +85,23 @@ class TestCbrnVocabulary(QgisTestCase):
                 )
 
 
-    def test_the_nine_unbuilt_rows_are_recorded_not_forgotten(self):
+    def test_the_two_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # The whole table is 27 rows; 18 are built here and the other
-        # nine are areas/lines. Recording them explicitly is what keeps
-        # "not built yet" from looking like "missed".
-        self.assertEqual(len(TABLE_H_XXI_REMAINING), 9)
+        # The whole table is 27 rows: 18 points, 7 contaminated areas,
+        # and the two that remain. Recording them explicitly is what
+        # keeps "not built yet" from looking like "missed".
+        self.assertEqual(len(TABLE_H_XXI_REMAINING), 2)
 
         self.assertEqual(
-            len(POINT_ENTITY_CODES) + len(TABLE_H_XXI_REMAINING), 27
+            len(POINT_ENTITY_CODES)
+            + len(AREA_MEASURE_TYPE_CODES)
+            + len(TABLE_H_XXI_REMAINING),
+            27
+        )
+
+        self.assertEqual(
+            set(TABLE_H_XXI_REMAINING),
+            {"272100", "272200"}
         )
 
         # None of the unbuilt rows is also claimed as built.
@@ -555,3 +574,326 @@ class TestCbrnIconSizeIsHeldStill(QgisTestCase):
                 places=6,
                 msg=designation,
             )
+
+
+# The blobby area the standard's own template pictures draw, as a
+# ring of offsets in degrees around a local origin.
+_TEMPLATE_AREA_WKT = (
+    "POLYGON((0.000 0.000, 0.060 0.010, 0.100 -0.010, 0.120 -0.050,"
+    " 0.080 -0.090, 0.020 -0.100, -0.030 -0.070, -0.040 -0.030,"
+    " 0.000 0.000))"
+)
+
+
+class TestCbrnContaminatedAreaVocabulary(QgisTestCase):
+
+    def test_all_seven_area_codes_are_covered(self):
+
+        self.assertEqual(len(AREA_MEASURE_TYPE_CODES), 7)
+
+        self.assertEqual(
+            set(AREA_MEASURE_TYPE_LABELS), set(AREA_MEASURE_TYPE_CODES)
+        )
+
+        self.assertEqual(
+            set(AREA_MEASURE_TYPE_CODES.values()),
+            {
+                "271700", "271701", "271800", "271801",
+                "271900", "272000", "272001",
+            }
+        )
+
+    def test_every_area_borrows_a_real_event_entity(self):
+
+        # The whole construction rests on the area's glyph being the
+        # matching EVENT point's own icon - so every value here has to
+        # be a real control-measure entity, not a plausible-looking
+        # string.
+        self.assertEqual(
+            set(AREA_GLYPH_ENTITIES), set(AREA_MEASURE_TYPE_CODES)
+        )
+
+        for measure_type, entity in AREA_GLYPH_ENTITIES.items():
+
+            self.assertIn(
+                entity, ENTITIES["control_measure"], measure_type
+            )
+
+            self.assertIn(entity, POINT_ENTITY_CODES, measure_type)
+
+    def test_milsymbol_draws_nothing_for_the_area_codes_themselves(self):
+
+        # The reason the glyph is addressed by the event's entity and
+        # not the area's. If milsymbol ever gains these codes this test
+        # fails, which is the right time to reconsider the indirection.
+        blank = render_symbol_svg(
+            build_sidc(
+                "friend", "chemical_event", symbol_set="control_measure"
+            )[:10] + "9999990000"
+        )
+
+        for code in AREA_MEASURE_TYPE_CODES.values():
+
+            sidc = build_sidc(
+                "friend", "chemical_event", symbol_set="control_measure"
+            )
+
+            drawn = render_symbol_svg(sidc[:10] + code + sidc[16:])
+
+            self.assertEqual(len(drawn), len(blank), code)
+
+    def test_each_toxic_industrial_material_area_gains_a_t(self):
+
+        # The "T" under the letter is the only thing separating a Toxic
+        # Industrial Material area from its plain sibling, and it comes
+        # free from the event icon rather than being added here - so it
+        # is worth pinning that it actually arrives.
+        for measure_type, entity in AREA_GLYPH_ENTITIES.items():
+
+            svg = render_symbol_svg(
+                build_sidc(
+                    "friend", entity, symbol_set="control_measure"
+                )
+            )
+
+            letters = re.findall(r">([^<>]{1,4})</text>", svg)
+
+            if measure_type.endswith("_tim"):
+
+                self.assertEqual(len(letters), 2, measure_type)
+                self.assertEqual(letters[1], "T", measure_type)
+
+            else:
+
+                self.assertEqual(len(letters), 1, measure_type)
+
+
+class TestCbrnContaminatedAreasLayer(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+        self.project = QgsProject.instance()
+        self.project.setCrs(WGS84)
+
+        self.layer = create_cbrn_contaminated_areas_layer()
+
+    def tearDown(self):
+
+        self.project.removeAllMapLayers()
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+    def test_the_layer_builds_and_offers_all_seven(self):
+
+        self.assertTrue(self.layer.isValid())
+        self.assertEqual(self.layer.name(), AREAS_LAYER_NAME)
+
+        rules = self.layer.renderer().rootRule().children()
+
+        self.assertEqual(
+            {rule.label() for rule in rules},
+            set(AREA_MEASURE_TYPE_LABELS)
+        )
+
+    def test_the_fill_is_yellow_hatching_and_the_glyph_masks_it(self):
+
+        symbol = self.layer.renderer().rootRule().children()[0].symbol()
+
+        hatch = symbol.symbolLayer(0)
+
+        self.assertIsInstance(hatch, QgsLinePatternFillSymbolLayer)
+
+        # The colour lives on the sub-symbol's own line layer - setting
+        # it on the pattern-fill layer is silently ignored by QGIS.
+        self.assertEqual(
+            hatch.subSymbol().symbolLayer(0).color().name(), "#ffff00"
+        )
+
+        self.assertIsInstance(
+            symbol.symbolLayer(1), QgsSimpleLineSymbolLayer
+        )
+
+        glyph = symbol.symbolLayer(2).subSymbol()
+
+        self.assertIsInstance(
+            glyph.symbolLayer(0), QgsMaskMarkerSymbolLayer
+        )
+
+        # The mask cuts the hatch specifically, by the stable id the
+        # hatch layer was given.
+        self.assertEqual(
+            [
+                reference.symbolLayerIdV2()
+                for reference in glyph.symbolLayer(0).masks()
+            ],
+            ["cbrn_contaminated_area_hatch"]
+        )
+
+    def test_the_glyph_stays_clear_of_the_outline_by_three_millimetres(self):
+
+        # The point of the whole size expression, measured rather than
+        # asserted on the expression's own text: evaluate the real
+        # size against a real feature in a real map context, then check
+        # the glyph's furthest corner against the polygon's own edge.
+        feature = QgsFeature(self.layer.fields())
+
+        geometry = QgsGeometry.fromWkt(_TEMPLATE_AREA_WKT)
+        geometry.translate(77.0, 28.0)
+
+        feature.setGeometry(geometry)
+        feature.setAttribute("measure_type", "chemical")
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("status", "present")
+
+        self.layer.dataProvider().addFeatures([feature])
+        self.layer.updateExtents()
+
+        self.project.addMapLayer(self.layer)
+
+        settings = QgsMapSettings()
+        settings.setLayers([self.layer])
+        settings.setOutputSize(QSize(800, 800))
+        settings.setOutputDpi(96)
+        settings.setDestinationCrs(WGS84)
+
+        extent = self.layer.extent()
+        extent.grow(0.02)
+        settings.setExtent(extent)
+
+        context = QgsExpressionContext()
+        context.appendScope(QgsExpressionContextUtils.globalScope())
+        context.appendScope(
+            QgsExpressionContextUtils.projectScope(self.project)
+        )
+        context.appendScope(
+            QgsExpressionContextUtils.mapSettingsScope(settings)
+        )
+        context.appendScope(
+            QgsExpressionContextUtils.layerScope(self.layer)
+        )
+        context.setFeature(next(self.layer.getFeatures()))
+
+        size_property = (
+            self.layer.renderer()
+            .rootRule()
+            .children()[0]
+            .symbol()
+            .symbolLayer(2)
+            .subSymbol()
+            .symbolLayer(1)
+            .dataDefinedProperties()
+            .property(QgsSymbolLayer.Property.Size)
+        )
+
+        size_mm = size_property.valueAsDouble(context, 0.0)[0]
+
+        self.assertGreater(size_mm, 10.0)
+
+        # Millimetres per degree, the same way the size expression got
+        # them.
+        millimetres_per_degree = QgsExpression(
+            "mct_inscribed_radius_mm($geometry, @map_extent, @map_scale)"
+        ).evaluate(context) / _inscribed_radius_degrees(geometry)
+
+        # The glyph's furthest point from its own centre - the top
+        # corners of the triangle, at hypot(60, 55) + half the stroke
+        # out of a 158-unit-wide box.
+        corner_mm = size_mm * (((60.0 ** 2 + 55.0 ** 2) ** 0.5) + 1.5) / 158.0
+
+        corner_degrees = corner_mm / millimetres_per_degree
+
+        centre = QgsExpression(
+            "mct_inscribed_centre($geometry)"
+        ).evaluate(context).asPoint()
+
+        boundary = QgsGeometry(geometry.constGet().boundary())
+
+        for angle in range(0, 360, 5):
+
+            import math
+
+            corner = QgsGeometry.fromPointXY(
+                type(centre)(
+                    centre.x() + corner_degrees * math.cos(math.radians(angle)),
+                    centre.y() + corner_degrees * math.sin(math.radians(angle))
+                )
+            )
+
+            self.assertTrue(
+                geometry.contains(corner),
+                f"the glyph's own corner circle leaves the area at {angle}"
+            )
+
+            gap_mm = (
+                boundary.distance(corner) * millimetres_per_degree
+            )
+
+            self.assertGreaterEqual(
+                round(gap_mm, 3), 3.0,
+                f"only {gap_mm:.2f} mm of clearance at {angle} degrees"
+            )
+
+
+def _inscribed_radius_degrees(geometry):
+
+    """
+    The same quantity mct_inscribed_radius_mm() measures, in map units
+    - recomputed independently here so the test is not simply asking
+    the code under test to confirm itself.
+    """
+
+    import math
+
+    bounding_box = geometry.boundingBox()
+
+    precision = max(bounding_box.width(), bounding_box.height()) / 200.0
+
+    pole, _ = geometry.poleOfInaccessibility(precision)
+
+    nearest = QgsGeometry(geometry.constGet().boundary()).nearestPoint(pole)
+
+    return math.hypot(
+        nearest.asPoint().x() - pole.asPoint().x(),
+        nearest.asPoint().y() - pole.asPoint().y()
+    )
+
+
+class TestCbrnAreasLayerInsertion(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        self.iface = FakeIface()
+
+    def tearDown(self):
+
+        QgsProject.instance().removeAllMapLayers()
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+    def test_adding_the_areas_layer_inserts_exactly_one(self):
+
+        add_cbrn_contaminated_areas_layer(self.iface)
+
+        layers = QgsProject.instance().mapLayersByName(AREAS_LAYER_NAME)
+
+        self.assertEqual(len(layers), 1)
+
+        add_cbrn_contaminated_areas_layer(self.iface)
+
+        self.assertEqual(
+            len(QgsProject.instance().mapLayersByName(AREAS_LAYER_NAME)), 1
+        )

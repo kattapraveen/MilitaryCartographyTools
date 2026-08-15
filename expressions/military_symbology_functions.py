@@ -15,6 +15,7 @@ from qgis.core import (
     QgsExpression,
     QgsGeometry,
     QgsPointXY,
+    QgsScaleCalculator,
     QgsProject,
     QgsRectangle,
     qgsfunction,
@@ -385,6 +386,199 @@ def mct_length_km(values, feature=None, parent=None):
     )
 
     return length_m / 1000.0
+
+
+def _pole_of_inaccessibility(geometry):
+
+    """
+    A polygon's own pole of inaccessibility - the point furthest from
+    any edge, i.e. the centre of the largest circle that fits inside it
+    - and the boundary it was measured against, or (None, None) for
+    anything that isn't a usable polygon.
+
+    Shared by mct_inscribed_centre() and mct_inscribed_radius_m() so
+    the two can never disagree about WHERE the circle is centred. They
+    are separate expression functions because one feeds a geometry
+    generator (placement) and the other a data-defined size, and a
+    QGIS expression cannot return both at once - but a glyph placed at
+    one point and sized for a circle centred on another would sit
+    partly outside the area, which is precisely what this construction
+    exists to prevent.
+    """
+
+    if geometry is None or geometry.isEmpty():
+        return None, None
+
+    boundary = geometry.constGet().boundary()
+
+    if boundary is None:
+        return None, None
+
+    # A tolerance proportional to the polygon's own size, not a fixed
+    # number: poleOfInaccessibility() takes its precision in MAP units,
+    # so a constant would be far too coarse for a 200 m area in degrees
+    # and needlessly slow for a 400 km one in metres.
+    bounding_box = geometry.boundingBox()
+
+    precision = max(
+        max(bounding_box.width(), bounding_box.height()) / 200.0,
+        1e-12
+    )
+
+    pole, _ = geometry.poleOfInaccessibility(precision)
+
+    if pole is None or pole.isEmpty():
+        return None, None
+
+    return pole, QgsGeometry(boundary)
+
+
+@qgsfunction(
+    'mct_inscribed_centre',
+    group='Military Cartography Tools'
+)
+def mct_inscribed_centre(values, feature=None, parent=None):
+
+    """
+    A polygon's own pole of inaccessibility, as a point geometry - the
+    centre of the circle mct_inscribed_radius_m() measures. Use as
+    mct_inscribed_centre($geometry), in a geometry generator.
+
+    NOT point_on_surface(): that only guarantees a point somewhere
+    INSIDE the polygon, and for anything other than a near-circle it
+    lands well off centre. Rendered offscreen with a glyph sized from
+    the inscribed radius but drawn at point_on_surface, the glyph's own
+    corners crossed the outline - the size was right for a circle
+    centred somewhere the glyph wasn't.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    pole, _ = _pole_of_inaccessibility(values[0])
+
+    return pole
+
+
+@qgsfunction(
+    'mct_inscribed_radius_mm',
+    group='Military Cartography Tools'
+)
+def mct_inscribed_radius_mm(values, feature=None, parent=None):
+
+    """
+    The radius, in PAGE MILLIMETRES, of the largest circle that fits
+    inside a polygon - measured from the pole of inaccessibility
+    mct_inscribed_centre() returns to the nearest point on the
+    polygon's own boundary. Use as
+    mct_inscribed_radius_mm($geometry, @map_extent, @map_scale), in a
+    data-defined SIZE property (never a geometry generator, where
+    neither @map_scale nor @map_extent resolves).
+
+    Written for Table H-XXI's contaminated areas, whose glyph fills the
+    area it sits in while keeping a fixed millimetre clearance from the
+    outline. The clearance is in page units, so the radius has to be
+    too.
+
+    **Page millimetres, deliberately NOT ground metres.** The first
+    build measured this leg geodesically, like mct_area_km2() does, and
+    the glyph rendered 13% too large - its corners crossed the outline
+    the 3 mm gap was supposed to keep it clear of. The reason is that a
+    map drawn in a geographic CRS gives a degree of longitude and a
+    degree of latitude exactly the same width on the page while they
+    are NOT the same distance on the ground: at 28 degrees north a
+    degree of latitude is about 1.13 times the length of a degree of
+    longitude. A ground measurement therefore answers a different
+    question from the one the page is asking. So the radius is measured
+    plainly in map units - which the page renders linearly, which is
+    the whole point - and only the map-units-to-millimetres factor is
+    derived on the ellipsoid, below.
+    """
+
+    if len(values) < 3:
+        return "Need a geometry, @map_extent and @map_scale"
+
+    pole, boundary = _pole_of_inaccessibility(values[0])
+
+    if pole is None:
+        return 0.0
+
+    nearest = boundary.nearestPoint(pole)
+
+    if nearest is None or nearest.isEmpty():
+        return 0.0
+
+    pole_point = pole.asPoint()
+    nearest_point = nearest.asPoint()
+
+    radius_units = math.hypot(
+        nearest_point.x() - pole_point.x(),
+        nearest_point.y() - pole_point.y()
+    )
+
+    millimetres_per_unit = _map_millimetres_per_unit(values[1], values[2])
+
+    return radius_units * millimetres_per_unit
+
+
+def _map_millimetres_per_unit(map_extent, map_scale):
+
+    """
+    How many page millimetres one map unit spans in the current map
+    view - the factor that turns a distance measured in the layer's own
+    coordinates into a distance on the printed/displayed page.
+
+    **Asks QGIS's own QgsScaleCalculator rather than measuring the
+    ground distance independently.** The obvious implementation -
+    measure the extent's width on the ellipsoid, divide by its width in
+    map units - is wrong, and wrong by a lot: for a view 0.2 degrees
+    wide at 28 degrees north, a geodesic measurement gives 98,344 m per
+    degree, while the number QGIS itself used to arrive at @map_scale
+    is 76,402. Since the whole point is to agree with @map_scale, the
+    answer has to come from whatever QGIS's own scale calculation does,
+    not from an independently defensible measurement of the Earth.
+    Built the geodesic way first, which drew the glyph 29% oversized.
+
+    Recovered rather than read off directly, because a symbol
+    expression cannot see the render context's own DPI or pixel width:
+    the calculator is asked for the scale of this same extent at an
+    arbitrary reference DPI and pixel width, and metres-per-unit is
+    divided back out. Both arbitrary choices cancel exactly - scale is
+    inversely proportional to page width, and page width in metres is
+    pixels/DPI - confirmed by computing it at two different widths.
+
+    Takes the unit type from the PROJECT's own CRS, exactly as
+    _distance_area() does and for the same reason - see its docstring.
+    """
+
+    if map_extent is None or map_extent.isEmpty() or not map_scale:
+        return 0.0
+
+    bounding_box = map_extent.boundingBox()
+
+    if bounding_box.width() <= 0:
+        return 0.0
+
+    reference_dpi = 96.0
+    reference_width_px = 1000
+
+    calculator = QgsScaleCalculator(
+        reference_dpi,
+        QgsProject.instance().crs().mapUnits()
+    )
+
+    reference_scale = calculator.calculate(
+        bounding_box,
+        reference_width_px
+    )
+
+    reference_page_width_m = reference_width_px / reference_dpi * 0.0254
+
+    metres_per_unit = (
+        reference_scale * reference_page_width_m / bounding_box.width()
+    )
+
+    return metres_per_unit * 1000.0 / map_scale
 
 
 # ============================================================
@@ -5611,6 +5805,8 @@ _FUNCTIONS = [
     mct_area_km2,
     mct_perimeter_km,
     mct_length_km,
+    mct_inscribed_centre,
+    mct_inscribed_radius_mm,
     mct_crenellate_outline,
     mct_serrate_outline,
     mct_decoy_chevron,

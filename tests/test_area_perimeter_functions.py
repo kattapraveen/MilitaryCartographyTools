@@ -25,10 +25,17 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsExpressionContext,
+    QgsExpressionContextUtils,
     QgsFeature,
     QgsGeometry,
+    QgsMapSettings,
     QgsProject,
+    QgsRectangle,
 )
+
+from qgis.PyQt.QtCore import QSize
+
+import math
 
 from .qgis_test_case import QgisTestCase
 
@@ -299,4 +306,183 @@ class TestLengthFunction(QgisTestCase):
             result,
             1.1131949079327358,
             places=6
+        )
+
+
+class TestInscribedCircleFunctions(QgisTestCase):
+
+    """
+    mct_inscribed_centre() and mct_inscribed_radius_mm() - the pair
+    that lets Table H-XXI's contaminated areas size their own glyph to
+    the area they sit in.
+
+    The radius is in PAGE millimetres, and that is the whole subtlety:
+    the first build measured it geodesically, which is a perfectly
+    defensible measurement of the ground and the wrong answer for the
+    page - a degree of longitude and a degree of latitude take the
+    same width on a map drawn in a geographic CRS but are not the same
+    distance on the Earth. It drew the glyph 29% oversized.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+        self.project = QgsProject.instance()
+        self.project.setCrs(WGS84)
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+    def _context_for(self, geometry, extent, width_px, dpi):
+
+        settings = QgsMapSettings()
+        settings.setDestinationCrs(WGS84)
+        settings.setOutputSize(QSize(width_px, width_px))
+        settings.setOutputDpi(dpi)
+        settings.setExtent(extent)
+
+        context = QgsExpressionContext()
+        context.appendScope(QgsExpressionContextUtils.globalScope())
+        context.appendScope(
+            QgsExpressionContextUtils.projectScope(self.project)
+        )
+        context.appendScope(
+            QgsExpressionContextUtils.mapSettingsScope(settings)
+        )
+
+        feature = QgsFeature()
+        feature.setGeometry(geometry)
+        context.setFeature(feature)
+
+        return context
+
+    def test_the_centre_is_the_pole_of_inaccessibility(self):
+
+        # A rectangle twice as wide as it is tall: the point furthest
+        # from any edge is the middle, and the largest circle that fits
+        # has the half-HEIGHT as its radius.
+        geometry = QgsGeometry.fromWkt(
+            "POLYGON((77.0 28.0, 77.2 28.0, 77.2 28.1, 77.0 28.1, 77.0 28.0))"
+        )
+
+        context = self._context_for(
+            geometry, QgsRectangle(76.9, 27.9, 77.3, 28.3), 800, 96
+        )
+
+        centre = QgsExpression(
+            "mct_inscribed_centre($geometry)"
+        ).evaluate(context).asPoint()
+
+        self.assertAlmostEqual(centre.x(), 77.1, places=3)
+        self.assertAlmostEqual(centre.y(), 28.05, places=3)
+
+    def test_the_radius_is_the_distance_the_page_actually_shows(self):
+
+        geometry = QgsGeometry.fromWkt(
+            "POLYGON((77.0 28.0, 77.2 28.0, 77.2 28.1, 77.0 28.1, 77.0 28.0))"
+        )
+
+        # A square view 0.4 degrees across, 800 px wide at 96 dpi - so
+        # the page is 800/96 inch = 211.667 mm wide, and one degree of
+        # the view is exactly a quarter of that whatever the latitude,
+        # because the map draws degrees, not metres.
+        extent = QgsRectangle(76.9, 27.9, 77.3, 28.3)
+
+        context = self._context_for(geometry, extent, 800, 96)
+
+        millimetres_per_degree = (800 / 96.0 * 25.4) / extent.width()
+
+        radius_mm = QgsExpression(
+            "mct_inscribed_radius_mm($geometry, @map_extent, @map_scale)"
+        ).evaluate(context)
+
+        # The rectangle's own half-height, 0.05 degrees.
+        self.assertAlmostEqual(
+            radius_mm, 0.05 * millimetres_per_degree, places=3
+        )
+
+    def test_the_radius_is_a_page_measure_not_a_ground_one(self):
+
+        # The bug this pair was rebuilt to fix, pinned directly: at 28
+        # degrees north a geodesic measurement of the same 0.05 degrees
+        # is over a quarter larger than what the page shows.
+        geometry = QgsGeometry.fromWkt(
+            "POLYGON((77.0 28.0, 77.2 28.0, 77.2 28.1, 77.0 28.1, 77.0 28.0))"
+        )
+
+        extent = QgsRectangle(76.9, 27.9, 77.3, 28.3)
+
+        context = self._context_for(geometry, extent, 800, 96)
+
+        radius_mm = QgsExpression(
+            "mct_inscribed_radius_mm($geometry, @map_extent, @map_scale)"
+        ).evaluate(context)
+
+        ground_metres = military_symbology_functions._distance_area(
+        ).measureLine(
+            QgsGeometry.fromWkt("POINT(77.1 28.05)").asPoint(),
+            QgsGeometry.fromWkt("POINT(77.1 28.0)").asPoint()
+        )
+
+        map_scale = QgsExpression("@map_scale").evaluate(context)
+
+        geodesic_mm = ground_metres * 1000.0 / map_scale
+
+        self.assertGreater(geodesic_mm, radius_mm * 1.2)
+
+    def test_the_radius_does_not_depend_on_how_big_the_window_is(self):
+
+        # @map_scale already carries the window size, so a wider window
+        # at the same extent is a smaller scale and the same number of
+        # millimetres. If the recovery of metres-per-unit ever stops
+        # cancelling its own reference DPI and width, this catches it.
+        geometry = QgsGeometry.fromWkt(
+            "POLYGON((77.0 28.0, 77.2 28.0, 77.2 28.1, 77.0 28.1, 77.0 28.0))"
+        )
+
+        extent = QgsRectangle(76.9, 27.9, 77.3, 28.3)
+
+        expression = QgsExpression(
+            "mct_inscribed_radius_mm($geometry, @map_extent, @map_scale)"
+        )
+
+        small = expression.evaluate(
+            self._context_for(geometry, extent, 400, 96)
+        )
+
+        large = expression.evaluate(
+            self._context_for(geometry, extent, 1600, 96)
+        )
+
+        self.assertAlmostEqual(small * 4.0, large, places=3)
+
+    def test_a_point_has_no_inscribed_circle(self):
+
+        # A geometry generator's own sub-symbol sees the POINT being
+        # drawn rather than the feature's polygon, so this path is
+        # reached in real use - it must not raise.
+        context = self._context_for(
+            QgsGeometry.fromWkt("POINT(77.1 28.05)"),
+            QgsRectangle(76.9, 27.9, 77.3, 28.3),
+            800,
+            96
+        )
+
+        self.assertEqual(
+            QgsExpression(
+                "mct_inscribed_radius_mm($geometry, @map_extent, @map_scale)"
+            ).evaluate(context),
+            0.0
+        )
+
+        self.assertIsNone(
+            QgsExpression(
+                "mct_inscribed_centre($geometry)"
+            ).evaluate(context)
         )

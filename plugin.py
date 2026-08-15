@@ -89,6 +89,7 @@ from .military_symbology.fire_support_coordination_measures import (
     add_fire_support_coordination_measures_areas_layer,
 )
 from .military_symbology.cbrn_defense import (
+    add_cbrn_contaminated_areas_layer,
     add_cbrn_defense_points_layer,
 )
 from .military_symbology.field_fortification import (
@@ -1226,12 +1227,13 @@ class MilitaryCartographyTools:
         )
 
         self.cbrn_defense_action.setToolTip(
-            "Add the CBRN Defense (Points) layer (MIL-STD-2525D "
-            "Appendix H.5.23, Table H-XXI): the chemical, biological, "
-            "nuclear and radiological event points, their Toxic "
-            "Industrial Material variants, and the eleven "
-            "decontamination point/site types. The table's own "
-            "contaminated AREAS and its dose-rate contour line are not "
+            "Add the CBRN Defense (Points) and (Contaminated Areas) "
+            "layers (MIL-STD-2525D Appendix H.5.23, Table H-XXI): the "
+            "chemical, biological, nuclear and radiological event "
+            "points, their Toxic Industrial Material variants, the "
+            "eleven decontamination point/site types, and the seven "
+            "yellow-hatched contaminated areas. The table's own Minimum "
+            "Safe Distance Zone and dose-rate contour line are not "
             "built yet."
         )
 
@@ -2337,16 +2339,19 @@ class MilitaryCartographyTools:
 
     def create_cbrn_defense(self):
         """
-        Add the CBRN Defense (Points) layer - Table H-XXI
-        (MIL-STD-2525D Appendix H.5.23).
+        Add the CBRN Defense (Points) and (Contaminated Areas) layers
+        - Table H-XXI (MIL-STD-2525D Appendix H.5.23).
 
-        Points only so far: the table's seven contaminated areas, its
-        Minimum Safe Distance Zone and its dose-rate contour line are
-        audited but not built - see cbrn_defense.py's own
-        TABLE_H_XXI_REMAINING for what each needs.
+        The table's own Minimum Safe Distance Zone and its dose-rate
+        contour line are audited but not built - see cbrn_defense.py's
+        own TABLE_H_XXI_REMAINING for what each needs.
         """
 
         add_cbrn_defense_points_layer(
+            self.iface
+        )
+
+        add_cbrn_contaminated_areas_layer(
             self.iface
         )
 
