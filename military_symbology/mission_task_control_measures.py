@@ -54,10 +54,14 @@ from qgis.core import (
     QgsField,
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
+    QgsMarkerLineSymbolLayer,
+    QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
     QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
+    QgsSimpleMarkerSymbolLayer,
+    QgsSimpleMarkerSymbolLayerBase,
     QgsSymbol,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -214,29 +218,16 @@ LINES_LAYER_NAME = "Mission Task Lines"
 
 LINE_MEASURE_TYPE_LABELS = {
     "block": "Block",
+    "disrupt": "Disrupt",
     "fix": "Fix",
 }
 
 LINE_MEASURE_TYPE_CODES = {
     "block": "340100",
+    "disrupt": "341000",
     "fix": "341100",
 }
 
-# **Disrupt is held back a second time, and for a better reason than
-# the first.** Its mirror and its letter are built and its geometry
-# evaluates - but two things are unresolved and both would ship wrong:
-#
-# 1. WHICH END the mirror is measured against. "Longest arrow at the
-#    bottom" is relative to how the standard draws 270502, not to the
-#    order the user happens to click PT1 and PT2 - and this project's
-#    own obstacle Disrupt puts its longest arrow at PT2, whichever end
-#    of the screen that is.
-# 2. Disrupt has THREE ARROWHEADS. The obstacle version draws them
-#    from a separate marker layer over mct_disrupt_arrow_tips(); the
-#    mission-task symbol here draws only the shafts so far.
-TABLE_H_XXIV_LINES_NEXT = {
-    "341000": "Disrupt",
-}
 
 # The letter each one carries, set into its own shaft.
 LINE_LETTERS = {
@@ -246,6 +237,9 @@ LINE_LETTERS = {
 }
 
 _LINE_WIDTH_MM = 0.4
+
+# The same head Table H-XIX's own Disrupt uses.
+_ARROWHEAD_SIZE_MM = 6
 
 # Breathing room either side of the letter inside the gap it cuts.
 _LETTER_PADDING_MM = 1.2
@@ -287,7 +281,7 @@ def _line_geometry_expression(measure_type):
         return f"mct_block_geometry($geometry, {gap}, @map_scale)"
 
     if measure_type == "disrupt":
-        return f"mct_disrupt_geometry($geometry, true, {gap}, @map_scale)"
+        return f"mct_disrupt_geometry($geometry, {gap}, @map_scale)"
 
     return f"mct_fix_geometry($geometry, {gap}, @map_scale)"
 
@@ -336,7 +330,61 @@ def _mission_task_line_symbol(measure_type):
 
     symbol.changeSymbolLayer(0, generator)
 
+    if measure_type == "disrupt":
+        symbol.appendSymbolLayer(_disrupt_arrowhead_layer())
+
     return symbol
+
+
+def _disrupt_arrowhead_layer():
+
+    """
+    Disrupt's own three arrowheads, one per arrow tip.
+
+    Scoped to mct_disrupt_arrow_tips() rather than the combined
+    geometry: a LastVertex placement over base-plus-arrows would also
+    mark the BASE's own last vertex, which is not an arrow tip. The
+    same two-generator arrangement Table H-XIX's own Disrupt uses, and
+    the reason its docstring gives.
+    """
+
+    head = QgsSimpleMarkerSymbolLayer(
+        QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
+        _ARROWHEAD_SIZE_MM
+    )
+
+    head.setColor(QColor(0, 0, 0, 0))
+
+    head.setStrokeWidth(_LINE_WIDTH_MM * 1.5)
+
+    _apply_affiliation_color(
+        head,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, head)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(Qgis.MarkerLinePlacement.LastVertex)
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, marker_line)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression("mct_disrupt_arrow_tips($geometry)")
+
+    generator.setSubSymbol(inner)
+
+    return generator
 
 
 _LINE_SYMBOL_BUILDERS = {
@@ -398,7 +446,7 @@ def _letter_point_expression(measure_type):
         return "mct_block_letter_point($geometry)"
 
     if measure_type == "disrupt":
-        return "mct_disrupt_letter_point($geometry, true)"
+        return "mct_disrupt_letter_point($geometry)"
 
     return "mct_fix_letter_point($geometry, {gap}, @map_scale)".format(
         gap=_letter_gap_expression("fix")

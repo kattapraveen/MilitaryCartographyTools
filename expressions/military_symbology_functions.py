@@ -1569,8 +1569,13 @@ def mct_disrupt_letter_point(values, feature=None, parent=None):
     """
     Where Disrupt's own letter sits: on the CENTRAL arrow's shaft,
     halfway from the base line to that arrow's tip - the maintainer's
-    own placement. Use as
-    mct_disrupt_letter_point($geometry, <mirrored>).
+    own placement. Use as mct_disrupt_letter_point($geometry).
+
+    **No mirror.** A first build made this the mirrored twin of Table
+    H-XIX's Disrupt, on a reading of "vertically mirrored" in the
+    instruction. The maintainer settled it instead: draw it exactly as
+    270502, and let the user decide which way up it sits by the order
+    they click PT1 and PT2 - "let's not complicate a simple situation".
     """
 
     points = _three_anchor_points(values)
@@ -1580,9 +1585,7 @@ def mct_disrupt_letter_point(values, feature=None, parent=None):
 
     pt1, pt2, pt3 = points
 
-    _base, _a, _b, arrow_c = _disrupt_arrows(
-        pt1, pt2, pt3, _disrupt_mirrored(values)
-    )
+    _base, _a, _b, arrow_c = _disrupt_arrows(pt1, pt2, pt3)
 
     midpoint = QgsPointXY(
         (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
@@ -1779,7 +1782,7 @@ def _perpendicular_projection(pt1, pt2, pt3):
     return (ux, uy), (nx, ny), length
 
 
-def _disrupt_arrows(pt1, pt2, pt3, mirrored=False):
+def _disrupt_arrows(pt1, pt2, pt3):
 
     """
     The three "arrows" Disrupt (270502) is built from, per the
@@ -1794,15 +1797,6 @@ def _disrupt_arrows(pt1, pt2, pt3, mirrored=False):
     """
 
     base = [pt1, pt2]
-
-    # **The mirror is a swap of the two base ends, nothing more.** The
-    # full-length arrow grows from PT2 and the half-length one from PT1;
-    # exchanging them puts the longest at the other end, which is what
-    # Table H-XXIV's own Disrupt asks for against Table H-XIX's. The
-    # perpendicular is measured TOWARDS PT3, so it is unaffected by the
-    # order and the arrows stay on the side the user clicked.
-    if mirrored:
-        pt1, pt2 = pt2, pt1
 
     projection = _perpendicular_projection(pt1, pt2, pt3)
 
@@ -1846,18 +1840,6 @@ def _disrupt_arrows(pt1, pt2, pt3, mirrored=False):
     arrow_c = [offset(midpoint, -middle_length), offset(midpoint, middle_length)]
 
     return base, arrow_a, arrow_b, arrow_c
-
-
-def _disrupt_mirrored(values):
-
-    """
-    Whether this Disrupt is the MIRRORED one - Table H-XXIV's mission
-    task, whose longest arrow sits at the opposite end from Table
-    H-XIX's obstacle effect. Optional and false by default, so the
-    obstacle version's own call is unchanged.
-    """
-
-    return bool(values[1]) if len(values) > 1 else False
 
 
 @qgsfunction(
@@ -1912,9 +1894,42 @@ def mct_disrupt_geometry(values, feature=None, parent=None):
     pt2 = QgsPointXY(vertices[1])
     pt3 = QgsPointXY(vertices[2])
 
-    base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(
-        pt1, pt2, pt3, _disrupt_mirrored(values)
-    )
+    base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(pt1, pt2, pt3)
+
+    # An optional gap in the MIDDLE arrow's shaft, for a letter set
+    # into it - Table H-XXIV's own Disrupt carries a "D" there, halfway
+    # from the base line to that arrow's tip. Table H-XIX's own Disrupt
+    # passes nothing and is unchanged.
+    gap_units = _page_gap_in_map_units(values, 1, arrow_c[0])
+
+    tail, tip = arrow_c[0], arrow_c[1]
+
+    shaft = math.hypot(tip.x() - tail.x(), tip.y() - tail.y())
+
+    if gap_units > 0 and shaft > 2.0 * gap_units:
+
+        midpoint = QgsPointXY(
+            (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+        )
+
+        # Halfway from the base to the tip, which is where the letter
+        # sits - see mct_disrupt_letter_point(), which must agree.
+        letter = QgsPointXY(
+            (midpoint.x() + tip.x()) / 2.0,
+            (midpoint.y() + tip.y()) / 2.0,
+        )
+
+        ux = (tip.x() - tail.x()) / shaft
+        uy = (tip.y() - tail.y()) / shaft
+
+        half = gap_units / 2.0
+
+        before = QgsPointXY(letter.x() - half * ux, letter.y() - half * uy)
+        after = QgsPointXY(letter.x() + half * ux, letter.y() + half * uy)
+
+        return QgsGeometry.fromMultiPolylineXY(
+            [base, arrow_a, arrow_b, [tail, before], [after, tip]]
+        )
 
     return QgsGeometry.fromMultiPolylineXY(
         [base, arrow_a, arrow_b, arrow_c]
@@ -1952,9 +1967,7 @@ def mct_disrupt_arrow_tips(values, feature=None, parent=None):
     pt2 = QgsPointXY(vertices[1])
     pt3 = QgsPointXY(vertices[2])
 
-    _base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(
-        pt1, pt2, pt3, _disrupt_mirrored(values)
-    )
+    _base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(pt1, pt2, pt3)
 
     return QgsGeometry.fromMultiPolylineXY([arrow_a, arrow_b, arrow_c])
 

@@ -8514,6 +8514,35 @@ what a stale claim in a comment costs.
 
 ---
 
+### Disrupt lands, without the mirror (2026-08-15)
+
+The maintainer settled the orientation question by removing it: "just
+follow the original instructions, ignore the call for mirror, we draw
+it same as 270502 with the letter D on the middle arrow. simple. if the
+user wants the longest arrow upwards, he clicks pt1 and 2 accordingly...
+let's not complicate a simple situation."
+
+So Disrupt (341000) is Table H-XIX's 270502 exactly - same geometry
+function, same three anchor points, same three arrowheads - in black,
+with "D" set into a gap cut in the MIDDLE arrow's shaft, halfway from
+the base line to that arrow's tip.
+
+**The mirror is gone from the code, not just unused.** `_disrupt_arrows`
+had grown an optional `mirrored` flag and a `_disrupt_mirrored()`
+helper; both are removed rather than left as dead options that would
+read as a supported feature to whoever comes next.
+
+Worth recording why the question arose at all: "vertically mirrored" is
+a statement about how the symbol looks on the page, and this
+construction is defined relative to the user's own PT1 and PT2. There
+was no fixed answer to implement - which is exactly what the maintainer
+said back, and the right call. **Table H-XXIV's three held rows are
+now all built.**
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Mission Task Lines: Fix; Disrupt held back again (2026-08-15)
 
 Fix (341100) built to the maintainer's own instruction - Table H-XIX's
