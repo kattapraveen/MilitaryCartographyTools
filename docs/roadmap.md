@@ -8567,10 +8567,21 @@ is symbol layers over it:
   projecting, so the curve leaves the perimeter at every zoom. The same
   tool the convoy bar uses to meet its head.
 
-**Seize is the first line task with NO letter**, and the letter
-machinery had assumed every one had one - it raised a KeyError the
-moment Seize was added. `LINE_LETTERS` is now the source of truth for
-which tasks label at all, rather than the measure-type list.
+**Seize was briefly built with NO letter**, since the maintainer's
+construction did not mention one - and that exposed a real assumption:
+the letter machinery took every line task to have one, and raised a
+KeyError the moment Seize was added. `LINE_LETTERS` is now the source
+of truth for which tasks label at all, rather than the measure-type
+list. The "S" was added straight after, on their word.
+
+**Where the "S" goes came from the template, not from the pattern.**
+Every other letter here sits IN a gap cut into its own line, so the
+obvious guess was a gap in the curve - or the circle, which the
+instruction's phrasing ("put the S in the seize") could easily have
+meant. The template shows neither: the S sits clear of the curve,
+roughly a third along from the circle, and **the circle holds a boxed
+Field A**. Worth one crop of the page to find out. Field A is not
+offered on this build.
 
 1191 tests passing on both QGIS versions.
 

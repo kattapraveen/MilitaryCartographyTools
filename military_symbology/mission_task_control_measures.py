@@ -240,6 +240,10 @@ LINE_MEASURE_TYPE_CODES = {
 }
 
 
+# Which letters sit BESIDE their line rather than in a gap cut into
+# it, and so need lifting clear of it.
+_LETTERS_BESIDE_THE_LINE = ("seize",)
+
 # The letter each one carries, set into its own shaft. **Not every
 # line task has one** - Seize is built from a circle, a curve and an
 # arrowhead, with no letter in the maintainer's own instruction for it
@@ -252,6 +256,7 @@ LINE_LETTERS = {
     "secure": "S",
     "occupy": "O",
     "penetrate": "P",
+    "seize": "S",
 }
 
 _LINE_WIDTH_MM = 0.4
@@ -727,7 +732,11 @@ def _configure_lines_labeling(layer):
             Qgis.LabelPlacement.OverPoint,
             "'{}'".format(LINE_LETTERS[measure_type]),
             label_geometry_expression=_letter_point_expression(measure_type),
-            quadrant=Qgis.LabelQuadrantPosition.Over,
+            quadrant=(
+                Qgis.LabelQuadrantPosition.Above
+                if measure_type in _LETTERS_BESIDE_THE_LINE
+                else Qgis.LabelQuadrantPosition.Over
+            ),
         )
 
         rule = QgsRuleBasedLabeling.Rule(settings)
@@ -760,6 +769,19 @@ def _letter_point_expression(measure_type):
 
     if measure_type in ("secure", "occupy"):
         return "mct_secure_letter_point($geometry)"
+
+    # Seize's "S" sits BESIDE its curve rather than in a gap in it -
+    # the template draws it clear of the line, roughly a third along
+    # from the circle, on the inner side of the bend. Placed at the
+    # curve's own midpoint and lifted off it by the quadrant below.
+    #
+    # Not in the circle: that holds a boxed Field A in the template,
+    # which this build does not offer.
+    if measure_type == "seize":
+        return (
+            "line_interpolate_point(mct_turn_arc($geometry),"
+            " length(mct_turn_arc($geometry)) / 2)"
+        )
 
     return "mct_fix_letter_point($geometry, {gap}, @map_scale)".format(
         gap=_letter_gap_expression("fix")
