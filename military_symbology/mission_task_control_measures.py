@@ -247,6 +247,25 @@ _LINE_WIDTH_MM = 0.4
 # The same head Table H-XIX's own Disrupt uses.
 _ARROWHEAD_SIZE_MM = 6
 
+# **Occupy's cross scales with its own circle.** Fixed, it swamped a
+# small Occupy and vanished on a large one - the maintainer's own
+# report: "the size is fixed irrespective of the circle's radius -
+# let's make the cross 1/5 of the radius subject to max size which is
+# the current size". So a fifth of the radius, capped at the plain
+# arrowhead's own size and never larger.
+_OCCUPY_CROSS_RADIUS_FRACTION = 5.0
+
+_OCCUPY_CROSS_SIZE_EXPRESSION = (
+    # geometry(@feature), NOT $geometry: this size is evaluated inside
+    # a geometry generator's own sub-symbol, where $geometry is the
+    # short arc-end segment being drawn rather than the feature's own
+    # two clicked points - so the radius came out as that segment's
+    # length and the cross all but vanished. Same trap as Table
+    # H-XXI's own contaminated-area glyph.
+    "min({maximum}, coalesce(mct_radius_mm(geometry(@feature),"
+    " @map_extent, @map_scale), 0) / {fraction})"
+).format(maximum=_ARROWHEAD_SIZE_MM, fraction=_OCCUPY_CROSS_RADIUS_FRACTION)
+
 # Breathing room either side of the letter inside the gap it cuts.
 _LETTER_PADDING_MM = 1.2
 
@@ -376,6 +395,7 @@ def _mission_task_line_symbol(measure_type):
                     "mct_retain_arc_end($geometry)",
                     Qgis.MarkerLinePlacement.LastVertex,
                     angle,
+                    _OCCUPY_CROSS_SIZE_EXPRESSION,
                 )
             )
 
@@ -429,7 +449,8 @@ def _fix_arrowhead_layer():
     return marker_line
 
 
-def _arrowhead_layer(geometry_expression, placement, angle=0.0):
+def _arrowhead_layer(geometry_expression, placement, angle=0.0,
+                     size_expression=None):
 
     """
     An arrowhead riding on its own geometry generator - shared by every
@@ -452,6 +473,13 @@ def _arrowhead_layer(geometry_expression, placement, angle=0.0):
 
     if angle:
         head.setAngle(angle)
+
+    if size_expression is not None:
+
+        head.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Size,
+            QgsProperty.fromExpression(size_expression)
+        )
 
     _apply_affiliation_color(head, [QgsSymbolLayer.Property.StrokeColor])
 

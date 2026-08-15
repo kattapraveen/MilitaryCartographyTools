@@ -8514,6 +8514,29 @@ what a stale claim in a comment costs.
 
 ---
 
+### Occupy's cross scales with its circle (2026-08-15)
+
+The maintainer's smoke test: "the cross is correct - but the size is
+fixed irrespective of the circle's radius - let's make the cross 1/5 of
+the radius subject to max size which is the current size". Done: a
+fifth of the radius, capped at the plain arrowhead's own 6 mm.
+
+The radius is a GROUND distance and the cross a PAGE size, so
+`mct_radius_mm()` converts through the same units-to-millimetres
+factor the contaminated-area glyph uses.
+
+**And it shipped wrong once, in the same place that has caught this
+project twice before.** The first build read `$geometry` - but the size
+is evaluated inside a geometry generator's own sub-symbol, where
+`$geometry` is the short arc-end segment being drawn, not the feature's
+own two clicked points. The cross came out at a fraction of a
+millimetre. `geometry(@feature)` is the fix, exactly as on Table
+H-XXI's contaminated areas.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Occupy (341700), Secure with a different end mark (2026-08-15)
 
 The maintainer's own words: "everything same as secure, except,

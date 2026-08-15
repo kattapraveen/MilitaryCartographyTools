@@ -3688,6 +3688,45 @@ def mct_retain_letter_point(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_radius_mm',
+    group='Military Cartography Tools'
+)
+def mct_radius_mm(values, feature=None, parent=None):
+
+    """
+    The PT1-PT2 radius of an arc-type control measure, in PAGE
+    MILLIMETRES. Use as
+    mct_radius_mm($geometry, @map_extent, @map_scale).
+
+    For Table H-XXIV's own Occupy, whose end mark is "1/5 of the
+    radius subject to max size" - a page size derived from a ground
+    one, so it needs the same page-not-ground conversion the
+    contaminated areas' glyph does. See _map_millimetres_per_unit()
+    for why a geodesic measurement is the wrong tool here.
+    """
+
+    if len(values) < 3:
+        return 0.0
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return 0.0
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 2:
+        return 0.0
+
+    radius_units = math.hypot(
+        vertices[1].x() - vertices[0].x(),
+        vertices[1].y() - vertices[0].y()
+    )
+
+    return radius_units * _map_millimetres_per_unit(values[1], values[2])
+
+
+@qgsfunction(
     'mct_secure_letter_point',
     group='Military Cartography Tools'
 )
@@ -6470,6 +6509,7 @@ _FUNCTIONS = [
     mct_block_letter_point,
     mct_disrupt_letter_point,
     mct_fix_letter_point,
+    mct_radius_mm,
     mct_secure_letter_point,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
