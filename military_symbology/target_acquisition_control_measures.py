@@ -59,7 +59,6 @@ from qgis.core import (
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
     QgsMarkerSymbol,
-    QgsPalLayerSettings,
     QgsProject,
     QgsProperty,
     QgsRuleBasedLabeling,
@@ -193,8 +192,6 @@ RANGE_FAN_AXIS_OVERSHOOT_M = 400.0
 RANGE_FAN_AXIS_OVERSHOOT_FRACTION = 0.10
 
 _RANGE_FAN_ARROWHEAD_MM = 4.0
-
-_RING_FIELDS = ("left", "right", "range", "alt")
 
 _RANGE_FAN_LINE_WIDTH_MM = 0.4
 

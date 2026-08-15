@@ -8238,7 +8238,9 @@ than a bare render**:
 ## Appendix H — what is left to construct (audited 2026-08-14)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **36 symbols in 2 units** (54 in 5 before Maritime's Navigational,
+is **36 symbols in 2 units**, all of it construction rather than
+correction - every table's own point vocabulary is built and signed
+off, and the only blocker left is one unnumbered glyph. It (54 in 5 before Maritime's Navigational,
 H-XXIII's eight supply routes and its seven sustainment areas were all
 built on 2026-08-14), and every one of them is a LINE or an AREA - not a coincidence, since milsymbol renders points and nothing
 else, so the whole remainder is hand-built QGIS symbology.
@@ -8255,7 +8257,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 |---|---|---|---|
 | 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
 | 2 | H-XXIII Supply | 2 | Moving and Halted Convoy. **The 8 supply routes and 7 sustainment areas were built 2026-08-14.** |
-| 3 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line |
+| 2 | H-XXI CBRN | 9 | 7 contaminated areas, Minimum Safe Distance Zone, Radiation Dose Rate Contour Line. **7 of the 9 are the only thing in Appendix H still blocked** - see below. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |
 | ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |
 

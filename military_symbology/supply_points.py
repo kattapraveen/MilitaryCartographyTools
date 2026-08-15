@@ -76,7 +76,6 @@ from qgis.core import (
     QgsLineSymbol,
     QgsMarkerLineSymbolLayer,
     QgsMarkerSymbol,
-    QgsPalLayerSettings,
     QgsProject,
     QgsProperty,
     QgsSimpleLineSymbolLayer,
