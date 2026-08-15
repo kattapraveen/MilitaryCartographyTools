@@ -167,7 +167,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "CBRN Defense Control Measures",
                     "Target Acquisition Control Measures",
                     "Sustainment Points", "Supply Points",
-                    "Mission Task Points", "Intelligence Control Measures",
+                    "Mission Tasks", "Intelligence Control Measures",
                 ]
             )
 

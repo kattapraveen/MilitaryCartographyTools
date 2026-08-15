@@ -8514,6 +8514,31 @@ what a stale claim in a comment costs.
 
 ---
 
+### Fix gains its arrowhead; the menu entry is renamed (2026-08-15)
+
+Two from the maintainer's smoke test, Block and Disrupt cleared.
+
+**"The menu item reads as mission task points, since there are lines
+also, change it to mission tasks."** Renamed to "Mission Tasks", with a
+tooltip that names both layers. The action's own attribute keeps its
+old name - renaming that would touch nothing a user sees and every
+caller that does.
+
+**"Fix - pt1 there should be an arrow head."** Added at the first
+vertex, turned through 180 degrees: a marker rotated onto a line's
+FIRST vertex faces along the direction of travel, towards PT2 and back
+into the symbol, so an arrowhead at the start has to be flipped to
+point out of it.
+
+Worth noting against Table H-XIX, whose own Fix deliberately has NO
+arrowhead - the maintainer dropped the standard's when they dictated
+that construction. The two now differ on purpose, and the obstacle
+version is untouched.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Disrupt lands, without the mirror (2026-08-15)
 
 The maintainer settled the orientation question by removing it: "just

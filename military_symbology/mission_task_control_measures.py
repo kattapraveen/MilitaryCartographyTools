@@ -333,7 +333,57 @@ def _mission_task_line_symbol(measure_type):
     if measure_type == "disrupt":
         symbol.appendSymbolLayer(_disrupt_arrowhead_layer())
 
+    if measure_type == "fix":
+        symbol.appendSymbolLayer(_fix_arrowhead_layer())
+
     return symbol
+
+
+def _fix_arrowhead_layer():
+
+    """
+    Fix's own arrowhead, at PT1.
+
+    **Table H-XIX's Fix has none** - the maintainer's own construction
+    for the obstacle effect deliberately dropped the standard's, and
+    that version is untouched. Table H-XXIV's carries one, asked for
+    directly: "Fix - pt1 there should be an arrow head".
+
+    Turned through 180 degrees. A marker rotated onto a line's FIRST
+    vertex faces along the direction of travel - towards PT2, back into
+    the symbol - and an arrowhead at the start has to point the other
+    way, out of it.
+    """
+
+    head = QgsSimpleMarkerSymbolLayer(
+        QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
+        _ARROWHEAD_SIZE_MM
+    )
+
+    head.setColor(QColor(0, 0, 0, 0))
+
+    head.setStrokeWidth(_LINE_WIDTH_MM * 1.5)
+
+    head.setAngle(180.0)
+
+    _apply_affiliation_color(
+        head,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, head)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(Qgis.MarkerLinePlacement.FirstVertex)
+
+    marker_line.setRotateSymbols(True)
+
+    return marker_line
 
 
 def _disrupt_arrowhead_layer():

@@ -1313,14 +1313,15 @@ class MilitaryCartographyTools:
         )
 
         self.mission_task_points_action = QAction(
-            "Mission Task Points",
+            "Mission Tasks",
             self.control_measures_menu
         )
 
         self.mission_task_points_action.setToolTip(
-            "Add a Mission Task Points layer (Destroy, Interdict and "
-            "Neutralize - the three point-type mission tasks of Table "
-            "H-XXIV)"
+            "Add the Mission Task layers (MIL-STD-2525D Appendix "
+            "H.5.26, Table H-XXIV): Points - Destroy, Interdict and "
+            "Neutralize; Lines - Block, Disrupt and Fix. The table's "
+            "other rows are not built yet."
         )
 
         self.mission_task_points_action.triggered.connect(
@@ -2472,7 +2473,7 @@ class MilitaryCartographyTools:
 
     def create_mission_task_points(self):
         """
-        Add a "Mission Task Points" layer - Destroy, Interdict and
+        Add the Mission Task layers - Points (Destroy, Interdict and
         Neutralize, the three of Table H-XXIV's 29 rows that are point
         symbols (MIL-STD-2525D Appendix H.5.26). The other 26 are
         multi-anchor constructions; see
