@@ -176,10 +176,21 @@ RANGE_FAN_MAX_RINGS = 5
 # Safe Distance Zone beside it. One constant if it should be otherwise.
 RANGE_FAN_RANGE_UNIT = "m"
 
-# How far the north axis runs past the outermost ring, so its arrowhead
-# sits clear of that ring's own arc rather than on it. The maintainer's
-# own number.
-RANGE_FAN_AXIS_OVERSHOOT_M = 250.0
+# How far the north axis runs past the outermost ring, so a length of
+# SHAFT is visible beyond it and not just the arrowhead.
+#
+# **Both a floor and a proportion, because the two things being
+# compared are in different units.** The overshoot is ground metres;
+# the arrowhead is 4 mm on the page whatever the scale. A fixed
+# overshoot that shows shaft on a 5 km fan is swallowed whole by the
+# head on a 50 km one, which is why 250 m looked fine here and did not
+# on the maintainer's own map ("it should extend such that a little
+# bit of shaft should be seen after the last ring - can we make it
+# dynamic?"). Ten per cent of the outermost range keeps the proportion
+# constant at any size; the 400 m floor covers the very small fans,
+# and is their own suggested number.
+RANGE_FAN_AXIS_OVERSHOOT_M = 400.0
+RANGE_FAN_AXIS_OVERSHOOT_FRACTION = 0.10
 
 _RANGE_FAN_ARROWHEAD_MM = 4.0
 
@@ -285,6 +296,16 @@ def _axis_layer():
 
     marker_line.setRotateSymbols(True)
 
+    # **Pull the head forward so its TIP lands on the line's end.**
+    # QGIS centres a marker on the vertex it is placed at, so an
+    # arrowhead at LastVertex sits half its own length beyond the shaft
+    # and reads as detached from it - "why is the arrow head slightly
+    # below the shaft end". Backing it off by half a head puts the tip
+    # exactly where the line stops. Millimetres, because the head is.
+    marker_line.setOffsetAlongLine(-_RANGE_FAN_ARROWHEAD_MM / 2.0)
+
+    marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
+
     inner = QgsLineSymbol()
 
     inner.changeSymbolLayer(0, line)
@@ -295,9 +316,14 @@ def _axis_layer():
 
     generator.setSymbolType(Qgis.SymbolType.Line)
 
+    max_range = _max_range_expression()
+
     generator.setGeometryExpression(
-        "mct_range_fan_axis($geometry, {} + {})".format(
-            _max_range_expression(), RANGE_FAN_AXIS_OVERSHOOT_M
+        "mct_range_fan_axis($geometry, {max_range} + "
+        "max({floor}, {max_range} * {fraction}))".format(
+            max_range=max_range,
+            floor=RANGE_FAN_AXIS_OVERSHOOT_M,
+            fraction=RANGE_FAN_AXIS_OVERSHOOT_FRACTION,
         )
     )
 

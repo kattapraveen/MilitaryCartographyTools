@@ -8197,6 +8197,23 @@ alone does not.
   annotation pointers. This one is drawn solid on a picture with no
   anchor-point callouts at all.
 
+**A second round the same day, from the maintainer's own map rather
+than a bare render**:
+
+- **The axis overshoot is now a floor AND a proportion** - 400 m or ten
+  per cent of the outermost range, whichever is larger. A fixed ground
+  overshoot cannot work alone, because the thing it has to clear is a
+  4 mm arrowhead: 250 m showed shaft on a 5 km fan and none at all on a
+  larger one. The proportion holds the look constant at any size.
+- **The arrowhead was sitting off the end of its own shaft.** QGIS
+  centres a marker on the vertex it is placed at, so an arrowhead at
+  LastVertex hangs half its length past the line. Backing it off by
+  half a head with setOffsetAlongLine puts the TIP on the line's end.
+- **Rings with an inner range are CLOSED now.** Where consecutive rings
+  share their angles the inner arc lands invisibly on the ring inside
+  it; where the angles differ it is the only thing closing the band,
+  and without it the corners hung open.
+
 1148 tests passing on both QGIS versions.
 
 ---

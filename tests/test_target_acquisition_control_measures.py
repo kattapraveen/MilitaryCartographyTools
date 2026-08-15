@@ -563,13 +563,15 @@ class TestRangeFans(QgisTestCase):
 
         centre = QgsPointXY(0, 0)
 
-        for end in (ring[0], ring[-1]):
+        # Closed now, so the ring runs outer arc, inner arc, back to
+        # the start - every point is at one radius or the other, and
+        # none at the centre.
+        radii = {
+            round(_distance_area().measureLine(centre, point), -1)
+            for point in ring
+        }
 
-            self.assertAlmostEqual(
-                _distance_area().measureLine(centre, end),
-                1500.0,
-                delta=1.0
-            )
+        self.assertEqual(radii, {1500.0, 2500.0})
 
         # ...and only ring 1, whose inner range is 0, reaches the vertex.
         first = QgsExpression(
@@ -638,7 +640,12 @@ class TestRangeFans(QgisTestCase):
 
         # Sized off the LARGEST ring, plus the overshoot.
         self.assertIn("array_max(", expression)
-        self.assertIn("250", expression)
+
+        # A floor AND a proportion - a fixed ground overshoot that
+        # shows shaft on a small fan is swallowed by the fixed-mm
+        # arrowhead on a large one.
+        self.assertIn("400", expression)
+        self.assertIn("0.1", expression)
 
 
     def test_the_altitude_is_upper_cased_per_h_5_4(self):

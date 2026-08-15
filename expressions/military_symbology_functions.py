@@ -3263,6 +3263,14 @@ def mct_range_fan_ring(values, feature=None, parent=None):
     sides span only its own band. Only ring 1 reaches the vertex, and
     only because its inner range is 0.
 
+    **A ring with an inner range is CLOSED - its inner arc is drawn
+    too.** Where two rings share their angles that arc lands exactly on
+    the inner ring's own outer arc and is invisible; where they differ,
+    it is the only thing closing the band. Without it a ring wider than
+    the one inside it hangs open at the corners, which is what the
+    maintainer reported: "the inner ring should also be drawn otherwise
+    there is a gap".
+
     Returns an empty geometry for a ring with no range, which is how a
     symbol carrying five ring layers draws only the ones filled in.
     """
@@ -3293,22 +3301,17 @@ def mct_range_fan_ring(values, feature=None, parent=None):
             _range_fan_arc_points(centre, radius, 0.0, 360.0)
         )
 
-    distance_area = _distance_area()
+    outer = _range_fan_arc_points(centre, radius, left, sweep)
 
-    def foot(bearing_deg):
+    if inner == 0.0:
 
-        if inner == 0.0:
-            return centre
+        return QgsGeometry.fromPolylineXY([centre] + outer + [centre])
 
-        return distance_area.computeSpheroidProject(
-            centre, inner, math.radians(bearing_deg)
-        )
+    # Closed: out along the left side, round the outer arc, back down
+    # the right side, and home along the inner arc.
+    inner_arc = _range_fan_arc_points(centre, inner, right, -sweep)
 
-    return QgsGeometry.fromPolylineXY(
-        [foot(left)]
-        + _range_fan_arc_points(centre, radius, left, sweep)
-        + [foot(right)]
-    )
+    return QgsGeometry.fromPolylineXY(outer + inner_arc + [outer[0]])
 
 
 @qgsfunction(
