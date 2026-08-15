@@ -171,9 +171,13 @@ _RAMPART_TILE_OVERLAP_MM = 0.12
 # wrong: the profile has no baseline UNDER a merlon (the standard's own
 # template is a bare square wave), so a continuous underlay would close
 # every merlon into a box. Generating the profile as real geometry is
-# also out: it would need page units inside a geometry generator, and
-# `@map_scale` is confirmed NOT to behave there (see
-# offensive_control_measures.py's own note, where that cost a round).
+# also out: it would need page units inside a geometry generator, which
+# at the time was believed impossible. **That belief was wrong** - see
+# the 2026-08-15 roadmap entry: `@map_scale` does resolve there, and
+# Table H-XXI's own Minimum Safe Distance Zone relies on it. This
+# construction is left exactly as it is regardless, because it works
+# and is signed off; recorded here only so the claim is not carried
+# forward as fact.
 #
 # So the connector is placed only where it is needed. One tile long at
 # an inner vertex, which is enough to bridge the bend without reaching

@@ -8430,6 +8430,90 @@ a normal glyph, and then only as far as the fit allows.
 
 ---
 
+### Table H-XXI closes: Minimum Safe Distance Zone and the dose-rate contour (2026-08-15)
+
+The maintainer's own constructions for the table's last two rows, and
+with them **Table H-XXI is complete - all 27 codes, across four
+layers**.
+
+**Minimum Safe Distance Zone (272100)** - "same construction as weapon
+sensor range fan; only that only range is required to be input - in
+meters, and range is inscribed on the perimeter circle... straight, on
+the right, masked". A new point layer with one clicked centre and up to
+five ranges: no angles (the zone is always a full circle), no altitude.
+
+Their one change to the standard is what the labels SAY. Its own draw
+rules number the rings 1, 2, 3; the maintainer writes the range itself,
+so 500/1500/2500 label as "500m", "1500m", "2500m". **Everything else
+they described turns out to be the standard's own picture exactly** -
+the numbers level with the centre, to its right, horizontal, with each
+circle broken either side of its own number. Worth checking the example
+before building rather than after: it confirmed the whole placement in
+one look.
+
+The break is cut into the ring's own geometry rather than masked, and
+that part is not a choice - QGIS's Selective Masking cannot reach a
+symbol layer nested inside a geometry generator, and a generated ring
+has nowhere else to live. Its width is the label's own rendered width
+plus padding, measured with Qt's font metrics rather than estimated
+from the character count, so "500m" and "12500m" each get the gap they
+actually need.
+
+**Radiation Dose Rate Contour Line (272200)** - "just a polygon with
+the unique designation Field T place at the top; nothing special,
+contours will be hand drawn by user so multiple contours = multiple
+lines/polygons". Built as exactly that: an unfilled status-driven
+outline with Field T at the top of the shape, masking the outline it
+sits on. A POLYGON layer despite the row being called a "Contour Line",
+because its own draw rules ask for "at least three anchor points to
+define the boundary of the area" - the area vocabulary word for word.
+
+Two details the first render caught:
+
+- **The dose rate is NOT upper-cased**, alone among the Field T labels
+  in this appendix. H.5.4's "all text labeling in upper case" is
+  applied everywhere else here, but this row's own example writes
+  "30cGy", "100cGy", "300cGy", and cGy is the SI symbol for the
+  centigray, where case carries meaning. Upper-casing it would
+  contradict the standard's own picture of this very row to satisfy its
+  general rule.
+- **displayAll**, because nested contours are the normal case: three
+  contours around one release sit close together near the top, which is
+  where their labels go, and PAL's default collision handling silently
+  dropped the middle one. A missing dose rate is worse than two labels
+  close together.
+
+**A long-standing note in this project is wrong, and it is corrected
+rather than quietly dropped.** Three places recorded that `@map_scale`
+does not resolve inside a geometry generator - field_fortification.py,
+offensive_control_measures.py and a Maritime test. **It does.** Probed
+directly on 2026-08-15 with a properly populated map-settings scope: a
+geometry-generator expression reads exactly the scale
+`QgsMapSettings.scale()` reports.
+
+Where the belief came from is worth knowing, because both sources are
+now understood:
+
+- The offensive_control_measures case saw a trim come out "far larger
+  than intended" - not a NULL variable but a map-unit conversion. A
+  scale relates ground metres to page millimetres, and the geometry
+  there is in DEGREES.
+- The offscreen harness this project renders with never called
+  `settings.setExpressionContext(...)`, so EVERY map variable read NULL
+  in it - not just this one. That flaw was found earlier the same day
+  while sizing the contaminated areas' glyph.
+
+**No existing construction was changed on the strength of this.** The
+rampart profile, the bowtie and Navigational's flanks all work, are
+signed off, and their marker-glyph approaches were never the worse
+answer. Only the comments were corrected, so the claim is not carried
+forward as fact - the CBRN triangle blocker earlier the same day is
+what a stale claim in a comment costs.
+
+1183 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
@@ -8450,13 +8534,13 @@ a normal glyph, and then only as far as the fit allows.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **29 symbols in 2 units**, all of it construction rather than
+is **27 symbols in 2 units**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
-out not to be a blocker at all (see below). It was 36 in 2 before the
-seven contaminated areas were built on 2026-08-15, and 54 in 5 before
-Maritime's Navigational, H-XXIII's eight supply routes and its seven
-sustainment areas were all built on 2026-08-14. Every one of the 29 is
+out not to be a blocker at all (see below). It was 36 in 2 before Table
+H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
+Navigational, H-XXIII's eight supply routes and its seven sustainment
+areas were all built on 2026-08-14. Every one of the 27 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -8472,13 +8556,14 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 |---|---|---|---|
 | 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
 | 2 | H-XXIII Supply | 2 | Moving and Halted Convoy. **The 8 supply routes and 7 sustainment areas were built 2026-08-14.** |
-| 2 | H-XXI CBRN | 2 | Minimum Safe Distance Zone, Radiation Dose Rate Contour Line. **The 7 contaminated areas were built 2026-08-15**, and with them the last blocker in Appendix H. |
+| ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |
 | ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |
 
 Each module records its own unbuilt rows by CODE, with a test asserting
 built + unbuilt equals the printed table's own count:
-`TABLE_H_XXI_REMAINING`, `TABLE_H_XXIII_REMAINING`,
+`TABLE_H_XXI_REMAINING` (now empty, and deliberately kept so the
+arithmetic still runs), `TABLE_H_XXIII_REMAINING`,
 `TABLE_H_XXIV_REMAINING`.
 
 **Nothing is blocked.** Both of the sub-groups that were have since

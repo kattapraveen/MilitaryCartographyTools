@@ -17,7 +17,12 @@ from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     AREA_GLYPH_ENTITIES,
     AREA_MEASURE_TYPE_CODES,
     AREA_MEASURE_TYPE_LABELS,
+    DOSE_RATE_CONTOURS_LAYER_NAME,
+    DOSE_RATE_CONTOUR_CODE,
     POINTS_LAYER_NAME,
+    SAFE_DISTANCE_MAX_RINGS,
+    SAFE_DISTANCE_ZONES_LAYER_NAME,
+    SAFE_DISTANCE_ZONE_CODE,
     POINT_DESIGNATION_SLOTS,
     POINT_MARKER_SIZE_SCALES,
     POINT_ENTITY_CODES,
@@ -26,6 +31,10 @@ from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     TABLE_H_XXI_REMAINING,
     add_cbrn_contaminated_areas_layer,
     add_cbrn_defense_points_layer,
+    add_dose_rate_contours_layer,
+    add_safe_distance_zones_layer,
+    create_dose_rate_contours_layer,
+    create_safe_distance_zones_layer,
     create_cbrn_contaminated_areas_layer,
     create_cbrn_defense_points_layer,
 )
@@ -87,23 +96,30 @@ class TestCbrnVocabulary(QgisTestCase):
                 )
 
 
-    def test_the_two_unbuilt_rows_are_recorded_not_forgotten(self):
+    def test_the_whole_table_is_built(self):
 
-        # The whole table is 27 rows: 18 points, 7 contaminated areas,
-        # and the two that remain. Recording them explicitly is what
-        # keeps "not built yet" from looking like "missed".
-        self.assertEqual(len(TABLE_H_XXI_REMAINING), 2)
+        # 27 rows: 18 points, 7 contaminated areas, the Minimum Safe
+        # Distance Zone and the dose-rate contour. The arithmetic is
+        # what kept the gap honest while there was one, and is still
+        # what would catch a row going missing.
+        self.assertEqual(len(TABLE_H_XXI_REMAINING), 0)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
             + len(AREA_MEASURE_TYPE_CODES)
+            + len({SAFE_DISTANCE_ZONE_CODE, DOSE_RATE_CONTOUR_CODE})
             + len(TABLE_H_XXI_REMAINING),
             27
         )
 
+        # No code is claimed twice.
         self.assertEqual(
-            set(TABLE_H_XXI_REMAINING),
-            {"272100", "272200"}
+            len(
+                set(POINT_ENTITY_CODES.values())
+                | set(AREA_MEASURE_TYPE_CODES.values())
+                | {SAFE_DISTANCE_ZONE_CODE, DOSE_RATE_CONTOUR_CODE}
+            ),
+            27
         )
 
         # None of the unbuilt rows is also claimed as built.
@@ -1142,3 +1158,391 @@ class TestCbrnAreaGlyphSurvivesTheLayersOwnDefaults(QgisTestCase):
         svg = self._glyph_svg()
 
         self.assertIn("-60,-110 120,0 z", svg)
+
+
+class TestMinimumSafeDistanceZone(QgisTestCase):
+
+    """
+    272100 - the maintainer's own construction, 2026-08-15: the range
+    fan's, with range as the only input, and the range itself written
+    into the break each ring cuts for it.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+        self.project = QgsProject.instance()
+        self.project.setCrs(WGS84)
+
+        self.layer = create_safe_distance_zones_layer()
+
+        self.project.addMapLayer(self.layer)
+
+    def tearDown(self):
+
+        self.project.removeAllMapLayers()
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+    def _context(self, ranges, scale=50000.0):
+
+        from qgis.core import QgsRectangle
+
+        feature = QgsVectorLayerUtils.createFeature(
+            self.layer, QgsGeometry.fromWkt("POINT(77.0 28.0)")
+        )
+
+        for ring, value in enumerate(ranges, start=1):
+            feature.setAttribute(f"ring{ring}_range", float(value))
+
+        settings = QgsMapSettings()
+        settings.setDestinationCrs(WGS84)
+        settings.setOutputSize(QSize(800, 800))
+        settings.setOutputDpi(96)
+        settings.setExtent(QgsRectangle(76.9, 27.9, 77.1, 28.1))
+
+        context = QgsExpressionContext()
+        context.appendScope(QgsExpressionContextUtils.globalScope())
+        context.appendScope(
+            QgsExpressionContextUtils.projectScope(self.project)
+        )
+        context.appendScope(
+            QgsExpressionContextUtils.mapSettingsScope(settings)
+        )
+        context.setFeature(feature)
+
+        return context
+
+    def test_the_layer_offers_five_ranges_and_nothing_else(self):
+
+        self.assertTrue(self.layer.isValid())
+        self.assertEqual(self.layer.name(), SAFE_DISTANCE_ZONES_LAYER_NAME)
+
+        names = [field.name() for field in self.layer.fields()]
+
+        self.assertEqual(
+            names,
+            ["affiliation", "status"]
+            + [f"ring{ring}_range" for ring in range(1, SAFE_DISTANCE_MAX_RINGS + 1)]
+        )
+
+    def test_the_label_is_the_range_with_its_unit(self):
+
+        from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+            _safe_distance_label_expression,
+        )
+
+        context = self._context([500, 1500, 2500])
+
+        self.assertEqual(
+            QgsExpression(_safe_distance_label_expression(1)).evaluate(context),
+            "500m"
+        )
+
+        self.assertEqual(
+            QgsExpression(_safe_distance_label_expression(3)).evaluate(context),
+            "2500m"
+        )
+
+        # An empty ring labels nothing rather than a bare unit.
+        self.assertEqual(
+            QgsExpression(_safe_distance_label_expression(5)).evaluate(context),
+            ""
+        )
+
+    def test_each_ring_is_a_circle_broken_on_its_right(self):
+
+        from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+            _safe_distance_ring_geometry_expression,
+        )
+
+        context = self._context([1500])
+
+        ring = QgsExpression(
+            _safe_distance_ring_geometry_expression(1)
+        ).evaluate(context)
+
+        points = ring.asPolyline()
+
+        self.assertGreater(len(points), 20)
+
+        # Open, not closed - the break is the point of it.
+        self.assertNotEqual(points[0], points[-1])
+
+        centre = QgsGeometry.fromWkt("POINT(77.0 28.0)").asPoint()
+
+        distance_area = military_symbology_functions._distance_area()
+
+        # Every vertex a true 1500 m from the centre, geodesically.
+        for point in points:
+
+            self.assertAlmostEqual(
+                distance_area.measureLine(centre, point), 1500.0, delta=1.0
+            )
+
+        # And the break straddles due east, where the standard puts the
+        # numbers: the two open ends sit either side of the centre's own
+        # latitude, east of it.
+        for end in (points[0], points[-1]):
+            self.assertGreater(end.x(), centre.x())
+
+        self.assertLess(
+            min(points[0].y(), points[-1].y()), centre.y()
+        )
+
+        self.assertGreater(
+            max(points[0].y(), points[-1].y()), centre.y()
+        )
+
+    def test_the_break_is_as_wide_as_the_label_that_sits_in_it(self):
+
+        from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+            _safe_distance_gap_expression,
+            _safe_distance_ring_geometry_expression,
+        )
+
+        context = self._context([1500])
+
+        gap_mm = QgsExpression(
+            _safe_distance_gap_expression(1)
+        ).evaluate(context)
+
+        map_scale = QgsExpression("@map_scale").evaluate(context)
+
+        expected_metres = gap_mm / 1000.0 * map_scale
+
+        ring = QgsExpression(
+            _safe_distance_ring_geometry_expression(1)
+        ).evaluate(context)
+
+        points = ring.asPolyline()
+
+        measured = military_symbology_functions._distance_area().measureLine(
+            points[0], points[-1]
+        )
+
+        # Chord against arc over a few degrees - within a percent.
+        self.assertAlmostEqual(
+            measured, expected_metres, delta=expected_metres * 0.02
+        )
+
+    def test_a_longer_label_cuts_a_wider_break(self):
+
+        from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+            _safe_distance_gap_expression,
+        )
+
+        short = QgsExpression(_safe_distance_gap_expression(1)).evaluate(
+            self._context([500])
+        )
+
+        long = QgsExpression(_safe_distance_gap_expression(1)).evaluate(
+            self._context([12500])
+        )
+
+        self.assertGreater(long, short)
+
+    def test_an_empty_ring_draws_nothing(self):
+
+        from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+            _safe_distance_ring_geometry_expression,
+        )
+
+        context = self._context([1500])
+
+        for ring in range(2, SAFE_DISTANCE_MAX_RINGS + 1):
+
+            geometry = QgsExpression(
+                _safe_distance_ring_geometry_expression(ring)
+            ).evaluate(context)
+
+            self.assertTrue(
+                geometry is None or geometry.isEmpty(), f"ring {ring}"
+            )
+
+    def test_one_label_rule_per_ring(self):
+
+        labeling = self.layer.labeling()
+
+        root_rule = labeling.rootRule()
+
+        rules = root_rule.children()
+
+        self.assertEqual(len(rules), SAFE_DISTANCE_MAX_RINGS)
+
+        self.assertEqual(
+            [rule.description() for rule in rules],
+            [f"ring{ring}" for ring in range(1, SAFE_DISTANCE_MAX_RINGS + 1)]
+        )
+
+    def test_adding_the_layer_inserts_exactly_one(self):
+
+        iface = FakeIface()
+
+        add_safe_distance_zones_layer(iface)
+        add_safe_distance_zones_layer(iface)
+
+        self.assertEqual(
+            len(
+                QgsProject.instance().mapLayersByName(
+                    SAFE_DISTANCE_ZONES_LAYER_NAME
+                )
+            ),
+            1
+        )
+
+
+class TestRadiationDoseRateContours(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+        self.project = QgsProject.instance()
+        self.project.setCrs(WGS84)
+
+        self.layer = create_dose_rate_contours_layer()
+
+        self.project.addMapLayer(self.layer)
+
+    def tearDown(self):
+
+        self.project.removeAllMapLayers()
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+    def test_it_is_a_polygon_layer_despite_being_called_a_line(self):
+
+        from qgis.core import QgsWkbTypes
+
+        self.assertTrue(self.layer.isValid())
+
+        self.assertEqual(
+            self.layer.geometryType(), QgsWkbTypes.GeometryType.PolygonGeometry
+        )
+
+        self.assertEqual(self.layer.name(), DOSE_RATE_CONTOURS_LAYER_NAME)
+
+    def test_the_outline_is_unfilled_and_masked_by_its_own_label(self):
+
+        symbol = self.layer.renderer().symbol()
+
+        self.assertIsInstance(
+            symbol.symbolLayer(0), QgsSimpleLineSymbolLayer
+        )
+
+        # Each accessor lands in its own variable: chaining off a
+        # by-value temporary kills the interpreter, a trap this project
+        # has documented for months and which caught this test's own
+        # author on the first run.
+        labeling = self.layer.labeling()
+
+        settings = labeling.settings()
+
+        text_format = settings.format()
+
+        mask = text_format.mask()
+
+        self.assertTrue(mask.enabled())
+
+        self.assertEqual(
+            [
+                reference.symbolLayerIdV2()
+                for reference in mask.maskedSymbolLayers()
+            ],
+            ["dose_rate_contour_outline"]
+        )
+
+    def test_the_dose_rate_is_not_upper_cased(self):
+
+        # H.5.4 upper-cases every other Field T in this appendix, but
+        # this row's own example writes "30cGy" - and cGy is the SI
+        # symbol for the centigray, where case carries meaning.
+        feature = QgsVectorLayerUtils.createFeature(
+            self.layer,
+            QgsGeometry.fromWkt(
+                "POLYGON((77.0 28.0, 77.1 28.0, 77.1 28.1, 77.0 28.1,"
+                " 77.0 28.0))"
+            )
+        )
+
+        feature.setAttribute("unique_designation", "300cGy")
+
+        context = QgsExpressionContext()
+        context.appendScopes(
+            QgsExpressionContextUtils.globalProjectLayerScopes(self.layer)
+        )
+        context.setFeature(feature)
+
+        labeling = self.layer.labeling()
+
+        settings = labeling.settings()
+
+        self.assertEqual(
+            QgsExpression(settings.fieldName).evaluate(context), "300cGy"
+        )
+
+    def test_nested_contours_all_keep_their_labels(self):
+
+        # Three contours around one release sit close together at the
+        # top, which is where their labels go; PAL's default collision
+        # handling drops the middle one.
+        labeling = self.layer.labeling()
+
+        settings = labeling.settings()
+
+        self.assertTrue(settings.displayAll)
+
+    def test_the_label_sits_at_the_top_of_the_contour(self):
+
+        feature = QgsVectorLayerUtils.createFeature(
+            self.layer,
+            QgsGeometry.fromWkt(
+                "POLYGON((77.0 28.0, 77.2 28.0, 77.2 28.1, 77.0 28.1,"
+                " 77.0 28.0))"
+            )
+        )
+
+        context = QgsExpressionContext()
+        context.appendScopes(
+            QgsExpressionContextUtils.globalProjectLayerScopes(self.layer)
+        )
+        context.setFeature(feature)
+
+        labeling = self.layer.labeling()
+
+        settings = labeling.settings()
+
+        anchor_geometry = QgsExpression(
+            settings.geometryGenerator
+        ).evaluate(context)
+
+        anchor = anchor_geometry.asPoint()
+
+        self.assertAlmostEqual(anchor.x(), 77.1, places=6)
+        self.assertAlmostEqual(anchor.y(), 28.1, places=6)
+
+    def test_adding_the_layer_inserts_exactly_one(self):
+
+        iface = FakeIface()
+
+        add_dose_rate_contours_layer(iface)
+        add_dose_rate_contours_layer(iface)
+
+        self.assertEqual(
+            len(
+                QgsProject.instance().mapLayersByName(
+                    DOSE_RATE_CONTOURS_LAYER_NAME
+                )
+            ),
+            1
+        )

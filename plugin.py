@@ -91,6 +91,8 @@ from .military_symbology.fire_support_coordination_measures import (
 from .military_symbology.cbrn_defense import (
     add_cbrn_contaminated_areas_layer,
     add_cbrn_defense_points_layer,
+    add_dose_rate_contours_layer,
+    add_safe_distance_zones_layer,
 )
 from .military_symbology.field_fortification import (
     add_field_fortification_lines_layer,
@@ -1227,14 +1229,14 @@ class MilitaryCartographyTools:
         )
 
         self.cbrn_defense_action.setToolTip(
-            "Add the CBRN Defense (Points) and (Contaminated Areas) "
-            "layers (MIL-STD-2525D Appendix H.5.23, Table H-XXI): the "
-            "chemical, biological, nuclear and radiological event "
-            "points, their Toxic Industrial Material variants, the "
-            "eleven decontamination point/site types, and the seven "
-            "yellow-hatched contaminated areas. The table's own Minimum "
-            "Safe Distance Zone and dose-rate contour line are not "
-            "built yet."
+            "Add all four CBRN Defense layers (MIL-STD-2525D Appendix "
+            "H.5.23, Table H-XXI, complete): the chemical, biological, "
+            "nuclear and radiological event points, their Toxic "
+            "Industrial Material variants and the eleven "
+            "decontamination point/site types; the seven "
+            "yellow-hatched contaminated areas; the Minimum Safe "
+            "Distance Zone's concentric range rings; and the radiation "
+            "dose-rate contours."
         )
 
         self.cbrn_defense_action.triggered.connect(
@@ -2339,12 +2341,8 @@ class MilitaryCartographyTools:
 
     def create_cbrn_defense(self):
         """
-        Add the CBRN Defense (Points) and (Contaminated Areas) layers
-        - Table H-XXI (MIL-STD-2525D Appendix H.5.23).
-
-        The table's own Minimum Safe Distance Zone and its dose-rate
-        contour line are audited but not built - see cbrn_defense.py's
-        own TABLE_H_XXI_REMAINING for what each needs.
+        Add all four CBRN Defense layers - Table H-XXI (MIL-STD-2525D
+        Appendix H.5.23), complete as of 2026-08-15.
         """
 
         add_cbrn_defense_points_layer(
@@ -2352,6 +2350,14 @@ class MilitaryCartographyTools:
         )
 
         add_cbrn_contaminated_areas_layer(
+            self.iface
+        )
+
+        add_safe_distance_zones_layer(
+            self.iface
+        )
+
+        add_dose_rate_contours_layer(
             self.iface
         )
 

@@ -1333,9 +1333,19 @@ _DIRECTION_OF_ATTACK_BOWTIE_TRIANGLE_SIZE_MM = 3.2
 # `line_substring()`-based trim that replaced it turned out to depend
 # on `@map_scale` behaving inside a geometry-generator expression the
 # same way `QgsMapSettings.scale()` reports it beforehand - confirmed
-# by render that it DOESN'T (the trimmed-away region came out far
-# larger than intended at actual render time, eating the shaft on both
-# sides of the bowtie instead of just the bowtie's own footprint).
+# by render that it DIDN'T (the trimmed-away region came out far larger
+# than intended at actual render time, eating the shaft on both sides
+# of the bowtie instead of just the bowtie's own footprint).
+#
+# **What that actually was, established 2026-08-15**: not `@map_scale`
+# failing to resolve - it does resolve inside a geometry generator -
+# but a map-unit conversion. A scale relates ground metres to page
+# millimetres, and on a layer in a geographic CRS the geometry is in
+# DEGREES; treating the one as the other is exactly the kind of error
+# that overshoots by orders of magnitude. See the roadmap's own
+# 2026-08-15 entry and mct_safe_distance_ring(), which does the
+# conversion properly. The construction below is left as it is - it
+# works, it is signed off, and the alternative was never better.
 #
 # The maintainer's own simpler alternative, adopted instead: don't
 # trim or mask the real line at ALL. Move the bowtie so it sits

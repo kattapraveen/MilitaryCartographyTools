@@ -3368,6 +3368,15 @@ _RANGE_FAN_FULL_CIRCLE_SEGMENTS = 144
 _RANGE_FAN_MIN_SEGMENTS = 12
 
 
+# Minimum Safe Distance Zone: where its rings break for their labels,
+# and how far that break is allowed to open. Due east is the standard's
+# own placement - every number in Table H-XXI's example sits level with
+# the centre, to its right. The cap keeps a ring whose label is wider
+# than the ring itself from inverting.
+_SAFE_DISTANCE_LABEL_BEARING_DEG = 90.0
+_SAFE_DISTANCE_MAX_HALF_GAP_DEG = 60.0
+
+
 def _range_fan_arc_points(centre, radius_m, start_deg, sweep_deg):
 
     """
@@ -3402,6 +3411,120 @@ def _range_fan_arc_points(centre, radius_m, start_deg, sweep_deg):
         )
 
     return points
+
+
+@qgsfunction(
+    'mct_text_width_mm',
+    group='Military Cartography Tools'
+)
+def mct_text_width_mm(values, feature=None, parent=None):
+
+    """
+    How wide `text` renders at `font_size_mm`, in millimetres - measured
+    with the same Qt font machinery that will draw it rather than
+    estimated. Use as mct_text_width_mm('1500M', 3.175).
+
+    Exposed as an expression function for Table H-XXI's own Minimum
+    Safe Distance Zone, whose rings have to break by exactly the width
+    of the label sitting in the break. The measurement itself is the
+    same one supply-route glyph sizing already used privately.
+    """
+
+    if len(values) < 2:
+        return "Need a text and a font size in millimetres"
+
+    text = str(values[0]) if values[0] is not None else ""
+
+    try:
+        font_size_mm = float(values[1])
+    except (TypeError, ValueError):
+        return 0.0
+
+    if not text or font_size_mm <= 0:
+        return 0.0
+
+    return _text_width_mm(text, font_size_mm)
+
+
+@qgsfunction(
+    'mct_safe_distance_ring',
+    group='Military Cartography Tools'
+)
+def mct_safe_distance_ring(values, feature=None, parent=None):
+
+    """
+    One ring of a Minimum Safe Distance Zone: a full circle of
+    `range_metres` around a centre point, BROKEN on its right-hand side
+    by a gap `gap_mm` wide on the page. Use as
+    mct_safe_distance_ring($geometry, "range1", <gap in mm>, @map_scale).
+
+    The break is not decoration: Table H-XXI's own example draws each
+    circle stopping either side of the number that labels it, due east
+    of the centre and horizontal. Cutting it into the geometry is also
+    the only way to get it - QGIS's Selective Masking cannot reach a
+    symbol layer nested inside a geometry generator, and a generated
+    ring has nowhere else to live.
+
+    **The gap is given in page millimetres and converted here**, which
+    is what makes it exactly as wide as the text however far the map is
+    zoomed. @map_scale DOES resolve inside a geometry generator -
+    verified by probe on 2026-08-15, correcting a note this project had
+    carried since 2026-08-11 (see mct_range_fan_ring's own neighbours);
+    the earlier finding came from an offscreen harness that never
+    populated the map-settings scope at all, so every variable read
+    NULL there, not just this one.
+
+    Returns an empty geometry for a ring with no range, which is how a
+    symbol carrying five ring layers draws only the ones filled in.
+    """
+
+    if len(values) < 4:
+        return QgsGeometry()
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return QgsGeometry()
+
+    try:
+        radius = float(values[1])
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    if radius <= 0:
+        return QgsGeometry()
+
+    centre = geometry.asPoint()
+
+    try:
+        gap_mm = float(values[2])
+    except (TypeError, ValueError):
+        gap_mm = 0.0
+
+    try:
+        map_scale = float(values[3])
+    except (TypeError, ValueError):
+        map_scale = 0.0
+
+    gap_metres = max(gap_mm, 0.0) / 1000.0 * max(map_scale, 0.0)
+
+    # Half the gap as an angle at the centre. Clamped well short of a
+    # quarter turn: a ring small enough on the page for its own label to
+    # span it would otherwise open into an arc shorter than the gap, or
+    # invert outright.
+    half_gap_deg = min(
+        math.degrees(gap_metres / 2.0 / radius) if radius else 0.0,
+        _SAFE_DISTANCE_MAX_HALF_GAP_DEG
+    )
+
+    # Due east, where the standard puts the numbers.
+    start = _SAFE_DISTANCE_LABEL_BEARING_DEG + half_gap_deg
+
+    sweep = 360.0 - 2.0 * half_gap_deg
+
+    return QgsGeometry.fromPolylineXY(
+        _range_fan_arc_points(centre, radius, start, sweep)
+    )
 
 
 def _range_fan_frame(values):
@@ -5807,6 +5930,8 @@ _FUNCTIONS = [
     mct_length_km,
     mct_inscribed_centre,
     mct_inscribed_radius_mm,
+    mct_safe_distance_ring,
+    mct_text_width_mm,
     mct_crenellate_outline,
     mct_serrate_outline,
     mct_decoy_chevron,

@@ -190,9 +190,11 @@ class TestCreateMaritimeControlMeasuresLinesLayer(QgisTestCase):
         # Table H-XIV's own last row, and the only one of its hazards
         # that is a line. The flanks are 6 mm on the PAGE - the draw
         # rules say the symbol "varies only in length" - so they are
-        # marker glyphs, not generated geometry: nothing inside a
-        # geometry generator can express page units, @map_scale not
-        # resolving there.
+        # marker glyphs, not generated geometry. (The original reason
+        # given was that @map_scale does not resolve in a geometry
+        # generator; that turned out to be wrong on 2026-08-15. A
+        # marker glyph is still the simpler way to say "6 mm", so the
+        # construction stands.)
         layer = create_maritime_control_measures_lines_layer()
 
         rule = next(

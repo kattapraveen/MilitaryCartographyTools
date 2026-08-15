@@ -1258,9 +1258,7 @@ plugin fixes a consistent convention instead.
 
 ### CBRN Defense Control Measures
 
-MIL-STD-2525D Appendix H.5.23 (Table H-XXI) — two layers, 25 of the
-table's 27 rows. Its Minimum Safe Distance Zone and its radiation
-dose-rate contour line are not built yet.
+MIL-STD-2525D Appendix H.5.23 (Table H-XXI) — four layers, all 27 rows.
 
 **Points** offers 18: the **Chemical**, **Biological**, **Nuclear** and
 **Radiological** event markers, a **Toxic Industrial Material** variant
@@ -1304,6 +1302,21 @@ A long thin or crescent-shaped area will shrink its glyph sooner than
 its size suggests: the fit is measured against the largest circle that
 fits inside the shape, which is what lets the clearance hold for any
 shape you draw.
+
+**Minimum Safe Distance Zones** takes one click for the centre and up
+to five **ranges in metres** — nothing else. Each range draws a circle
+around the centre at that true ground distance, and writes the range
+itself into a break in the circle, level with the centre and to its
+right, exactly where the standard puts its own ring numbers. The break
+is sized to the text, so "500m" and "12500m" each get the gap they
+need. A sixth ring means a second zone placed at the same point.
+
+**Radiation Dose Rate Contours** is a plain polygon per contour. Draw
+each contour separately — three dose rates are three features — and put
+the rate in **Unique designation**; it draws at the top of the shape,
+breaking the outline it sits on. This is the one field in the whole
+appendix that is *not* forced to upper case, because the standard's own
+example writes "30cGy" and the case of "cGy" carries meaning.
 
 ### Target Acquisition Control Measures
 

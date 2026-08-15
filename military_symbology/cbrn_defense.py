@@ -5,10 +5,10 @@ MIL-STD-2525D Appendix H.5.23 (Table H-XXI, "CBRN defense control
 measure symbols") - Mini-Phase H18. Printed pages 606-614, 27 code
 rows.
 
-**This module currently builds the table's POINTS only - 18 of the 27.**
-The remaining nine are areas and lines and are audited but deliberately
-NOT built yet; see TABLE_H_XXI_REMAINING below for what they are and
-what has to be settled before they can be.
+**This module builds all 27 rows, across four layers**: 18 points, the
+7 contaminated areas, the Minimum Safe Distance Zone and the radiation
+dose-rate contour. The points shipped 2026-08-13, the areas and the
+last two on 2026-08-15.
 
 **Why the split is a clean one, not an arbitrary stopping place.**
 Every one of the 18 point codes (281300-281809) is backed by a real
@@ -55,9 +55,11 @@ duplication defect.
 """
 
 from ._control_measure_shared import (
+    LABEL_FONT_SIZE,
     _STATUS_LINE_STYLE_EXPRESSION,
     _apply_affiliation_color,
     _build_rule_based_renderer,
+    _build_pal_layer_settings,
     _configure_affiliation_field,
     _configure_status_field,
     _value_map,
@@ -69,22 +71,27 @@ from ._point_symbol_layer import build_single_domain_point_layer
 import base64
 
 from qgis.core import (
+    Qgis,
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsField,
     QgsFillSymbol,
     QgsGeometryGeneratorSymbolLayer,
+    QgsLineSymbol,
     QgsLinePatternFillSymbolLayer,
     QgsMarkerSymbol,
     QgsMaskMarkerSymbolLayer,
     QgsProject,
     QgsProperty,
+    QgsRuleBasedLabeling,
     QgsSimpleLineSymbolLayer,
     QgsSvgMarkerSymbolLayer,
     QgsSymbol,
     QgsSymbolLayer,
     QgsSymbolLayerReference,
+    QgsSingleSymbolRenderer,
     QgsVectorLayer,
+    QgsVectorLayerSimpleLabeling,
 )
 
 from qgis.PyQt.QtCore import QMetaType
@@ -212,24 +219,11 @@ POINT_DESIGNATION_SLOTS = {
     if entity not in _EVENT_ENTITIES
 }
 
-# --- Audited, NOT built. ---
-#
-# The last two rows of Table H-XXI, neither backed by a milsymbol
-# icon. Recorded here so the gap is explicit rather than looking like
-# an oversight, and so whoever builds them starts from the audit
-# rather than re-reading the table.
-#
-# Minimum Safe Distance Zone (272100) is a circle - its own draw rules
-# DO number it (a centre point plus a radius point), so it could be
-# built without asking anything.
-#
-# Radiation Dose Rate Contour Line (272200) is a plain line carrying a
-# dose-rate label at each end, in the same shape as Table H-III's own
-# Boundary labelling.
-TABLE_H_XXI_REMAINING = {
-    "272100": "Minimum Safe Distance Zone",
-    "272200": "Radiation Dose Rate Contour Line",
-}
+# Nothing is left unbuilt in Table H-XXI. The dict below stays, empty,
+# because a test asserts built + unbuilt equals the printed table's own
+# 27 rows - which is the check that kept the gap honest while there was
+# one, and is still the check that would catch a row going missing.
+TABLE_H_XXI_REMAINING = {}
 
 
 def create_cbrn_defense_points_layer(name=POINTS_LAYER_NAME):
@@ -720,4 +714,410 @@ def add_cbrn_contaminated_areas_layer(iface):
         iface,
         AREAS_LAYER_NAME,
         create_cbrn_contaminated_areas_layer,
+    )
+
+
+# ============================================================
+# 272100 - Minimum Safe Distance Zone
+# ============================================================
+#
+# **The same construction as the Weapon/Sensor Range Fan, minus every
+# input but the range** - the maintainer's own words, 2026-08-15. One
+# clicked centre, up to five concentric rings, each a range in metres.
+# No angles (the zone is always a full circle) and no altitude.
+#
+# The standard's own draw rules number the rings "1 2 3" and place the
+# numbers level with the centre, to its right, with each circle broken
+# either side of its own number. The maintainer's one change is what
+# the numbers SAY: the range itself rather than an ordinal, "so if
+# ranges are entered as 500, 1500, 2500 the circle's perimeter will
+# have 500m, 1500m, 2500m on the perimeter". Everything else - level
+# with the centre, on the right, horizontal, and cutting the circle -
+# is the standard's, and is exactly what its example draws.
+SAFE_DISTANCE_ZONES_LAYER_NAME = "Minimum Safe Distance Zones"
+
+SAFE_DISTANCE_ZONE_CODE = "272100"
+
+# Five, matching the range fan's own cap and for the same reason: a
+# sixth ring means a second symbol at the same point. The standard's
+# own template draws three.
+SAFE_DISTANCE_MAX_RINGS = 5
+
+# Metres, stated rather than assumed - as on the range fan, whose own
+# constant this deliberately mirrors.
+SAFE_DISTANCE_RANGE_UNIT = "m"
+
+_SAFE_DISTANCE_LINE_WIDTH_MM = 0.4
+
+# Breathing room either side of the label inside the gap it cuts, so
+# the circle does not end hard against the first and last glyph.
+_SAFE_DISTANCE_LABEL_PADDING_MM = 1.4
+
+# The label font in millimetres. LABEL_FONT_SIZE is in POINTS, which is
+# what QgsTextFormat defaults to, and the gap has to be measured in the
+# same units as the map page.
+_SAFE_DISTANCE_LABEL_SIZE_MM = LABEL_FONT_SIZE * 25.4 / 72.0
+
+
+def _safe_distance_range_field(ring):
+
+    return f"ring{ring}_range"
+
+
+def _safe_distance_label_expression(ring):
+
+    """
+    The ring's own range with its unit - "1500m" for a range of 1500.
+
+    Whole metres: these are typed as a distance, and "1500.0m" reads as
+    a measurement error rather than a number. Rounded rather than
+    truncated so 1499.6 does not become 1499.
+    """
+
+    field = _safe_distance_range_field(ring)
+
+    return (
+        "CASE WHEN \"{field}\" IS NULL OR \"{field}\" <= 0 THEN ''"
+        " ELSE to_string(round(\"{field}\")) || '{unit}' END"
+    ).format(field=field, unit=SAFE_DISTANCE_RANGE_UNIT)
+
+
+def _safe_distance_gap_expression(ring):
+
+    """
+    How wide, in page millimetres, this ring's own break has to be:
+    the label's own rendered width plus padding at each end.
+
+    Measured from the text rather than estimated from its length, so
+    "500m" and "12500m" each get exactly the gap they need.
+    """
+
+    return (
+        "mct_text_width_mm({label}, {size})+{padding}"
+    ).format(
+        label=_safe_distance_label_expression(ring),
+        size=f"{_SAFE_DISTANCE_LABEL_SIZE_MM:.4f}",
+        padding=f"{2.0 * _SAFE_DISTANCE_LABEL_PADDING_MM:.4f}",
+    )
+
+
+def _safe_distance_ring_geometry_expression(ring):
+
+    return (
+        "mct_safe_distance_ring($geometry, \"{field}\", {gap}, @map_scale)"
+    ).format(
+        field=_safe_distance_range_field(ring),
+        gap=_safe_distance_gap_expression(ring),
+    )
+
+
+def _safe_distance_label_point_expression(ring):
+
+    """
+    The middle of the gap - due east of the centre, on the ring itself.
+
+    project() takes its bearing in RADIANS clockwise from north, so
+    east is pi/2. It is a planar projection in map units rather than
+    the geodesic one the ring itself is drawn with; over the width of
+    one label the two are indistinguishable, and this only has to put
+    the text in the hole.
+    """
+
+    return (
+        "project($geometry, \"{field}\" / 111320.0"
+        " / cos(radians(y($geometry))), radians(90))"
+    ).format(field=_safe_distance_range_field(ring))
+
+
+def _safe_distance_ring_layer(ring):
+
+    """One ring, as its own geometry generator - as on the range fan."""
+
+    line = QgsSimpleLineSymbolLayer()
+
+    line.setColor(QColor(0, 0, 0))
+
+    line.setWidth(_SAFE_DISTANCE_LINE_WIDTH_MM)
+
+    _apply_affiliation_color(line, [QgsSymbolLayer.Property.StrokeColor])
+
+    line.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    line_symbol = QgsLineSymbol()
+
+    line_symbol.changeSymbolLayer(0, line)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(
+        _safe_distance_ring_geometry_expression(ring)
+    )
+
+    generator.setSubSymbol(line_symbol)
+
+    return generator
+
+
+def _safe_distance_zone_symbol():
+
+    """
+    The whole zone: one geometry-generator layer per ring.
+
+    Five layers rather than one expression drawing all five, so a ring
+    left blank returns an empty geometry and simply draws nothing.
+    """
+
+    symbol = QgsMarkerSymbol()
+
+    symbol.changeSymbolLayer(0, _safe_distance_ring_layer(1))
+
+    for ring in range(2, SAFE_DISTANCE_MAX_RINGS + 1):
+
+        symbol.appendSymbolLayer(_safe_distance_ring_layer(ring))
+
+    return symbol
+
+
+def _configure_safe_distance_labeling(layer):
+
+    """
+    One label per ring, so one rule per ring - QGIS places a single
+    label per rule. Each sits in the gap its own ring cut for it.
+
+    **No QgsTextMaskSettings, and that is not an omission.** The label
+    would have to mask a line nested inside a geometry generator, which
+    QGIS's Selective Masking cannot reach; the break is cut into the
+    ring's own geometry instead. See mct_safe_distance_ring().
+    """
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    for ring in range(1, SAFE_DISTANCE_MAX_RINGS + 1):
+
+        settings = _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.OverPoint,
+            _safe_distance_label_expression(ring),
+            label_geometry_expression=(
+                _safe_distance_label_point_expression(ring)
+            ),
+            quadrant=Qgis.LabelQuadrantPosition.Over,
+        )
+
+        rule = QgsRuleBasedLabeling.Rule(settings)
+
+        rule.setFilterExpression(
+            "\"{field}\" IS NOT NULL AND \"{field}\" > 0".format(
+                field=_safe_distance_range_field(ring)
+            )
+        )
+
+        rule.setDescription(f"ring{ring}")
+
+        root_rule.appendChild(rule)
+
+    layer.setLabeling(QgsRuleBasedLabeling(root_rule))
+
+    layer.setLabelsEnabled(True)
+
+
+def create_safe_distance_zones_layer(name=SAFE_DISTANCE_ZONES_LAYER_NAME):
+
+    """
+    Minimum Safe Distance Zone (272100) - one clicked centre and up to
+    five ranges in metres.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"Point?crs={crs.authid()}", name, "memory")
+
+    attributes = [
+        QgsField("affiliation", QMetaType.Type.QString),
+        QgsField("status", QMetaType.Type.QString),
+    ]
+
+    for ring in range(1, SAFE_DISTANCE_MAX_RINGS + 1):
+
+        attributes.append(
+            QgsField(_safe_distance_range_field(ring), QMetaType.Type.Double)
+        )
+
+    layer.dataProvider().addAttributes(attributes)
+
+    layer.updateFields()
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setRenderer(QgsSingleSymbolRenderer(_safe_distance_zone_symbol()))
+
+    _configure_safe_distance_labeling(layer)
+
+    return layer
+
+
+def add_safe_distance_zones_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        SAFE_DISTANCE_ZONES_LAYER_NAME,
+        create_safe_distance_zones_layer,
+    )
+
+
+# ============================================================
+# 272200 - Radiation Dose Rate Contour Line
+# ============================================================
+#
+# "A line on a map, diagram or overlay joining all points at which the
+# radiation dose rate at a given time is the same" - the standard's own
+# words. Its template is a closed freeform outline with Field T at the
+# top, and its example draws three of them nested, labelled 30cGy,
+# 100cGy and 300cGy.
+#
+# **Three contours are three features, not one symbol.** The
+# maintainer's own framing - "contours will be hand drawn by user so
+# multiple contours = multiple lines/polygons" - and it is what the
+# example shows: each closed curve carries one dose rate, so nothing
+# here tries to model a set of them.
+#
+# The dose rate goes in the SAME unique_designation field every other
+# control measure uses for Field T. It is a free-text field, so
+# "300cGy" is typed as it reads.
+DOSE_RATE_CONTOURS_LAYER_NAME = "Radiation Dose Rate Contours"
+
+DOSE_RATE_CONTOUR_CODE = "272200"
+
+_DOSE_RATE_OUTLINE_WIDTH_MM = 0.4
+
+_DOSE_RATE_OUTLINE_LAYER_ID = "dose_rate_contour_outline"
+
+# Field T sits at the TOP of the shape in the template, on the outline
+# itself rather than clear of it - so the label masks the outline, and
+# can, because this one is a plain symbol layer rather than generated.
+_DOSE_RATE_LABEL_POINT_EXPRESSION = (
+    "make_point(x(centroid($geometry)), y_max($geometry))"
+)
+
+
+def _dose_rate_contour_symbol():
+
+    outline = QgsSimpleLineSymbolLayer()
+
+    outline.setId(_DOSE_RATE_OUTLINE_LAYER_ID)
+
+    outline.setColor(QColor(0, 0, 0))
+
+    outline.setWidth(_DOSE_RATE_OUTLINE_WIDTH_MM)
+
+    _apply_affiliation_color(outline, [QgsSymbolLayer.Property.StrokeColor])
+
+    outline.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    symbol = QgsFillSymbol.createSimple({"style": "no"})
+
+    symbol.changeSymbolLayer(0, outline)
+
+    return symbol
+
+
+def create_dose_rate_contours_layer(name=DOSE_RATE_CONTOURS_LAYER_NAME):
+
+    """
+    Radiation Dose Rate Contour Line (272200) - a polygon per contour,
+    carrying its own dose rate in Field T.
+
+    A POLYGON layer rather than a line one, even though the row is
+    called a "Contour Line": the template draws a closed shape and the
+    draw rules ask for "at least three anchor points to define the
+    boundary of the area", which is the area vocabulary word for word.
+    """
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"Polygon?crs={crs.authid()}", name, "memory")
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("area_km2", QMetaType.Type.Double),
+            QgsField("perimeter_km", QMetaType.Type.Double),
+        ]
+    )
+
+    layer.updateFields()
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("area_km2"),
+        QgsDefaultValue("mct_area_km2($geometry)", True)
+    )
+
+    layer.setDefaultValueDefinition(
+        layer.fields().indexOf("perimeter_km"),
+        QgsDefaultValue("mct_perimeter_km($geometry)", True)
+    )
+
+    layer.setRenderer(QgsSingleSymbolRenderer(_dose_rate_contour_symbol()))
+
+    _configure_dose_rate_labeling(layer)
+
+    return layer
+
+
+def _configure_dose_rate_labeling(layer):
+
+    """
+    Field T at the top of the contour, masking the outline it sits on.
+
+    **Not upper()-cased, alone among the Field T labels in this
+    appendix.** H.5.4's "all text labeling in upper case" rule is
+    applied everywhere else here, but this row's own example writes
+    "30cGy", "100cGy", "300cGy" - and cGy is the SI symbol for the
+    centigray, where the case carries meaning. Upper-casing it would
+    contradict the standard's own picture of this very row to satisfy
+    its general rule, so the field is drawn as typed.
+
+    **displayAll, because nested contours are the normal case here.**
+    Three contours around one release sit close together near the top,
+    which is exactly where their labels go; PAL's default collision
+    handling silently drops the middle one - seen in the first render.
+    A dropped dose rate is worse than two labels close together.
+    """
+
+    settings = _build_pal_layer_settings(
+        layer,
+        Qgis.LabelPlacement.OverPoint,
+        "coalesce(\"unique_designation\",'')",
+        masked_symbol_layer_ids=[_DOSE_RATE_OUTLINE_LAYER_ID],
+        label_geometry_expression=_DOSE_RATE_LABEL_POINT_EXPRESSION,
+        quadrant=Qgis.LabelQuadrantPosition.Over,
+    )
+
+    settings.displayAll = True
+
+    layer.setLabeling(QgsVectorLayerSimpleLabeling(settings))
+
+    layer.setLabelsEnabled(True)
+
+
+def add_dose_rate_contours_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        DOSE_RATE_CONTOURS_LAYER_NAME,
+        create_dose_rate_contours_layer,
     )
