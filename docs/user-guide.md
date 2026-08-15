@@ -1316,6 +1316,11 @@ and an **Alt**:
   120° sector straddling it).
 - **Range is in metres of real ground distance**, so the fan grows and
   shrinks with the map rather than staying a fixed size on the page.
+- Each ring's **straight sides span only its own band** — from the
+  previous ring's range out to its own — so an outer ring never draws
+  through the inner ones. Only the first ring's sides reach the centre.
+- A **north axis with a filled arrowhead** runs from the centre through
+  every ring and 250 m past the outermost one.
 - Each ring is labelled `RG <range>` over `ALT <alt>` on its own
   centreline, between its radius and the ring inside it. Leave Alt blank
   and only the range line is drawn.

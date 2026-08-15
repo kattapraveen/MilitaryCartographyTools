@@ -513,9 +513,10 @@ class TestRangeFans(QgisTestCase):
 
         layer = create_range_fans_layer()
 
+        # Five rings plus the north axis.
         self.assertEqual(
             layer.renderer().symbol().symbolLayerCount(),
-            RANGE_FAN_MAX_RINGS
+            RANGE_FAN_MAX_RINGS + 1
         )
 
         # QGIS places one label per RULE, and five rings want five.
@@ -547,6 +548,118 @@ class TestRangeFans(QgisTestCase):
         context.setFeature(feature)
 
         self.assertEqual(expression.evaluate(context), "RG 5000")
+
+
+    def test_an_outer_rings_sides_stop_at_the_inner_rings_range(self):
+
+        # The first build ran every ring's sides to the centre, so the
+        # outer rings drew straight through the inner ones. Reported
+        # against the standard's own picture, where each ring's sides
+        # span only its own band.
+        ring = QgsExpression(
+            "mct_range_fan_ring(geom_from_wkt('Point(0 0)'), "
+            "290, 30, 2500, 1500)"
+        ).evaluate().asPolyline()
+
+        centre = QgsPointXY(0, 0)
+
+        for end in (ring[0], ring[-1]):
+
+            self.assertAlmostEqual(
+                _distance_area().measureLine(centre, end),
+                1500.0,
+                delta=1.0
+            )
+
+        # ...and only ring 1, whose inner range is 0, reaches the vertex.
+        first = QgsExpression(
+            "mct_range_fan_ring(geom_from_wkt('Point(0 0)'), "
+            "290, 30, 1500, 0)"
+        ).evaluate().asPolyline()
+
+        self.assertAlmostEqual(first[0].x(), 0.0, places=9)
+        self.assertAlmostEqual(first[0].y(), 0.0, places=9)
+
+
+    def test_a_full_circle_has_no_sides_to_restrict(self):
+
+        ring = QgsExpression(
+            "mct_range_fan_ring(geom_from_wkt('Point(0 0)'), "
+            "0, 360, 4000, 2000)"
+        ).evaluate().asPolyline()
+
+        centre = QgsPointXY(0, 0)
+
+        for point in ring:
+
+            self.assertAlmostEqual(
+                _distance_area().measureLine(centre, point),
+                4000.0,
+                delta=1.0
+            )
+
+
+    def test_the_axis_runs_north_past_the_outermost_ring(self):
+
+        axis = QgsExpression(
+            "mct_range_fan_axis(geom_from_wkt('Point(0 0)'), 5250)"
+        ).evaluate().asPolyline()
+
+        self.assertEqual(len(axis), 2)
+
+        self.assertAlmostEqual(axis[0].x(), 0.0, places=9)
+
+        # Due north, and the overshoot clear of the 5000 m arc.
+        self.assertAlmostEqual(axis[1].x(), 0.0, places=6)
+        self.assertGreater(axis[1].y(), 0.0)
+
+        self.assertAlmostEqual(
+            _distance_area().measureLine(QgsPointXY(0, 0), axis[1]),
+            5250.0,
+            delta=1.0
+        )
+
+
+    def test_the_symbol_carries_an_axis_beyond_its_five_rings(self):
+
+        layer = create_range_fans_layer()
+
+        symbol = layer.renderer().symbol()
+
+        self.assertEqual(
+            symbol.symbolLayerCount(), RANGE_FAN_MAX_RINGS + 1
+        )
+
+        axis = symbol.symbolLayer(RANGE_FAN_MAX_RINGS)
+
+        expression = axis.geometryExpression()
+
+        self.assertIn("mct_range_fan_axis(", expression)
+
+        # Sized off the LARGEST ring, plus the overshoot.
+        self.assertIn("array_max(", expression)
+        self.assertIn("250", expression)
+
+
+    def test_the_altitude_is_upper_cased_per_h_5_4(self):
+
+        # Reported from the smoke test: a lower-case "gl" stayed lower
+        # case, against the appendix's own all-caps rule.
+        layer = create_range_fans_layer()
+
+        settings = layer.labeling().rootRule().children()[0].settings()
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("ring1_range", 1500)
+        feature.setAttribute("ring1_alt", "gl")
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        self.assertEqual(
+            QgsExpression(settings.fieldName).evaluate(context),
+            "RG 1500\nALT GL"
+        )
 
 
     def test_adding_the_layer_inserts_exactly_one(self):

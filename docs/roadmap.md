@@ -8171,6 +8171,34 @@ reasons, and both are pinned.
 
 36 symbols left, in 2 units. 1143 tests passing on both QGIS versions.
 
+### Range fans: three smoke-test corrections (2026-08-14)
+
+All three from the maintainer's own side-by-side against the standard's
+picture, which is the comparison that keeps catching what a render
+alone does not.
+
+- **The altitude was not upper-cased.** A typed "gl" stayed "gl"
+  against H.5.4's own all-caps rule. The range is numeric and needed
+  nothing; only the altitude is free text.
+- **Outer rings drew straight through the inner ones.** Every ring's
+  straight sides ran to the centre. They span only their OWN band now -
+  from the previous ring's range out to their own - so the fan reads as
+  nested annulus segments, which is what the standard draws. Only ring
+  1 reaches the vertex, and only because its inner range is 0. Worth
+  recording that the first reading of this was more elaborate than the
+  rule turned out to be: whether a side reached the vertex looked like
+  it should depend on whether an inner ring covered that BEARING, and
+  the maintainer corrected it to the simple version before any of that
+  was built.
+- **The north axis was missing entirely.** It runs from the centre
+  through every ring to the outermost range plus 250 m, with a FILLED
+  arrowhead - filled, unlike Contain and Retain's open heads, because
+  those are open only where the solid triangles turned out to be
+  annotation pointers. This one is drawn solid on a picture with no
+  anchor-point callouts at all.
+
+1148 tests passing on both QGIS versions.
+
 ---
 
 ## Suggested near-term order

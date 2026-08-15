@@ -63,7 +63,10 @@ from qgis.core import (
     QgsProject,
     QgsProperty,
     QgsRuleBasedLabeling,
+    QgsMarkerLineSymbolLayer,
     QgsSimpleLineSymbolLayer,
+    QgsSimpleMarkerSymbolLayer,
+    QgsSimpleMarkerSymbolLayerBase,
     QgsSingleSymbolRenderer,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -173,6 +176,13 @@ RANGE_FAN_MAX_RINGS = 5
 # Safe Distance Zone beside it. One constant if it should be otherwise.
 RANGE_FAN_RANGE_UNIT = "m"
 
+# How far the north axis runs past the outermost ring, so its arrowhead
+# sits clear of that ring's own arc rather than on it. The maintainer's
+# own number.
+RANGE_FAN_AXIS_OVERSHOOT_M = 250.0
+
+_RANGE_FAN_ARROWHEAD_MM = 4.0
+
 _RING_FIELDS = ("left", "right", "range", "alt")
 
 _RANGE_FAN_LINE_WIDTH_MM = 0.4
@@ -183,16 +193,117 @@ def _ring_field(ring, name):
     return f"ring{ring}_{name}"
 
 
+def _inner_range_expression(ring):
+
+    """
+    The previous ring's own range, which is where this ring's straight
+    sides stop - see mct_range_fan_ring(). Ring 1 has none, so its
+    sides run to the vertex, and only its.
+    """
+
+    if ring == 1:
+        return "0"
+
+    return "coalesce(\"{}\", 0)".format(_ring_field(ring - 1, "range"))
+
+
 def _ring_geometry_expression(ring):
 
     return (
         "mct_range_fan_ring($geometry, \"{left}\", \"{right}\", "
-        "\"{range}\")"
+        "\"{range}\", {inner})"
     ).format(
         left=_ring_field(ring, "left"),
         right=_ring_field(ring, "right"),
         range=_ring_field(ring, "range"),
+        inner=_inner_range_expression(ring),
     )
+
+
+def _max_range_expression():
+
+    return "array_max(array({}))".format(
+        ", ".join(
+            "coalesce(\"{}\", 0)".format(_ring_field(ring, "range"))
+            for ring in range(1, RANGE_FAN_MAX_RINGS + 1)
+        )
+    )
+
+
+def _axis_layer():
+
+    """
+    The north axis, with a FILLED arrowhead at its tip.
+
+    Filled, unlike Contain and Retain's own open heads - those are open
+    because the solid triangles on their pages turned out to be
+    annotation pointers rather than symbol geometry. This one is drawn
+    solid in the standard's own range-fan picture, on a symbol with no
+    anchor-point callouts at all.
+    """
+
+    line = QgsSimpleLineSymbolLayer()
+
+    line.setColor(QColor(0, 0, 0))
+
+    line.setWidth(_RANGE_FAN_LINE_WIDTH_MM)
+
+    _apply_affiliation_color(line, [QgsSymbolLayer.Property.StrokeColor])
+
+    line.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    head = QgsSimpleMarkerSymbolLayer()
+
+    head.setShape(QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHeadFilled)
+
+    head.setSize(_RANGE_FAN_ARROWHEAD_MM)
+
+    head.setColor(QColor(0, 0, 0))
+
+    head.setStrokeColor(QColor(0, 0, 0))
+
+    _apply_affiliation_color(
+        head,
+        [
+            QgsSymbolLayer.Property.FillColor,
+            QgsSymbolLayer.Property.StrokeColor,
+        ]
+    )
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, head)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(Qgis.MarkerLinePlacement.LastVertex)
+
+    marker_line.setRotateSymbols(True)
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, line)
+
+    inner.appendSymbolLayer(marker_line)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(Qgis.SymbolType.Line)
+
+    generator.setGeometryExpression(
+        "mct_range_fan_axis($geometry, {} + {})".format(
+            _max_range_expression(), RANGE_FAN_AXIS_OVERSHOOT_M
+        )
+    )
+
+    generator.setSubSymbol(inner)
+
+    return generator
 
 
 def _ring_layer(ring):
@@ -245,6 +356,8 @@ def _range_fan_symbol():
 
         symbol.appendSymbolLayer(_ring_layer(ring))
 
+    symbol.appendSymbolLayer(_axis_layer())
+
     return symbol
 
 
@@ -263,7 +376,7 @@ def _ring_label_expression(ring):
         "CASE WHEN \"{range}\" IS NULL OR \"{range}\" <= 0 THEN '' ELSE "
         "'RG ' || \"{range}\" || "
         "CASE WHEN \"{alt}\" IS NULL OR \"{alt}\" = '' THEN '' "
-        "ELSE '\n' || 'ALT ' || \"{alt}\" END "
+        "ELSE '\n' || 'ALT ' || upper(\"{alt}\") END "
         "END"
     ).format(range=range_field, alt=alt_field)
 
@@ -275,11 +388,6 @@ def _ring_label_point_expression(ring):
     sector's own centreline - see mct_range_fan_label_point().
     """
 
-    inner = (
-        "coalesce(\"{}\", 0)".format(_ring_field(ring - 1, "range"))
-        if ring > 1 else "0"
-    )
-
     return (
         "mct_range_fan_label_point($geometry, \"{left}\", \"{right}\", "
         "\"{range}\", {inner})"
@@ -287,7 +395,7 @@ def _ring_label_point_expression(ring):
         left=_ring_field(ring, "left"),
         right=_ring_field(ring, "right"),
         range=_ring_field(ring, "range"),
-        inner=inner,
+        inner=_inner_range_expression(ring),
     )
 
 

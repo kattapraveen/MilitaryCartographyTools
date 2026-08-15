@@ -3251,10 +3251,17 @@ def mct_range_fan_ring(values, feature=None, parent=None):
     $geometry, left_deg, right_deg, range_metres)`.
 
     A full CIRCLE when the two angles describe the whole turn (the
-    0/360 default), and otherwise an ARC from the left angle clockwise
-    to the right one **with a straight segment from each end back to
-    the centre** - the maintainer's own construction, and what closes
-    the sector into a readable fan rather than a floating arc.
+    0/360 default), and otherwise an ANNULUS SEGMENT: the arc from the
+    left angle clockwise to the right one, with a straight side at each
+    end running back only as far as `inner_range_metres` - the previous
+    ring's own range.
+
+    **The sides are restricted to the annulus, always.** The first
+    build ran every ring's sides all the way to the centre, so the
+    outer rings drew straight through the inner ones - reported by the
+    maintainer against the standard's own picture, where each ring's
+    sides span only its own band. Only ring 1 reaches the vertex, and
+    only because its inner range is 0.
 
     Returns an empty geometry for a ring with no range, which is how a
     symbol carrying five ring layers draws only the ones filled in.
@@ -3267,20 +3274,82 @@ def mct_range_fan_ring(values, feature=None, parent=None):
 
     centre, left, right, radius = frame
 
+    try:
+        inner = float(values[4]) if len(values) > 4 and values[4] else 0.0
+    except (TypeError, ValueError):
+        inner = 0.0
+
+    if not 0.0 < inner < radius:
+        inner = 0.0
+
     sweep = (right - left) % 360.0
 
     # Left equal to right, or a full turn, means the whole circle -
-    # not a zero-width sector. The 0/360 default lands here.
+    # not a zero-width sector. The 0/360 default lands here, and a
+    # circle has no sides to restrict.
     if sweep == 0:
 
         return QgsGeometry.fromPolylineXY(
             _range_fan_arc_points(centre, radius, 0.0, 360.0)
         )
 
+    distance_area = _distance_area()
+
+    def foot(bearing_deg):
+
+        if inner == 0.0:
+            return centre
+
+        return distance_area.computeSpheroidProject(
+            centre, inner, math.radians(bearing_deg)
+        )
+
     return QgsGeometry.fromPolylineXY(
-        [centre]
+        [foot(left)]
         + _range_fan_arc_points(centre, radius, left, sweep)
-        + [centre]
+        + [foot(right)]
+    )
+
+
+@qgsfunction(
+    'mct_range_fan_axis',
+    group='Military Cartography Tools'
+)
+def mct_range_fan_axis(values, feature=None, parent=None):
+
+    """
+    The fan's own north axis: `mct_range_fan_axis($geometry,
+    length_metres)`.
+
+    A line due north from the centre, running slightly beyond the
+    outermost ring so its arrowhead sits clear of the arc - the
+    maintainer's own addition after the first build, matching the
+    standard's own picture, which draws exactly this axis through every
+    ring. The caller sets the length; see RANGE_FAN_AXIS_OVERSHOOT_M.
+    """
+
+    if len(values) < 2:
+        return QgsGeometry()
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return QgsGeometry()
+
+    try:
+        centre = geometry.asPoint()
+        length = float(values[1]) if values[1] else 0.0
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    if length <= 0:
+        return QgsGeometry()
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            centre,
+            _distance_area().computeSpheroidProject(centre, length, 0.0),
+        ]
     )
 
 
@@ -5574,6 +5643,7 @@ _FUNCTIONS = [
     mct_retain_teeth,
     mct_retain_letter_point,
     mct_range_fan_ring,
+    mct_range_fan_axis,
     mct_range_fan_label_point,
     mct_supply_route_arrow_svg,
     mct_navigational_flank_svg,
