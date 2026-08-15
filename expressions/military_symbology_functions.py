@@ -3785,6 +3785,38 @@ def mct_block_stem_mm(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_mm_in_map_units',
+    group='Military Cartography Tools'
+)
+def mct_mm_in_map_units(values, feature=None, parent=None):
+
+    """
+    A page distance in millimetres, expressed in MAP UNITS. Use as
+    mct_mm_in_map_units(<mm>, @map_extent, @map_scale).
+
+    The inverse of mct_radius_mm(), and the thing that lets a
+    page-sized gap be cut out of ground-unit geometry with QGIS's own
+    line_substring() - which is how Table H-XXIV's own Seize breaks its
+    curve for the "S".
+    """
+
+    if len(values) < 3:
+        return 0.0
+
+    try:
+        millimetres = float(values[0])
+    except (TypeError, ValueError):
+        return 0.0
+
+    per_unit = _map_millimetres_per_unit(values[1], values[2])
+
+    if per_unit <= 0:
+        return 0.0
+
+    return millimetres / per_unit
+
+
+@qgsfunction(
     'mct_radius_mm',
     group='Military Cartography Tools'
 )
@@ -6608,6 +6640,7 @@ _FUNCTIONS = [
     mct_fix_letter_point,
     mct_block_stem_foot,
     mct_block_stem_mm,
+    mct_mm_in_map_units,
     mct_radius_mm,
     mct_secure_letter_point,
     mct_convoy_end_svg,

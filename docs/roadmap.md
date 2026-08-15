@@ -8574,14 +8574,25 @@ KeyError the moment Seize was added. `LINE_LETTERS` is now the source
 of truth for which tasks label at all, rather than the measure-type
 list. The "S" was added straight after, on their word.
 
-**Where the "S" goes came from the template, not from the pattern.**
-Every other letter here sits IN a gap cut into its own line, so the
-obvious guess was a gap in the curve - or the circle, which the
-instruction's phrasing ("put the S in the seize") could easily have
-meant. The template shows neither: the S sits clear of the curve,
-roughly a third along from the circle, and **the circle holds a boxed
-Field A**. Worth one crop of the page to find out. Field A is not
-offered on this build.
+**The "S" sits ON the curve, in a gap cut for it** - like every other
+letter on this layer.
+
+That took a correction. Reading the template, the S looks as though it
+sits clear of the line, and the first build placed it there. The
+maintainer's answer: "no that is incorrect, S is on the line with
+masking, like every other line you mentioned". The lesson is not about
+this symbol - it is that a template picture is evidence about SHAPE and
+weak evidence about a convention the maintainer has already set six
+times on the same layer. The pattern was the better guide here, and I
+had reached past it.
+
+Broken with QGIS's own `line_substring()` in the module rather than
+inside `mct_turn_arc()`, so Table H-XIX's Turn is untouched - which
+needed `mct_mm_in_map_units()`, the inverse of `mct_radius_mm()`, to
+express a page-sized gap in the map units the curve is measured in.
+
+One thing the template did settle: **the circle holds a boxed Field A**,
+not the letter. Field A is not offered on this build.
 
 1191 tests passing on both QGIS versions.
 
