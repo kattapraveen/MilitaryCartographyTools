@@ -273,14 +273,16 @@ SUPPLY_CLASS_FIELD = {
 # eight supply routes (330300-330403) and the seven sustainment areas
 # (310100-310700) - and are gone from this list. What is left is the
 # two convoys and the two parent rows that draw nothing.
-TABLE_H_XXIII_REMAINING = {
-    "310000": "Sustainment Areas (section parent; TEMPLATE and EXAMPLE "
-              "both N/A)",
-    "330000": "Sustainment Lines (section parent; TEMPLATE and EXAMPLE "
-              "both N/A)",
-    "330100": "Moving Convoy",
-    "330200": "Halted Convoy",
-}
+# The table's own two parent rows - "Sustainment Areas" (310000) and
+# "Sustainment Lines" (330000) - which name a group and draw nothing:
+# TEMPLATE and EXAMPLE both read "N/A". Listed so the row arithmetic
+# still adds to the printed table's own 37.
+_TABLE_H_XXIII_PARENT_ROWS = ("310000", "330000")
+
+# Nothing is left unbuilt in Table H-XXIII. The dict stays, empty,
+# because a test asserts built + unbuilt equals the printed table's own
+# row count - the check that kept the gap honest while there was one.
+TABLE_H_XXIII_REMAINING = {}
 
 
 # ---------------------------------------------------------------
@@ -685,11 +687,219 @@ def _label_offset_mm(measure_type):
     return topmost + half_height + _LABEL_CLEARANCE_MM
 
 
+# ---------------------------------------------------------------
+# The two convoys - Table H-XXIII's own 330100/330200
+# ---------------------------------------------------------------
+#
+# Both are a BAR of fixed page height running between the anchor
+# points, with an end piece at PT1: a forward-pointing open arrowhead
+# for Moving, and the same triangle REVERSED - apex back into the bar -
+# for Halted. That reversal is the only difference between the two
+# symbols. "Varies only in length" in Moving Convoy's own draw rules is
+# what makes the height a page unit rather than a ground one.
+#
+# **Field A is deliberately absent.** Both of the standard's examples
+# draw a vehicle ICON in the middle box - an M1A2, an M915 - between
+# Field V and Field H. Left out at the maintainer's own instruction,
+# 2026-08-15: "drop the Field A, if required, user will insert
+# additionally; lot of symbols where we have not included multiple
+# fields". Field V, Field H and the W/W1 pair are all here.
+CONVOY_MEASURE_TYPE_LABELS = {
+    "moving_convoy": "Moving Convoy",
+    "halted_convoy": "Halted Convoy",
+}
+
+CONVOY_MEASURE_TYPE_CODES = {
+    "moving_convoy": "330100",
+    "halted_convoy": "330200",
+}
+
+_CONVOY_END_MODES = {
+    "moving_convoy": "moving",
+    "halted_convoy": "halted",
+}
+
+# **Both numbers are mine, not the standard's**, which gives neither -
+# it draws the bar and the head to no stated proportion. Sized so one
+# line of the shared 9 pt label sits inside the bar with room to spare,
+# and so the head reads as a head rather than a spike. Single constants
+# precisely because they are the kind of thing a smoke test moves.
+_CONVOY_BODY_HEIGHT_MM = 6.0
+_CONVOY_HEAD_LENGTH_MM = 6.0
+
+# Where the W - W1 pair sits, below the bar.
+_CONVOY_DTG_OFFSET_MM = _CONVOY_BODY_HEIGHT_MM / 2.0 + 2.6
+
+# **QGIS sizes an SVG marker by its WIDTH**, and the rear bar's own SVG
+# is a thin, tall stroke - 10 units wide against 110 tall, its stroke
+# width against the body plus one stroke. So the marker size that makes
+# the bar exactly the BODY's height is that ratio of it, not the height
+# itself. Sized as the height directly, it drew at a ninth of the bar it
+# was meant to close.
+_CONVOY_REAR_BAR_WIDTH_MM = _CONVOY_BODY_HEIGHT_MM * 10.0 / 110.0
+
+
+def _convoy_body_layer(measure_type, side):
+
+    """
+    One long side of the bar, offset half its height off the centreline
+    and stopped short of the end piece.
+
+    setTrimDistanceEnd() rather than a shortened geometry: the trim is a
+    PAGE distance, matching the head it has to clear, and QGIS applies
+    it after projecting - so the bar meets the head at every zoom
+    without the geometry itself having to know the scale.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setColor(QColor(0, 0, 0))
+
+    line_layer.setWidth(_LINE_WIDTH_MM)
+
+    _apply_affiliation_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    line_layer.setOffset(side * _CONVOY_BODY_HEIGHT_MM / 2.0)
+
+    line_layer.setOffsetUnit(Qgis.RenderUnit.Millimeters)
+
+    line_layer.setTrimDistanceEnd(_CONVOY_HEAD_LENGTH_MM)
+
+    line_layer.setTrimDistanceEndUnit(Qgis.RenderUnit.Millimeters)
+
+    return line_layer
+
+
+def _convoy_end_layer(mode, placement, length_mm):
+
+    """
+    An end piece, rotated with the line and pinned to its own vertex.
+
+    A marker is CENTRED on the vertex it is placed at, so the head would
+    otherwise hang half its length past PT1 - the same correction the
+    range fans' north axis needed. setOffsetAlongLine() backs it off by
+    half.
+    """
+
+    glyph = QgsSvgMarkerSymbolLayer("")
+
+    glyph.setSize(length_mm)
+
+    glyph.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Name,
+        QgsProperty.fromExpression(
+            "mct_convoy_end_svg('{mode}', {length}, {colour})".format(
+                mode=mode,
+                length=(
+                    1.0 if mode == "rear"
+                    else length_mm / _CONVOY_BODY_HEIGHT_MM
+                ),
+                colour=_ROUTE_GLYPH_COLOR_EXPRESSION,
+            )
+        )
+    )
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, glyph)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(placement)
+
+    marker_line.setRotateSymbols(True)
+
+    # POSITIVE at the last vertex: QGIS measures the offset backwards
+    # along the line from the end, so a negative one pushes the glyph
+    # PAST PT1 and leaves a gap the length of the head between it and
+    # the bar - which is exactly what the first render showed.
+    marker_line.setOffsetAlongLine(length_mm / 2.0)
+
+    marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
+
+    return marker_line
+
+
+def _convoy_symbol(measure_type):
+
+    """One of the two convoys: the bar, its rear bar and its end piece."""
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, _convoy_body_layer(measure_type, 1))
+
+    symbol.appendSymbolLayer(_convoy_body_layer(measure_type, -1))
+
+    symbol.appendSymbolLayer(
+        _convoy_end_layer(
+            "rear",
+            Qgis.MarkerLinePlacement.FirstVertex,
+            _CONVOY_REAR_BAR_WIDTH_MM,
+        )
+    )
+
+    symbol.appendSymbolLayer(
+        _convoy_end_layer(
+            _CONVOY_END_MODES[measure_type],
+            Qgis.MarkerLinePlacement.LastVertex,
+            _CONVOY_HEAD_LENGTH_MM,
+        )
+    )
+
+    return symbol
+
+
+# Field V and Field H, side by side inside the bar, exactly as the
+# template stacks them - and nothing when both are empty, rather than a
+# stray separator.
+_CONVOY_LABEL_EXPRESSION = (
+    "trim(upper(coalesce(\"equipment_type\",'')) || ' ' ||"
+    " upper(coalesce(\"additional_information\",'')))"
+)
+
+# The W - W1 pair below it. The dash only appears when both ends are
+# filled, so a start-only DTG does not read as an open-ended range.
+_CONVOY_DTG_LABEL_EXPRESSION = (
+    "CASE"
+    " WHEN coalesce(\"dtg_start\",'') = '' AND coalesce(\"dtg_end\",'') = ''"
+    " THEN ''"
+    " WHEN coalesce(\"dtg_start\",'') = '' THEN upper(\"dtg_end\")"
+    " WHEN coalesce(\"dtg_end\",'') = '' THEN upper(\"dtg_start\")"
+    " ELSE upper(\"dtg_start\") || ' - ' || upper(\"dtg_end\")"
+    " END"
+)
+
+
 _LINE_SYMBOL_BUILDERS = {
     measure_type: (lambda measure_type=measure_type:
                    _supply_route_symbol(measure_type))
     for measure_type in LINE_MEASURE_TYPE_LABELS
 }
+
+_LINE_SYMBOL_BUILDERS.update({
+    measure_type: (lambda measure_type=measure_type:
+                   _convoy_symbol(measure_type))
+    for measure_type in CONVOY_MEASURE_TYPE_LABELS
+})
+
+# What the Lines layer's own dropdown offers: the eight routes and the
+# two convoys, which are the whole of Table H-XXIII's "Sustainment
+# Lines" section. Kept as a separate name from LINE_MEASURE_TYPE_LABELS
+# because the route-only helpers above - abbreviations, traffic arrows,
+# label offsets - are keyed by that one and a convoy has no entry in
+# any of them.
+ALL_LINE_MEASURE_TYPE_LABELS = dict(LINE_MEASURE_TYPE_LABELS)
+ALL_LINE_MEASURE_TYPE_LABELS.update(CONVOY_MEASURE_TYPE_LABELS)
 
 
 def _configure_lines_labeling(layer):
@@ -735,6 +945,44 @@ def _configure_lines_labeling(layer):
 
         root_rule.appendChild(rule)
 
+    # The convoys take two rules apiece: Field V and Field H inside the
+    # bar, and the W - W1 pair below it. Centred and upright rather than
+    # following the line, for the same reason the routes' own label is:
+    # a convoy drawn right-to-left would otherwise read upside-down.
+    for measure_type in CONVOY_MEASURE_TYPE_LABELS:
+
+        for expression, offset_mm, suffix in (
+            (_CONVOY_LABEL_EXPRESSION, 0.0, "fields"),
+            (_CONVOY_DTG_LABEL_EXPRESSION, _CONVOY_DTG_OFFSET_MM, "dtg"),
+        ):
+
+            settings = _build_pal_layer_settings(
+                layer,
+                Qgis.LabelPlacement.OverPoint,
+                expression,
+                label_geometry_expression=(
+                    "line_interpolate_point($geometry,"
+                    " length($geometry) / 2)"
+                ),
+                quadrant=Qgis.LabelQuadrantPosition.Over,
+            )
+
+            if offset_mm:
+
+                settings.yOffset = offset_mm
+
+                settings.offsetUnits = Qgis.RenderUnit.Millimeters
+
+            rule = QgsRuleBasedLabeling.Rule(settings)
+
+            rule.setFilterExpression(
+                "\"measure_type\" = '{}'".format(measure_type)
+            )
+
+            rule.setDescription(f"{measure_type}_{suffix}")
+
+            root_rule.appendChild(rule)
+
     layer.setLabeling(QgsRuleBasedLabeling(root_rule))
 
     layer.setLabelsEnabled(True)
@@ -758,6 +1006,13 @@ def create_supply_routes_lines_layer(name=LINES_LAYER_NAME):
             QgsField("affiliation", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            # Fields V, H and the W/W1 pair - the convoys' own
+            # amplifiers. Blank on a supply route, which carries none
+            # of them.
+            QgsField("equipment_type", QMetaType.Type.QString),
+            QgsField("additional_information", QMetaType.Type.QString),
+            QgsField("dtg_start", QMetaType.Type.QString),
+            QgsField("dtg_end", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),
         ]
     )
@@ -770,7 +1025,7 @@ def create_supply_routes_lines_layer(name=LINES_LAYER_NAME):
         measure_type_idx,
         QgsEditorWidgetSetup(
             "ValueMap",
-            {"map": _value_map(LINE_MEASURE_TYPE_LABELS)}
+            {"map": _value_map(ALL_LINE_MEASURE_TYPE_LABELS)}
         )
     )
 

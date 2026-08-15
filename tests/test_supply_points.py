@@ -10,8 +10,9 @@ Military Cartography Tools
 import base64
 import re
 
-from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
-                       QgsFeature, QgsProject, QgsSymbolLayer)
+from qgis.core import (Qgis, QgsCoordinateReferenceSystem, QgsExpression,
+                       QgsExpressionContext, QgsFeature, QgsProject,
+                       QgsSymbolLayer)
 
 from .qgis_test_case import FakeIface, QgisTestCase
 
@@ -34,6 +35,9 @@ from MilitaryCartographyTools.military_symbology.supply_points import (
     SUPPLY_CLASS_FIELD,
     SUPPLY_CLASS_LABELS,
     SHARED_GLYPH_CODES,
+    _TABLE_H_XXIII_PARENT_ROWS,
+    CONVOY_MEASURE_TYPE_CODES,
+    CONVOY_MEASURE_TYPE_LABELS,
     TABLE_H_XXIII_REMAINING,
     add_supply_points_layer,
     create_supply_points_layer,
@@ -88,16 +92,18 @@ class TestSupplyPointVocabulary(QgisTestCase):
 
     def test_every_row_of_the_table_is_accounted_for(self):
 
-        # 18 points + 8 supply routes + 7 sustainment areas + 4 still
-        # unbuilt = the table's own 37. The routes and areas were built
-        # 2026-08-14 and left the unbuilt list then; this arithmetic is
-        # what stops one going missing between the two.
-        self.assertEqual(len(TABLE_H_XXIII_REMAINING), 4)
+        # 18 points + 8 supply routes + 7 sustainment areas + 2 convoys
+        # + 2 parent rows that draw nothing = the table's own 37. The
+        # convoys closed it on 2026-08-15; this arithmetic is what stops
+        # a row going missing between builds.
+        self.assertEqual(len(TABLE_H_XXIII_REMAINING), 0)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
             + len(LINE_MEASURE_TYPE_CODES)
             + len(AREA_MEASURE_TYPE_CODES)
+            + len(CONVOY_MEASURE_TYPE_CODES)
+            + len(_TABLE_H_XXIII_PARENT_ROWS)
             + len(TABLE_H_XXIII_REMAINING),
             37
         )
@@ -106,6 +112,7 @@ class TestSupplyPointVocabulary(QgisTestCase):
             set(POINT_ENTITY_CODES.values())
             | set(LINE_MEASURE_TYPE_CODES.values())
             | set(AREA_MEASURE_TYPE_CODES.values())
+            | set(CONVOY_MEASURE_TYPE_CODES.values())
         )
 
         self.assertEqual(built & set(TABLE_H_XXIII_REMAINING), set())
@@ -621,13 +628,24 @@ class TestSupplyRoutesLinesLayer(QgisTestCase):
 
         offsets = {}
 
-        for rule in layer.labeling().rootRule().children():
+        labeling = layer.labeling()
+
+        root_rule = labeling.rootRule()
+
+        for rule in root_rule.children():
+
+            # Route rules only. The convoys' own rules are on this same
+            # layer and are positioned differently by design - one
+            # centred IN the bar at zero offset, one below it - so
+            # including them would assert the wrong thing about them.
+            if rule.description() not in LINE_MEASURE_TYPE_LABELS:
+                continue
 
             settings = rule.settings()
 
             offsets[rule.description()] = settings.yOffset
 
-        # Every label sits ABOVE the line, and the more arrows a
+        # Every route label sits ABOVE the line, and the more arrows a
         # variant stacks the further out its own label has to go.
         for measure_type, offset in offsets.items():
             self.assertLess(offset, 0.0, measure_type)
@@ -852,3 +870,259 @@ class TestSustainmentAreasLayer(QgisTestCase):
         self.assertEqual(
             len(QgsProject.instance().mapLayersByName(AREAS_LAYER_NAME)), 1
         )
+
+
+class TestConvoys(QgisTestCase):
+
+    """
+    Table H-XXIII's own last two rows, 330100/330200 - built 2026-08-15
+    and closing the table.
+
+    Both are a bar of fixed page height between the anchor points with
+    an end piece at PT1; the only difference between them is that
+    Halted's triangle is REVERSED, apex back into the bar.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        self.layer = create_supply_routes_lines_layer()
+
+    def tearDown(self):
+
+        QgsProject.instance().removeAllMapLayers()
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+    def _convoy_symbol(self, measure_type):
+
+        renderer = self.layer.renderer()
+
+        root_rule = renderer.rootRule()
+
+        rule = next(
+            rule for rule in root_rule.children()
+            if rule.filterExpression()
+            == '"measure_type" = \'{}\''.format(measure_type)
+        )
+
+        return rule.symbol()
+
+    def test_both_convoys_are_offered_alongside_the_routes(self):
+
+        self.assertEqual(len(CONVOY_MEASURE_TYPE_CODES), 2)
+
+        self.assertEqual(
+            set(CONVOY_MEASURE_TYPE_CODES.values()), {"330100", "330200"}
+        )
+
+        fields = self.layer.fields()
+
+        setup = fields.field(fields.indexOf("measure_type")).editorWidgetSetup()
+
+        self.assertEqual(
+            set(setup.config()["map"].keys()),
+            set(LINE_MEASURE_TYPE_LABELS.values())
+            | set(CONVOY_MEASURE_TYPE_LABELS.values())
+        )
+
+    def test_the_bar_is_two_offset_sides_trimmed_clear_of_the_head(self):
+
+        for measure_type in CONVOY_MEASURE_TYPE_LABELS:
+
+            with self.subTest(measure_type=measure_type):
+
+                symbol = self._convoy_symbol(measure_type)
+
+                top = symbol.symbolLayer(0)
+
+                bottom = symbol.symbolLayer(1)
+
+                # Equal and opposite, so the bar straddles the line the
+                # user actually digitized.
+                self.assertAlmostEqual(top.offset(), -bottom.offset())
+
+                self.assertAlmostEqual(abs(top.offset()), 3.0)
+
+                # Stopped short of the end piece, in the same page unit
+                # the head is sized in.
+                for side in (top, bottom):
+
+                    self.assertAlmostEqual(side.trimDistanceEnd(), 6.0)
+
+                    self.assertEqual(
+                        side.trimDistanceEndUnit(),
+                        Qgis.RenderUnit.Millimeters
+                    )
+
+    def test_the_head_is_pinned_back_from_the_last_vertex(self):
+
+        # A marker is CENTRED on its vertex, so without this the head
+        # hangs half its length past PT1.
+        for measure_type in CONVOY_MEASURE_TYPE_LABELS:
+
+            with self.subTest(measure_type=measure_type):
+
+                symbol = self._convoy_symbol(measure_type)
+
+                head = symbol.symbolLayer(3)
+
+                self.assertEqual(
+                    head.placements(), Qgis.MarkerLinePlacement.LastVertex
+                )
+
+                self.assertTrue(head.rotateSymbols())
+
+                self.assertAlmostEqual(head.offsetAlongLine(), 3.0)
+
+    def test_moving_points_forward_and_halted_points_back(self):
+
+        # The whole difference between the two symbols. Measured off the
+        # rendered SVG rather than asserted on the expression's text:
+        # the moving head's apex is at one end of its own box and the
+        # halted triangle's at the other.
+        import base64
+        import re
+
+        apexes = {}
+
+        for measure_type in CONVOY_MEASURE_TYPE_LABELS:
+
+            symbol = self._convoy_symbol(measure_type)
+
+            head = symbol.symbolLayer(3)
+
+            marker = head.subSymbol()
+
+            glyph = marker.symbolLayer(0)
+
+            properties = glyph.dataDefinedProperties()
+
+            expression = properties.property(
+                QgsSymbolLayer.Property.Name
+            ).expressionString()
+
+            # A feature, because the glyph's colour expression reads
+            # "affiliation" and QGIS short-circuits the whole call to
+            # NULL the moment any argument is.
+            feature = QgsFeature(self.layer.fields())
+
+            feature.setAttribute("affiliation", "friend")
+
+            context = QgsExpressionContext()
+
+            context.setFeature(feature)
+
+            path = QgsExpression(expression).evaluate(context)
+
+            svg = base64.b64decode(
+                path.split("base64:", 1)[1]
+            ).decode("utf-8")
+
+            width = float(re.search(r'width="([0-9.]+)"', svg).group(1))
+
+            # The apex is the only point on the centreline (y = 0).
+            apexes[measure_type] = [
+                float(x) for x, y in re.findall(
+                    r"[ML] ?(-?[0-9.]+),(-?[0-9.]+)", svg
+                ) if abs(float(y)) < 0.05
+            ]
+
+            self.assertTrue(apexes[measure_type], measure_type)
+
+            apexes[measure_type] = (apexes[measure_type][0], width)
+
+        moving_x, width = apexes["moving_convoy"]
+
+        halted_x, _ = apexes["halted_convoy"]
+
+        # Both are drawn mirrored - a marker on a LAST vertex has its
+        # own +x running back along the line - so "forward" is x = 0.
+        self.assertAlmostEqual(moving_x, 0.0)
+
+        self.assertAlmostEqual(halted_x, width)
+
+    def test_the_rear_bar_closes_the_body_at_its_full_height(self):
+
+        # Sized as the body height directly it drew at a ninth of it:
+        # QGIS sizes an SVG marker by its WIDTH, and this glyph is a
+        # thin, tall stroke.
+        for measure_type in CONVOY_MEASURE_TYPE_LABELS:
+
+            symbol = self._convoy_symbol(measure_type)
+
+            rear = symbol.symbolLayer(2)
+
+            self.assertEqual(
+                rear.placements(), Qgis.MarkerLinePlacement.FirstVertex
+            )
+
+            marker = rear.subSymbol()
+
+            glyph = marker.symbolLayer(0)
+
+            self.assertAlmostEqual(glyph.size(), 6.0 * 10.0 / 110.0)
+
+    def test_field_a_is_not_offered(self):
+
+        # The maintainer's own call: the vehicle icon both examples draw
+        # in the middle box is left out, and they add a field if they
+        # want one.
+        names = [field.name() for field in self.layer.fields()]
+
+        self.assertIn("equipment_type", names)
+        self.assertIn("additional_information", names)
+        self.assertIn("dtg_start", names)
+        self.assertIn("dtg_end", names)
+
+        self.assertNotIn("field_a", names)
+        self.assertNotIn("vehicle_icon", names)
+
+    def test_each_convoy_labels_its_fields_and_its_dtg_separately(self):
+
+        labeling = self.layer.labeling()
+
+        root_rule = labeling.rootRule()
+
+        descriptions = [rule.description() for rule in root_rule.children()]
+
+        for measure_type in CONVOY_MEASURE_TYPE_LABELS:
+
+            self.assertIn(f"{measure_type}_fields", descriptions)
+            self.assertIn(f"{measure_type}_dtg", descriptions)
+
+    def test_the_dtg_pair_reads_as_a_range_only_when_both_ends_are_set(self):
+
+        from MilitaryCartographyTools.military_symbology.supply_points import (
+            _CONVOY_DTG_LABEL_EXPRESSION,
+        )
+
+        feature = QgsFeature(self.layer.fields())
+
+        context = QgsExpressionContext()
+
+        for start, end, expected in (
+            ("", "", ""),
+            ("060500ZJUN07", "", "060500ZJUN07"),
+            ("", "060800ZJUN07", "060800ZJUN07"),
+            ("060500ZJUN07", "060800ZJUN07",
+             "060500ZJUN07 - 060800ZJUN07"),
+        ):
+
+            feature.setAttribute("dtg_start", start)
+            feature.setAttribute("dtg_end", end)
+
+            context.setFeature(feature)
+
+            self.assertEqual(
+                QgsExpression(_CONVOY_DTG_LABEL_EXPRESSION).evaluate(context),
+                expected,
+                f"{start!r}/{end!r}"
+            )

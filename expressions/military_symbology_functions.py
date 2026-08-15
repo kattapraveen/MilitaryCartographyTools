@@ -3849,6 +3849,172 @@ def mct_supply_route_arrow_svg(values, feature=None, parent=None):
     return "base64:" + base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
 
+# Table H-XXIII's own two convoys. The body is a bar of fixed page
+# height with an end piece at PT1; these are the end pieces, in a
+# coordinate system where the BODY is _CONVOY_SVG_BODY units tall and
+# the drawing runs left (towards the rear) to right (towards PT1).
+_CONVOY_SVG_BODY = 100.0
+_CONVOY_SVG_STROKE = 10.0
+
+# How far the arrowhead flares beyond the body, each side. The standard
+# draws the head clearly wider than the bar it grows out of but gives
+# no number for it - as it gives none for the bar's own height either.
+_CONVOY_SVG_HEAD_FLARE = 40.0
+
+
+def _convoy_moving_head_svg(length_units):
+
+    """
+    Moving Convoy's own end piece: an OPEN arrowhead flaring out of the
+    body and closing at the tip, drawn as strokes rather than a filled
+    triangle - the template's arrow is an outline throughout. The short
+    vertical step at each side is what joins the head to the bar, so
+    the outline runs body edge, out to the flare, down to the tip and
+    back, continuously.
+
+    **Drawn MIRRORED - tip at x=0, the join at x=length.** A marker
+    rotated onto a line's LAST vertex has its own +x running BACK
+    along the line, not forward. Established by render, not assumed.
+    """
+
+    body_half = _CONVOY_SVG_BODY / 2.0
+
+    half = body_half + _CONVOY_SVG_HEAD_FLARE
+
+    height = 2.0 * half + _CONVOY_SVG_STROKE
+
+    path = (
+        "M %.1f,%.1f L %.1f,%.1f L 0,0 L %.1f,%.1f L %.1f,%.1f"
+        % (length_units, -body_half, length_units, -half,
+           length_units, half, length_units, body_half)
+    )
+
+    return _convoy_svg(length_units, height, half, path, closed=False)
+
+
+def _convoy_halted_head_svg(length_units):
+
+    """
+    Halted Convoy's own end piece: the same triangle REVERSED - its
+    apex points back into the body and its base stands at PT1. That
+    reversal is the only thing separating a halted convoy from a moving
+    one, and it is drawn open, like the body.
+
+    Two parts, because a halted convoy's box is CLOSED where a moving
+    one's opens into its head: the bar closing the body, and the
+    triangle standing outside it. Mirrored for the same reason as the
+    moving head.
+    """
+
+    body_half = _CONVOY_SVG_BODY / 2.0
+
+    half = body_half + _CONVOY_SVG_HEAD_FLARE
+
+    height = 2.0 * half + _CONVOY_SVG_STROKE
+
+    bar = (
+        "M %.1f,%.1f L %.1f,%.1f"
+        % (length_units, -body_half, length_units, body_half)
+    )
+
+    triangle = (
+        "M 0,%.1f L %.1f,0 L 0,%.1f Z" % (-half, length_units, half)
+    )
+
+    return _convoy_svg(length_units, height, half, bar, closed=False,
+                       extra_path=triangle)
+
+
+def _convoy_svg(width, height, half, path, closed=False, extra_path=None):
+
+    """The shared wrapper every convoy end piece is drawn into."""
+
+    top = -half - _CONVOY_SVG_STROKE / 2.0
+
+    parts = [path] if extra_path is None else [path, extra_path]
+
+    body = "".join(
+        '<path d="%s" fill="none" stroke="black" stroke-width="%.1f"'
+        ' stroke-linejoin="miter" />' % (part, _CONVOY_SVG_STROKE)
+        for part in parts
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="%.1f"'
+        ' height="%.1f" viewBox="0 %.1f %.1f %.1f">%s</svg>'
+        % (width, height, top, width, height, body)
+    )
+
+def _convoy_rear_svg():
+
+    """
+    The bar closing the body at PT2 - one stroke the body's own height,
+    square across the line.
+    """
+
+    half = _CONVOY_SVG_BODY / 2.0
+
+    width = _CONVOY_SVG_STROKE
+
+    height = _CONVOY_SVG_BODY + _CONVOY_SVG_STROKE
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+        f' width="{width:.1f}" height="{height:.1f}"'
+        f' viewBox="{-width / 2.0:.1f} {-half - _CONVOY_SVG_STROKE / 2.0:.1f}'
+        f' {width:.1f} {height:.1f}">'
+        f'<path d="M 0,{-half:.1f} L 0,{half:.1f}" fill="none"'
+        f' stroke="black" stroke-width="{_CONVOY_SVG_STROKE:.1f}" /></svg>'
+    )
+
+
+@qgsfunction(
+    'mct_convoy_end_svg',
+    group='Military Cartography Tools'
+)
+def mct_convoy_end_svg(values, feature=None, parent=None):
+
+    """
+    One end piece of a convoy symbol (Table H-XXIII, 330100/330200), as
+    an inline "base64:<...>" SVG. Use as
+    mct_convoy_end_svg('moving', <length as a multiple of the body
+    height>, '<colour>').
+
+    `mode` is "moving" (an open arrowhead pointing forward), "halted"
+    (the same triangle reversed, apex back into the body) or "rear"
+    (the bar closing the body at PT2).
+
+    The colour comes in as a STRING, not a QGIS colour: color_rgb()
+    yields a bare "0,0,255", which a QGIS colour property accepts and
+    an SVG silently ignores - a trap this project has hit before.
+    """
+
+    if not values:
+        return ""
+
+    mode = str(values[0])
+
+    try:
+        length = float(values[1]) if len(values) > 1 else 1.0
+    except (TypeError, ValueError):
+        length = 1.0
+
+    colour = str(values[2]) if len(values) > 2 and values[2] else "black"
+
+    length_units = max(length, 0.1) * _CONVOY_SVG_BODY
+
+    if mode == "moving":
+        svg = _convoy_moving_head_svg(length_units)
+    elif mode == "halted":
+        svg = _convoy_halted_head_svg(length_units)
+    else:
+        svg = _convoy_rear_svg()
+
+    svg = svg.replace('stroke="black"', f'stroke="{colour}"')
+
+    return "base64:" + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
 def _text_width_mm(text, font_size_mm):
 
     """
@@ -5930,6 +6096,7 @@ _FUNCTIONS = [
     mct_length_km,
     mct_inscribed_centre,
     mct_inscribed_radius_mm,
+    mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,
     mct_crenellate_outline,

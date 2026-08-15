@@ -8514,6 +8514,56 @@ what a stale claim in a comment costs.
 
 ---
 
+### The two convoys; Table H-XXIII closes (2026-08-15)
+
+Moving Convoy (330100) and Halted Convoy (330200), on the existing
+Supply Routes (Lines) layer - the same table, the same geometry, and a
+rule-based renderer that already keys off `measure_type`. **Table
+H-XXIII is complete**, all 37 rows.
+
+Both are a BAR of fixed page height between the anchor points with an
+end piece at PT1: a forward-pointing open arrowhead for Moving, and the
+same triangle REVERSED - apex back into the bar - for Halted. That
+reversal is the entire difference between the two symbols. Moving's
+"varies only in length" is what makes the height a page unit.
+
+**Field A is deliberately absent** - the vehicle icon both examples draw
+in the middle box, an M1A2 and an M915. The maintainer's own call:
+"drop the Field A, if required, user will insert additionally; lot of
+symbols where we have not included multiple fields". Fields V, H and the
+W/W1 pair are all built.
+
+The bar is two offset line layers rather than generated geometry, with
+`setTrimDistanceEnd()` stopping them short of the head - a page distance
+matching the page-sized head, so the two meet at every zoom without the
+geometry needing to know the scale.
+
+**Three defects the first two renders caught, all of them page-unit
+sign or ratio errors:**
+
+- **The heads sat a full head-length past PT1.** QGIS measures
+  `offsetAlongLine` BACKWARD from the end at a LastVertex placement, so
+  the negative offset that looked right pushed the glyph forward. The
+  same marker-is-centred-on-its-vertex correction the range fans' axis
+  needed, with the opposite sign.
+- **Both heads drew mirrored.** A marker rotated onto a line's last
+  vertex has its own +x running back along the line, not forward - so
+  the SVGs are authored with the tip at x=0 and the join at x=length.
+  Established by render.
+- **The rear bar drew at a ninth of the body's height.** QGIS sizes an
+  SVG marker by its WIDTH and that glyph is a thin, tall stroke; sized
+  as the height directly it came out at the stroke-to-body ratio.
+
+**Two numbers here are mine, not the standard's**: the bar's height
+(6 mm) and the head's length (6 mm). The table draws both to no stated
+proportion. Sized so one line of the shared 9 pt label sits inside the
+bar with room to spare, and kept as single constants precisely because
+they are the kind of thing a smoke test moves.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### The remaining 27: plan and decisions taken (2026-08-15)
 
 Agreed with the maintainer before starting, so nothing here is
@@ -8583,13 +8633,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **27 symbols in 2 units**, all of it construction rather than
+is **25 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 27 is
+areas were all built on 2026-08-14. Every one of the 25 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -8604,7 +8654,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 | Unit | Table | Left | What |
 |---|---|---|---|
 | 1 | H-XXIV Mission Tasks | 25 | Block, Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Disrupt, Fix, Follow and Assume, Follow and Support, Isolate, Occupy, Penetrate, Relief in Place, Retire, Secure, Security (+Cover/Guard/Screen), Seize, Withdraw (+Under Pressure) |
-| 2 | H-XXIII Supply | 2 | Moving and Halted Convoy. **The 8 supply routes and 7 sustainment areas were built 2026-08-14.** |
+| ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |
 | ~~5~~ | ~~H-XIV Maritime~~ | ~~1~~ | **Built 2026-08-14** - Navigational (218400). Table H-XIV closed. |
