@@ -1561,6 +1561,125 @@ def mct_block_letter_point(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_disrupt_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_disrupt_letter_point(values, feature=None, parent=None):
+
+    """
+    Where Disrupt's own letter sits: on the CENTRAL arrow's shaft,
+    halfway from the base line to that arrow's tip - the maintainer's
+    own placement. Use as
+    mct_disrupt_letter_point($geometry, <mirrored>).
+    """
+
+    points = _three_anchor_points(values)
+
+    if points is None:
+        return QgsGeometry()
+
+    pt1, pt2, pt3 = points
+
+    _base, _a, _b, arrow_c = _disrupt_arrows(
+        pt1, pt2, pt3, _disrupt_mirrored(values)
+    )
+
+    midpoint = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+    )
+
+    tip = arrow_c[1]
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            (midpoint.x() + tip.x()) / 2.0,
+            (midpoint.y() + tip.y()) / 2.0,
+        )
+    )
+
+
+@qgsfunction(
+    'mct_fix_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_fix_letter_point(values, feature=None, parent=None):
+
+    """
+    Where Fix's own letter sits: in the middle of the flat run at the
+    PT2 end, before the toothed pattern begins. Use as
+    mct_fix_letter_point($geometry, <gap in mm>, @map_scale) - the same
+    arguments mct_fix_geometry() gets, so the letter and the gap it
+    sits in are computed from one set of numbers.
+    """
+
+    points = _three_anchor_points(values)
+
+    if points is None:
+        return QgsGeometry()
+
+    pt1, pt2, pt3 = points
+
+    # Recomputed rather than read back off the geometry: a
+    # @qgsfunction's own `.func` is invoked by QGIS with an extra
+    # context argument, so calling it directly raises and the label
+    # silently never draws.
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None:
+        return QgsGeometry()
+
+    (ux, uy), _normal, tooth_length = projection
+
+    total_length = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
+
+    if tooth_length == 0 or total_length <= 0:
+        return QgsGeometry()
+
+    letter_gap = _page_gap_in_map_units(values, 1, pt2)
+
+    lead_extra = 2.0 * letter_gap
+
+    if lead_extra >= total_length - 2.0 * tooth_length:
+        return QgsGeometry()
+
+    usable = total_length - 2.0 * tooth_length - lead_extra
+
+    tooth_count = max(0, int(usable // tooth_length)) if usable > 0 else 0
+
+    leftover = usable - tooth_count * tooth_length if usable > 0 else 0.0
+
+    start_flat = tooth_length + (leftover / 2.0 if usable > 0 else 0.0)
+
+    end_of_teeth = start_flat + tooth_count * tooth_length
+
+    centre = end_of_teeth + (total_length - end_of_teeth) / 2.0
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(pt1.x() + centre * ux, pt1.y() + centre * uy)
+    )
+
+
+def _three_anchor_points(values):
+
+    """The first three vertices of a line geometry, or None."""
+
+    if not values:
+        return None
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return None
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return None
+
+    return tuple(QgsPointXY(vertices[index]) for index in range(3))
+
+
+@qgsfunction(
     'mct_turn_arc',
     group='Military Cartography Tools'
 )
@@ -1660,7 +1779,7 @@ def _perpendicular_projection(pt1, pt2, pt3):
     return (ux, uy), (nx, ny), length
 
 
-def _disrupt_arrows(pt1, pt2, pt3):
+def _disrupt_arrows(pt1, pt2, pt3, mirrored=False):
 
     """
     The three "arrows" Disrupt (270502) is built from, per the
@@ -1675,6 +1794,15 @@ def _disrupt_arrows(pt1, pt2, pt3):
     """
 
     base = [pt1, pt2]
+
+    # **The mirror is a swap of the two base ends, nothing more.** The
+    # full-length arrow grows from PT2 and the half-length one from PT1;
+    # exchanging them puts the longest at the other end, which is what
+    # Table H-XXIV's own Disrupt asks for against Table H-XIX's. The
+    # perpendicular is measured TOWARDS PT3, so it is unaffected by the
+    # order and the arrows stay on the side the user clicked.
+    if mirrored:
+        pt1, pt2 = pt2, pt1
 
     projection = _perpendicular_projection(pt1, pt2, pt3)
 
@@ -1718,6 +1846,18 @@ def _disrupt_arrows(pt1, pt2, pt3):
     arrow_c = [offset(midpoint, -middle_length), offset(midpoint, middle_length)]
 
     return base, arrow_a, arrow_b, arrow_c
+
+
+def _disrupt_mirrored(values):
+
+    """
+    Whether this Disrupt is the MIRRORED one - Table H-XXIV's mission
+    task, whose longest arrow sits at the opposite end from Table
+    H-XIX's obstacle effect. Optional and false by default, so the
+    obstacle version's own call is unchanged.
+    """
+
+    return bool(values[1]) if len(values) > 1 else False
 
 
 @qgsfunction(
@@ -1772,7 +1912,9 @@ def mct_disrupt_geometry(values, feature=None, parent=None):
     pt2 = QgsPointXY(vertices[1])
     pt3 = QgsPointXY(vertices[2])
 
-    base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(pt1, pt2, pt3)
+    base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(
+        pt1, pt2, pt3, _disrupt_mirrored(values)
+    )
 
     return QgsGeometry.fromMultiPolylineXY(
         [base, arrow_a, arrow_b, arrow_c]
@@ -1810,7 +1952,9 @@ def mct_disrupt_arrow_tips(values, feature=None, parent=None):
     pt2 = QgsPointXY(vertices[1])
     pt3 = QgsPointXY(vertices[2])
 
-    _base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(pt1, pt2, pt3)
+    _base, arrow_a, arrow_b, arrow_c = _disrupt_arrows(
+        pt1, pt2, pt3, _disrupt_mirrored(values)
+    )
 
     return QgsGeometry.fromMultiPolylineXY([arrow_a, arrow_b, arrow_c])
 
@@ -1894,7 +2038,19 @@ def mct_fix_geometry(values, feature=None, parent=None):
     half_span = tooth_length / 2.0
     height = tooth_length * math.sqrt(3.0) / 2.0
 
-    usable = total_length - 2.0 * tooth_length
+    # An optional run of extra flat line at the PT2 end, for a letter
+    # set into it - Table H-XXIV's own Fix carries an "F" there. Twice
+    # the gap, so a length of line still shows either side of it.
+    # Table H-XIX's own Fix passes nothing and is unchanged.
+    letter_gap = _page_gap_in_map_units(values, 1, pt2)
+
+    lead_extra = 2.0 * letter_gap
+
+    if lead_extra >= total_length - 2.0 * tooth_length:
+        lead_extra = 0.0
+        letter_gap = 0.0
+
+    usable = total_length - 2.0 * tooth_length - lead_extra
 
     tooth_count = max(0, int(usable // tooth_length)) if usable > 0 else 0
 
@@ -1927,9 +2083,28 @@ def mct_fix_geometry(values, feature=None, parent=None):
 
         sign = -sign
 
-    points.append(pt2)
+    if letter_gap <= 0:
 
-    return QgsGeometry.fromPolylineXY(points)
+        points.append(pt2)
+
+        return QgsGeometry.fromPolylineXY(points)
+
+    # The lengthened lead run, broken around the letter. Returned as a
+    # MultiLineString - the teeth and the first part of the run are one
+    # continuous path, the tail past the letter is the other.
+    flat_start = cursor
+
+    flat_length = total_length - flat_start
+
+    before = flat_start + (flat_length - letter_gap) / 2.0
+
+    after = before + letter_gap
+
+    points.append(point_at(before))
+
+    return QgsGeometry.fromMultiPolylineXY(
+        [points, [point_at(after), pt2]]
+    )
 
 
 def _obstacle_bypass_frame(pt1, pt2, pt3):
@@ -6242,6 +6417,8 @@ _FUNCTIONS = [
     mct_inscribed_centre,
     mct_inscribed_radius_mm,
     mct_block_letter_point,
+    mct_disrupt_letter_point,
+    mct_fix_letter_point,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,

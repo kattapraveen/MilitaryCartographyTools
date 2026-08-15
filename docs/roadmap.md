@@ -8514,6 +8514,39 @@ what a stale claim in a comment costs.
 
 ---
 
+### Mission Task Lines: Fix; Disrupt held back again (2026-08-15)
+
+Fix (341100) built to the maintainer's own instruction - Table H-XIX's
+270503 geometry, black, with "F" masked into the lead run at the PT2
+end, that run lengthened to hold it. The mask is a gap cut into the
+geometry, as on Block, and at the maintainer's explicit confirmation
+("mask F the same way").
+
+Both reach the obstacle function as OPTIONAL arguments defaulting to
+the old behaviour, so Table H-XIX's own Fix is untouched - its 192
+tests pass unchanged.
+
+**Disrupt is held a second time, and the reason is better than the
+first.** Its mirror and its letter are built and its geometry
+evaluates, but two things would ship wrong:
+
+- **Which end the mirror is measured against.** "Longest arrow at the
+  bottom" is relative to how the STANDARD draws 270502, not to the
+  order the user happens to click PT1 and PT2. This project's own
+  obstacle Disrupt puts its longest arrow at PT2, whichever end of the
+  screen that lands on - so "mirrored" needs the maintainer's own
+  reference, or it is a coin toss that renders convincingly either way.
+- **Disrupt has three arrowheads.** The obstacle version draws them
+  from a separate marker layer over `mct_disrupt_arrow_tips()`; the
+  mission-task symbol draws only the shafts so far.
+
+The first render showed exactly this: a correctly mirrored, headless
+Disrupt that looked finished.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Mission Task Lines begin: Block (2026-08-15)
 
 The maintainer released the three held rows with explicit

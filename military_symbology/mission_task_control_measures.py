@@ -212,25 +212,30 @@ def add_mission_task_points_layer(iface):
 # old one.
 LINES_LAYER_NAME = "Mission Task Lines"
 
-# **Block only, so far.** Disrupt and Fix need two changes to Table
-# H-XIX's own geometry functions that Block does not - Disrupt is
-# vertically MIRRORED against the obstacle version, and Fix needs its
-# lead segment lengthened to hold the letter - and both are additive
-# arguments to functions that are built and signed off. They land
-# next, rather than shipping here drawing the unmirrored shape.
 LINE_MEASURE_TYPE_LABELS = {
     "block": "Block",
+    "fix": "Fix",
 }
 
 LINE_MEASURE_TYPE_CODES = {
     "block": "340100",
+    "fix": "341100",
 }
 
-# Recorded now so the two are not lost between sittings, with the
-# maintainer's own instruction for each above.
+# **Disrupt is held back a second time, and for a better reason than
+# the first.** Its mirror and its letter are built and its geometry
+# evaluates - but two things are unresolved and both would ship wrong:
+#
+# 1. WHICH END the mirror is measured against. "Longest arrow at the
+#    bottom" is relative to how the standard draws 270502, not to the
+#    order the user happens to click PT1 and PT2 - and this project's
+#    own obstacle Disrupt puts its longest arrow at PT2, whichever end
+#    of the screen that is.
+# 2. Disrupt has THREE ARROWHEADS. The obstacle version draws them
+#    from a separate marker layer over mct_disrupt_arrow_tips(); the
+#    mission-task symbol here draws only the shafts so far.
 TABLE_H_XXIV_LINES_NEXT = {
     "341000": "Disrupt",
-    "341100": "Fix",
 }
 
 # The letter each one carries, set into its own shaft.
@@ -385,11 +390,19 @@ def _configure_lines_labeling(layer):
 def _letter_point_expression(measure_type):
 
     """
-    Where the letter goes: the middle of the stem for Block, which is
-    the middle of the gap that stem carries.
+    Where each letter goes - always the middle of the gap its own
+    geometry cut, so the two can never drift apart.
     """
 
-    return "mct_block_letter_point($geometry)"
+    if measure_type == "block":
+        return "mct_block_letter_point($geometry)"
+
+    if measure_type == "disrupt":
+        return "mct_disrupt_letter_point($geometry, true)"
+
+    return "mct_fix_letter_point($geometry, {gap}, @map_scale)".format(
+        gap=_letter_gap_expression("fix")
+    )
 
 
 def create_mission_task_lines_layer(name=LINES_LAYER_NAME):
