@@ -221,6 +221,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "disrupt": "Disrupt",
     "fix": "Fix",
     "secure": "Secure",
+    "occupy": "Occupy",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -228,6 +229,7 @@ LINE_MEASURE_TYPE_CODES = {
     "disrupt": "341000",
     "fix": "341100",
     "secure": "342100",
+    "occupy": "341700",
 }
 
 
@@ -237,6 +239,7 @@ LINE_LETTERS = {
     "disrupt": "D",
     "fix": "F",
     "secure": "S",
+    "occupy": "O",
 }
 
 _LINE_WIDTH_MM = 0.4
@@ -293,7 +296,12 @@ def _line_geometry_expression(measure_type):
     # mark. Retain already draws exactly that, gap and all, so this
     # borrows it rather than restating it - only the letter's own
     # radius differs (see mct_secure_letter_point).
-    if measure_type == "secure":
+    # **Occupy is Secure, with a different letter and a different end
+    # mark.** The maintainer's own words: "everything same as secure,
+    # except, replace 'S' with 'O', and have a X - drawn in the same
+    # size as the arrowhead twice like this >< in place of the secure's
+    # arrowhead". So the arc itself is the same call again.
+    if measure_type in ("secure", "occupy"):
         return "mct_retain_arc($geometry)"
 
     return f"mct_fix_geometry($geometry, {gap}, @map_scale)"
@@ -356,6 +364,20 @@ def _mission_task_line_symbol(measure_type):
                 Qgis.MarkerLinePlacement.LastVertex,
             )
         )
+
+    if measure_type == "occupy":
+
+        # ">" and "<" on the same point, tip to tip - the same
+        # arrowhead twice, the second turned through 180 degrees.
+        for angle in (0.0, 180.0):
+
+            symbol.appendSymbolLayer(
+                _arrowhead_layer(
+                    "mct_retain_arc_end($geometry)",
+                    Qgis.MarkerLinePlacement.LastVertex,
+                    angle,
+                )
+            )
 
     return symbol
 
@@ -572,7 +594,7 @@ def _letter_point_expression(measure_type):
     if measure_type == "disrupt":
         return "mct_disrupt_letter_point($geometry)"
 
-    if measure_type == "secure":
+    if measure_type in ("secure", "occupy"):
         return "mct_secure_letter_point($geometry)"
 
     return "mct_fix_letter_point($geometry, {gap}, @map_scale)".format(

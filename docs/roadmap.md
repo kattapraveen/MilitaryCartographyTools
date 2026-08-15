@@ -8514,6 +8514,25 @@ what a stale claim in a comment costs.
 
 ---
 
+### Occupy (341700), Secure with a different end mark (2026-08-15)
+
+The maintainer's own words: "everything same as secure, except,
+replace 'S' with 'O', and have a X - drawn in the same size as the
+arrowhead twice like this >< in place of the secure's arrowhead".
+
+So the arc, the letter anchor and the gap are Secure's calls again -
+which are Retain's. The only new thing is the end mark: the SAME
+arrowhead marker twice on the same point, the second turned through
+180 degrees, so ">" and "<" meet tip to tip. Co-located they read as
+an X, which is what the instruction names first.
+
+`_arrowhead_layer()` already took an angle - added for Fix's own
+flipped head - so Occupy needed no new geometry at all.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Secure (342100), on Retain's own arc (2026-08-15)
 
 First of the one-at-a-time run through Table H-XXIV, and the cheapest
