@@ -8514,6 +8514,31 @@ what a stale claim in a comment costs.
 
 ---
 
+### Secure (342100), on Retain's own arc (2026-08-15)
+
+First of the one-at-a-time run through Table H-XXIV, and the cheapest
+symbol in it: **Secure is Retain's construction, reused whole.**
+
+The maintainer's dictation - PT1 the centre, PT1-PT2 the radius, a 330
+degree arc "like we did retain earlier", an arrowhead at the 330 degree
+point, the letter on the perimeter at the 180 degree mark - describes
+`mct_retain_arc()` exactly, gap and all. So Secure calls it, and calls
+`mct_retain_arc_end()` for the head, rather than restating either.
+
+**One line of new geometry**: `mct_secure_letter_point()`. Retain's own
+"R" sits just OUTSIDE its perimeter; this "S" was asked for ON it, so
+the anchor takes the radius itself instead of Retain's outward ratio.
+Nothing else differs.
+
+Also generalised `_arrowhead_layer()` out of Disrupt's own, since three
+line tasks now carry heads on their own separate short geometry - each
+of these shapes is multi-part once a letter gap is cut into it, and a
+LastVertex marker fires on the last vertex of EVERY part.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Fix gains its arrowhead; the menu entry is renamed (2026-08-15)
 
 Two from the maintainer's smoke test, Block and Disrupt cleared.

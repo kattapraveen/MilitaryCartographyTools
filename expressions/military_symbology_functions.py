@@ -3687,6 +3687,44 @@ def mct_retain_letter_point(values, feature=None, parent=None):
     )
 
 
+@qgsfunction(
+    'mct_secure_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_secure_letter_point(values, feature=None, parent=None):
+
+    """
+    The anchor for Secure's own "S" (Table H-XXIV, 342100) - half way
+    round the sweep, ON the perimeter.
+
+    Retain's own letter sits just OUTSIDE its arc; the maintainer asked
+    for this one "on the perimeter of circle, masked", so it takes the
+    radius itself. Everything else about the two is the same
+    construction, and Secure reuses mct_retain_arc() and
+    mct_retain_arc_end() unchanged rather than restating a 330-degree
+    arc with a letter gap in it.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _retain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, _sweep = frame
+
+    mid = start - math.pi
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            centre.x() + radius * math.cos(mid),
+            centre.y() + radius * math.sin(mid),
+        )
+    )
+
+
 # --- Weapon/Sensor Range Fan (Table H-XVIII, 242100 and 242200) ---
 #
 # **Two codes, one construction** - Circular (242100) is the Sector
@@ -6432,6 +6470,7 @@ _FUNCTIONS = [
     mct_block_letter_point,
     mct_disrupt_letter_point,
     mct_fix_letter_point,
+    mct_secure_letter_point,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,

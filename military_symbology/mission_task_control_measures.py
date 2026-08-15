@@ -220,12 +220,14 @@ LINE_MEASURE_TYPE_LABELS = {
     "block": "Block",
     "disrupt": "Disrupt",
     "fix": "Fix",
+    "secure": "Secure",
 }
 
 LINE_MEASURE_TYPE_CODES = {
     "block": "340100",
     "disrupt": "341000",
     "fix": "341100",
+    "secure": "342100",
 }
 
 
@@ -234,6 +236,7 @@ LINE_LETTERS = {
     "block": "B",
     "disrupt": "D",
     "fix": "F",
+    "secure": "S",
 }
 
 _LINE_WIDTH_MM = 0.4
@@ -282,6 +285,16 @@ def _line_geometry_expression(measure_type):
 
     if measure_type == "disrupt":
         return f"mct_disrupt_geometry($geometry, {gap}, @map_scale)"
+
+    # **Secure is Retain's construction, reused whole.** The
+    # maintainer's own words: PT1 the centre, PT1-PT2 the radius, a 330
+    # degree arc "like we did retain earlier", an arrowhead at the 330
+    # degree point and the letter on the perimeter at the 180 degree
+    # mark. Retain already draws exactly that, gap and all, so this
+    # borrows it rather than restating it - only the letter's own
+    # radius differs (see mct_secure_letter_point).
+    if measure_type == "secure":
+        return "mct_retain_arc($geometry)"
 
     return f"mct_fix_geometry($geometry, {gap}, @map_scale)"
 
@@ -336,6 +349,14 @@ def _mission_task_line_symbol(measure_type):
     if measure_type == "fix":
         symbol.appendSymbolLayer(_fix_arrowhead_layer())
 
+    if measure_type == "secure":
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                "mct_retain_arc_end($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+            )
+        )
+
     return symbol
 
 
@@ -384,6 +405,59 @@ def _fix_arrowhead_layer():
     marker_line.setRotateSymbols(True)
 
     return marker_line
+
+
+def _arrowhead_layer(geometry_expression, placement, angle=0.0):
+
+    """
+    An arrowhead riding on its own geometry generator - shared by every
+    line task that carries one.
+
+    `geometry_expression` is deliberately a separate, SHORTER geometry
+    than the symbol's own: a marker at a LastVertex placement fires on
+    the last vertex of EVERY part, and each of these shapes is a
+    multi-part geometry once a letter gap is cut into it.
+    """
+
+    head = QgsSimpleMarkerSymbolLayer(
+        QgsSimpleMarkerSymbolLayerBase.Shape.ArrowHead,
+        _ARROWHEAD_SIZE_MM
+    )
+
+    head.setColor(QColor(0, 0, 0, 0))
+
+    head.setStrokeWidth(_LINE_WIDTH_MM * 1.5)
+
+    if angle:
+        head.setAngle(angle)
+
+    _apply_affiliation_color(head, [QgsSymbolLayer.Property.StrokeColor])
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, head)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(placement)
+
+    marker_line.setRotateSymbols(True)
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, marker_line)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(geometry_expression)
+
+    generator.setSubSymbol(inner)
+
+    return generator
 
 
 def _disrupt_arrowhead_layer():
@@ -497,6 +571,9 @@ def _letter_point_expression(measure_type):
 
     if measure_type == "disrupt":
         return "mct_disrupt_letter_point($geometry)"
+
+    if measure_type == "secure":
+        return "mct_secure_letter_point($geometry)"
 
     return "mct_fix_letter_point($geometry, {gap}, @map_scale)".format(
         gap=_letter_gap_expression("fix")
