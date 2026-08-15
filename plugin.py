@@ -44,6 +44,7 @@ from .military_symbology.supply_points import (
     add_sustainment_areas_layer,
 )
 from .military_symbology.mission_task_control_measures import (
+    add_mission_task_lines_layer,
     add_mission_task_points_layer,
 )
 from .military_symbology.intelligence_control_measures import (
@@ -2479,6 +2480,10 @@ class MilitaryCartographyTools:
         """
 
         add_mission_task_points_layer(
+            self.iface
+        )
+
+        add_mission_task_lines_layer(
             self.iface
         )
 

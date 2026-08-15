@@ -33,9 +33,39 @@ rows are listed below by code rather than by name alone.
 Military Cartography Tools
 """
 
-from ._control_measure_shared import add_layer_if_absent
+from ._control_measure_shared import (
+    LABEL_FONT_SIZE,
+    _STATUS_LINE_STYLE_EXPRESSION,
+    _apply_affiliation_color,
+    _build_pal_layer_settings,
+    _build_rule_based_renderer,
+    _configure_affiliation_field,
+    _configure_status_field,
+    _value_map,
+    add_layer_if_absent,
+)
 
 from ._point_symbol_layer import build_single_domain_point_layer
+
+from qgis.core import (
+    Qgis,
+    QgsDefaultValue,
+    QgsEditorWidgetSetup,
+    QgsField,
+    QgsGeometryGeneratorSymbolLayer,
+    QgsLineSymbol,
+    QgsProject,
+    QgsProperty,
+    QgsRuleBasedLabeling,
+    QgsSimpleLineSymbolLayer,
+    QgsSymbol,
+    QgsSymbolLayer,
+    QgsVectorLayer,
+)
+
+from qgis.PyQt.QtCore import QMetaType
+
+from qgis.PyQt.QtGui import QColor
 
 
 POINTS_LAYER_NAME = "Mission Task Points"
@@ -147,4 +177,271 @@ def add_mission_task_points_layer(iface):
         iface,
         POINTS_LAYER_NAME,
         create_mission_task_points_layer,
+    )
+
+
+# ============================================================
+# Mission task LINES
+# ============================================================
+#
+# **Everything in Table H-XXIV lives on a Mission Tasks layer** - point,
+# line or area - at the maintainer's own instruction, 2026-08-15. This
+# is the line half.
+#
+# **Block, Disrupt and Fix are the three that share a name with a
+# symbol already built here**, and they were held back until the
+# maintainer gave explicit instructions for them. Those instructions,
+# in their own words:
+#
+#   Block   - same as 270501, default colour BLACK not green, letter B
+#             (masked) on the horizontal shaft.
+#   Disrupt - same as 270502 but VERTICALLY MIRRORED (longest arrow at
+#             the bottom, shortest at the top), black, letter D
+#             (masked) on the central arrow's shaft, halfway from the
+#             base line to the arrowhead tip.
+#   Fix     - same as 270503, black, letter F on the shaft (lengthened
+#             accordingly) before the wavy pattern begins - the initial
+#             segment, close to PT2.
+#
+#   "Construction mechanism for user for all three remains same as
+#   270501/2/3" - the same three anchor points, clicked the same way.
+#
+# So these reuse Table H-XIX's own geometry functions rather than
+# reimplementing them. The obstacle versions are untouched: every new
+# behaviour reaches them as an OPTIONAL argument that defaults to the
+# old one.
+LINES_LAYER_NAME = "Mission Task Lines"
+
+# **Block only, so far.** Disrupt and Fix need two changes to Table
+# H-XIX's own geometry functions that Block does not - Disrupt is
+# vertically MIRRORED against the obstacle version, and Fix needs its
+# lead segment lengthened to hold the letter - and both are additive
+# arguments to functions that are built and signed off. They land
+# next, rather than shipping here drawing the unmirrored shape.
+LINE_MEASURE_TYPE_LABELS = {
+    "block": "Block",
+}
+
+LINE_MEASURE_TYPE_CODES = {
+    "block": "340100",
+}
+
+# Recorded now so the two are not lost between sittings, with the
+# maintainer's own instruction for each above.
+TABLE_H_XXIV_LINES_NEXT = {
+    "341000": "Disrupt",
+    "341100": "Fix",
+}
+
+# The letter each one carries, set into its own shaft.
+LINE_LETTERS = {
+    "block": "B",
+    "disrupt": "D",
+    "fix": "F",
+}
+
+_LINE_WIDTH_MM = 0.4
+
+# Breathing room either side of the letter inside the gap it cuts.
+_LETTER_PADDING_MM = 1.2
+
+# LABEL_FONT_SIZE is in POINTS, which is what QgsTextFormat defaults
+# to; a gap measured on the page needs millimetres.
+_LETTER_SIZE_MM = LABEL_FONT_SIZE * 25.4 / 72.0
+
+
+def _letter_gap_expression(measure_type):
+
+    """
+    How wide, in page millimetres, this symbol's own letter gap has to
+    be - the letter's rendered width plus padding at each end,
+    measured with Qt's font metrics rather than estimated.
+    """
+
+    return "mct_text_width_mm('{letter}', {size:.4f}) + {padding:.4f}".format(
+        letter=LINE_LETTERS[measure_type],
+        size=_LETTER_SIZE_MM,
+        padding=2.0 * _LETTER_PADDING_MM,
+    )
+
+
+def _line_geometry_expression(measure_type):
+
+    """
+    The Table H-XIX geometry function this task borrows, with the gap
+    its own letter needs cut into the right shaft.
+
+    @map_scale resolves inside a geometry generator - established by
+    probe 2026-08-15 - which is what lets a PAGE-sized gap be cut into
+    ground-unit geometry at all.
+    """
+
+    gap = _letter_gap_expression(measure_type)
+
+    if measure_type == "block":
+        return f"mct_block_geometry($geometry, {gap}, @map_scale)"
+
+    if measure_type == "disrupt":
+        return f"mct_disrupt_geometry($geometry, true, {gap}, @map_scale)"
+
+    return f"mct_fix_geometry($geometry, {gap}, @map_scale)"
+
+
+def _mission_task_line_symbol(measure_type):
+
+    """
+    One of the three, drawn on Table H-XIX's own geometry.
+
+    **Affiliation-coloured, defaulting to BLACK** - the maintainer's
+    own instruction. The obstacle versions default to GREEN because
+    H.5.21.1 makes obstacles an explicit exception; H.5.26 claims
+    nothing like it, so these follow the appendix's ordinary rule and
+    the layer's own "Unspecified (black)" default lands on black.
+    """
+
+    line_layer = QgsSimpleLineSymbolLayer()
+
+    line_layer.setColor(QColor(0, 0, 0))
+
+    line_layer.setWidth(_LINE_WIDTH_MM)
+
+    _apply_affiliation_color(
+        line_layer,
+        [QgsSymbolLayer.Property.StrokeColor]
+    )
+
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.StrokeStyle,
+        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+    )
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, line_layer)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(_line_geometry_expression(measure_type))
+
+    generator.setSubSymbol(inner)
+
+    symbol = QgsLineSymbol()
+
+    symbol.changeSymbolLayer(0, generator)
+
+    return symbol
+
+
+_LINE_SYMBOL_BUILDERS = {
+    measure_type: (lambda measure_type=measure_type:
+                   _mission_task_line_symbol(measure_type))
+    for measure_type in LINE_MEASURE_TYPE_LABELS
+}
+
+
+def _configure_lines_labeling(layer):
+
+    """
+    The letter sits in the gap its own geometry cut for it - so this is
+    an OverPoint label pinned to that gap's own midpoint, not a label
+    placed along the line and masked.
+
+    **No QgsTextMaskSettings**, and that is not an omission: the shaft
+    the letter sits on is nested inside a geometry generator, which
+    QGIS's Selective Masking cannot reach. The break is in the geometry
+    instead - the same answer the Minimum Safe Distance Zone's rings
+    needed.
+    """
+
+    root_rule = QgsRuleBasedLabeling.Rule(None)
+
+    for measure_type in LINE_MEASURE_TYPE_LABELS:
+
+        settings = _build_pal_layer_settings(
+            layer,
+            Qgis.LabelPlacement.OverPoint,
+            "'{}'".format(LINE_LETTERS[measure_type]),
+            label_geometry_expression=_letter_point_expression(measure_type),
+            quadrant=Qgis.LabelQuadrantPosition.Over,
+        )
+
+        rule = QgsRuleBasedLabeling.Rule(settings)
+
+        rule.setFilterExpression(
+            "\"measure_type\" = '{}'".format(measure_type)
+        )
+
+        rule.setDescription(measure_type)
+
+        root_rule.appendChild(rule)
+
+    layer.setLabeling(QgsRuleBasedLabeling(root_rule))
+
+    layer.setLabelsEnabled(True)
+
+
+def _letter_point_expression(measure_type):
+
+    """
+    Where the letter goes: the middle of the stem for Block, which is
+    the middle of the gap that stem carries.
+    """
+
+    return "mct_block_letter_point($geometry)"
+
+
+def create_mission_task_lines_layer(name=LINES_LAYER_NAME):
+
+    """Table H-XXIV's own line-type mission tasks."""
+
+    crs = QgsProject.instance().crs()
+
+    layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", name, "memory")
+
+    layer.dataProvider().addAttributes(
+        [
+            QgsField("measure_type", QMetaType.Type.QString),
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+        ]
+    )
+
+    layer.updateFields()
+
+    measure_type_idx = layer.fields().indexOf("measure_type")
+
+    layer.setEditorWidgetSetup(
+        measure_type_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": _value_map(LINE_MEASURE_TYPE_LABELS)}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        measure_type_idx,
+        QgsDefaultValue("'block'")
+    )
+
+    _configure_affiliation_field(layer)
+    _configure_status_field(layer)
+
+    layer.setRenderer(
+        _build_rule_based_renderer(layer, _LINE_SYMBOL_BUILDERS)
+    )
+
+    _configure_lines_labeling(layer)
+
+    return layer
+
+
+def add_mission_task_lines_layer(iface):
+
+    return add_layer_if_absent(
+        iface,
+        LINES_LAYER_NAME,
+        create_mission_task_lines_layer,
     )

@@ -8514,6 +8514,53 @@ what a stale claim in a comment costs.
 
 ---
 
+### Mission Task Lines begin: Block (2026-08-15)
+
+The maintainer released the three held rows with explicit
+constructions, and instructed that **everything in Table H-XXIV lives
+on a Mission Tasks layer** - point, line or area. New Mission Task
+Lines layer; Block (340100) is the first on it.
+
+Their instruction: "same as defensive control measures 270501, but
+default colour is black not green and the letter B (masked) on the
+horizontal shaft... Construction mechanism for user for all three
+remains same as 270501/2/3." So it reuses Table H-XIX's own
+`mct_block_geometry()` outright rather than reimplementing a "T", with
+the same three anchor points.
+
+**The obstacle version is untouched.** The gap the letter needs reaches
+it as OPTIONAL arguments defaulting to no gap - the additive pattern
+this project uses whenever a signed-off helper gains a second caller.
+
+The gap is CUT INTO THE GEOMETRY rather than masked, because Selective
+Masking cannot reach a symbol layer inside a geometry generator. Its
+width is the letter's own rendered width plus padding, converted from
+page millimetres through @map_scale - which resolves inside a geometry
+generator, as established earlier the same day.
+
+**Two bugs the render caught, neither visible to a test:**
+
+- **A gap in map units is not a gap in metres.** The first conversion
+  stopped at ground metres and would have cut a gap five orders of
+  magnitude too wide on a layer in degrees. Metres-per-unit is now
+  measured on the ellipsoid at the feature's own latitude.
+- **The "B" simply never drew.** `mct_block_letter_point()` called
+  `mct_block_geometry` through its own decorator, and QGIS invokes a
+  @qgsfunction's `.func` with an extra context argument - so the call
+  raised, the expression went NULL, and the label vanished silently
+  while the "T" looked perfect. The point is computed inline now.
+
+**Disrupt and Fix are NOT in this commit.** Both need a change to the
+H-XIX geometry they borrow that Block did not - Disrupt is vertically
+mirrored against the obstacle version (longest arrow at the bottom),
+and Fix needs its lead segment lengthened to hold the letter. Shipping
+them now would have drawn the unmirrored shape. Recorded in
+`TABLE_H_XXIV_LINES_NEXT` with the maintainer's own wording for each.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### The two convoys; Table H-XXIII closes (2026-08-15)
 
 Moving Convoy (330100) and Halted Convoy (330200), on the existing

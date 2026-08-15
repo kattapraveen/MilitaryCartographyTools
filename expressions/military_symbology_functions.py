@@ -1410,8 +1410,153 @@ def mct_block_geometry(values, feature=None, parent=None):
         midpoint.y() + length * ny,
     )
 
+    # An optional gap in the STEM, for a letter set into it. Added
+    # 2026-08-15 for Table H-XXIV's own Block, which carries a "B"
+    # there; Table H-XIX's own Block passes nothing and is unchanged.
+    #
+    # Cut into the geometry rather than masked, because QGIS's
+    # Selective Masking cannot reach a symbol layer nested inside a
+    # geometry generator - the same reason the Minimum Safe Distance
+    # Zone's rings carry their own break.
+    gap_units = _page_gap_in_map_units(values, 1, midpoint)
+
+    if gap_units > 0 and 2.0 * gap_units < length:
+
+        half = gap_units / 2.0
+
+        centre_along = length / 2.0
+
+        before = QgsPointXY(
+            midpoint.x() + (centre_along - half) * nx,
+            midpoint.y() + (centre_along - half) * ny,
+        )
+
+        after = QgsPointXY(
+            midpoint.x() + (centre_along + half) * nx,
+            midpoint.y() + (centre_along + half) * ny,
+        )
+
+        return QgsGeometry.fromMultiPolylineXY(
+            [[pt1, pt2], [midpoint, before], [after, tip]]
+        )
+
     return QgsGeometry.fromMultiPolylineXY(
         [[pt1, pt2], [midpoint, tip]]
+    )
+
+
+def _page_gap_in_map_units(values, first_index, reference_point):
+
+    """
+    A gap given in PAGE millimetres, converted to the MAP UNITS the
+    geometry is in - `values[first_index]` the width, `values[first_index
+    + 1]` the map scale, and `reference_point` somewhere on the feature.
+
+    Returns 0.0 when either value is missing, which is what makes every
+    gap parameter in this module optional and leaves every existing
+    caller unaffected.
+
+    **@map_scale DOES resolve inside a geometry generator** - probed
+    2026-08-15, correcting a note this project carried for days.
+
+    **The last step is a map-unit conversion, and skipping it is the
+    error to avoid.** A scale relates ground metres to page
+    millimetres, but a layer in a geographic CRS holds DEGREES, and a
+    gap of "600 metres" cut as 600 degrees is off by five orders of
+    magnitude. Metres-per-unit is measured on the ellipsoid at the
+    feature's own latitude, along the x axis - which is the same
+    quantity QGIS's own scale calculation uses, so the two agree.
+    """
+
+    if len(values) <= first_index + 1:
+        return 0.0
+
+    try:
+        gap_mm = float(values[first_index])
+        map_scale = float(values[first_index + 1])
+    except (TypeError, ValueError):
+        return 0.0
+
+    if gap_mm <= 0 or map_scale <= 0:
+        return 0.0
+
+    ground_metres = gap_mm / 1000.0 * map_scale
+
+    distance_area = _distance_area()
+
+    metres_per_unit = distance_area.measureLine(
+        reference_point,
+        QgsPointXY(reference_point.x() + 1.0, reference_point.y())
+    )
+
+    if metres_per_unit <= 0:
+        return 0.0
+
+    return ground_metres / metres_per_unit
+
+
+@qgsfunction(
+    'mct_block_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_block_letter_point(values, feature=None, parent=None):
+
+    """
+    The midpoint of Block's own stem - where the letter sits, and the
+    middle of the gap mct_block_geometry() cuts for it. Use as
+    mct_block_letter_point($geometry).
+
+    Computed here rather than by calling mct_block_geometry through its
+    own decorator: a @qgsfunction's `.func` is invoked by QGIS with an
+    extra context argument, so calling it with the three arguments the
+    body declares raises, the expression evaluates to NULL, and the
+    label silently never draws. Found by render - the "T" was right and
+    the "B" simply absent.
+    """
+
+    if len(values) < 1:
+        return QgsGeometry()
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return QgsGeometry()
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return QgsGeometry()
+
+    pt1, pt2, pt3 = (QgsPointXY(vertices[i]) for i in range(3))
+
+    dx, dy = pt2.x() - pt1.x(), pt2.y() - pt1.y()
+
+    span = math.hypot(dx, dy)
+
+    if span == 0:
+        return QgsGeometry()
+
+    ux, uy = dx / span, dy / span
+
+    along = (pt3.x() - pt1.x()) * ux + (pt3.y() - pt1.y()) * uy
+
+    perp_x = pt3.x() - (pt1.x() + along * ux)
+    perp_y = pt3.y() - (pt1.y() + along * uy)
+
+    length = math.hypot(perp_x, perp_y)
+
+    if length == 0:
+        return QgsGeometry()
+
+    midpoint = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+    )
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            midpoint.x() + length / 2.0 * perp_x / length,
+            midpoint.y() + length / 2.0 * perp_y / length,
+        )
     )
 
 
@@ -6096,6 +6241,7 @@ _FUNCTIONS = [
     mct_length_km,
     mct_inscribed_centre,
     mct_inscribed_radius_mm,
+    mct_block_letter_point,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,
