@@ -737,12 +737,21 @@ class TestCbrnContaminatedAreasLayer(QgisTestCase):
             ["cbrn_contaminated_area_hatch"]
         )
 
-    def test_the_glyph_stays_clear_of_the_outline_by_three_millimetres(self):
+    def _measure_glyph(self, grow_degrees):
 
-        # The point of the whole size expression, measured rather than
-        # asserted on the expression's own text: evaluate the real
-        # size against a real feature in a real map context, then check
-        # the glyph's furthest corner against the polygon's own edge.
+        """
+        The real size expression evaluated against a real feature in a
+        real map context, plus the smallest gap between the glyph's own
+        corner circle and the area's outline - both in page
+        millimetres. `grow_degrees` sets how far out the view is
+        zoomed, which is what decides whether the cap or the clearance
+        governs.
+
+        Measured, not asserted on the expression's own text.
+        """
+
+        import math
+
         feature = QgsFeature(self.layer.fields())
 
         geometry = QgsGeometry.fromWkt(_TEMPLATE_AREA_WKT)
@@ -753,6 +762,7 @@ class TestCbrnContaminatedAreasLayer(QgisTestCase):
         feature.setAttribute("affiliation", "friend")
         feature.setAttribute("status", "present")
 
+        self.layer.dataProvider().truncate()
         self.layer.dataProvider().addFeatures([feature])
         self.layer.updateExtents()
 
@@ -765,7 +775,7 @@ class TestCbrnContaminatedAreasLayer(QgisTestCase):
         settings.setDestinationCrs(WGS84)
 
         extent = self.layer.extent()
-        extent.grow(0.02)
+        extent.grow(grow_degrees)
         settings.setExtent(extent)
 
         context = QgsExpressionContext()
@@ -795,8 +805,6 @@ class TestCbrnContaminatedAreasLayer(QgisTestCase):
 
         size_mm = size_property.valueAsDouble(context, 0.0)[0]
 
-        self.assertGreater(size_mm, 10.0)
-
         # Millimetres per degree, the same way the size expression got
         # them.
         millimetres_per_degree = QgsExpression(
@@ -816,9 +824,9 @@ class TestCbrnContaminatedAreasLayer(QgisTestCase):
 
         boundary = QgsGeometry(geometry.constGet().boundary())
 
-        for angle in range(0, 360, 5):
+        smallest_gap_mm = None
 
-            import math
+        for angle in range(0, 360, 5):
 
             corner = QgsGeometry.fromPointXY(
                 type(centre)(
@@ -832,14 +840,101 @@ class TestCbrnContaminatedAreasLayer(QgisTestCase):
                 f"the glyph's own corner circle leaves the area at {angle}"
             )
 
-            gap_mm = (
-                boundary.distance(corner) * millimetres_per_degree
-            )
+            gap_mm = boundary.distance(corner) * millimetres_per_degree
 
-            self.assertGreaterEqual(
-                round(gap_mm, 3), 3.0,
-                f"only {gap_mm:.2f} mm of clearance at {angle} degrees"
-            )
+            if smallest_gap_mm is None or gap_mm < smallest_gap_mm:
+                smallest_gap_mm = gap_mm
+
+        return size_mm, smallest_gap_mm
+
+    def test_the_glyph_is_capped_wherever_the_area_has_room(self):
+
+        # At any ordinary zoom the cap governs, not the clearance - so
+        # the glyph reads as a symbol rather than filling the polygon,
+        # and it is the same size in every area big enough to hold it.
+        size_mm, gap_mm = self._measure_glyph(0.02)
+
+        self.assertAlmostEqual(size_mm, 12.0, places=6)
+
+        self.assertGreater(
+            gap_mm, 1.0,
+            "a capped glyph should be well clear of the outline"
+        )
+
+    def test_a_small_area_shrinks_the_glyph_to_a_one_millimetre_gap(self):
+
+        # Zoomed out far enough that 12 mm will not fit, the clearance
+        # takes over. This is the case the maintainer reported on
+        # 2026-08-15 - at 3 mm the glyph came out too small, so the gap
+        # was reduced to 1 mm and the fill rule replaced by the cap.
+        size_mm, gap_mm = self._measure_glyph(1.0)
+
+        self.assertLess(size_mm, 12.0)
+        self.assertGreater(size_mm, 3.0)
+
+        # Tight against its own rule, which is the whole point: the
+        # glyph is as large as 1 mm of clearance allows.
+        self.assertAlmostEqual(gap_mm, 1.0, places=2)
+
+    def test_the_glyph_never_vanishes_however_far_out_the_view_is(self):
+
+        # Past the point where even the clearance cannot be honoured,
+        # the floor takes over and the glyph deliberately overflows its
+        # own area rather than disappearing.
+        feature = QgsFeature(self.layer.fields())
+
+        geometry = QgsGeometry.fromWkt(_TEMPLATE_AREA_WKT)
+        geometry.translate(77.0, 28.0)
+
+        feature.setGeometry(geometry)
+        feature.setAttribute("measure_type", "chemical")
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("status", "present")
+
+        self.layer.dataProvider().truncate()
+        self.layer.dataProvider().addFeatures([feature])
+        self.layer.updateExtents()
+
+        self.project.addMapLayer(self.layer)
+
+        settings = QgsMapSettings()
+        settings.setLayers([self.layer])
+        settings.setOutputSize(QSize(800, 800))
+        settings.setOutputDpi(96)
+        settings.setDestinationCrs(WGS84)
+
+        extent = self.layer.extent()
+        extent.grow(20.0)
+        settings.setExtent(extent)
+
+        context = QgsExpressionContext()
+        context.appendScope(QgsExpressionContextUtils.globalScope())
+        context.appendScope(
+            QgsExpressionContextUtils.projectScope(self.project)
+        )
+        context.appendScope(
+            QgsExpressionContextUtils.mapSettingsScope(settings)
+        )
+        context.appendScope(
+            QgsExpressionContextUtils.layerScope(self.layer)
+        )
+        context.setFeature(next(self.layer.getFeatures()))
+
+        size_property = (
+            self.layer.renderer()
+            .rootRule()
+            .children()[0]
+            .symbol()
+            .symbolLayer(2)
+            .subSymbol()
+            .symbolLayer(1)
+            .dataDefinedProperties()
+            .property(QgsSymbolLayer.Property.Size)
+        )
+
+        self.assertAlmostEqual(
+            size_property.valueAsDouble(context, 0.0)[0], 3.0, places=6
+        )
 
 
 def _inscribed_radius_degrees(geometry):

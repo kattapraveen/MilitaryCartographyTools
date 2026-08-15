@@ -1294,12 +1294,16 @@ the matching **B / C / N / R triangle centred inside it**, with a **T**
 beneath the letter on the Toxic Industrial Material variants. The
 hatching is cut away behind the triangle so the glyph stays readable.
 
-**The triangle sizes itself to the area.** Draw a bigger area and the
-glyph grows with it, always keeping at least 3 mm of clear space
-between itself and the outline at any zoom. In a long thin or
-crescent-shaped area the glyph will look small for its area: it is
-sized to the largest circle that fits inside the shape, which is what
-lets the 3 mm hold for any shape you draw.
+**The triangle sizes itself to the area.** In any area with room for
+it, it draws at a steady 12 mm — about the size of a point symbol, so
+an area and a point read at the same weight. Only an area too small to
+hold that shrinks it, and then only as far as needed to keep 1 mm of
+clear space between the glyph and the outline at any zoom.
+
+A long thin or crescent-shaped area will shrink its glyph sooner than
+its size suggests: the fit is measured against the largest circle that
+fits inside the shape, which is what lets the clearance hold for any
+shape you draw.
 
 ### Target Acquisition Control Measures
 

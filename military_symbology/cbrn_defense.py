@@ -369,8 +369,20 @@ _GLYPH_CORNER_RATIO = (
     ((60.0 ** 2 + 55.0 ** 2) ** 0.5) + 1.5
 ) / _GLYPH_VIEWBOX_WIDTH
 
-# The gap the maintainer asked for between the glyph and the outline.
-_GLYPH_CLEARANCE_MM = 3.0
+# The gap between the glyph and the outline. **1 mm, revised down from
+# 3 mm on 2026-08-15**: with the glyph capped below, the clearance only
+# binds in a SMALL area, and there 3 mm was most of the room - the
+# maintainer's report was that it "is making the glyph too small".
+_GLYPH_CLEARANCE_MM = 1.0
+
+# A ceiling, so the glyph reads as a symbol rather than a billboard.
+# **This, not the clearance, is what governs at ordinary zoom**: an
+# area whose inscribed radius exceeds about 7.3 mm on the page draws
+# its glyph at exactly this size, and only a smaller one shrinks. The
+# maintainer's number, and it sits close to the point layers' own
+# marker sizes (8 mm, or 10.4 mm for these same event icons), so an
+# area's glyph and a point's now read at comparable weight.
+_GLYPH_MAX_SIZE_MM = 12.0
 
 # A floor, so the glyph never disappears completely. It is reached
 # only when the area itself is a few millimetres across on the page,
@@ -462,9 +474,10 @@ def _area_glyph_sidc_expression():
 def _area_glyph_size_expression():
 
     """
-    The marker size, in millimetres, that makes the glyph as large as
-    it can be while keeping _GLYPH_CLEARANCE_MM between its own
-    furthest corner and the area's outline.
+    The marker size, in millimetres: _GLYPH_MAX_SIZE_MM wherever the
+    area has room for it, and otherwise as large as it can be while
+    keeping _GLYPH_CLEARANCE_MM between its own furthest corner and the
+    area's outline.
 
     The glyph is inscribed in the largest circle that fits inside the
     polygon, shrunk by the clearance: a corner at exactly
@@ -474,6 +487,14 @@ def _area_glyph_size_expression():
     two top corners ever reach that far - and it is what makes the
     guarantee hold for ANY shape the user digitizes, including a
     crescent, rather than only for the blobs the template draws.
+
+    **The cap changed what this construction is**, on 2026-08-15. It
+    first sized the glyph to FILL the area, which is what the
+    maintainer originally asked for and which drew a triangle almost
+    as wide as the polygon at every zoom. Capped, the glyph is a
+    normal-sized symbol that only shrinks when the area cannot hold
+    one - so the inscribed circle now decides whether the glyph fits
+    rather than how big it is.
 
     `geometry(@feature)`, NOT `$geometry`: inside the sub-symbol of a
     geometry generator (or a centroid fill) `$geometry` is the POINT
@@ -487,9 +508,13 @@ def _area_glyph_size_expression():
         "geometry(@feature), @map_extent, @map_scale), 0)"
     )
 
+    fitted = (
+        f"({radius} - {_GLYPH_CLEARANCE_MM}) / {_GLYPH_CORNER_RATIO:.6f}"
+    )
+
     return (
         f"max({_GLYPH_MIN_SIZE_MM},"
-        f" ({radius} - {_GLYPH_CLEARANCE_MM}) / {_GLYPH_CORNER_RATIO:.6f})"
+        f" min({_GLYPH_MAX_SIZE_MM}, {fitted}))"
     )
 
 

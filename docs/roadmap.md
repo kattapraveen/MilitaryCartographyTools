@@ -8327,7 +8327,8 @@ template draws - the largest circle that fits is small, so the glyph
 comes out small with it. Filling those tightly would mean fitting the
 triangle itself rather than its circumcircle, which is a real search
 rather than a formula. Shown in the render alongside the template
-shape.
+shape. **Answered the same day** - see the capping entry below, which
+largely retires this.
 
 1161 tests passing on both QGIS versions.
 
@@ -8381,6 +8382,51 @@ returning an empty string by design, which its caller turns into a
 zero-size marker.
 
 1167 tests passing on both QGIS versions.
+
+---
+
+### The contaminated-area glyph is capped, not fitted (2026-08-15)
+
+The maintainer, on the same day's smoke test: "in smaller areas, the
+3 mm is making the glyph too small; can we put a limit - say 1 mm gap
+subject to a max size of glyph to say 12 mm."
+
+Two numbers, and together they change what the construction IS. It was
+built to FILL the area - the original specification - so the triangle
+came out nearly as wide as the polygon at every zoom, and a 3 mm
+clearance was a small tax on a large area but most of the room in a
+small one. Now:
+
+- **12 mm cap.** This, not the clearance, is what governs at ordinary
+  zoom: any area whose inscribed radius exceeds about 7.3 mm on the
+  page draws its glyph at exactly 12 mm, so every area big enough to
+  hold one shows the same symbol at the same weight. It sits close to
+  the point layers' own marker sizes - 8 mm generally, 10.4 mm for
+  these same event icons on the CBRN Points layer - so an area's glyph
+  and a point's now read at comparable weight, which they did not
+  before.
+- **1 mm clearance.** Only binds below that threshold, where it decides
+  how much the glyph shrinks rather than whether it is capped.
+- The 3 mm floor is unchanged: past the point where even 1 mm cannot be
+  honoured the glyph deliberately overflows its own area rather than
+  disappearing.
+
+Measured across the range: an inscribed radius of 43.5 mm, 19.6 mm and
+9.6 mm all draw at 12.00 mm; 4.8 mm draws at 7.21 mm with the gap tight
+against 1 mm.
+
+**The tests measure both regimes now**, at two different zooms against
+the same feature, rather than one arbitrary one - the previous single
+test would have passed unchanged on the capped build without ever
+exercising the cap. A third pins the floor.
+
+This also mostly retires the caveat recorded with the original build.
+A long thin plume or a crescent was under-served by sizing to the
+inscribed circle, because that circle is small for such a shape; with a
+12 mm cap and a 1 mm gap it only shrinks when it genuinely cannot hold
+a normal glyph, and then only as far as the fit allows.
+
+1169 tests passing on both QGIS versions.
 
 ---
 
