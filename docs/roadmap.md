@@ -8333,6 +8333,57 @@ shape.
 
 ---
 
+### The unknown-glyph bug, fourth occurrence (2026-08-15)
+
+Reported the same day the contaminated areas landed: "glyphs are again
+breaking in qgis, old problem" - milsymbol's inverted "?" drawn in
+place of every area's triangle, and the hatch running straight through
+it.
+
+**Same defect, same root cause as 2026-08-12's.** An areas layer's
+affiliation vocabulary carries a fifth value, "unspecified", meaning
+"draw it black" - correct for a hand-drawn outline, and the field's own
+DEFAULT. It is not a SIDC standard identity, so `build_sidc()` raised,
+`mct_build_sidc()` returned the KeyError message as though it were a
+SIDC, and milsymbol fell back to its unknown icon. The second symptom
+followed from the first: the fallback icon's box is 108x108 against the
+event icon's 158x118, so the mask - correctly cutting a triangle where
+the real glyph would be - cut somewhere the wrong glyph wasn't.
+
+**And the test that shipped alongside it made exactly the mistake the
+roadmap already records the previous two tests making**: every check,
+including the offscreen render used to sign the work off, built its
+feature with `affiliation="friend"` hardcoded. The layer's own default
+was never once exercised. That is now written into the new test class's
+own docstring, where the next person to add a milsymbol-bearing layer
+will read it.
+
+**Fixed by mapping, not by removing the fifth value** - this layer
+genuinely needs it for the outline. The glyph's standard identity is
+the affiliation when it is one of the four real ones and "friend"
+otherwise, with `monoColor` set to #000000 for the fifth so it really
+is black rather than relying on friend happening to render black.
+Nothing is lost: probed, milsymbol draws only HOSTILE differently
+(red); friend, neutral and unknown all render black already.
+
+**A new guard** drives `QgsVectorLayerUtils.createFeature()` - what
+QGIS itself calls when the user digitizes - across every measure type
+and every affiliation the form offers, and asserts the unknown-icon
+path is absent. Verified by reverting the fix: 15 failures.
+
+**Swept the rest of the plugin for the same pairing**, since this is
+the fourth time: every `create_*_layer()` in `military_symbology/`
+built, populated from its own defaults, and every data-defined SVG
+path in every symbol layer and sub-symbol evaluated and decoded - 42
+milsymbol-bearing symbol layers. **No other layer produces the
+fallback.** The one flagged row is Mined Area's second mine-glyph slot
+returning an empty string by design, which its caller turns into a
+zero-size marker.
+
+1167 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

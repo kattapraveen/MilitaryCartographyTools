@@ -397,12 +397,51 @@ _GLYPH_MASK_PATH = "base64:" + base64.b64encode(
 ).decode("ascii")
 
 
+# **The glyph cannot read "affiliation" raw, and this is the fourth
+# time that has bitten this project.**
+#
+# An areas layer's affiliation vocabulary has a FIFTH value,
+# "unspecified", meaning "draw it black" - correct and needed for a
+# hand-drawn outline, and the field's own default. It is not a SIDC
+# standard identity, so build_sidc() raises on it, mct_build_sidc()
+# returns the KeyError message as though it were a SIDC, and milsymbol
+# draws its unknown-icon fallback - the inverted "?" the maintainer
+# reported here on 2026-08-15, on Mined Area and Dynamic Depiction on
+# 2026-08-12, and twice before that.
+#
+# Mapped rather than removed, because this layer genuinely needs the
+# fifth value for its outline. Nothing is lost by mapping it: of the
+# four real identities milsymbol only draws HOSTILE differently (red);
+# friend, neutral and unknown all render black - probed, not assumed.
+# So "unspecified" is drawn as a friend icon repainted black through
+# monoColor, which is exactly what the fifth value asks for, and is
+# set explicitly rather than relying on friend happening to be black.
+_AREA_GLYPH_STANDARD_IDENTITIES = ("friend", "hostile", "neutral", "unknown")
+
+_AREA_GLYPH_AFFILIATION_EXPRESSION = (
+    "CASE WHEN \"affiliation\" IN ("
+    + ", ".join(f"'{name}'" for name in _AREA_GLYPH_STANDARD_IDENTITIES)
+    + ") THEN \"affiliation\" ELSE 'friend' END"
+)
+
+_AREA_GLYPH_MONO_COLOR_EXPRESSION = (
+    "CASE WHEN \"affiliation\" IN ("
+    + ", ".join(f"'{name}'" for name in _AREA_GLYPH_STANDARD_IDENTITIES)
+    + ") THEN '' ELSE '#000000' END"
+)
+
+
 def _area_glyph_sidc_expression():
 
     """
     The SIDC of the EVENT point whose icon this area borrows - see the
     section comment above for why an area's own code cannot be used
     (milsymbol draws nothing at all for 2717xx-2720xx).
+
+    Arguments 2 and 3 are the empty string, not NULL: this glyph
+    carries no text, and QGIS short-circuits an entire function call to
+    NULL the moment any argument is NULL, which would blank the icon
+    rather than just its (absent) text.
     """
 
     cases = " ".join(
@@ -414,8 +453,9 @@ def _area_glyph_sidc_expression():
 
     return (
         "mct_sidc_svg(mct_build_sidc("
-        f"\"affiliation\",{entity_expression},'control_measure',"
-        "'unspecified',\"status\",false))"
+        f"{_AREA_GLYPH_AFFILIATION_EXPRESSION},{entity_expression},"
+        "'control_measure','unspecified',\"status\",false),"
+        f"'','',{_AREA_GLYPH_MONO_COLOR_EXPRESSION})"
     )
 
 

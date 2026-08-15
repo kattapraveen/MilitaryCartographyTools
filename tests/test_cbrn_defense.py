@@ -13,6 +13,7 @@ from .qgis_test_case import FakeIface, QgisTestCase
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     AREAS_LAYER_NAME,
+    _area_glyph_sidc_expression,
     AREA_GLYPH_ENTITIES,
     AREA_MEASURE_TYPE_CODES,
     AREA_MEASURE_TYPE_LABELS,
@@ -44,7 +45,8 @@ from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
                        QgsExpressionContextUtils, QgsFeature, QgsGeometry,
                        QgsLinePatternFillSymbolLayer, QgsMapSettings,
                        QgsMaskMarkerSymbolLayer, QgsProject,
-                       QgsSimpleLineSymbolLayer, QgsSymbolLayer)
+                       QgsSimpleLineSymbolLayer, QgsSymbolLayer,
+                       QgsVectorLayerUtils)
 
 from qgis.PyQt.QtCore import QSize
 
@@ -897,3 +899,151 @@ class TestCbrnAreasLayerInsertion(QgisTestCase):
         self.assertEqual(
             len(QgsProject.instance().mapLayersByName(AREAS_LAYER_NAME)), 1
         )
+
+
+# milsymbol's own unknown-icon fallback is an inverted "?" - this is a
+# stable fragment of the path it draws, the same marker four other test
+# modules in this suite already watch for.
+_MILSYMBOL_UNKNOWN_ICON_MARK = "94.8206,78.1372"
+
+
+class TestCbrnAreaGlyphSurvivesTheLayersOwnDefaults(QgisTestCase):
+
+    """
+    The unknown-glyph bug, fourth occurrence - reported live on
+    2026-08-15 as "glyphs are again breaking in qgis, old problem",
+    with the inverted "?" drawn in place of every contaminated area's
+    triangle.
+
+    An AREAS layer's affiliation vocabulary has a fifth value,
+    "unspecified" (meaning "draw it black"), which is also the field's
+    own DEFAULT. It is not a SIDC standard identity, so feeding it
+    straight to mct_build_sidc() returns a KeyError message where a
+    SIDC should be and milsymbol falls back to its unknown icon.
+
+    **The test that shipped alongside the bug made the same mistake
+    the two before it did**: it built its feature with
+    affiliation="friend" hardcoded, so the layer's own default was
+    never exercised, and the offscreen render it was checked against
+    was hand-fed too. Everything here goes through
+    QgsVectorLayerUtils.createFeature(), which is what QGIS itself
+    calls when the user digitizes - so the defaults are the subject,
+    not an incidental detail.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        military_symbology_functions.register()
+
+        self.project = QgsProject.instance()
+        self.project.setCrs(WGS84)
+
+        self.layer = create_cbrn_contaminated_areas_layer()
+
+        self.project.addMapLayer(self.layer)
+
+    def tearDown(self):
+
+        self.project.removeAllMapLayers()
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+    def _glyph_svg(self, **attributes):
+
+        geometry = QgsGeometry.fromWkt(_TEMPLATE_AREA_WKT)
+        geometry.translate(77.0, 28.0)
+
+        feature = QgsVectorLayerUtils.createFeature(self.layer, geometry)
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
+
+        context = QgsExpressionContext()
+        context.appendScopes(
+            QgsExpressionContextUtils.globalProjectLayerScopes(self.layer)
+        )
+        context.setFeature(feature)
+
+        path = QgsExpression(_area_glyph_sidc_expression()).evaluate(context)
+
+        self.assertTrue(
+            isinstance(path, str) and path.startswith("base64:"),
+            f"the glyph path is not a rendered symbol at all: {path!r}"
+        )
+
+        return base64.b64decode(path.split("base64:", 1)[1]).decode("utf-8")
+
+    def test_the_layers_own_default_affiliation_is_the_fifth_value(self):
+
+        # If this ever stops being true the test below stops testing
+        # anything, so it is pinned rather than assumed.
+        geometry = QgsGeometry.fromWkt(_TEMPLATE_AREA_WKT)
+        geometry.translate(77.0, 28.0)
+
+        feature = QgsVectorLayerUtils.createFeature(self.layer, geometry)
+
+        self.assertEqual(feature["affiliation"], "unspecified")
+
+    def test_no_measure_type_draws_the_unknown_icon_from_defaults(self):
+
+        for measure_type in AREA_MEASURE_TYPE_LABELS:
+
+            with self.subTest(measure_type=measure_type):
+
+                svg = self._glyph_svg(measure_type=measure_type)
+
+                self.assertNotIn(
+                    _MILSYMBOL_UNKNOWN_ICON_MARK, svg, measure_type
+                )
+
+    def test_no_affiliation_the_form_offers_draws_the_unknown_icon(self):
+
+        from MilitaryCartographyTools.military_symbology._control_measure_shared import (
+            AFFILIATION_LABELS,
+        )
+
+        for affiliation in AFFILIATION_LABELS:
+
+            for measure_type in AREA_MEASURE_TYPE_LABELS:
+
+                with self.subTest(affiliation=affiliation,
+                                  measure_type=measure_type):
+
+                    svg = self._glyph_svg(
+                        affiliation=affiliation,
+                        measure_type=measure_type,
+                    )
+
+                    self.assertNotIn(
+                        _MILSYMBOL_UNKNOWN_ICON_MARK,
+                        svg,
+                        f"{affiliation}/{measure_type}"
+                    )
+
+    def test_the_fifth_value_draws_the_glyph_black(self):
+
+        # "Unspecified (black)" has to actually be black, and by
+        # monoColor rather than by friend happening to render black.
+        svg = self._glyph_svg(affiliation="unspecified")
+
+        self.assertIn("#000000", svg)
+
+    def test_hostile_still_draws_red(self):
+
+        # The one identity milsymbol does draw differently - so the
+        # mapping must not have flattened every area to one colour.
+        svg = self._glyph_svg(affiliation="hostile")
+
+        self.assertIn("rgb(255, 0, 0)", svg)
+
+    def test_the_glyph_is_the_real_triangle_whatever_the_defaults(self):
+
+        # The triangle path itself, which is what the maintainer
+        # actually saw missing.
+        svg = self._glyph_svg()
+
+        self.assertIn("-60,-110 120,0 z", svg)
