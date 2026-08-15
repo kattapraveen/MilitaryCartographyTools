@@ -258,6 +258,27 @@ _ARROWHEAD_SIZE_MM = 6
 # arrowhead's own size and never larger.
 _OCCUPY_CROSS_RADIUS_FRACTION = 5.0
 
+# **Penetrate's head scales the same way, and the fraction is measured
+# from the manual.** On Table H-XXIV's own template the chevron spans
+# about a fifth of the stem it sits on - the same ratio Occupy's cross
+# uses, which is a coincidence worth noting rather than a shared rule.
+# Capped at 7 mm, the maintainer's own ceiling.
+#
+# This IS a pixel measurement off the printed template, which this
+# project normally distrusts - the draw rules give no number. Asked for
+# directly ("get a measurement from the manual - for dimension check"),
+# and it only sets a proportion, with the cap doing the real work.
+_PENETRATE_HEAD_STEM_FRACTION = 5.0
+_PENETRATE_HEAD_MAX_MM = 7.0
+
+_PENETRATE_HEAD_SIZE_EXPRESSION = (
+    "min({maximum}, coalesce(mct_block_stem_mm(geometry(@feature),"
+    " @map_extent, @map_scale), 0) / {fraction})"
+).format(
+    maximum=_PENETRATE_HEAD_MAX_MM,
+    fraction=_PENETRATE_HEAD_STEM_FRACTION,
+)
+
 _OCCUPY_CROSS_SIZE_EXPRESSION = (
     # geometry(@feature), NOT $geometry: this size is evaluated inside
     # a geometry generator's own sub-symbol, where $geometry is the
@@ -388,6 +409,7 @@ def _mission_task_line_symbol(measure_type):
             _arrowhead_layer(
                 "mct_block_stem_foot($geometry)",
                 Qgis.MarkerLinePlacement.LastVertex,
+                size_expression=_PENETRATE_HEAD_SIZE_EXPRESSION,
             )
         )
 

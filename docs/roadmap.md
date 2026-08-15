@@ -8527,14 +8527,45 @@ are Block's calls again. The one new piece is where the head goes:
 the stem's meeting point with the crossbar, so a marker on its last
 vertex sits at the join and points INTO the base.
 
-Note that this is the head at the near end, not the standard's own -
-Table H-XXIV draws Penetrate's arrow projecting outward toward enemy
-forces. The maintainer's placement is deliberate and is what shipped.
+**A note in the first version of this entry was wrong** and is
+corrected here: it claimed the standard draws Penetrate's arrow
+projecting OUTWARD and that the maintainer's placement diverged. It
+does not. Rendered and looked at on the maintainer's own prompting
+("recheck the manual"), Table H-XXIV's template draws the arrowhead
+exactly where they said - at the junction, pointing INTO the vertical
+line. The draw-rules text says the arrow "projects perpendicularly
+from the midpoint", which is about the stem, not the head.
 
 Its own short geometry rather than the symbol's, for the reason every
 one of these heads needs one: the stem is multi-part once the letter
 gap is cut into it, and a LastVertex marker fires on the last vertex of
 every part.
+
+1191 tests passing on both QGIS versions.
+
+---
+
+### Penetrate's head scales, and the manual is re-read (2026-08-15)
+
+Two from the maintainer: "recheck the manual, the way we have drawn
+penetrate is correct" - it is, see the correction in the entry below -
+and make the head dynamic, "cap it to a max of 7mm".
+
+**The fraction is measured off the template**, which they asked for
+directly ("get a measurement from the manual - for dimension check").
+On Table H-XXIV's own picture the chevron spans about a fifth of the
+stem it sits on. That is the same ratio Occupy's cross uses, which is
+a coincidence worth naming rather than a shared rule.
+
+This is a pixel measurement of a printed drawing, which this project
+normally distrusts - the draw rules give no number for it. It is
+defensible here because it only sets a proportion and the 7 mm cap
+does the real work at any usable zoom.
+
+`mct_block_stem_mm()` gives the stem in page millimetres, through the
+same units-to-millimetres factor everything else here uses, and reads
+`geometry(@feature)` rather than `$geometry` - the marker is nested in
+a geometry generator, where `$geometry` is the short foot segment.
 
 1191 tests passing on both QGIS versions.
 

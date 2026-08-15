@@ -3747,6 +3747,44 @@ def mct_block_stem_foot(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_block_stem_mm',
+    group='Military Cartography Tools'
+)
+def mct_block_stem_mm(values, feature=None, parent=None):
+
+    """
+    The length of Block's/Penetrate's stem - the perpendicular distance
+    from PT3 to the PT1-PT2 line - in PAGE MILLIMETRES. Use as
+    mct_block_stem_mm($geometry, @map_extent, @map_scale).
+
+    Page, not ground, for the same reason every other size here is: the
+    thing being sized from it is drawn on the page.
+    """
+
+    if len(values) < 3:
+        return 0.0
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return 0.0
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return 0.0
+
+    projection = _perpendicular_projection(
+        *(QgsPointXY(vertices[index]) for index in range(3))
+    )
+
+    if projection is None:
+        return 0.0
+
+    return projection[2] * _map_millimetres_per_unit(values[1], values[2])
+
+
+@qgsfunction(
     'mct_radius_mm',
     group='Military Cartography Tools'
 )
@@ -6569,6 +6607,7 @@ _FUNCTIONS = [
     mct_disrupt_letter_point,
     mct_fix_letter_point,
     mct_block_stem_foot,
+    mct_block_stem_mm,
     mct_radius_mm,
     mct_secure_letter_point,
     mct_convoy_end_svg,
