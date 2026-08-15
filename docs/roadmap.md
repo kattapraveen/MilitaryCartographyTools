@@ -8514,6 +8514,32 @@ what a stale claim in a comment costs.
 
 ---
 
+### Penetrate (341800), on Block's own construction (2026-08-15)
+
+The maintainer's instruction: "same construction as the block, replace
+'B' with 'P' the perpendicular line joining pt3 to p1-pt2 line segment
+- arrowhead at the point of contact between the perpendicular and the
+base".
+
+So the crossbar, the stem, the three anchor points and the letter gap
+are Block's calls again. The one new piece is where the head goes:
+`mct_block_stem_foot()` returns a short segment run from the tip TOWARDS
+the stem's meeting point with the crossbar, so a marker on its last
+vertex sits at the join and points INTO the base.
+
+Note that this is the head at the near end, not the standard's own -
+Table H-XXIV draws Penetrate's arrow projecting outward toward enemy
+forces. The maintainer's placement is deliberate and is what shipped.
+
+Its own short geometry rather than the symbol's, for the reason every
+one of these heads needs one: the stem is multi-part once the letter
+gap is cut into it, and a LastVertex marker fires on the last vertex of
+every part.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Occupy's cross scales with its circle (2026-08-15)
 
 The maintainer's smoke test: "the cross is correct - but the size is

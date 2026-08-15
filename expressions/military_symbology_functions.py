@@ -3688,6 +3688,65 @@ def mct_retain_letter_point(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_block_stem_foot',
+    group='Military Cartography Tools'
+)
+def mct_block_stem_foot(values, feature=None, parent=None):
+
+    """
+    A short segment ending where Block's stem MEETS its crossbar, run
+    from the tip towards that meeting point - so an arrowhead placed on
+    its last vertex sits at the join and points INTO the base.
+
+    Table H-XXIV's own Penetrate (341800) is Block's construction with
+    the head there rather than at the far end: the maintainer's own
+    words, "arrowhead at the point of contact between the perpendicular
+    and the base".
+
+    Its own short geometry, not the symbol's: the stem is multi-part
+    once the letter gap is cut into it, and a marker on a LastVertex
+    placement fires on the last vertex of EVERY part.
+    """
+
+    if len(values) < 1:
+        return QgsGeometry()
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return QgsGeometry()
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return QgsGeometry()
+
+    pt1, pt2, pt3 = (QgsPointXY(vertices[index]) for index in range(3))
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return QgsGeometry()
+
+    (_ux, _uy), (nx, ny), length = projection
+
+    midpoint = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+    )
+
+    # A twentieth of the stem is plenty to set the angle, and short
+    # enough never to show from under the head itself.
+    step = length / 20.0
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            QgsPointXY(midpoint.x() + step * nx, midpoint.y() + step * ny),
+            midpoint,
+        ]
+    )
+
+
+@qgsfunction(
     'mct_radius_mm',
     group='Military Cartography Tools'
 )
@@ -6509,6 +6568,7 @@ _FUNCTIONS = [
     mct_block_letter_point,
     mct_disrupt_letter_point,
     mct_fix_letter_point,
+    mct_block_stem_foot,
     mct_radius_mm,
     mct_secure_letter_point,
     mct_convoy_end_svg,

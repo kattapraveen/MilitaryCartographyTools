@@ -222,6 +222,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "fix": "Fix",
     "secure": "Secure",
     "occupy": "Occupy",
+    "penetrate": "Penetrate",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -230,6 +231,7 @@ LINE_MEASURE_TYPE_CODES = {
     "fix": "341100",
     "secure": "342100",
     "occupy": "341700",
+    "penetrate": "341800",
 }
 
 
@@ -240,6 +242,7 @@ LINE_LETTERS = {
     "fix": "F",
     "secure": "S",
     "occupy": "O",
+    "penetrate": "P",
 }
 
 _LINE_WIDTH_MM = 0.4
@@ -302,7 +305,11 @@ def _line_geometry_expression(measure_type):
 
     gap = _letter_gap_expression(measure_type)
 
-    if measure_type == "block":
+    # **Penetrate is Block's construction**, at the maintainer's own
+    # instruction - the same crossbar and perpendicular stem, the same
+    # three anchor points, with "P" for "B" and the arrowhead moved to
+    # where the stem meets the base.
+    if measure_type in ("block", "penetrate"):
         return f"mct_block_geometry($geometry, {gap}, @map_scale)"
 
     if measure_type == "disrupt":
@@ -375,6 +382,14 @@ def _mission_task_line_symbol(measure_type):
 
     if measure_type == "fix":
         symbol.appendSymbolLayer(_fix_arrowhead_layer())
+
+    if measure_type == "penetrate":
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                "mct_block_stem_foot($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+            )
+        )
 
     if measure_type == "secure":
         symbol.appendSymbolLayer(
@@ -616,7 +631,7 @@ def _letter_point_expression(measure_type):
     geometry cut, so the two can never drift apart.
     """
 
-    if measure_type == "block":
+    if measure_type in ("block", "penetrate"):
         return "mct_block_letter_point($geometry)"
 
     if measure_type == "disrupt":
