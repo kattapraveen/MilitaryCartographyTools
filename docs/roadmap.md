@@ -8545,6 +8545,37 @@ every part.
 
 ---
 
+### Seize (342300), Turn's curve with a circle at its start (2026-08-16)
+
+The maintainer's own construction: "same as turn, only that at p1
+instead of beginning the line (bezier curve), insert a circle - keep
+the radius 1.5 times that of a standard milsymbol... and the line
+pt1-pt2-pt3 does not go through the circle at pt1 but starts from the
+perimeter of the circle".
+
+So the curve is `mct_turn_arc()` untouched - Table H-XIX's own Turn,
+same three anchor points, same arrowhead at PT3. Everything Seize adds
+is symbol layers over it:
+
+- The circle at PT1, drawn on the CURVE's own first vertex rather than
+  the feature's, so it stays put whichever way the curve bends. Its
+  radius is one and a half times a point marker's own - a page unit,
+  deliberately, since the maintainer pinned it to another page-sized
+  symbol.
+- The clearance, as `setTrimDistanceStart()` in millimetres. The gap is
+  the circle's own page-unit radius, and QGIS applies a trim after
+  projecting, so the curve leaves the perimeter at every zoom. The same
+  tool the convoy bar uses to meet its head.
+
+**Seize is the first line task with NO letter**, and the letter
+machinery had assumed every one had one - it raised a KeyError the
+moment Seize was added. `LINE_LETTERS` is now the source of truth for
+which tasks label at all, rather than the measure-type list.
+
+1191 tests passing on both QGIS versions.
+
+---
+
 ### Penetrate's head scales, and the manual is re-read (2026-08-15)
 
 Two from the maintainer: "recheck the manual, the way we have drawn

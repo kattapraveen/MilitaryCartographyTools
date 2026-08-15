@@ -45,7 +45,10 @@ from ._control_measure_shared import (
     add_layer_if_absent,
 )
 
-from ._point_symbol_layer import build_single_domain_point_layer
+from ._point_symbol_layer import (
+    DEFAULT_MARKER_SIZE_MM,
+    build_single_domain_point_layer,
+)
 
 from qgis.core import (
     Qgis,
@@ -223,6 +226,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "secure": "Secure",
     "occupy": "Occupy",
     "penetrate": "Penetrate",
+    "seize": "Seize",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -232,10 +236,15 @@ LINE_MEASURE_TYPE_CODES = {
     "secure": "342100",
     "occupy": "341700",
     "penetrate": "341800",
+    "seize": "342300",
 }
 
 
-# The letter each one carries, set into its own shaft.
+# The letter each one carries, set into its own shaft. **Not every
+# line task has one** - Seize is built from a circle, a curve and an
+# arrowhead, with no letter in the maintainer's own instruction for it
+# - so this is deliberately not keyed by every measure type, and the
+# label rules below are built only for the types that appear here.
 LINE_LETTERS = {
     "block": "B",
     "disrupt": "D",
@@ -268,6 +277,15 @@ _OCCUPY_CROSS_RADIUS_FRACTION = 5.0
 # project normally distrusts - the draw rules give no number. Asked for
 # directly ("get a measurement from the manual - for dimension check"),
 # and it only sets a proportion, with the cap doing the real work.
+# **Seize's own circle, at PT1.** "Keep the radius 1.5 times that of a
+# standard milsymbol (say friend - infantry)" - a point marker on this
+# plugin's own layers is DEFAULT_MARKER_SIZE_MM across, so its radius is
+# half that, and this is one and a half of those.
+#
+# A page unit, deliberately: it is a symbol, not a piece of ground, and
+# the maintainer pinned it to another page-sized symbol.
+_SEIZE_CIRCLE_RADIUS_MM = 1.5 * DEFAULT_MARKER_SIZE_MM / 2.0
+
 _PENETRATE_HEAD_STEM_FRACTION = 5.0
 _PENETRATE_HEAD_MAX_MM = 7.0
 
@@ -304,7 +322,13 @@ def _letter_gap_expression(measure_type):
     How wide, in page millimetres, this symbol's own letter gap has to
     be - the letter's rendered width plus padding at each end,
     measured with Qt's font metrics rather than estimated.
+
+    Zero for a task that carries no letter at all, so the geometry
+    functions take their own "no gap" path.
     """
+
+    if measure_type not in LINE_LETTERS:
+        return "0"
 
     return "mct_text_width_mm('{letter}', {size:.4f}) + {padding:.4f}".format(
         letter=LINE_LETTERS[measure_type],
@@ -351,6 +375,15 @@ def _line_geometry_expression(measure_type):
     if measure_type in ("secure", "occupy"):
         return "mct_retain_arc($geometry)"
 
+    # **Seize is Turn's curve with a circle at its start.** The
+    # maintainer's own words: "same as turn, only that at p1 instead of
+    # beginning the line (bezier curve), insert a circle... and the
+    # line pt1-pt2-pt3 does not go through the circle at pt1 but starts
+    # from the perimeter of the circle". The curve itself is Turn's
+    # call, untouched; the circle and the clearance are symbol layers.
+    if measure_type == "seize":
+        return "mct_turn_arc($geometry)"
+
     return f"mct_fix_geometry($geometry, {gap}, @map_scale)"
 
 
@@ -390,6 +423,17 @@ def _mission_task_line_symbol(measure_type):
 
     generator.setSymbolType(QgsSymbol.SymbolType.Line)
 
+    # Seize's curve starts on its circle's PERIMETER, not at PT1 -
+    # trimmed rather than shortened in the geometry, because the
+    # clearance is the circle's own page-unit radius and QGIS applies a
+    # trim after projecting. The same tool the convoy bar uses to meet
+    # its head.
+    if measure_type == "seize":
+
+        line_layer.setTrimDistanceStart(_SEIZE_CIRCLE_RADIUS_MM)
+
+        line_layer.setTrimDistanceStartUnit(Qgis.RenderUnit.Millimeters)
+
     generator.setGeometryExpression(_line_geometry_expression(measure_type))
 
     generator.setSubSymbol(inner)
@@ -403,6 +447,17 @@ def _mission_task_line_symbol(measure_type):
 
     if measure_type == "fix":
         symbol.appendSymbolLayer(_fix_arrowhead_layer())
+
+    if measure_type == "seize":
+
+        symbol.appendSymbolLayer(_seize_circle_layer())
+
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                "mct_turn_arc($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+            )
+        )
 
     if measure_type == "penetrate":
         symbol.appendSymbolLayer(
@@ -484,6 +539,50 @@ def _fix_arrowhead_layer():
     marker_line.setRotateSymbols(True)
 
     return marker_line
+
+
+def _seize_circle_layer():
+
+    """
+    The circle at Seize's own PT1 - drawn on the CURVE's first vertex
+    rather than the feature's, so it stays put whichever way the curve
+    bends.
+    """
+
+    circle = QgsSimpleMarkerSymbolLayer(
+        QgsSimpleMarkerSymbolLayerBase.Shape.Circle,
+        2.0 * _SEIZE_CIRCLE_RADIUS_MM
+    )
+
+    circle.setColor(QColor(0, 0, 0, 0))
+
+    circle.setStrokeWidth(_LINE_WIDTH_MM)
+
+    _apply_affiliation_color(circle, [QgsSymbolLayer.Property.StrokeColor])
+
+    marker = QgsMarkerSymbol()
+
+    marker.changeSymbolLayer(0, circle)
+
+    marker_line = QgsMarkerLineSymbolLayer(True)
+
+    marker_line.setSubSymbol(marker)
+
+    marker_line.setPlacements(Qgis.MarkerLinePlacement.FirstVertex)
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, marker_line)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression("mct_turn_arc($geometry)")
+
+    generator.setSubSymbol(inner)
+
+    return generator
 
 
 def _arrowhead_layer(geometry_expression, placement, angle=0.0,
@@ -621,7 +720,7 @@ def _configure_lines_labeling(layer):
 
     root_rule = QgsRuleBasedLabeling.Rule(None)
 
-    for measure_type in LINE_MEASURE_TYPE_LABELS:
+    for measure_type in LINE_LETTERS:
 
         settings = _build_pal_layer_settings(
             layer,
