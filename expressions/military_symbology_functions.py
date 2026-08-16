@@ -4092,6 +4092,54 @@ def mct_isolate_teeth(values, feature=None, parent=None):
 
 
 
+
+@qgsfunction(
+    'mct_relief_in_place_return_arrow',
+    group='Military Cartography Tools'
+)
+def mct_relief_in_place_return_arrow(values, feature=None, parent=None):
+
+    """
+    Relief in Place's own SECOND arrow (341900) - parallel to the
+    PT1-PT2 shaft, the same length, and pointing the other way, so the
+    two arrows read as two units passing each other.
+
+    Run tail-to-head, ending where the arc ends, so an arrowhead on a
+    last-vertex placement lands on the curve rather than floating off
+    it. The maintainer's own words are "arrowhead touching pt3", and
+    with the arc forced perpendicular those are the same point whenever
+    PT3 is clicked square to the shaft - which is how these are meant
+    to be drawn.
+    """
+
+    if len(values) < 1:
+        return QgsGeometry()
+
+    frame = _delay_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    pt1, pt2, pt3 = frame
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return QgsGeometry()
+
+    (_ux, _uy), (nx, ny), reach = projection
+
+    # Where the semicircle finishes - PT2 carried out along the
+    # perpendicular by PT3's own distance from the shaft.
+    head = QgsPointXY(pt2.x() + reach * nx, pt2.y() + reach * ny)
+
+    tail = QgsPointXY(
+        head.x() + pt1.x() - pt2.x(), head.y() + pt1.y() - pt2.y()
+    )
+
+    return QgsGeometry.fromPolylineXY([tail, head])
+
+
 # --- Clear (Table H-XXIV, 340500) ---
 #
 # **Penetrate's construction with two more arrows on it**, at the
@@ -7281,6 +7329,7 @@ _FUNCTIONS = [
     mct_delay_geometry,
     mct_delay_shaft,
     mct_delay_letter_point,
+    mct_relief_in_place_return_arrow,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,

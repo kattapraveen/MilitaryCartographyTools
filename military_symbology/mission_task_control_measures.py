@@ -6,11 +6,11 @@ Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Sixteen LINE tasks followed on
+anchor point each, milsymbol-rendered. Seventeen LINE tasks followed on
 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize,
 Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass,
-Breach, Canalize and Clear. Everything still unbuilt is listed by code
-in TABLE_H_XXIV_REMAINING.
+Breach, Canalize, Clear and Relief in Place. Everything still unbuilt
+is listed by code in TABLE_H_XXIV_REMAINING.
 
 **milsymbol has an icon for the three points and for nothing else in
 this table** - verified entry by entry against its own
@@ -147,7 +147,6 @@ TABLE_H_XXIV_REMAINING = {
     "340700": "Counterattack by Fire",
     "341200": "Follow and Assume",
     "341300": "Follow and Support",
-    "341900": "Relief in Place (RIP)",
     "342200": "Security",
     "342201": "Security - Cover",
     "342202": "Security - Guard",
@@ -228,6 +227,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "breach": "Breach",
     "canalize": "Canalize",
     "clear": "Clear",
+    "relief_in_place": "Relief in Place (RIP)",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -247,6 +247,7 @@ LINE_MEASURE_TYPE_CODES = {
     "breach": "340200",
     "canalize": "340400",
     "clear": "340500",
+    "relief_in_place": "341900",
 }
 
 
@@ -289,6 +290,19 @@ DELAY_CONSTRUCTION_MEASURE_TYPES = (
     "retire",
     "withdraw",
     "withdraw_under_pressure",
+)
+
+# **Relief in Place draws that shape too, but is not one of the four**
+# - it carries no letter, so its shaft runs unbroken, and it adds a
+# second arrow that none of them has. The maintainer's own
+# instruction: "same construction as retire, remove the letter R and
+# let the line be continuous, just add another arrow parallel to
+# pt1-pt2 line segment with the arrowhead touching pt3".
+#
+# Kept as a separate name from the four so the "only the letter
+# differs" guarantee above stays true of the family it describes.
+_DELAY_SHAPE_MEASURE_TYPES = DELAY_CONSTRUCTION_MEASURE_TYPES + (
+    "relief_in_place",
 )
 
 _LINE_WIDTH_MM = 0.4
@@ -456,7 +470,7 @@ def _line_geometry_expression(measure_type):
     # set into it, carrying on into a 180-degree arc that takes PT2-PT3
     # as its diameter. Retire, Withdraw and Withdraw Under Pressure are
     # the same shape with a different letter.
-    if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
+    if measure_type in _DELAY_SHAPE_MEASURE_TYPES:
         return f"mct_delay_geometry($geometry, {gap}, @map_scale)"
 
     # **Bypass is Table H-XIX's own Obstacle Bypass Easy (270601)**,
@@ -639,10 +653,28 @@ def _mission_task_line_symbol(measure_type):
     # Rides the shaft run BACKWARDS, so the head lands on PT1 and
     # points out of the symbol - "the arrow points in the direction of
     # the action", and PT1 is where the action concludes.
-    if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
+    if measure_type in _DELAY_SHAPE_MEASURE_TYPES:
         symbol.appendSymbolLayer(
             _arrowhead_layer(
                 "mct_delay_shaft($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+            )
+        )
+
+    if measure_type == "relief_in_place":
+
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer(
+                "mct_relief_in_place_return_arrow($geometry)"
+            )
+        )
+
+        # Its head lands where the arc finishes, and it points the
+        # opposite way to the first arrow - two units passing each
+        # other, which is what the symbol is for.
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                "mct_relief_in_place_return_arrow($geometry)",
                 Qgis.MarkerLinePlacement.LastVertex,
             )
         )
@@ -1002,7 +1034,7 @@ def _letter_point_expression(measure_type):
     if measure_type in ("secure", "occupy", "isolate"):
         return "mct_secure_letter_point($geometry)"
 
-    if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
+    if measure_type in _DELAY_SHAPE_MEASURE_TYPES:
         return "mct_delay_letter_point($geometry)"
 
     if measure_type in BYPASS_CONSTRUCTION_MEASURE_TYPES:

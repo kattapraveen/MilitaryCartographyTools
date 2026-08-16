@@ -65,11 +65,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 16 line tasks + 10 still unbuilt = the table's own
+        # 3 points + 17 line tasks + 9 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 10)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 9)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -1539,3 +1539,171 @@ class TestClear(QgisTestCase):
             return
 
         self.fail("no labelling rule for clear")
+
+
+class TestReliefInPlace(QgisTestCase):
+
+    """
+    Relief in Place (341900) - Retire's shape with no letter and a
+    second arrow running back the other way.
+
+    "same construction as retire, remove the letter R and let the line
+    be continuous, just add another arrow parallel to pt1-pt2 line
+    segment with the arrowhead touching pt3" - the maintainer's own
+    instruction.
+    """
+
+    # Shaft due east from PT1 to PT2, PT3 square to it and 6 north.
+    _RIP = "LineString(0 0, 10 0, 10 6)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _return_arrow(self, wkt=None):
+
+        return QgsExpression(
+            "mct_relief_in_place_return_arrow(geom_from_wkt('{}'))".format(
+                wkt or self._RIP
+            )
+        ).evaluate().asPolyline()
+
+
+    def test_its_head_lands_where_the_arc_finishes(self):
+
+        arrow = self._return_arrow()
+
+        arc = QgsExpression(
+            "mct_delay_geometry(geom_from_wkt('{}'))".format(self._RIP)
+        ).evaluate().asPolyline()
+
+        self.assertAlmostEqual(arrow[-1].x(), arc[-1].x(), places=6)
+        self.assertAlmostEqual(arrow[-1].y(), arc[-1].y(), places=6)
+
+
+    def test_it_is_parallel_to_the_shaft_and_the_same_length(self):
+
+        arrow = self._return_arrow()
+
+        self.assertAlmostEqual(arrow[-1].y(), arrow[0].y(), places=6)
+
+        self.assertAlmostEqual(
+            math.hypot(
+                arrow[-1].x() - arrow[0].x(), arrow[-1].y() - arrow[0].y()
+            ),
+            10.0,
+            places=6
+        )
+
+
+    def test_it_points_the_opposite_way_to_the_first_arrow(self):
+
+        # Two units passing each other - the first arrow's head is at
+        # PT1 and this one's is at the far end of the curve.
+        arrow = self._return_arrow()
+
+        self.assertGreater(arrow[-1].x(), arrow[0].x())
+
+        shaft = QgsExpression(
+            "mct_delay_shaft(geom_from_wkt('{}'))".format(self._RIP)
+        ).evaluate().asPolyline()
+
+        self.assertLess(shaft[-1].x(), shaft[0].x())
+
+
+    def test_a_skewed_pt3_keeps_the_head_on_the_curve(self):
+
+        # The arc is forced perpendicular, so its end is not PT3 unless
+        # PT3 was clicked square. The arrow follows the ARC, not the
+        # raw click, or it would float off the end of it.
+        skewed = "LineString(0 0, 10 0, 15 6)"
+
+        arrow = self._return_arrow(skewed)
+
+        arc = QgsExpression(
+            "mct_delay_geometry(geom_from_wkt('{}'))".format(skewed)
+        ).evaluate().asPolyline()
+
+        self.assertAlmostEqual(arrow[-1].x(), arc[-1].x(), places=6)
+        self.assertAlmostEqual(arrow[-1].y(), arc[-1].y(), places=6)
+
+
+    def test_degenerate_input_draws_no_second_arrow(self):
+
+        for wkt in (
+            "LineString(0 0, 10 0, 25 0)",  # PT3 on the shaft's line
+            "LineString(0 0, 0 0, 5 5)",    # no shaft
+            "LineString(0 0, 10 0)",        # no PT3
+        ):
+            self.assertTrue(
+                QgsExpression(
+                    "mct_relief_in_place_return_arrow(geom_from_wkt('{}'))"
+                    .format(wkt)
+                ).evaluate().isEmpty()
+            )
+
+
+    def test_the_shaft_runs_unbroken_because_there_is_no_letter(self):
+
+        self.assertNotIn("relief_in_place", LINE_LETTERS)
+
+        layer = create_mission_task_lines_layer()
+
+        for rule in layer.renderer().rootRule().children():
+
+            if rule.filterExpression() != (
+                "\"measure_type\" = 'relief_in_place'"
+            ):
+                continue
+
+            symbol = rule.symbol()
+
+            expressions = [
+                symbol.symbolLayer(index).geometryExpression()
+                for index in range(symbol.symbolLayerCount())
+            ]
+
+            # A zero gap, so mct_delay_geometry takes its own no-gap
+            # path and returns one continuous part.
+            self.assertIn(
+                "mct_delay_geometry($geometry, 0, @map_scale)", expressions
+            )
+
+            self.assertEqual(
+                expressions.count(
+                    "mct_relief_in_place_return_arrow($geometry)"
+                ),
+                2
+            )
+
+            break
+
+        else:
+            self.fail("no renderer rule for relief_in_place")
+
+        # And no labelling rule at all.
+        for rule in layer.labeling().rootRule().children():
+
+            self.assertNotEqual(rule.description(), "relief_in_place")
+
+
+    def test_the_four_lettered_delay_tasks_still_exclude_it(self):
+
+        # DELAY_CONSTRUCTION_MEASURE_TYPES promises that only the
+        # letter differs between its members. Relief in Place draws the
+        # same shape but breaks that promise, so it stays out.
+        self.assertNotIn(
+            "relief_in_place", DELAY_CONSTRUCTION_MEASURE_TYPES
+        )

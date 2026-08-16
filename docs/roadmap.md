@@ -8598,6 +8598,47 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Relief in Place (341900), Retire without its letter (2026-08-16)
+
+"same construction as retire, remove the letter R and let the line be
+continuous, just add another arrow parallel to pt1-pt2 line segment
+with the arrowhead touching pt3" - the maintainer's own instruction.
+
+The continuous line came free: `_letter_gap_expression()` returns 0 for
+a task that carries no letter, so `mct_delay_geometry()` takes its own
+no-gap path and the labelling loop, which iterates `LINE_LETTERS`,
+builds no rule for it either. Seize's KeyError of 2026-08-16 is what
+made `LINE_LETTERS` the source of truth for that rather than the
+measure-type list, and this is the first symbol to benefit.
+
+**Relief in Place draws the Delay shape but is deliberately NOT in
+`DELAY_CONSTRUCTION_MEASURE_TYPES`.** That tuple carries a promise -
+only the letter differs between its members - and this breaks it twice
+over, with no letter and an extra arrow. It is in a wider
+`_DELAY_SHAPE_MEASURE_TYPES` instead, so the four-way guarantee and its
+test stay true of the family they describe.
+
+**The second arrow ends where the ARC ends, not at PT3 as clicked.**
+Those are the same point whenever PT3 is square to the shaft, which is
+how these are drawn now that the arc is forced perpendicular - but on a
+skewed click the raw PT3 would leave the arrowhead floating off the end
+of the curve. Pinned by a test on a deliberately skewed PT3.
+
+**The standard draws "RIP" centred inside the shape, and this does
+not.** Its own template and example both carry it. The instruction was
+about removing the letter from the shaft, and adding a different piece
+of text was not asked for, so it is left out and raised rather than
+assumed. One line to add if wanted.
+
+Three anchor points rather than the standard's four: its PT3/PT4 set
+the second arrow's length independently, and here it takes the first
+arrow's. The maintainer's construction, and it keeps the whole Delay
+family clicking the same way.
+
+1239 tests passing on both QGIS versions.
+
+---
+
 ### Clear (340500), Penetrate with two more arrows (2026-08-16)
 
 "start with penetrate of mission task, same construction, just add
@@ -9210,13 +9251,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **9 symbols in 1 unit**, all of it construction rather than
+is **8 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 9 is
+areas were all built on 2026-08-14. Every one of the 8 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9230,7 +9271,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 9 | Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 9 drawable symbols, plus the section parent row, which draws nothing. **Sixteen built 2026-08-15/16, all cleared**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear. **Check every remaining row against what is already built before starting it** - this table has been declared out of reuse twice and been wrong both times. |
+| 1 | H-XXIV Mission Tasks | 8 | Counterattack (+by Fire), Follow and Assume, Follow and Support, Security (+Cover/Guard/Screen) - 8 drawable symbols, plus the section parent row, which draws nothing. **Seventeen built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place. **Check every remaining row against what is already built before starting it** - this table has been declared out of reuse twice and been wrong both times. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |
