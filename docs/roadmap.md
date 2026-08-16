@@ -8598,6 +8598,39 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Retire, Withdraw and Withdraw Under Pressure: Delay four times over (2026-08-16)
+
+"Retire, Withdraw, withdraw under pressure - all same as delay; only
+change being use letter R for retire, W for withdraw and WP for
+withdraw under pressure" - the maintainer's own instruction, and the
+standard agrees: the four rows' draw rules are word for word each
+other's.
+
+So the three of them cost a vocabulary entry apiece.
+`DELAY_CONSTRUCTION_MEASURE_TYPES` holds all four, and every branch
+that used to name "delay" now tests membership of that tuple - kept as
+one name rather than four branches so a change to the shape cannot
+reach one of them and miss the others. A test pins that the four
+renderer rules build the same layers over the same geometry, and that
+only the letter differs.
+
+**WP is two glyphs, and the letter gap is measured rather than
+assumed.** `mct_text_width_mm()` takes Qt's own font metrics, so the
+wider letter cuts the wider gap with nothing per-letter written down.
+Pinned by a test, because a per-letter constant is exactly the kind of
+thing a later change would add without noticing.
+
+**This is the last of the cheap reuse.** Twelve line tasks have shipped
+in two days and eleven of them were an existing construction - Retain
+three times, Block twice, Turn, H-XIX's own Fix and Disrupt, and now
+Delay three times. The 13 rows left share a shape with nothing built,
+and the module's own audit note says so rather than still promising a
+quick win.
+
+1210 tests passing on both QGIS versions.
+
+---
+
 ### Delay (340800), the first mission task that borrows nothing (2026-08-16)
 
 The maintainer's own construction: "user clicks pt1, pt2 and pt3.
@@ -9042,13 +9075,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **16 symbols in 1 unit**, all of it construction rather than
+is **13 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 16 is
+areas were all built on 2026-08-14. Every one of the 13 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9062,7 +9095,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 16 | Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Retire, Security (+Cover/Guard/Screen), Withdraw (+Under Pressure) - 16 drawable symbols, plus the section parent row, which draws nothing. **Nine built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay. **Retire + Withdraw + Withdraw Under Pressure are the next quick win** - ONE construction with three letters. Nothing else left shares a shape with anything already built. |
+| 1 | H-XXIV Mission Tasks | 13 | Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 13 drawable symbols, plus the section parent row, which draws nothing. **Twelve built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure. **The cheap reuse is spent** - every row left needs geometry of its own. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

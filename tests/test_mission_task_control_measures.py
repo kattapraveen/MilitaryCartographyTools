@@ -25,6 +25,8 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
     POINT_MARKER_SIZE_SCALES,
+    DELAY_CONSTRUCTION_MEASURE_TYPES,
+    LINE_LETTERS,
     LINE_MEASURE_TYPE_CODES,
     LINE_MEASURE_TYPE_LABELS,
     create_mission_task_lines_layer,
@@ -62,11 +64,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 9 line tasks + 17 still unbuilt = the table's own
+        # 3 points + 12 line tasks + 14 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 17)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 14)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -771,3 +773,148 @@ class TestDelay(QgisTestCase):
             return
 
         self.fail("no labelling rule for delay")
+
+
+class TestDelayConstructionIsSharedByFour(QgisTestCase):
+
+    """
+    "Retire, Withdraw, withdraw under pressure - all same as delay;
+    only change being use letter R for retire, W for withdraw and WP
+    for withdraw under pressure" - the maintainer's own instruction,
+    and the standard's own draw rules for the four are word for word
+    each other's.
+
+    So this pins that they really are ONE construction: a change to the
+    shape cannot reach one of them and miss the others.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_all_four_are_recorded_as_one_construction(self):
+
+        self.assertEqual(
+            DELAY_CONSTRUCTION_MEASURE_TYPES,
+            ("delay", "retire", "withdraw", "withdraw_under_pressure")
+        )
+
+        self.assertEqual(
+            {LINE_MEASURE_TYPE_CODES[measure_type]
+             for measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES},
+            {"340800", "342000", "342400", "342500"}
+        )
+
+
+    def test_only_the_letter_differs_between_them(self):
+
+        self.assertEqual(
+            {measure_type: LINE_LETTERS[measure_type]
+             for measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES},
+            {
+                "delay": "D",
+                "retire": "R",
+                "withdraw": "W",
+                "withdraw_under_pressure": "WP",
+            }
+        )
+
+        layer = create_mission_task_lines_layer()
+
+        shapes = {}
+
+        for rule in layer.renderer().rootRule().children():
+
+            for measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
+
+                if rule.filterExpression() != (
+                    "\"measure_type\" = '{}'".format(measure_type)
+                ):
+                    continue
+
+                symbol = rule.symbol()
+
+                shapes[measure_type] = [
+                    symbol.symbolLayer(index).geometryExpression()
+                    for index in range(symbol.symbolLayerCount())
+                ]
+
+        self.assertEqual(len(shapes), 4)
+
+        # Same layers, same geometry - the only thing that varies is
+        # the width of the gap each letter needs, which is the letter.
+        for measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES[1:]:
+
+            self.assertEqual(
+                len(shapes[measure_type]), len(shapes["delay"]),
+                msg=measure_type
+            )
+
+            self.assertIn(
+                "mct_delay_shaft($geometry)", shapes[measure_type],
+                msg=measure_type
+            )
+
+            self.assertTrue(
+                any(each.startswith("mct_delay_geometry($geometry")
+                    for each in shapes[measure_type]),
+                msg=measure_type
+            )
+
+
+    def test_the_two_letter_wp_cuts_a_wider_gap_than_the_one_letter_w(self):
+
+        # WP is two glyphs, so its gap has to be measured rather than
+        # assumed - the shared width is Qt's own font metrics, not a
+        # per-letter constant.
+        widths = {}
+
+        for letter in ("W", "WP"):
+
+            widths[letter] = QgsExpression(
+                "mct_text_width_mm('{}', 4)".format(letter)
+            ).evaluate()
+
+        self.assertGreater(widths["WP"], widths["W"])
+
+
+    def test_each_of_the_four_labels_with_its_own_letter(self):
+
+        layer = create_mission_task_lines_layer()
+
+        lettered = {}
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() in DELAY_CONSTRUCTION_MEASURE_TYPES:
+
+                settings = rule.settings()
+
+                lettered[rule.description()] = settings.fieldName
+
+                self.assertEqual(
+                    settings.geometryGenerator,
+                    "mct_delay_letter_point($geometry)"
+                )
+
+        self.assertEqual(
+            lettered,
+            {
+                "delay": "'D'",
+                "retire": "'R'",
+                "withdraw": "'W'",
+                "withdraw_under_pressure": "'WP'",
+            }
+        )

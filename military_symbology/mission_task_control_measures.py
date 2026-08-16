@@ -6,10 +6,10 @@ Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Seven LINE tasks followed on
-2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate and
-Seize. Everything still unbuilt is listed by code in
-TABLE_H_XXIV_REMAINING.
+anchor point each, milsymbol-rendered. Twelve LINE tasks followed on
+2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize,
+Isolate, Delay, Retire, Withdraw and Withdraw Under Pressure.
+Everything still unbuilt is listed by code in TABLE_H_XXIV_REMAINING.
 
 **milsymbol has an icon for the three points and for nothing else in
 this table** - verified entry by entry against its own
@@ -28,8 +28,8 @@ maneuver control measure that has its OWN, different code and its own
 drawn form - Block, Breach, Bypass, Canalize, Disrupt, Fix, Penetrate,
 Seize and Withdraw all appear both here and in Tables H-VII/H-XIX.
 Conflating the two is a defect this project has already been reported
-for once (see docs/roadmap.md's own Phase 10 entry), so the 26 unbuilt
-rows are listed below by code rather than by name alone.
+for once (see docs/roadmap.md's own Phase 10 entry), so both records -
+built and unbuilt - are keyed by CODE rather than by name alone.
 
 Military Cartography Tools
 """
@@ -124,9 +124,8 @@ POINT_MARKER_SIZE_SCALES = {
 #
 # - Arrow tasks - N anchor points, PT1 at the arrowhead's tip, working
 #   back to the rear. Counterattack's own draw rules allow N between 3
-#   and 50. **Retire, Withdraw and Withdraw Under Pressure share ONE
-#   construction** - identical draw rules, three points, a straight run
-#   and a 180-degree arc, differing only in the letter (R/W/WP).
+#   and 50, which is the reason none of these is a Delay in disguise:
+#   the shape is not fixed by the anchor count.
 # - Bracket/effect tasks - the shapes Table H-XIX's own obstacle
 #   effects already build here, under DIFFERENT codes. See the module
 #   docstring: these are not the same symbols.
@@ -134,10 +133,10 @@ POINT_MARKER_SIZE_SCALES = {
 #   Screen are sub-codes of Security, drawn as an open bracket along
 #   the screened front.
 #
-# **Retire, Withdraw and Withdraw Under Pressure are the next quick
-# win** - one construction, three letters, three codes, per the note
-# above. Nothing else in the list shares a shape with anything already
-# built here.
+# **Nothing left shares a shape with anything already built.** The
+# cheap reuse is spent: the last four rows to ship were Delay and the
+# three withdrawal tasks, one construction between them, and every row
+# still listed here needs geometry of its own.
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
@@ -150,13 +149,10 @@ TABLE_H_XXIV_REMAINING = {
     "341200": "Follow and Assume",
     "341300": "Follow and Support",
     "341900": "Relief in Place (RIP)",
-    "342000": "Retire/Retirement",
     "342200": "Security",
     "342201": "Security - Cover",
     "342202": "Security - Guard",
     "342203": "Security - Screen",
-    "342400": "Withdraw",
-    "342500": "Withdraw Under Pressure",
 }
 
 
@@ -226,6 +222,9 @@ LINE_MEASURE_TYPE_LABELS = {
     "seize": "Seize",
     "isolate": "Isolate",
     "delay": "Delay",
+    "retire": "Retire/Retirement",
+    "withdraw": "Withdraw",
+    "withdraw_under_pressure": "Withdraw Under Pressure",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -238,6 +237,9 @@ LINE_MEASURE_TYPE_CODES = {
     "seize": "342300",
     "isolate": "341500",
     "delay": "340800",
+    "retire": "342000",
+    "withdraw": "342400",
+    "withdraw_under_pressure": "342500",
 }
 
 
@@ -256,7 +258,27 @@ LINE_LETTERS = {
     "seize": "S",
     "isolate": "I",
     "delay": "D",
+    "retire": "R",
+    "withdraw": "W",
+    "withdraw_under_pressure": "WP",
 }
+
+# **Four rows, ONE construction** - Delay and the three withdrawal
+# tasks are the same three-point shape with a different letter in the
+# shaft, at the maintainer's own instruction: "Retire, Withdraw,
+# withdraw under pressure - all same as delay; only change being use
+# letter R for retire, W for withdraw and WP for withdraw under
+# pressure". The standard agrees: their draw rules are word for word
+# each other's.
+#
+# Kept as one tuple rather than four branches so a change to the shape
+# cannot reach one of them and miss the others.
+DELAY_CONSTRUCTION_MEASURE_TYPES = (
+    "delay",
+    "retire",
+    "withdraw",
+    "withdraw_under_pressure",
+)
 
 _LINE_WIDTH_MM = 0.4
 
@@ -395,10 +417,11 @@ def _line_geometry_expression(measure_type):
     # template. Broken with line_substring() rather than inside
     # mct_turn_arc(), so Table H-XIX's own Turn is untouched.
     # **Delay is its own construction**, the first line task here that
-    # borrows nothing: a straight shaft from PT1 to PT2 with the "D"
+    # borrows nothing: a straight shaft from PT1 to PT2 with the letter
     # set into it, carrying on into a 180-degree arc that takes PT2-PT3
-    # as its diameter.
-    if measure_type == "delay":
+    # as its diameter. Retire, Withdraw and Withdraw Under Pressure are
+    # the same shape with a different letter.
+    if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
         return f"mct_delay_geometry($geometry, {gap}, @map_scale)"
 
     if measure_type == "seize":
@@ -555,7 +578,7 @@ def _mission_task_line_symbol(measure_type):
     # Rides the shaft run BACKWARDS, so the head lands on PT1 and
     # points out of the symbol - "the arrow points in the direction of
     # the action", and PT1 is where the action concludes.
-    if measure_type == "delay":
+    if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
         symbol.appendSymbolLayer(
             _arrowhead_layer(
                 "mct_delay_shaft($geometry)",
@@ -848,7 +871,7 @@ def _letter_point_expression(measure_type):
     if measure_type in ("secure", "occupy", "isolate"):
         return "mct_secure_letter_point($geometry)"
 
-    if measure_type == "delay":
+    if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
         return "mct_delay_letter_point($geometry)"
 
     # The middle of the curve, which is the middle of the gap the
