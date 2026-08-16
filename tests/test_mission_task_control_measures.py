@@ -23,6 +23,8 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
     POINT_MARKER_SIZE_SCALES,
+    LINE_MEASURE_TYPE_CODES,
+    LINE_MEASURE_TYPE_LABELS,
     TABLE_H_XXIV_REMAINING,
     add_mission_task_points_layer,
     create_mission_task_points_layer,
@@ -58,10 +60,24 @@ class TestMissionTaskVocabulary(QgisTestCase):
     def test_the_twenty_six_unbuilt_rows_are_recorded_not_forgotten(self):
 
         # 3 points + 26 others = the table's own 29.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 26)
+        # 3 points + 7 line tasks + 19 still unbuilt = the table's own
+        # 29 rows. This arithmetic is what keeps a row from going
+        # missing between builds - and what caught the remaining list
+        # still claiming the seven built lines were unbuilt.
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 19)
 
         self.assertEqual(
-            len(POINT_ENTITY_CODES) + len(TABLE_H_XXIV_REMAINING), 29
+            len(POINT_ENTITY_CODES)
+            + len(LINE_MEASURE_TYPE_CODES)
+            + len(TABLE_H_XXIV_REMAINING),
+            29
+        )
+
+        # Nothing is claimed as both built and unbuilt.
+        self.assertEqual(
+            set(LINE_MEASURE_TYPE_CODES.values())
+            & set(TABLE_H_XXIV_REMAINING),
+            set()
         )
 
         self.assertEqual(
@@ -70,17 +86,35 @@ class TestMissionTaskVocabulary(QgisTestCase):
         )
 
 
-    def test_the_unbuilt_task_names_that_clash_are_listed_by_code(self):
+    def test_the_task_names_that_clash_are_keyed_by_code_everywhere(self):
 
         # Several mission tasks share a NAME with an obstacle effect or
         # maneuver control measure that has its own different code and
         # drawn form - conflating the two is a defect this project has
-        # been reported for once already. The record is keyed by code
-        # so the two can never be matched up by name alone.
+        # been reported for once already. Both the built record and the
+        # unbuilt one are keyed by CODE, so the two can never be
+        # matched up by name alone.
+        #
+        # Block, Disrupt and Fix have SHIPPED as mission tasks now, so
+        # they belong to the built record; the rest are still unbuilt.
+        # Every one has to appear in exactly one of the two.
         for name in ("Block", "Breach", "Bypass", "Canalize", "Disrupt",
                      "Fix", "Penetrate", "Seize", "Withdraw"):
 
-            self.assertIn(name, TABLE_H_XXIV_REMAINING.values())
+            built = name in LINE_MEASURE_TYPE_LABELS.values()
+
+            unbuilt = name in TABLE_H_XXIV_REMAINING.values()
+
+            self.assertTrue(
+                built or unbuilt,
+                f"{name} is recorded neither as built nor as unbuilt"
+            )
+
+            self.assertFalse(
+                built and unbuilt,
+                f"{name} is recorded as both built and unbuilt"
+            )
+
 
 
     def test_every_entity_is_registered_in_sidc(self):

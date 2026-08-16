@@ -4,17 +4,18 @@
 MIL-STD-2525D Appendix H.5.26 (Table H-XXIV, "Mission Task Symbols") -
 Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
-**Three of the 29 are points; this module builds those three.** Destroy
-(340900), Interdict (341400) and Neutralize (341600) each take ONE
-anchor point and draw a centred glyph - checked on the table's own
-DRAW RULES ("This symbol requires one anchor point. The center point
-defines center of the symbol"), not inferred. Every other row in the
-table is an arrow, a bracket or an outlined region built from two to
-fifty anchor points, and milsymbol has no icon for any of them: 3 of
-29 present, verified entry by entry against milsymbol's own
-src/numbersidc/sidc/control-measure.js. The project maintainer scoped
-this pass to "all the point symbols derived from milsymbol.js", and
-the split falls exactly on that line.
+**Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
+and Neutralize (341600) are the table's three POINT symbols - one
+anchor point each, milsymbol-rendered. Seven LINE tasks followed on
+2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate and
+Seize. Everything still unbuilt is listed by code in
+TABLE_H_XXIV_REMAINING.
+
+**milsymbol has an icon for the three points and for nothing else in
+this table** - verified entry by entry against its own
+src/numbersidc/sidc/control-measure.js. Every line task here is
+hand-built QGIS symbology, and most of them are an existing
+construction from another table reused whole (see the LINES section).
 
 **All three are RELOCATED, not new.** They already existed in sidc.py
 as destroy_point/interdict_point/neutralize_point and were offered on
@@ -114,28 +115,35 @@ POINT_MARKER_SIZE_SCALES = {
 
 # --- Audited, NOT built. ---
 #
-# The 26 remaining rows of Table H-XXIV. 340000 is the section's own
-# parent entry, with TEMPLATE and EXAMPLE both reading "N/A", so the
-# real drawing work is 25.
+# What is left of Table H-XXIV. 340000 is the section's own parent
+# entry, with TEMPLATE and EXAMPLE both reading "N/A", so it will never
+# be built.
 #
-# Every one is a multi-anchor construction rather than a centred
-# glyph, and none has a milsymbol icon. Roughly three families:
+# Every one is a multi-anchor construction rather than a centred glyph,
+# and none has a milsymbol icon. Roughly three families:
 #
-# - Arrow tasks (Counterattack, Counterattack by Fire, Penetrate,
-#   Seize, Withdraw and the rest) - N anchor points, PT1 at the
-#   arrowhead's tip, working back to the rear. Counterattack's own
-#   draw rules allow N between 3 and 50.
-# - Bracket/effect tasks (Block, Breach, Bypass, Canalize, Clear,
-#   Delay, Disrupt, Fix, Isolate) - the same shapes Table H-XIX's own
-#   obstacle effects already build here, under DIFFERENT codes. See
-#   the module docstring: these are not the same symbols.
+# - Arrow tasks - N anchor points, PT1 at the arrowhead's tip, working
+#   back to the rear. Counterattack's own draw rules allow N between 3
+#   and 50. **Retire, Withdraw and Withdraw Under Pressure share ONE
+#   construction** - identical draw rules, three points, a straight run
+#   and a 180-degree arc, differing only in the letter (R/W/WP).
+# - Bracket/effect tasks - the shapes Table H-XIX's own obstacle
+#   effects already build here, under DIFFERENT codes. See the module
+#   docstring: these are not the same symbols.
 # - Security tasks (342200 and its three variants) - Cover, Guard and
 #   Screen are sub-codes of Security, drawn as an open bracket along
 #   the screened front.
+#
+# **Isolate (341500) is next and is fully specified** by the
+# maintainer: Secure's construction including the arrowhead, letter
+# "I", plus triangles facing INWARD based on the perimeter - base not
+# drawn, the arc is the base - starting 30 degrees from PT2, ending 30
+# degrees before the arrowhead, base-to-tip a third of the radius. It
+# needs new geometry: Retain's teeth are radial TICKS a fifth of the
+# radius long, not triangles.
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
-    "340100": "Block",
     "340200": "Breach",
     "340300": "Bypass",
     "340400": "Canalize",
@@ -143,21 +151,15 @@ TABLE_H_XXIV_REMAINING = {
     "340600": "Counterattack",
     "340700": "Counterattack by Fire",
     "340800": "Delay",
-    "341000": "Disrupt",
-    "341100": "Fix",
     "341200": "Follow and Assume",
     "341300": "Follow and Support",
     "341500": "Isolate",
-    "341700": "Occupy",
-    "341800": "Penetrate",
     "341900": "Relief in Place (RIP)",
     "342000": "Retire/Retirement",
-    "342100": "Secure",
     "342200": "Security",
     "342201": "Security - Cover",
     "342202": "Security - Guard",
     "342203": "Security - Screen",
-    "342300": "Seize",
     "342400": "Withdraw",
     "342500": "Withdraw Under Pressure",
 }
