@@ -28,6 +28,7 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     BYPASS_CONSTRUCTION_MEASURE_TYPES,
     DELAY_CONSTRUCTION_MEASURE_TYPES,
     LABELLED_MEASURE_TYPES,
+    SECURITY_CONSTRUCTION_MEASURE_TYPES,
     LINE_LETTERS,
     LINE_MEASURE_TYPE_CODES,
     LINE_MEASURE_TYPE_LABELS,
@@ -66,11 +67,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 17 line tasks + 9 still unbuilt = the table's own
+        # 3 points + 20 line tasks + 6 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 9)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 6)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -1749,3 +1750,282 @@ class TestReliefInPlace(QgisTestCase):
         self.assertNotIn(
             "relief_in_place", DELAY_CONSTRUCTION_MEASURE_TYPES
         )
+
+
+class TestSecurityTasks(QgisTestCase):
+
+    """
+    Cover (342201), Guard (342202) and Screen (342203) - one
+    construction with three letters.
+
+    "user is to click 3pts, pt1, pt2, pt3; i'll describe from center
+    outwards; at pt2 - make a gap for a milsymbol say infantry
+    batallion, now next to the milsymbol space on both sides, add the
+    letter - C for Cover, G for Guard, S for Screen, introduce a small
+    gap, now from there towards pt1 and pt3 draw a lightning bolt
+    ending in an arrow head, both lightning bolts are mirror images of
+    each other" - the maintainer's own instruction.
+    """
+
+    # PT2 is the CENTRE - the middle click - with the two arms running
+    # due west to PT1 and due east to PT3.
+    _SECURITY = "LineString(-100 0, 0 0, 100 0)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _bolts(self, wkt=None):
+
+        # No start offset: the reserved space and the letters are a
+        # PAGE measurement, and leaving them out here keeps these
+        # assertions about the bolt's own shape rather than about the
+        # millimetre conversion, which _page_gap_in_map_units already
+        # has its own tests for.
+        return QgsExpression(
+            "mct_security_arms(geom_from_wkt('{}'))".format(
+                wkt or self._SECURITY
+            )
+        ).evaluate().asMultiPolyline()
+
+
+    def test_the_middle_click_is_the_centre(self):
+
+        # Not the standard's own order, which makes PT1 the centre.
+        # The maintainer's makes the feature a plain three-vertex line
+        # drawn end, centre, end.
+        bolts = self._bolts()
+
+        self.assertEqual(len(bolts), 2)
+
+        # One bolt runs west and one east, both starting at the centre.
+        self.assertLess(bolts[0][-1].x(), 0.0)
+        self.assertGreater(bolts[1][-1].x(), 0.0)
+
+        for bolt in bolts:
+
+            self.assertAlmostEqual(bolt[0].x(), 0.0, places=6)
+
+
+    def test_each_bolt_is_a_rail_a_diagonal_and_a_rail(self):
+
+        for bolt in self._bolts():
+
+            self.assertEqual(len(bolt), 4)
+
+            # The first rail lies ON the clicked line, the second is
+            # dropped off it - the spine is what the user drew.
+            self.assertAlmostEqual(bolt[0].y(), 0.0, places=6)
+            self.assertAlmostEqual(bolt[1].y(), 0.0, places=6)
+
+            self.assertAlmostEqual(bolt[2].y(), bolt[3].y(), places=6)
+
+            self.assertNotAlmostEqual(bolt[2].y(), 0.0, places=6)
+
+
+    def test_the_diagonal_runs_back_toward_the_centre(self):
+
+        # What makes it a lightning bolt rather than a step: the
+        # diagonal loses ground as it drops.
+        for bolt in self._bolts():
+
+            outward = 1.0 if bolt[-1].x() > 0 else -1.0
+
+            self.assertLess(
+                outward * bolt[2].x(), outward * bolt[1].x()
+            )
+
+
+    def test_the_diagonal_is_forty_five_degrees(self):
+
+        # The distance it travels back equals the distance it drops -
+        # 0.70 to 0.60 of the bolt, against a 0.10 drop.
+        for bolt in self._bolts():
+
+            back = abs(bolt[2].x() - bolt[1].x())
+
+            drop = abs(bolt[2].y() - bolt[1].y())
+
+            self.assertAlmostEqual(back, drop, places=6)
+
+
+    def test_the_two_bolts_are_mirror_images(self):
+
+        west, east = self._bolts()
+
+        # Mirroring one about the centre's own vertical gives the
+        # other, point for point - which is what the instruction asked
+        # for and what keeps the pair reading as one symbol.
+        for left, right in zip(west, east):
+
+            self.assertAlmostEqual(left.x(), -right.x(), places=6)
+            self.assertAlmostEqual(left.y(), right.y(), places=6)
+
+
+    def test_they_stay_mirrored_on_a_bent_line(self):
+
+        # The two normals are opposite rotations of their OWN arm, so
+        # the pair mirrors however the line is drawn rather than only
+        # when it is straight.
+        bolts = self._bolts(wkt="LineString(0 100, 0 0, 100 0)")
+
+        self.assertEqual(len(bolts), 2)
+
+        for bolt in bolts:
+
+            self.assertEqual(len(bolt), 4)
+
+        # Each drops to its own arm's own side: walking outward, PT1's
+        # bolt drops to the LEFT and PT3's to the RIGHT. On a straight
+        # line those are the same physical side, which is what makes
+        # the pair read as a mirror; on a bent one each still follows
+        # its own arm.
+        north, east = bolts
+
+        self.assertLess(north[2].x(), 0.0)
+
+        self.assertLess(east[2].y(), 0.0)
+
+
+    def test_an_arm_too_short_for_its_start_draws_nothing(self):
+
+        # The letters and the reserved symbol space come first; an arm
+        # that cannot fit them must not double back on itself.
+        # A 20 mm start at 1:1000 is 20 metres of ground, which is
+        # wider than this whole feature.
+        bolts = QgsExpression(
+            "mct_security_arms(geom_from_wkt("
+            "'LineString(-0.0001 0, 0 0, 0.0001 0)'), 20, 1000)"
+        ).evaluate()
+
+        self.assertTrue(bolts.isEmpty())
+
+
+    def test_degenerate_input_draws_nothing(self):
+
+        for wkt in ("LineString(0 0, 0 0, 0 0)", "LineString(0 0, 10 0)"):
+
+            self.assertTrue(
+                QgsExpression(
+                    "mct_security_arms(geom_from_wkt('{}'))".format(wkt)
+                ).evaluate().isEmpty()
+            )
+
+
+    def test_the_letters_sit_either_side_of_the_reserved_space(self):
+
+        points = [
+            QgsExpression(
+                "mct_security_letter_point(geom_from_wkt('{}'), {}, 6, 1000)"
+                .format(self._SECURITY, side)
+            ).evaluate().asPoint()
+            for side in (1, 2)
+        ]
+
+        # Toward PT1 and toward PT3, the same distance out either way.
+        self.assertLess(points[0].x(), 0.0)
+        self.assertGreater(points[1].x(), 0.0)
+
+        self.assertAlmostEqual(points[0].x(), -points[1].x(), places=9)
+
+        # On the spine, like the first rail.
+        for point in points:
+
+            self.assertAlmostEqual(point.y(), 0.0, places=9)
+
+
+    def test_all_three_share_one_construction(self):
+
+        self.assertEqual(
+            SECURITY_CONSTRUCTION_MEASURE_TYPES, ("cover", "guard", "screen")
+        )
+
+        self.assertEqual(
+            {LINE_MEASURE_TYPE_CODES[measure_type]
+             for measure_type in SECURITY_CONSTRUCTION_MEASURE_TYPES},
+            {"342201", "342202", "342203"}
+        )
+
+        self.assertEqual(
+            {measure_type: LINE_LETTERS[measure_type]
+             for measure_type in SECURITY_CONSTRUCTION_MEASURE_TYPES},
+            {"cover": "C", "guard": "G", "screen": "S"}
+        )
+
+        layer = create_mission_task_lines_layer()
+
+        shapes = {}
+
+        for rule in layer.renderer().rootRule().children():
+
+            for measure_type in SECURITY_CONSTRUCTION_MEASURE_TYPES:
+
+                if rule.filterExpression() == (
+                    "\"measure_type\" = '{}'".format(measure_type)
+                ):
+                    symbol = rule.symbol()
+
+                    shapes[measure_type] = [
+                        symbol.symbolLayer(index).geometryExpression()
+                        for index in range(symbol.symbolLayerCount())
+                    ]
+
+        self.assertEqual(len(shapes), 3)
+
+        for measure_type, expressions in shapes.items():
+
+            # The bolts twice - once drawn, once carrying the heads.
+            self.assertEqual(len(expressions), 2, msg=measure_type)
+
+            self.assertEqual(expressions[0], expressions[1], msg=measure_type)
+
+            self.assertTrue(
+                expressions[0].startswith("mct_security_arms($geometry,"),
+                msg=measure_type
+            )
+
+
+    def test_each_writes_its_letter_twice(self):
+
+        layer = create_mission_task_lines_layer()
+
+        written = {}
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() in SECURITY_CONSTRUCTION_MEASURE_TYPES:
+
+                written.setdefault(rule.description(), []).append(
+                    rule.settings().fieldName
+                )
+
+        self.assertEqual(
+            written,
+            {
+                "cover": ["'C'", "'C'"],
+                "guard": ["'G'", "'G'"],
+                "screen": ["'S'", "'S'"],
+            }
+        )
+
+
+    def test_the_security_parent_row_is_recorded_as_undrawable(self):
+
+        # 342200's own TEMPLATE and EXAMPLE both read "N/A", so it will
+        # never be built - the same standing as the table's own section
+        # parent. It stays in the record so the arithmetic still runs.
+        self.assertIn("342200", TABLE_H_XXIV_REMAINING)
+
+        self.assertIn("N/A", TABLE_H_XXIV_REMAINING["342200"])

@@ -4275,6 +4275,197 @@ def mct_clear_side_stems(values, feature=None, parent=None):
     return QgsGeometry.fromMultiPolylineXY(stems)
 
 
+
+# --- Security: Cover, Guard and Screen (Table H-XXIV, 342201-342203) ---
+#
+# **One construction, three letters.** The parent row 342200 draws
+# nothing at all - its own TEMPLATE and EXAMPLE both read "N/A" - so
+# there are three symbols here, not four.
+#
+# The maintainer's own construction: "user is to click 3pts, pt1, pt2,
+# pt3; i'll describe from center outwards; at pt2 - make a gap for a
+# milsymbol say infantry batallion, now next to the milsymbol space on
+# both sides, add the letter - C for Cover, G for Guard, S for Screen,
+# introduce a small gap, now from there towards pt1 and pt3 draw a
+# lightning bolt ending in an arrow head, both lightning bolts are
+# mirror images of each other; see manual for orientation".
+#
+# **The MIDDLE click is the centre**, which is not what the standard
+# does - its own PT1 is the centre and PT2/PT3 the ends. The
+# maintainer's order makes the feature a plain three-vertex line drawn
+# end, centre, end, which is how a screen frontage is digitized.
+#
+# The bolt's own shape is measured off the standard's template and
+# example (printed page 651, read back at 1400 dpi). Each arm is a
+# lightning bolt: a rail on the clicked line, a diagonal that runs
+# BACK toward the centre as it drops, then a second rail out to the
+# tip. Measured, as fractions of the bolt's own length: the first rail
+# ends at 0.687, the diagonal lands at 0.576, and the drop is 0.098.
+# Rounded to 0.70 / 0.60 / 0.10 - which makes the diagonal exactly 45
+# degrees, since the distance it travels back equals the distance it
+# drops.
+#
+# **The clicked line is the SPINE.** PT1 and PT3 sit on the upper rail
+# in the template - their leaders point level with it, not at the
+# arrowheads - so the letters, the reserved symbol space and the inner
+# rails all lie on the line the user drew, and only the outer rail and
+# the head drop off it.
+_SECURITY_BOLT_OUTER_FRACTION = 0.70
+_SECURITY_BOLT_INNER_FRACTION = 0.60
+_SECURITY_BOLT_DROP_FRACTION = 0.10
+
+
+def _security_arm_frame(values):
+
+    """
+    (centre, [(tip, normal), ...], start_units) for the security
+    tasks, or None.
+
+    The two normals are OPPOSITE rotations of their own arm - +90
+    degrees on PT1's side, -90 on PT3's - which is what makes the two
+    bolts mirror images of each other however the line is drawn.
+    """
+
+    points = _three_anchor_points(values)
+
+    if points is None:
+        return None
+
+    pt1, centre, pt3 = points
+
+    arms = []
+
+    for tip, turn in ((pt1, 1.0), (pt3, -1.0)):
+
+        span = math.hypot(tip.x() - centre.x(), tip.y() - centre.y())
+
+        if span == 0:
+            continue
+
+        ux = (tip.x() - centre.x()) / span
+        uy = (tip.y() - centre.y()) / span
+
+        arms.append((tip, span, (ux, uy), (-turn * uy, turn * ux)))
+
+    if not arms:
+        return None
+
+    return centre, arms
+
+
+@qgsfunction(
+    'mct_security_arms',
+    group='Military Cartography Tools'
+)
+def mct_security_arms(values, feature=None, parent=None):
+
+    """
+    The two lightning bolts of Cover, Guard and Screen (342201-342203)
+    - one running out to PT1 and one to PT3, mirror images of each
+    other, each ending where its own arrowhead goes.
+
+    `start_mm` is how far out from the centre the drawn part begins:
+    past the space reserved for a unit symbol and past the letter. In
+    PAGE millimetres, so `map_scale` converts it.
+
+    An arm shorter than that start draws nothing rather than doubling
+    back on itself.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _security_arm_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    centre, arms = frame
+
+    start_units = _page_gap_in_map_units(values, 1, centre)
+
+    bolts = []
+
+    for tip, span, (ux, uy), (nx, ny) in arms:
+
+        reach = span - start_units
+
+        if reach <= 0:
+            continue
+
+        drop = _SECURITY_BOLT_DROP_FRACTION * reach
+
+        def along(distance, offset=0.0):
+
+            return QgsPointXY(
+                centre.x() + (start_units + distance) * ux + offset * nx,
+                centre.y() + (start_units + distance) * uy + offset * ny,
+            )
+
+        bolts.append(
+            [
+                along(0.0),
+                along(_SECURITY_BOLT_OUTER_FRACTION * reach),
+                along(_SECURITY_BOLT_INNER_FRACTION * reach, drop),
+                along(reach, drop),
+            ]
+        )
+
+    if not bolts:
+        return QgsGeometry()
+
+    return QgsGeometry.fromMultiPolylineXY(bolts)
+
+
+@qgsfunction(
+    'mct_security_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_security_letter_point(values, feature=None, parent=None):
+
+    """
+    Where one of Cover/Guard/Screen's two letters goes - `side` 1
+    toward PT1, 2 toward PT3, at `distance_mm` out from the centre
+    along that arm.
+
+    Two of them per feature, one either side of the space reserved for
+    a unit symbol, which is why this takes a side rather than being
+    read off the geometry alone.
+    """
+
+    if len(values) < 2:
+        return QgsGeometry()
+
+    frame = _security_arm_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    centre, arms = frame
+
+    try:
+        side = int(values[1])
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    tip = _three_anchor_points(values)[0 if side == 1 else 2]
+
+    for candidate, _span, (ux, uy), _n in arms:
+
+        if candidate != tip:
+            continue
+
+        distance = _page_gap_in_map_units(values, 2, centre)
+
+        return QgsGeometry.fromPointXY(
+            QgsPointXY(
+                centre.x() + distance * ux, centre.y() + distance * uy
+            )
+        )
+
+    return QgsGeometry()
+
+
 # --- Breach (340200) and Canalize (340400), Table H-XXIV ---
 #
 # Both are Bypass's own construction with the ARROWHEADS REPLACED by a
@@ -7395,6 +7586,8 @@ _FUNCTIONS = [
     mct_obstacle_bypass_rear_midpoint,
     mct_bypass_ticks,
     mct_clear_side_stems,
+    mct_security_arms,
+    mct_security_letter_point,
     mct_obstacle_bypass_rear_difficult,
     mct_obstacle_bypass_rear_impossible,
     mct_roadblock_main_line,

@@ -6,11 +6,12 @@ Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Seventeen LINE tasks followed on
+anchor point each, milsymbol-rendered. Twenty LINE tasks followed on
 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize,
 Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass,
-Breach, Canalize, Clear and Relief in Place. Everything still unbuilt
-is listed by code in TABLE_H_XXIV_REMAINING.
+Breach, Canalize, Clear, Relief in Place, and Security's own Cover,
+Guard and Screen. Everything still unbuilt is listed by code in
+TABLE_H_XXIV_REMAINING.
 
 **milsymbol has an icon for the three points and for nothing else in
 this table** - verified entry by entry against its own
@@ -131,10 +132,7 @@ POINT_MARKER_SIZE_SCALES = {
 # - Bracket/effect tasks - the shapes Table H-XIX's own obstacle
 #   effects already build here, under DIFFERENT codes. See the module
 #   docstring: these are not the same symbols.
-# - Security tasks (342200 and its three variants) - Cover, Guard and
-#   Screen are sub-codes of Security, drawn as an open bracket along
-#   the screened front.
-#
+
 # **Check each of these against Table H-XIX before building it.** This
 # list was annotated "nothing left shares a shape with anything already
 # built" once, and Bypass (340300) was Obstacle Bypass Easy (270601)
@@ -147,10 +145,7 @@ TABLE_H_XXIV_REMAINING = {
     "340700": "Counterattack by Fire",
     "341200": "Follow and Assume",
     "341300": "Follow and Support",
-    "342200": "Security",
-    "342201": "Security - Cover",
-    "342202": "Security - Guard",
-    "342203": "Security - Screen",
+    "342200": "Security (group parent; TEMPLATE and EXAMPLE both N/A)",
 }
 
 
@@ -228,6 +223,9 @@ LINE_MEASURE_TYPE_LABELS = {
     "canalize": "Canalize",
     "clear": "Clear",
     "relief_in_place": "Relief in Place (RIP)",
+    "cover": "Security - Cover",
+    "guard": "Security - Guard",
+    "screen": "Security - Screen",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -248,6 +246,9 @@ LINE_MEASURE_TYPE_CODES = {
     "canalize": "340400",
     "clear": "340500",
     "relief_in_place": "341900",
+    "cover": "342201",
+    "guard": "342202",
+    "screen": "342203",
 }
 
 
@@ -273,6 +274,9 @@ LINE_LETTERS = {
     "breach": "B",
     "canalize": "C",
     "clear": "C",
+    "cover": "C",
+    "guard": "G",
+    "screen": "S",
 }
 
 # **Four rows, ONE construction** - Delay and the three withdrawal
@@ -379,6 +383,27 @@ _OCCUPY_CROSS_SIZE_EXPRESSION = (
     " @map_extent, @map_scale), 0) / {fraction})"
 ).format(maximum=_ARROWHEAD_SIZE_MM, fraction=_OCCUPY_CROSS_RADIUS_FRACTION)
 
+# **Cover, Guard and Screen are one construction with three letters**,
+# the way the Delay family is. 342200, the Security row they sit under,
+# draws nothing at all - its own TEMPLATE and EXAMPLE both read "N/A" -
+# so there are three symbols here rather than four, which the
+# maintainer confirmed directly: "in security 342200 there is nothing
+# to be built drop it".
+SECURITY_CONSTRUCTION_MEASURE_TYPES = ("cover", "guard", "screen")
+
+# The space left at the centre for a unit symbol. **Reserved, not
+# filled** - the maintainer's own construction says "at pt2 - make a
+# gap for a milsymbol say infantry batallion", and a user who wants one
+# there places it themselves, exactly as with every other Field A in
+# this appendix. A standard point marker on this plugin's own layers is
+# DEFAULT_MARKER_SIZE_MM across, so that is the width to leave.
+_SECURITY_SYMBOL_SPACE_MM = DEFAULT_MARKER_SIZE_MM
+
+# Clear of the reserved space before the letter, and clear of the
+# letter before the bolt starts - "introduce a small gap".
+_SECURITY_SYMBOL_CLEARANCE_MM = 1.0
+_SECURITY_LETTER_CLEARANCE_MM = 1.5
+
 # Breathing room either side of the letter inside the gap it cuts.
 _LETTER_PADDING_MM = 1.2
 
@@ -405,6 +430,35 @@ def _letter_gap_expression(measure_type):
         letter=LINE_LETTERS[measure_type],
         size=_LETTER_SIZE_MM,
         padding=2.0 * _LETTER_PADDING_MM,
+    )
+
+
+def _security_letter_width_expression(measure_type):
+
+    return "mct_text_width_mm('{letter}', {size:.4f})".format(
+        letter=LINE_LETTERS[measure_type], size=_LETTER_SIZE_MM
+    )
+
+
+def _security_letter_distance_expression(measure_type):
+
+    """How far out from the centre one of the two letters sits."""
+
+    return "{inner:.4f} + ({width}) / 2".format(
+        inner=_SECURITY_SYMBOL_SPACE_MM / 2.0 + _SECURITY_SYMBOL_CLEARANCE_MM,
+        width=_security_letter_width_expression(measure_type),
+    )
+
+
+def _security_bolt_start_expression(measure_type):
+
+    """How far out from the centre each lightning bolt begins."""
+
+    return "{inner:.4f} + ({width})".format(
+        inner=_SECURITY_SYMBOL_SPACE_MM / 2.0
+        + _SECURITY_SYMBOL_CLEARANCE_MM
+        + _SECURITY_LETTER_CLEARANCE_MM,
+        width=_security_letter_width_expression(measure_type),
     )
 
 
@@ -481,6 +535,11 @@ def _line_geometry_expression(measure_type):
     # below, and the gap for the "B" is cut into it.
     if measure_type in BYPASS_CONSTRUCTION_MEASURE_TYPES:
         return "mct_obstacle_bypass_arrows($geometry)"
+
+    if measure_type in SECURITY_CONSTRUCTION_MEASURE_TYPES:
+        return "mct_security_arms($geometry, {start}, @map_scale)".format(
+            start=_security_bolt_start_expression(measure_type)
+        )
 
     if measure_type == "seize":
 
@@ -657,6 +716,16 @@ def _mission_task_line_symbol(measure_type):
         symbol.appendSymbolLayer(
             _arrowhead_layer(
                 "mct_delay_shaft($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+            )
+        )
+
+    # One head per bolt, at each one's own outer end. Two parts, so a
+    # last-vertex placement gives exactly two.
+    if measure_type in SECURITY_CONSTRUCTION_MEASURE_TYPES:
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                _line_geometry_expression(measure_type),
                 Qgis.MarkerLinePlacement.LastVertex,
             )
         )
@@ -994,6 +1063,24 @@ def _label_specifications(measure_type):
 
     if measure_type == "relief_in_place":
         return [("'RIP'", "mct_relief_in_place_text_point($geometry)")]
+
+    # **Two labels, one either side of the reserved symbol space** -
+    # the only symbols on this layer that write the same letter twice.
+    if measure_type in SECURITY_CONSTRUCTION_MEASURE_TYPES:
+
+        return [
+            (
+                "'{}'".format(LINE_LETTERS[measure_type]),
+                "mct_security_letter_point($geometry, {side}, {distance},"
+                " @map_scale)".format(
+                    side=side,
+                    distance=_security_letter_distance_expression(
+                        measure_type
+                    ),
+                ),
+            )
+            for side in (1, 2)
+        ]
 
     return [
         (

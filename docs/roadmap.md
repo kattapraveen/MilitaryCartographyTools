@@ -8598,6 +8598,65 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Security: Cover, Guard and Screen (342201-342203) (2026-08-16)
+
+One construction with three letters, the way the Delay family is.
+**342200, the Security row they sit under, draws nothing at all** - its
+own TEMPLATE and EXAMPLE both read "N/A" - so there are three symbols
+here rather than four. Confirmed directly: "in security 342200 there is
+nothing to be built drop it". It stays in the remaining record, marked
+undrawable, so the arithmetic still runs; the same standing the table's
+own section parent has.
+
+The maintainer's construction, from the centre outwards: a gap for a
+unit symbol at the centre click, the letter either side of it, a small
+gap, then a lightning bolt out to each end point finishing in an
+arrowhead, the two bolts mirror images of each other.
+
+**The MIDDLE click is the centre**, which is not what the standard
+does - its PT1 is the centre and PT2/PT3 the ends. The maintainer's
+order makes the feature a plain three-vertex line drawn end, centre,
+end, which is how a screen frontage is actually digitized, and it is
+the order the layer already uses for every other three-point task.
+
+**The unit symbol is reserved space, not a built field** - "make a gap
+for a milsymbol say infantry batallion". A user who wants one places it
+themselves, exactly as with every other Field A in this appendix. The
+width left is DEFAULT_MARKER_SIZE_MM, a standard point marker on this
+plugin's own layers.
+
+**The bolt's shape is measured off the standard**, printed page 651,
+read back at 1400 dpi from both the template and the example. As
+fractions of the bolt's own length the first rail ends at 0.687, the
+diagonal lands back at 0.576, and the drop is 0.098. Rounded to 0.70 /
+0.60 / 0.10, which makes the diagonal exactly 45 degrees - the distance
+it travels back equals the distance it drops. The diagonal running
+BACK toward the centre as it falls is what makes it a lightning bolt
+rather than a step.
+
+**The clicked line is the spine.** PT1 and PT3 sit on the upper rail in
+the template - their leaders point level with it, not at the arrowheads
+- so the letters, the reserved space and the inner rails all lie on the
+line the user drew and only the outer rail and the head drop off it.
+Worth having checked: the obvious reading, that the arrowheads land on
+the clicked points, is the wrong one.
+
+**Each bolt drops to its own arm's own side**, PT1's to the left and
+PT3's to the right walking outward. On a straight line those are the
+same physical side, which is what makes the pair read as a mirror; on a
+bent one each still follows its own arm rather than a side of the
+world. The same reasoning Breach's ticks needed, and the same reason
+both are geometry rather than rotated markers.
+
+**These write the same letter twice**, the only symbols on the layer
+that do, so `_label_specifications()` returns a LIST of labels per
+measure type rather than one. That list was introduced for "RIP" an
+hour earlier and paid for itself immediately.
+
+1254 tests passing on both QGIS versions.
+
+---
+
 ### Relief in Place (341900), Retire without its letter (2026-08-16)
 
 "same construction as retire, remove the letter R and let the line be
@@ -9261,13 +9320,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **8 symbols in 1 unit**, all of it construction rather than
+is **4 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 8 is
+areas were all built on 2026-08-14. Every one of the 4 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9281,7 +9340,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 8 | Counterattack (+by Fire), Follow and Assume, Follow and Support, Security (+Cover/Guard/Screen) - 8 drawable symbols, plus the section parent row, which draws nothing. **Seventeen built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place. **Check every remaining row against what is already built before starting it** - this table has been declared out of reuse twice and been wrong both times. |
+| 1 | H-XXIV Mission Tasks | 4 | **Counterattack, Counterattack by Fire, Follow and Assume, Follow and Support** - and that is the whole of Appendix H's remainder. Two more rows are recorded but will never be built: 340000, the table's own section parent, and 342200, the Security group parent; both read "N/A" for TEMPLATE and EXAMPLE. **Twenty built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Cover, Guard, Screen. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |
