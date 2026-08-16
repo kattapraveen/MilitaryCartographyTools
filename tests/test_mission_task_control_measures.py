@@ -62,11 +62,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 8 line tasks + 18 still unbuilt = the table's own
+        # 3 points + 9 line tasks + 17 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 18)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 17)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -566,3 +566,208 @@ class TestIsolateSymbol(QgisTestCase):
             return
 
         self.fail("no labelling rule for isolate")
+
+
+class TestDelay(QgisTestCase):
+
+    """
+    Delay (340800) - the first line task on this layer that borrows no
+    other symbol's construction.
+
+    "user clicks pt1, pt2 and pt3. arrowhead at pt1, shaft from pt1 to
+    pt2, then join pt2 and pt3 with a semicircle, pt2 to pt3 being the
+    diameter; letter D masked, on the shaft between pt1 and pt2" - the
+    maintainer's own instruction.
+    """
+
+    # Shaft running due east from PT1 to PT2, PT3 due north of PT2 -
+    # the template's own layout, mirrored so the arithmetic is easy.
+    _DELAY = "LineString(0 0, 10 0, 10 6)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    @staticmethod
+    def _evaluate(expression, wkt):
+
+        return QgsExpression(
+            "{}(geom_from_wkt('{}'))".format(expression, wkt)
+        ).evaluate()
+
+
+    def test_the_run_starts_at_pt1_and_ends_at_pt3(self):
+
+        run = self._evaluate("mct_delay_geometry", self._DELAY).asPolyline()
+
+        self.assertAlmostEqual(run[0].x(), 0.0, places=6)
+        self.assertAlmostEqual(run[0].y(), 0.0, places=6)
+
+        self.assertAlmostEqual(run[-1].x(), 10.0, places=6)
+        self.assertAlmostEqual(run[-1].y(), 6.0, places=6)
+
+
+    def test_the_arc_takes_pt2_to_pt3_as_its_diameter(self):
+
+        run = self._evaluate("mct_delay_geometry", self._DELAY).asPolyline()
+
+        # Everything past PT2 is the arc, and every point of it sits
+        # half a diameter from the diameter's own midpoint.
+        centre = (10.0, 3.0)
+
+        arc = [point for point in run if point.x() != 0.0 or point.y() != 0.0]
+
+        for point in arc[1:]:
+
+            self.assertAlmostEqual(
+                math.hypot(point.x() - centre[0], point.y() - centre[1]),
+                3.0,
+                places=6
+            )
+
+
+    def test_the_semicircle_bulges_away_from_pt1(self):
+
+        # A diameter admits two semicircles and PT3 alone cannot choose
+        # between them. The one that bulges back over the shaft would
+        # cross it, so it has to be the other.
+        run = self._evaluate("mct_delay_geometry", self._DELAY).asPolyline()
+
+        self.assertGreater(max(point.x() for point in run), 10.0)
+
+        # Mirroring PT3 to the other side mirrors the bulge with it,
+        # rather than pinning it to one side of the world.
+        mirrored = self._evaluate(
+            "mct_delay_geometry", "LineString(0 0, 10 0, 10 -6)"
+        ).asPolyline()
+
+        self.assertGreater(max(point.x() for point in mirrored), 10.0)
+
+        self.assertLess(min(point.y() for point in mirrored), 0.0)
+
+
+    def test_the_letter_sits_at_the_middle_of_the_shaft(self):
+
+        letter = self._evaluate(
+            "mct_delay_letter_point", self._DELAY
+        ).asPoint()
+
+        self.assertAlmostEqual(letter.x(), 5.0, places=6)
+        self.assertAlmostEqual(letter.y(), 0.0, places=6)
+
+
+    def test_the_gap_breaks_the_shaft_around_that_point(self):
+
+        # The gap is a PAGE width, converted through the scale into the
+        # map units the shaft is measured in - so this pins that it is
+        # real, positive and centred on the letter, not a figure in
+        # whatever units the geometry happens to be in.
+        parts = QgsExpression(
+            "mct_delay_geometry(geom_from_wkt('{}'), 2, 1000)".format(
+                self._DELAY
+            )
+        ).evaluate().asMultiPolyline()
+
+        self.assertEqual(len(parts), 2)
+
+        before = 5.0 - parts[0][-1].x()
+        after = parts[1][0].x() - 5.0
+
+        self.assertGreater(before, 0.0)
+
+        self.assertAlmostEqual(before, after, places=9)
+
+        # The arc still hangs off the second part - the break is in the
+        # shaft only, and the run past PT2 is continuous.
+        self.assertAlmostEqual(parts[1][-1].x(), 10.0, places=6)
+        self.assertAlmostEqual(parts[1][-1].y(), 6.0, places=6)
+
+
+    def test_the_arrowhead_rides_the_shaft_reversed_and_alone(self):
+
+        # One part, so one arrowhead - and it ends at PT1, so a marker
+        # on its last vertex points out of the symbol.
+        shaft = self._evaluate("mct_delay_shaft", self._DELAY).asPolyline()
+
+        self.assertEqual(len(shaft), 2)
+
+        self.assertAlmostEqual(shaft[0].x(), 10.0, places=6)
+        self.assertAlmostEqual(shaft[-1].x(), 0.0, places=6)
+
+
+    def test_degenerate_inputs_fall_through(self):
+
+        for wkt in (
+            "LineString(0 0, 10 0)",      # no PT3 at all
+            "LineString(0 0, 0 0, 5 5)",  # no shaft
+        ):
+            for function in ("mct_delay_geometry", "mct_delay_shaft",
+                             "mct_delay_letter_point"):
+
+                self.assertIsNotNone(self._evaluate(function, wkt))
+
+        # PT2 == PT3 leaves no diameter, so there is no arc to draw -
+        # but the shaft still has to appear rather than the whole
+        # symbol vanishing.
+        run = self._evaluate(
+            "mct_delay_geometry", "LineString(0 0, 10 0, 10 0)"
+        ).asPolyline()
+
+        self.assertEqual(len(run), 2)
+
+
+    def test_delay_draws_its_shaft_arc_and_head_and_carries_a_d(self):
+
+        layer = create_mission_task_lines_layer()
+
+        for child in layer.renderer().rootRule().children():
+
+            if child.filterExpression() != "\"measure_type\" = 'delay'":
+                continue
+
+            symbol = child.symbol()
+
+            expressions = [
+                symbol.symbolLayer(index).geometryExpression()
+                for index in range(symbol.symbolLayerCount())
+            ]
+
+            self.assertIn("mct_delay_shaft($geometry)", expressions)
+
+            self.assertTrue(
+                any(each.startswith("mct_delay_geometry($geometry")
+                    for each in expressions)
+            )
+
+            break
+
+        else:
+            self.fail("no renderer rule for delay")
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() != "delay":
+                continue
+
+            self.assertEqual(rule.settings().fieldName, "'D'")
+
+            self.assertEqual(
+                rule.settings().geometryGenerator,
+                "mct_delay_letter_point($geometry)"
+            )
+
+            return
+
+        self.fail("no labelling rule for delay")

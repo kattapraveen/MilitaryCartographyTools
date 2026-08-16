@@ -147,7 +147,6 @@ TABLE_H_XXIV_REMAINING = {
     "340500": "Clear",
     "340600": "Counterattack",
     "340700": "Counterattack by Fire",
-    "340800": "Delay",
     "341200": "Follow and Assume",
     "341300": "Follow and Support",
     "341900": "Relief in Place (RIP)",
@@ -226,6 +225,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "penetrate": "Penetrate",
     "seize": "Seize",
     "isolate": "Isolate",
+    "delay": "Delay",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -237,6 +237,7 @@ LINE_MEASURE_TYPE_CODES = {
     "penetrate": "341800",
     "seize": "342300",
     "isolate": "341500",
+    "delay": "340800",
 }
 
 
@@ -254,6 +255,7 @@ LINE_LETTERS = {
     "penetrate": "P",
     "seize": "S",
     "isolate": "I",
+    "delay": "D",
 }
 
 _LINE_WIDTH_MM = 0.4
@@ -392,6 +394,13 @@ def _line_geometry_expression(measure_type):
     # first build placed it clear of the line on a reading of the
     # template. Broken with line_substring() rather than inside
     # mct_turn_arc(), so Table H-XIX's own Turn is untouched.
+    # **Delay is its own construction**, the first line task here that
+    # borrows nothing: a straight shaft from PT1 to PT2 with the "D"
+    # set into it, carrying on into a 180-degree arc that takes PT2-PT3
+    # as its diameter.
+    if measure_type == "delay":
+        return f"mct_delay_geometry($geometry, {gap}, @map_scale)"
+
     if measure_type == "seize":
 
         curve = "mct_turn_arc($geometry)"
@@ -541,6 +550,17 @@ def _mission_task_line_symbol(measure_type):
     if measure_type == "isolate":
         symbol.appendSymbolLayer(
             _task_line_generator_layer("mct_isolate_teeth($geometry)")
+        )
+
+    # Rides the shaft run BACKWARDS, so the head lands on PT1 and
+    # points out of the symbol - "the arrow points in the direction of
+    # the action", and PT1 is where the action concludes.
+    if measure_type == "delay":
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                "mct_delay_shaft($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+            )
         )
 
     if measure_type == "occupy":
@@ -827,6 +847,9 @@ def _letter_point_expression(measure_type):
 
     if measure_type in ("secure", "occupy", "isolate"):
         return "mct_secure_letter_point($geometry)"
+
+    if measure_type == "delay":
+        return "mct_delay_letter_point($geometry)"
 
     # The middle of the curve, which is the middle of the gap the
     # curve carries. Not the circle: that holds a boxed Field A in the

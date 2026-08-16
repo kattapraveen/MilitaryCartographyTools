@@ -8598,6 +8598,51 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Delay (340800), the first mission task that borrows nothing (2026-08-16)
+
+The maintainer's own construction: "user clicks pt1, pt2 and pt3.
+arrowhead at pt1, shaft from pt1 to pt2, then join pt2 and pt3 with a
+semicircle, pt2 to pt3 being the diameter; letter D masked, on the
+shaft between pt1 and pt2".
+
+Every line task before this one was an existing construction reused -
+Retain three times over, Block twice, Turn, and H-XIX's own Fix and
+Disrupt. Delay is the first with no relative anywhere in the plugin, so
+`mct_delay_geometry()`, `mct_delay_shaft()` and
+`mct_delay_letter_point()` are all new.
+
+**PT2-PT3 is taken as the diameter exactly as clicked, and the
+standard says something slightly stronger.** Its draw rules end with
+"The 180 degree circular arc is always perpendicular to the line" -
+which would mean projecting PT3 onto the perpendicular through PT2 and
+drawing the arc somewhere other than where the user put the point. The
+instruction does not ask for that and it is not built; clicking PT3
+square to the shaft makes the two readings identical. Raised with the
+maintainer 2026-08-16 rather than decided here.
+
+**The one thing PT3 cannot settle on its own is which way the
+semicircle bulges** - a diameter admits two. It bulges AWAY FROM PT1,
+which is what the template draws and the only reading that keeps the
+arc off the shaft. Implemented by taking whichever of the two crowns
+lands further from PT1, so it follows PT3 to either side rather than
+being pinned to one side of the world.
+
+Two small things worth recording:
+
+- The arc carries on from PT2 with no break, so it belongs to the same
+  PART as the shaft's second half. One continuous run, not a shaft
+  plus a separate arc.
+- The arrowhead rides `mct_delay_shaft()`, which is the shaft run
+  BACKWARDS - PT2 to PT1 - so a marker on its last vertex sits at PT1
+  and points out of the symbol. It cannot ride the main geometry: that
+  is two parts once the "D" gap is cut, and a LastVertex marker would
+  drop a second arrowhead at PT3. The same trap Retain and Contain
+  both hit.
+
+1206 tests passing on both QGIS versions.
+
+---
+
 ### Isolate (341500), Secure with triangles on it (2026-08-16)
 
 The maintainer's own construction: "start with same construction rules
@@ -8997,13 +9042,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **17 symbols in 1 unit**, all of it construction rather than
+is **16 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 17 is
+areas were all built on 2026-08-14. Every one of the 16 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9017,7 +9062,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 17 | Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Follow and Assume, Follow and Support, Relief in Place, Retire, Security (+Cover/Guard/Screen), Withdraw (+Under Pressure) - 17 drawable symbols, plus the section parent row, which draws nothing. **Eight built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate. **Retire + Withdraw + Withdraw Under Pressure are the next quick win** - ONE construction with three letters. Nothing else left shares a shape with anything already built. |
+| 1 | H-XXIV Mission Tasks | 16 | Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Retire, Security (+Cover/Guard/Screen), Withdraw (+Under Pressure) - 16 drawable symbols, plus the section parent row, which draws nothing. **Nine built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay. **Retire + Withdraw + Withdraw Under Pressure are the next quick win** - ONE construction with three letters. Nothing else left shares a shape with anything already built. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

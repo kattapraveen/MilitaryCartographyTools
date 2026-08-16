@@ -1392,7 +1392,7 @@ emptied by these three.
   are the only three of Table H-XXIV's 29 mission tasks drawn as a
   single centred glyph on one anchor point; the other 26 are arrows,
   brackets and outlined regions built from two to fifty anchor points.
-  Eight of those are built, on their own **Mission Task Lines** layer
+  Nine of those are built, on their own **Mission Task Lines** layer
   described below.
 
 All three render through the same verified milsymbol library as the
@@ -1455,7 +1455,7 @@ apart on the map. And **Convoy** — moving or halted — is on the Supply
 Routes layer rather than a layer of its own: it is a route with a head
 at PT1 and a bar at the far end, so it belongs where the routes are.
 
-**Mission Task Lines** comes with the Mission Tasks menu entry — eight
+**Mission Task Lines** comes with the Mission Tasks menu entry — nine
 of Table H-XXIV's multi-anchor tasks, drawn with QGIS's own **Add Line
 Feature** tool. Each carries its own letter, set into a real gap cut in
 the shaft or arc it sits on rather than painted over it.
@@ -1492,13 +1492,22 @@ standard's own 30-degree opening. They are the same construction as
   itself is the base. They stand 45 degrees apart, starting 30 degrees
   from PT2 and stopping 30 degrees short of the arrowhead, each a third
   of the radius deep.
+**Delay** is the only one here that borrows nothing — three points,
+arrowhead at PT1, a straight shaft from PT1 to PT2 with letter **D**
+set into it, then a semicircle carrying on from PT2 round to PT3 with
+**PT2-PT3 as its diameter**. The semicircle always bulges away from
+PT1. The standard's own draw rules add that the arc is "always
+perpendicular to the line" — click PT3 square to the shaft and you get
+exactly that; click it at an angle and the arc follows your point
+rather than being straightened onto the perpendicular.
+
 **Seize** is the odd one out — three points, PT1 carrying a circle, a
 curve running PT1-PT2-PT3 that starts on that circle's perimeter rather
 than at its centre, an arrowhead at PT3 and letter **S** on the curve.
 It is **Turn**'s own curve from the Obstacles layer with the circle
 added.
 
-The remaining 18 rows of Table H-XXIV are not built — see
+The remaining 17 rows of Table H-XXIV are not built — see
 `military_symbology/mission_task_control_measures.py` for the full
 audit of what is left and why.
 

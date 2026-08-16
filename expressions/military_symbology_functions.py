@@ -4013,6 +4013,207 @@ def mct_isolate_teeth(values, feature=None, parent=None):
     return QgsGeometry.fromMultiPolylineXY(triangles)
 
 
+
+# --- Delay (Table H-XXIV, 340800) ---
+#
+# The maintainer's own construction: "user clicks pt1, pt2 and pt3.
+# arrowhead at pt1, shaft from pt1 to pt2, then join pt2 and pt3 with a
+# semicircle, pt2 to pt3 being the diameter; letter D masked, on the
+# shaft between pt1 and pt2".
+#
+# **PT2-PT3 is taken as the diameter exactly as clicked.** The
+# standard's own draw rules add one thing the instruction does not:
+# "The 180 degree circular arc is always perpendicular to the line".
+# Building that would mean projecting PT3 onto the perpendicular
+# through PT2 and moving the arc off the point the user put down, so it
+# is NOT done - click PT3 square to the shaft and the two readings
+# agree exactly. Flagged to the maintainer 2026-08-16.
+#
+# The one thing PT3 alone cannot settle is which way the semicircle
+# bulges: a diameter admits two. It bulges AWAY FROM PT1, which is what
+# the template draws and the only reading that keeps the arc clear of
+# the shaft.
+
+
+def _delay_frame(values):
+
+    """
+    (pt1, pt2, pt3) for Delay, or None when the geometry cannot carry
+    one - fewer than three vertices, or a zero-length shaft.
+    """
+
+    points = _three_anchor_points(values)
+
+    if points is None:
+        return None
+
+    pt1, pt2, pt3 = points
+
+    if math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y()) == 0:
+        return None
+
+    return pt1, pt2, pt3
+
+
+def _delay_semicircle(pt1, pt2, pt3):
+
+    """
+    The 180-degree arc from PT2 round to PT3, bulging away from PT1.
+
+    Empty when PT2 and PT3 coincide - there is no diameter then, and a
+    guessed one would put an arc somewhere the user never clicked.
+    """
+
+    dx, dy = pt3.x() - pt2.x(), pt3.y() - pt2.y()
+
+    diameter = math.hypot(dx, dy)
+
+    if diameter == 0:
+        return []
+
+    centre = QgsPointXY(
+        (pt2.x() + pt3.x()) / 2.0, (pt2.y() + pt3.y()) / 2.0
+    )
+
+    radius = diameter / 2.0
+
+    start = math.atan2(pt2.y() - centre.y(), pt2.x() - centre.x())
+
+    # The two ways a semicircle can sit on one diameter, a quarter turn
+    # either side of PT2. Take whichever crown lands further from PT1.
+    crowns = [
+        (sweep, _polar_point(centre, radius, start + sweep / 2.0))
+        for sweep in (math.pi, -math.pi)
+    ]
+
+    sweep = max(
+        crowns,
+        key=lambda crown: math.hypot(
+            crown[1].x() - pt1.x(), crown[1].y() - pt1.y()
+        )
+    )[0]
+
+    return _arc_points(
+        centre, radius, start, sweep, _ARC_SEGMENTS_PER_SEMICIRCLE
+    )
+
+
+@qgsfunction(
+    'mct_delay_geometry',
+    group='Military Cartography Tools'
+)
+def mct_delay_geometry(values, feature=None, parent=None):
+
+    """
+    Delay's whole run (340800) - the shaft from PT1 to PT2 and the
+    semicircle carrying on from PT2 round to PT3.
+
+    Optional `gap` (page millimetres) and `map_scale` cut a break in the
+    SHAFT for the "D", the same way every other letter on this layer is
+    set into its own geometry rather than masked.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _delay_frame(values)
+
+    if frame is None:
+        return values[0]
+
+    pt1, pt2, pt3 = frame
+
+    arc = _delay_semicircle(pt1, pt2, pt3)
+
+    midpoint = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+    )
+
+    gap_units = _page_gap_in_map_units(values, 1, midpoint)
+
+    shaft = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
+
+    # The arc carries on from PT2 without a break, so it belongs to the
+    # same part as the shaft's second half - one continuous run.
+    tail = [pt2] + arc[1:] if arc else [pt2]
+
+    if gap_units <= 0 or 2.0 * gap_units >= shaft:
+        return QgsGeometry.fromPolylineXY([pt1] + tail)
+
+    ux = (pt2.x() - pt1.x()) / shaft
+    uy = (pt2.y() - pt1.y()) / shaft
+
+    half = gap_units / 2.0
+
+    before = QgsPointXY(
+        midpoint.x() - half * ux, midpoint.y() - half * uy
+    )
+
+    after = QgsPointXY(
+        midpoint.x() + half * ux, midpoint.y() + half * uy
+    )
+
+    return QgsGeometry.fromMultiPolylineXY(
+        [[pt1, before], [after] + tail]
+    )
+
+
+@qgsfunction(
+    'mct_delay_shaft',
+    group='Military Cartography Tools'
+)
+def mct_delay_shaft(values, feature=None, parent=None):
+
+    """
+    Delay's shaft alone, run BACKWARDS - PT2 to PT1 - so an arrowhead
+    on its last vertex sits at PT1 and points out of the symbol.
+
+    It cannot ride on mct_delay_geometry(): that is two parts once the
+    "D" gap is cut into it, and a marker on the last vertex would land
+    on the end of each, dropping a second arrowhead at PT3.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _delay_frame(values)
+
+    if frame is None:
+        return values[0]
+
+    pt1, pt2, _pt3 = frame
+
+    return QgsGeometry.fromPolylineXY([pt2, pt1])
+
+
+@qgsfunction(
+    'mct_delay_letter_point',
+    group='Military Cartography Tools'
+)
+def mct_delay_letter_point(values, feature=None, parent=None):
+
+    """
+    The anchor for Delay's own "D" - the middle of the shaft, which is
+    the middle of the gap mct_delay_geometry() cuts for it.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _delay_frame(values)
+
+    if frame is None:
+        return values[0]
+
+    pt1, pt2, _pt3 = frame
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+        )
+    )
+
+
 # --- Weapon/Sensor Range Fan (Table H-XVIII, 242100 and 242200) ---
 #
 # **Two codes, one construction** - Circular (242100) is the Sector
@@ -6764,6 +6965,9 @@ _FUNCTIONS = [
     mct_radius_mm,
     mct_secure_letter_point,
     mct_isolate_teeth,
+    mct_delay_geometry,
+    mct_delay_shaft,
+    mct_delay_letter_point,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,
