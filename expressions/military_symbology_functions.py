@@ -4021,15 +4021,21 @@ def mct_isolate_teeth(values, feature=None, parent=None):
 # semicircle, pt2 to pt3 being the diameter; letter D masked, on the
 # shaft between pt1 and pt2".
 #
-# **PT2-PT3 is taken as the diameter exactly as clicked.** The
-# standard's own draw rules add one thing the instruction does not:
-# "The 180 degree circular arc is always perpendicular to the line".
-# Building that would mean projecting PT3 onto the perpendicular
-# through PT2 and moving the arc off the point the user put down, so it
-# is NOT done - click PT3 square to the shaft and the two readings
-# agree exactly. Flagged to the maintainer 2026-08-16.
+# **The arc is FORCED PERPENDICULAR to the shaft**, which is the
+# standard's own draw rule - "The 180 degree circular arc is always
+# perpendicular to the line" - and the maintainer's decision on
+# 2026-08-16 after it was raised. Built first taking PT2-PT3 as the
+# diameter exactly as clicked, which is what their construction said
+# and what a square click gives either way.
 #
-# The one thing PT3 alone cannot settle is which way the semicircle
+# So PT3 sets the diameter's LENGTH and its SIDE, not its direction:
+# the diameter is the PERPENDICULAR distance from PT3 to the infinite
+# line through PT1-PT2. That is the same projection mct_block_geometry,
+# mct_contain_arc and mct_trip_wire_geometry all use for a third point
+# that sets a depth, so a third point behaves the same way everywhere
+# in this module.
+#
+# The one thing PT3 cannot settle at all is which way the semicircle
 # bulges: a diameter admits two. It bulges AWAY FROM PT1, which is what
 # the template draws and the only reading that keeps the arc clear of
 # the shaft.
@@ -4058,21 +4064,36 @@ def _delay_frame(values):
 def _delay_semicircle(pt1, pt2, pt3):
 
     """
-    The 180-degree arc from PT2 round to PT3, bulging away from PT1.
+    The 180-degree arc leaving PT2 square to the shaft, bulging away
+    from PT1, its diameter PT3's own perpendicular distance from the
+    shaft's own infinite line.
 
-    Empty when PT2 and PT3 coincide - there is no diameter then, and a
-    guessed one would put an arc somewhere the user never clicked.
+    Empty when PT3 sits ON that line - there is no side to be on then,
+    and a guessed one would put an arc somewhere the user never
+    pointed.
     """
 
-    dx, dy = pt3.x() - pt2.x(), pt3.y() - pt2.y()
+    span = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
 
-    diameter = math.hypot(dx, dy)
+    if span == 0:
+        return []
+
+    ux, uy = (pt2.x() - pt1.x()) / span, (pt2.y() - pt1.y()) / span
+
+    to_pt3_x, to_pt3_y = pt3.x() - pt2.x(), pt3.y() - pt2.y()
+
+    along = to_pt3_x * ux + to_pt3_y * uy
+
+    perp_x = to_pt3_x - along * ux
+    perp_y = to_pt3_y - along * uy
+
+    diameter = math.hypot(perp_x, perp_y)
 
     if diameter == 0:
         return []
 
     centre = QgsPointXY(
-        (pt2.x() + pt3.x()) / 2.0, (pt2.y() + pt3.y()) / 2.0
+        pt2.x() + perp_x / 2.0, pt2.y() + perp_y / 2.0
     )
 
     radius = diameter / 2.0
@@ -4106,7 +4127,9 @@ def mct_delay_geometry(values, feature=None, parent=None):
 
     """
     Delay's whole run (340800) - the shaft from PT1 to PT2 and the
-    semicircle carrying on from PT2 round to PT3.
+    semicircle carrying on from PT2 round to PT3's own perpendicular
+    reflection across the shaft. Shared with Retire, Withdraw and
+    Withdraw Under Pressure, which differ only in their letter.
 
     Optional `gap` (page millimetres) and `map_scale` cut a break in the
     SHAFT for the "D", the same way every other letter on this layer is

@@ -610,7 +610,7 @@ class TestDelay(QgisTestCase):
         ).evaluate()
 
 
-    def test_the_run_starts_at_pt1_and_ends_at_pt3(self):
+    def test_the_run_starts_at_pt1_and_ends_square_to_the_shaft(self):
 
         run = self._evaluate("mct_delay_geometry", self._DELAY).asPolyline()
 
@@ -638,6 +638,44 @@ class TestDelay(QgisTestCase):
                 3.0,
                 places=6
             )
+
+
+    def test_a_skewed_pt3_is_straightened_onto_the_perpendicular(self):
+
+        # "The 180 degree circular arc is always perpendicular to the
+        # line" - the standard's own draw rule, and the maintainer's
+        # decision 2026-08-16. PT3 sets the diameter's LENGTH and its
+        # SIDE; the shaft sets its direction.
+        run = self._evaluate(
+            "mct_delay_geometry", "LineString(0 0, 10 0, 14 6)"
+        ).asPolyline()
+
+        # PT3 was clicked 4 units PAST PT2 and 6 above it. Only the 6
+        # counts, so the arc still ends straight above PT2.
+        self.assertAlmostEqual(run[-1].x(), 10.0, places=6)
+        self.assertAlmostEqual(run[-1].y(), 6.0, places=6)
+
+        # A square click is unchanged by the straightening - which is
+        # what makes this compatible with the first build.
+        square = self._evaluate("mct_delay_geometry", self._DELAY).asPolyline()
+
+        self.assertEqual(len(run), len(square))
+
+        for straightened, unchanged in zip(run, square):
+
+            self.assertAlmostEqual(straightened.x(), unchanged.x(), places=6)
+            self.assertAlmostEqual(straightened.y(), unchanged.y(), places=6)
+
+
+    def test_pt3_on_the_shafts_own_line_leaves_no_arc(self):
+
+        # No side to be on, so there is nothing to draw rather than a
+        # guess. The shaft still appears.
+        run = self._evaluate(
+            "mct_delay_geometry", "LineString(0 0, 10 0, 25 0)"
+        ).asPolyline()
+
+        self.assertEqual(len(run), 2)
 
 
     def test_the_semicircle_bulges_away_from_pt1(self):

@@ -1497,11 +1497,14 @@ are one shape with four letters — **D**, **R**, **W** and **WP** — and
 the standard's draw rules for the four are word for word each other's.
 Three points: arrowhead at PT1, a straight shaft from PT1 to PT2 with
 the letter set into it, then a semicircle carrying on from PT2 round to
-PT3 with **PT2-PT3 as its diameter**. The semicircle always bulges away
-from PT1. The standard adds that the arc is "always perpendicular to
-the line" — click PT3 square to the shaft and you get exactly that;
-click it at an angle and the arc follows your point rather than being
-straightened onto the perpendicular.
+PT3.
+
+**The arc always leaves PT2 square to the shaft**, which is the
+standard's own rule. So PT3 sets how big the arc is and which side of
+the shaft it falls on, but not which way it points — click PT3 at an
+angle and only its distance across the shaft counts. The semicircle
+always bulges away from PT1. Click PT3 on the shaft's own line and no
+arc is drawn at all, since there is no side for it to be on.
 
 **Seize** is the odd one out — three points, PT1 carrying a circle, a
 curve running PT1-PT2-PT3 that starts on that circle's perimeter rather

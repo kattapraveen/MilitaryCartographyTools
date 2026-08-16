@@ -8598,6 +8598,35 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### The Delay arc is forced perpendicular (2026-08-16)
+
+Raised when Delay shipped, answered the same day: "yes, force the arc
+perpendicular for all four". So the standard's own draw rule now holds
+- "The 180 degree circular arc is always perpendicular to the line" -
+across Delay, Retire, Withdraw and Withdraw Under Pressure at once,
+which is what building them as one construction bought.
+
+**PT3 now sets the diameter's LENGTH and its SIDE, not its
+direction.** The diameter is PT3's perpendicular distance from the
+infinite line through PT1-PT2; the shaft sets which way it points.
+Click PT3 square to the shaft and nothing changes at all, which is why
+this could be taken without invalidating anything already drawn.
+
+Worth recording that this makes a third anchor point behave the SAME
+WAY everywhere in the module. `mct_block_geometry`, `mct_contain_arc`
+and `mct_trip_wire_geometry` already projected their own PT3 onto a
+perpendicular; Delay was the odd one out, and the standard and the
+codebase turned out to want the same thing.
+
+The degenerate case moved with it: it used to be "PT2 and PT3
+coincide", and it is now "PT3 sits on the shaft's own line" - there is
+no side to be on, so no arc is drawn rather than one being guessed.
+The shaft, its letter and its arrowhead all still appear.
+
+1212 tests passing on both QGIS versions.
+
+---
+
 ### Retire, Withdraw and Withdraw Under Pressure: Delay four times over (2026-08-16)
 
 "Retire, Withdraw, withdraw under pressure - all same as delay; only
@@ -8644,14 +8673,12 @@ Disrupt. Delay is the first with no relative anywhere in the plugin, so
 `mct_delay_geometry()`, `mct_delay_shaft()` and
 `mct_delay_letter_point()` are all new.
 
-**PT2-PT3 is taken as the diameter exactly as clicked, and the
-standard says something slightly stronger.** Its draw rules end with
-"The 180 degree circular arc is always perpendicular to the line" -
-which would mean projecting PT3 onto the perpendicular through PT2 and
-drawing the arc somewhere other than where the user put the point. The
-instruction does not ask for that and it is not built; clicking PT3
-square to the shaft makes the two readings identical. Raised with the
-maintainer 2026-08-16 rather than decided here.
+**PT2-PT3 was taken as the diameter exactly as clicked** in this first
+build, which is what the instruction said. The standard says something
+slightly stronger - "The 180 degree circular arc is always
+perpendicular to the line" - so it was raised with the maintainer
+rather than decided here, and they took it: see the entry above, which
+supersedes this paragraph.
 
 **The one thing PT3 cannot settle on its own is which way the
 semicircle bulges** - a diameter admits two. It bulges AWAY FROM PT1,
