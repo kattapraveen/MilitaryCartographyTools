@@ -16,6 +16,7 @@ import re
 from qgis.PyQt.QtCore import Qt
 
 from qgis.core import (Qgis, QgsCoordinateReferenceSystem, QgsExpression,
+                       QgsPalLayerSettings,
                        QgsExpressionContext, QgsFeature, QgsProject,
                        QgsSymbolLayer)
 
@@ -41,6 +42,10 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     create_mission_task_points_layer,
 )
 from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
+from MilitaryCartographyTools.military_symbology.supply_points import (
+    CONVOY_BODY_HEIGHT_MM,
+    CONVOY_HEAD_LENGTH_MM,
+)
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
@@ -70,11 +75,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 22 line tasks + 4 still unbuilt = the table's own
+        # 3 points + 23 line tasks + 3 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 4)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 3)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -2359,3 +2364,174 @@ class TestFollowTasks(QgisTestCase):
             self.assertNotIn(measure_type, LINE_LETTERS)
 
             self.assertNotIn(measure_type, LABELLED_MEASURE_TYPES)
+
+
+class TestCounterattack(QgisTestCase):
+
+    """
+    Counterattack (340600) - the Moving Convoy's arrow, dashed, run
+    backwards so its head lands on PT1.
+
+    "let's start with moving convoy 330100 as template; user click
+    three points - pt1,2,3; draw an arrow of same dimensions as moving
+    convoy, but with dashed line; starting at pt3 with arrow head tip
+    at pt1; put text CATK - same rules for text as RIP" - the
+    maintainer's own instruction.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _inner(self):
+
+        # Held on the instance, not a local: let the layer fall out of
+        # scope here and Python frees it, taking the renderer's C++
+        # objects with it - "wrapped C/C++ object has been deleted" on
+        # the very next line. The same ownership trap this project has
+        # hit through by-value accessors.
+        self.layer = create_mission_task_lines_layer()
+
+        layer = self.layer
+
+        for rule in layer.renderer().rootRule().children():
+
+            if rule.filterExpression() == "\"measure_type\" = 'counterattack'":
+
+                generator = rule.symbol().symbolLayer(0)
+
+                self.assertEqual(
+                    generator.geometryExpression(), "reverse($geometry)"
+                )
+
+                return generator.subSymbol()
+
+        self.fail("no renderer rule for counterattack")
+
+
+    def test_it_is_drawn_on_the_reversed_line_so_the_head_lands_on_pt1(self):
+
+        # The convoy's own head sits on its LAST vertex; this one has to
+        # sit on PT1, the first click. Reversing the geometry is what
+        # lets every convoy setting carry over untouched instead of
+        # being re-derived with the signs flipped.
+        inner = self._inner()
+
+        self.assertEqual(inner.symbolLayerCount(), 4)
+
+
+    def test_the_rails_are_the_convoys_own_dimensions(self):
+
+        inner = self._inner()
+
+        offsets = sorted(
+            inner.symbolLayer(index).offset() for index in (0, 1)
+        )
+
+        self.assertEqual(
+            offsets,
+            [-CONVOY_BODY_HEIGHT_MM / 2.0, CONVOY_BODY_HEIGHT_MM / 2.0]
+        )
+
+        for index in (0, 1):
+
+            self.assertAlmostEqual(
+                inner.symbolLayer(index).trimDistanceEnd(),
+                CONVOY_HEAD_LENGTH_MM,
+                places=9
+            )
+
+
+    def test_the_rails_are_dashed_whatever_the_status(self):
+
+        # Its own note: "The dashed lines in this graphic shall be
+        # displayed in present and anticipated status".
+        inner = self._inner()
+
+        for index in (0, 1):
+
+            rail = inner.symbolLayer(index)
+
+            self.assertEqual(rail.penStyle(), Qt.PenStyle.DashLine)
+
+            self.assertFalse(
+                rail.dataDefinedProperties().isActive(
+                    QgsSymbolLayer.Property.StrokeStyle
+                )
+            )
+
+
+    def test_it_writes_catk_sized_to_its_own_arrow(self):
+
+        layer = create_mission_task_lines_layer()
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() != "counterattack":
+                continue
+
+            settings = rule.settings()
+
+            self.assertEqual(settings.fieldName, "'CATK'")
+
+            self.assertTrue(
+                settings.dataDefinedProperties().isActive(
+                    QgsPalLayerSettings.Property.Size
+                )
+            )
+
+            return
+
+        self.fail("no labelling rule for counterattack")
+
+
+    def test_the_text_grows_with_the_arrow_and_stops_at_the_bar(self):
+
+        def size(wkt, scale):
+
+            return QgsExpression(
+                "mct_counterattack_text_size(geom_from_wkt('{}'),"
+                " make_rectangle_3points(make_point(0, 0), make_point(1, 0),"
+                " make_point(1, 1)), {}, 6, 24)".format(wkt, scale)
+            ).evaluate()
+
+        short = size("LineString(0 0, 0.02 0, 0.03 0)", 500000)
+
+        long = size("LineString(0 0, 0.2 0, 0.4 0)", 500000)
+
+        self.assertGreater(short, 0.0)
+
+        self.assertLess(short, long)
+
+        # **The bar, not the 24 pt cap, is what actually stops it** -
+        # the arrow's height is a fixed page size, so the cap never
+        # binds in practice. Worth pinning so a later change to the bar
+        # cannot silently change the text.
+        self.assertLess(long, 24.0)
+
+        self.assertAlmostEqual(long, 0.62 * 6.0 * 72.0 / 25.4, places=9)
+
+
+    def test_degenerate_input_writes_nothing(self):
+
+        self.assertEqual(
+            QgsExpression(
+                "mct_counterattack_text_size(geom_from_wkt("
+                "'LineString(0 0, 0 0)'), make_rectangle_3points("
+                "make_point(0, 0), make_point(1, 0), make_point(1, 1)),"
+                " 500000, 6, 24)"
+            ).evaluate(),
+            0.0
+        )

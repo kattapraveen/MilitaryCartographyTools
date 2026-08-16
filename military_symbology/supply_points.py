@@ -719,16 +719,21 @@ _CONVOY_END_MODES = {
     "halted_convoy": "halted",
 }
 
+# **Public, because Table H-XXIV's own Counterattack borrows them.**
+# The maintainer's instruction there was "draw an arrow of same
+# dimensions as moving convoy", and a shared name is what makes that
+# true rather than a coincidence that drifts.
+#
 # **Both numbers are mine, not the standard's**, which gives neither -
 # it draws the bar and the head to no stated proportion. Sized so one
 # line of the shared 9 pt label sits inside the bar with room to spare,
 # and so the head reads as a head rather than a spike. Single constants
 # precisely because they are the kind of thing a smoke test moves.
-_CONVOY_BODY_HEIGHT_MM = 6.0
-_CONVOY_HEAD_LENGTH_MM = 6.0
+CONVOY_BODY_HEIGHT_MM = 6.0
+CONVOY_HEAD_LENGTH_MM = 6.0
 
 # Where the W - W1 pair sits, below the bar.
-_CONVOY_DTG_OFFSET_MM = _CONVOY_BODY_HEIGHT_MM / 2.0 + 2.6
+_CONVOY_DTG_OFFSET_MM = CONVOY_BODY_HEIGHT_MM / 2.0 + 2.6
 
 # **QGIS sizes an SVG marker by its WIDTH**, and the rear bar's own SVG
 # is a thin, tall stroke - 10 units wide against 110 tall, its stroke
@@ -736,7 +741,7 @@ _CONVOY_DTG_OFFSET_MM = _CONVOY_BODY_HEIGHT_MM / 2.0 + 2.6
 # the bar exactly the BODY's height is that ratio of it, not the height
 # itself. Sized as the height directly, it drew at a ninth of the bar it
 # was meant to close.
-_CONVOY_REAR_BAR_WIDTH_MM = _CONVOY_BODY_HEIGHT_MM * 10.0 / 110.0
+CONVOY_REAR_BAR_WIDTH_MM = CONVOY_BODY_HEIGHT_MM * 10.0 / 110.0
 
 
 def _convoy_body_layer(measure_type, side):
@@ -767,11 +772,11 @@ def _convoy_body_layer(measure_type, side):
         QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
     )
 
-    line_layer.setOffset(side * _CONVOY_BODY_HEIGHT_MM / 2.0)
+    line_layer.setOffset(side * CONVOY_BODY_HEIGHT_MM / 2.0)
 
     line_layer.setOffsetUnit(Qgis.RenderUnit.Millimeters)
 
-    line_layer.setTrimDistanceEnd(_CONVOY_HEAD_LENGTH_MM)
+    line_layer.setTrimDistanceEnd(CONVOY_HEAD_LENGTH_MM)
 
     line_layer.setTrimDistanceEndUnit(Qgis.RenderUnit.Millimeters)
 
@@ -800,7 +805,7 @@ def _convoy_end_layer(mode, placement, length_mm):
                 mode=mode,
                 length=(
                     1.0 if mode == "rear"
-                    else length_mm / _CONVOY_BODY_HEIGHT_MM
+                    else length_mm / CONVOY_BODY_HEIGHT_MM
                 ),
                 colour=_ROUTE_GLYPH_COLOR_EXPRESSION,
             )
@@ -844,7 +849,7 @@ def _convoy_symbol(measure_type):
         _convoy_end_layer(
             "rear",
             Qgis.MarkerLinePlacement.FirstVertex,
-            _CONVOY_REAR_BAR_WIDTH_MM,
+            CONVOY_REAR_BAR_WIDTH_MM,
         )
     )
 
@@ -852,7 +857,7 @@ def _convoy_symbol(measure_type):
         _convoy_end_layer(
             _CONVOY_END_MODES[measure_type],
             Qgis.MarkerLinePlacement.LastVertex,
-            _CONVOY_HEAD_LENGTH_MM,
+            CONVOY_HEAD_LENGTH_MM,
         )
     )
 

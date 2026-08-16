@@ -8598,6 +8598,58 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Counterattack (340600), the Moving Convoy's arrow dashed (2026-08-16)
+
+"let's start with moving convoy 330100 as template; user click three
+points - pt1,2,3; draw an arrow of same dimensions as moving convoy,
+but with dashed line; starting at pt3 with arrow head tip at pt1; put
+text CATK - same rules for text as RIP" - the maintainer's own
+instruction, and a deliberate simplification: the standard's own
+Counterattack is a broad hollow arrow taking between 3 and 50 anchor
+points.
+
+**The head is at PT1, the FIRST click - the opposite end from the
+convoy, whose head sits on its last vertex** (probed rather than
+assumed; the convoy's own docstring numbers its points the standard's
+way, not the click order's). So the whole symbol rides one geometry
+generator over `reverse($geometry)`. Reversed, the feature is exactly
+the shape a convoy expects - rear first, tip last - and every one of
+its offsets, trims and placements carries over untouched instead of
+being re-derived with the signs flipped. That is the point of doing it
+this way rather than moving the head to the first vertex.
+
+**"Same dimensions" is now enforced by a shared name.**
+`_CONVOY_BODY_HEIGHT_MM`, `_CONVOY_HEAD_LENGTH_MM` and
+`_CONVOY_REAR_BAR_WIDTH_MM` lost their underscores and are imported
+from `supply_points`, so a change to the convoy moves this too rather
+than the two drifting apart. The head is drawn by
+`mct_convoy_end_svg('moving', ...)` - the convoy's own glyph, not a
+copy of it.
+
+**The dashes are the symbol, not its status**, per its own note - the
+same clause Follow and Assume carries, and the same `always_dashed`
+flag.
+
+Two things worth flagging rather than burying:
+
+- **The head cannot be dashed.** It is an SVG glyph and an SVG has no
+  pen style, so it draws solid where the standard's picture dashes it.
+- **The 24 pt cap on "CATK" never binds.** Sized "same rules as RIP" -
+  both dimensions, smallest winning - but this arrow's height is the
+  convoy's own bar, a FIXED page size, so the height constraint settles
+  it at about 10.5 pt on anything but a very short arrow. Pinned by a
+  test so a later change to the bar cannot silently move the text.
+
+CATK sits at the path's midpoint, upright rather than following the
+line - the convoy's own placement, and for its own stated reason: a
+symbol drawn right to left would otherwise read upside down. On a
+sharply bent arrow that midpoint IS the bend, which is where the text
+lands.
+
+1274 tests passing on both QGIS versions.
+
+---
+
 ### Follow and Assume (341200) and Follow and Support (341300) (2026-08-16)
 
 Built from the standard alone - "follow the manual, i will give
@@ -9394,13 +9446,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **2 symbols in 1 unit**, all of it construction rather than
+is **1 symbol in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Both of the 2 are
+areas were all built on 2026-08-14. The one that is left is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9414,7 +9466,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 2 | **Counterattack and Counterattack by Fire** - and that is the whole of Appendix H's remainder. Two more rows are recorded but will never be built: 340000, the table's own section parent, and 342200, the Security group parent; both read "N/A" for TEMPLATE and EXAMPLE. **Twenty-two built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Cover, Guard, Screen, Follow and Assume, Follow and Support. |
+| 1 | H-XXIV Mission Tasks | 1 | **Counterattack by Fire** - the last symbol in the whole of Appendix H. Two more rows are recorded but will never be built: 340000, the table's own section parent, and 342200, the Security group parent; both read "N/A" for TEMPLATE and EXAMPLE. **Twenty-three built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Cover, Guard, Screen, Follow and Assume, Follow and Support, Counterattack. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

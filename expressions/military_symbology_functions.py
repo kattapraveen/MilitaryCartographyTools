@@ -4236,6 +4236,80 @@ def mct_relief_in_place_text_size(values, feature=None, parent=None):
     return max(size_mm, 0.0) * 72.0 / 25.4
 
 
+# --- Counterattack (Table H-XXIV, 340600) ---
+#
+# **"CATK" is sized like "RIP"**, at the maintainer's own instruction:
+# "put text CATK - same rules for text as RIP". Both of the arrow's
+# dimensions bind, smallest winning, capped.
+#
+# The difference is which dimensions those are. Relief in Place encloses
+# a shape whose height the user sets; this arrow's height is the moving
+# convoy's own bar, a FIXED page size, so the height constraint here is
+# effectively a constant and it is the LENGTH that varies. In practice
+# that means the bar keeps the text well under the cap - worth knowing
+# before wondering why 24 pt never appears.
+_CATK_TEXT = "CATK"
+
+# How much of the bar's height the text takes. Larger than Relief in
+# Place's own fraction because this text sits INSIDE a bar rather than
+# in open paper between two arrows - the same place, and close to the
+# same size, as the moving convoy's own Field V/H label.
+_CATK_TEXT_HEIGHT_FRACTION = 0.62
+
+_CATK_TEXT_WIDTH_FRACTION = 0.60
+
+
+@qgsfunction(
+    'mct_counterattack_text_size',
+    group='Military Cartography Tools'
+)
+def mct_counterattack_text_size(values, feature=None, parent=None):
+
+    """
+    What point size Counterattack's own "CATK" should draw at to fit
+    inside its arrow, never more than `maximum_points`.
+
+    Use as mct_counterattack_text_size($geometry, @map_extent,
+    @map_scale, <bar height in mm>, 24). The bar height is passed in
+    rather than restated here, so it can only ever be the moving
+    convoy's own.
+    """
+
+    if len(values) < 5:
+        return 0.0
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return 0.0
+
+    try:
+        bar_height_mm = float(values[3])
+        maximum_points = float(values[4])
+    except (TypeError, ValueError):
+        return 0.0
+
+    millimetres_per_unit = _map_millimetres_per_unit(values[1], values[2])
+
+    if millimetres_per_unit <= 0 or bar_height_mm <= 0:
+        return 0.0
+
+    length_mm = geometry.length() * millimetres_per_unit
+
+    width_per_mm = _text_width_mm(_CATK_TEXT, 1.0)
+
+    if width_per_mm <= 0 or length_mm <= 0:
+        return 0.0
+
+    size_mm = min(
+        _CATK_TEXT_HEIGHT_FRACTION * bar_height_mm,
+        _CATK_TEXT_WIDTH_FRACTION * length_mm / width_per_mm,
+        maximum_points * 25.4 / 72.0,
+    )
+
+    return max(size_mm, 0.0) * 72.0 / 25.4
+
+
 @qgsfunction(
     'mct_relief_in_place_return_arrow',
     group='Military Cartography Tools'
@@ -7975,6 +8049,7 @@ _FUNCTIONS = [
     mct_relief_in_place_return_arrow,
     mct_relief_in_place_text_point,
     mct_relief_in_place_text_size,
+    mct_counterattack_text_size,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,
