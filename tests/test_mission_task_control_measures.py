@@ -16,7 +16,7 @@ import re
 from qgis.PyQt.QtCore import Qt
 
 from qgis.core import (Qgis, QgsCoordinateReferenceSystem, QgsExpression,
-                       QgsPalLayerSettings,
+                       QgsGeometry, QgsPalLayerSettings,
                        QgsExpressionContext, QgsFeature, QgsProject,
                        QgsSymbolLayer)
 
@@ -2703,11 +2703,15 @@ class TestCounterattackByFireAndTheDashedHead(QgisTestCase):
         # would write CATK upside down; folded, it is the same as east.
         self.assertAlmostEqual(angle("LineString(0 0, 1 0)"), 0.0, places=9)
 
-        # A shallow climb either way keeps its own slope.
-        self.assertAlmostEqual(angle("LineString(1 1, 0 0)"), 45.0, places=9)
+        # **CLOCKWISE, which is what QGIS's label rotation takes.** A
+        # head climbing north-east tilts the text UP the page, and that
+        # is a NEGATIVE rotation in QGIS's own sense. The first build
+        # had this the other way round and drew every label mirrored
+        # about the horizontal.
+        self.assertAlmostEqual(angle("LineString(1 1, 0 0)"), -45.0, places=9)
 
         self.assertAlmostEqual(
-            angle("LineString(0 0, 1 1)"), 45.0, places=9
+            angle("LineString(0 0, 1 1)"), -45.0, places=9
         )
 
         # Every direction of the compass stays legible.
@@ -2721,9 +2725,44 @@ class TestCounterattackByFireAndTheDashedHead(QgisTestCase):
                 )
             )
 
-            self.assertGreater(result, -90.0)
+            self.assertGreaterEqual(result, -90.0)
 
-            self.assertLessEqual(result, 90.0)
+            self.assertLess(result, 90.0)
+
+
+    def test_which_end_of_catk_lands_at_the_arrowhead(self):
+
+        # The maintainer's own restatement of what "upright" means:
+        # "left to right K is near the arrowhead, right to left C is
+        # near the arrowhead". Both follow from the text always reading
+        # left to right on the page, which is what the fold guarantees.
+        def reads_towards_the_head(wkt):
+
+            geometry = QgsGeometry.fromWkt(wkt)
+
+            tip = geometry.asPolyline()[0]
+
+            behind = geometry.asPolyline()[1]
+
+            rotation = QgsExpression(
+                "mct_counterattack_text_angle(geom_from_wkt('{}'))".format(wkt)
+            ).evaluate()
+
+            # The direction the text runs, C towards K, on the page.
+            reading = math.radians(-rotation)
+
+            return (
+                math.cos(reading) * (tip.x() - behind.x())
+                + math.sin(reading) * (tip.y() - behind.y())
+            ) > 0
+
+        # Pointing east: the text runs the same way the arrow does, so
+        # K - its last letter - is the one at the head.
+        self.assertTrue(reads_towards_the_head("LineString(1 0, 0 0)"))
+
+        # Pointing west: the text still runs east, which is now AWAY
+        # from the head, so C is the letter that lands there.
+        self.assertFalse(reads_towards_the_head("LineString(0 0, 1 0)"))
 
 
     def test_the_angle_is_wired_onto_both_counterattack_labels(self):
@@ -2763,18 +2802,52 @@ class TestCounterattackByFireAndTheDashedHead(QgisTestCase):
         )
 
 
-    def test_the_bracket_stands_clear_beyond_pt1(self):
+    def test_the_bracket_wraps_the_arrowhead_rather_than_barring_it(self):
 
+        # It was a bar across the axis first, and a filled triangle
+        # sitting on a bar reads as a flag on a pole - which is what
+        # the maintainer sent back. The standard's own example draws an
+        # open bracket whose arms sweep BACK past the tip.
         bracket = QgsExpression(
             "mct_counterattack_by_fire_bracket(geom_from_wkt('{}'),"
             " 20000, 6)".format(self._CATK)
         ).evaluate().asPolyline()
 
-        self.assertEqual(len(bracket), 2)
+        self.assertEqual(len(bracket), 4)
 
-        for point in bracket:
+        # Its straight run stands clear of the tip...
+        for point in bracket[1:3]:
 
             self.assertGreater(point.x(), 0.05)
+
+        # ...and its two arms reach back behind it, and wider.
+        for point in (bracket[0], bracket[-1]):
+
+            self.assertLess(point.x(), 0.05)
+
+            self.assertGreater(abs(point.y()), abs(bracket[1].y()))
+
+
+    def test_the_bracket_spans_the_head_it_wraps(self):
+
+        # Same reach as the head's own flare, by construction rather
+        # than by coincidence.
+        bracket = QgsExpression(
+            "mct_counterattack_by_fire_bracket(geom_from_wkt('{}'),"
+            " 20000, 6)".format(self._CATK)
+        ).evaluate().asPolyline()
+
+        head = QgsExpression(
+            "mct_counterattack_head(geom_from_wkt('{}'), 20000, 6, 6)".format(
+                self._CATK
+            )
+        ).evaluate().asPolyline()
+
+        self.assertAlmostEqual(
+            abs(bracket[1].y()),
+            max(abs(point.y()) for point in head),
+            places=9
+        )
 
 
     def test_the_by_fire_arrow_is_filled_and_points_on_past_the_bracket(self):
@@ -2794,6 +2867,16 @@ class TestCounterattackByFireAndTheDashedHead(QgisTestCase):
         # Its tip is the furthest thing forward in the whole symbol.
         self.assertGreater(
             arrow.boundingBox().xMaximum(), bracket.boundingBox().xMaximum()
+        )
+
+        # **It has a stem**, which is what stops it reading as a flag
+        # on a pole: a bare triangle would be three corners, and this
+        # has the four more that make the shaft.
+        self.assertEqual(len(arrow.asPolygon()[0]), 8)
+
+        # And it stands clear of the bracket rather than against it.
+        self.assertGreater(
+            arrow.boundingBox().xMinimum(), bracket.boundingBox().xMaximum()
         )
 
 

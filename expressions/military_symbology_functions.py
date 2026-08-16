@@ -4329,18 +4329,34 @@ def mct_counterattack_text_size(values, feature=None, parent=None):
 # agree, so the link is checked rather than merely claimed.
 _CATK_HEAD_FLARE_RATIO = 0.40
 
-# Counterattack by Fire's own extra piece, beyond the tip: a bracket
-# across the axis and a small solid arrow through it, pointing on.
+# Counterattack by Fire's own extra piece, beyond the tip.
 #
-# **Every one of these three numbers is mine.** The standard draws the
-# piece in both its template and its example but gives no dimension for
-# any of it, and the maintainer took the proposal as offered rather
-# than dictating their own: the bracket is the arrow's own bar height,
-# standing a short way clear of the tip, with an arrow two thirds of
-# that long.
-_CATK_BY_FIRE_STANDOFF_MM = 4.0
-_CATK_BY_FIRE_ARROW_LENGTH_MM = 4.0
-_CATK_BY_FIRE_ARROW_WIDTH_MM = 3.0
+# **It is a bracket that WRAPS the arrowhead, not a bar across the
+# axis.** Built as a bar first, from a proposal made without looking
+# closely enough at the standard, and the maintainer was right to
+# reject it: "why is there a flag after the arrow head". A short bar
+# with a filled triangle sitting on it reads as a pennant, which is
+# not what the page shows and not what the symbol means.
+#
+# Measured off the example on printed page 640 at 600 dpi. The bracket
+# is an open "]" - an arm sweeping in from beyond the head, a straight
+# run down past it, and an arm sweeping back out - standing a little
+# clear of the tip, with its straight run spanning the head's own
+# flare. Then a gap, then a small SOLID arrow with a stem, pointing on
+# past it.
+#
+# The figures are millimetres, scaled from the example by its own bar
+# height. Only the arrow's own proportions are a judgement call; the
+# bracket's come straight off the page.
+_CATK_BY_FIRE_STANDOFF_MM = 3.0
+_CATK_BY_FIRE_ARM_BACK_MM = 4.5
+_CATK_BY_FIRE_ARM_OUT_MM = 3.0
+
+_CATK_BY_FIRE_ARROW_GAP_MM = 1.0
+_CATK_BY_FIRE_ARROW_STEM_MM = 1.6
+_CATK_BY_FIRE_ARROW_HEAD_MM = 2.0
+_CATK_BY_FIRE_ARROW_HALF_WIDTH_MM = 1.0
+_CATK_BY_FIRE_ARROW_STEM_HALF_MM = 0.25
 
 
 def _counterattack_frame(values):
@@ -4519,15 +4535,18 @@ def mct_counterattack_text_angle(values, feature=None, parent=None):
     What angle "CATK" should be written at - along the arrow, but never
     upside down.
 
-    "align CATK text with the arrowhead, in case drawn inverted as you
-    say right to left, include a logic to keep the text straight" - the
-    maintainer's own instruction. So the angle is the arrowhead's own
-    direction, folded into the half turn that reads left to right: an
-    arrow drawn east to west writes its text the same way up as one
-    drawn west to east, just mirrored about the vertical.
+    "align CATK text with the arrowhead... left to right K is near the
+    arrowhead, right to left C is near the arrowhead" - the
+    maintainer's own instruction, restated by them after a first build
+    got it wrong. That is exactly the half turn that reads left to
+    right on the page, so the angle is the arrowhead's own direction
+    folded into it: an arrow pointing anywhere in the eastern half
+    writes CATK towards its head, and one pointing west writes it away
+    from its head, which puts C at the head instead.
 
-    Degrees counter-clockwise from east, which is what QGIS's own label
-    rotation takes.
+    **Degrees CLOCKWISE from east, which is what QGIS's own label
+    rotation takes** - established by render after the first build
+    negated it and drew every label mirrored about the horizontal.
     """
 
     frame = _counterattack_frame(values + [1.0])
@@ -4537,14 +4556,14 @@ def mct_counterattack_text_angle(values, feature=None, parent=None):
 
     _tip, along, _across, _millimetre = frame
 
-    angle = math.degrees(math.atan2(along[1], along[0]))
+    angle = -math.degrees(math.atan2(along[1], along[0]))
 
-    # Fold into (-90, 90]. Past a quarter turn either way the text would
+    # Fold into [-90, 90). Past a quarter turn either way the text would
     # be standing on its head, and half a turn back reads the same.
-    while angle > 90.0:
+    while angle >= 90.0:
         angle -= 180.0
 
-    while angle <= -90.0:
+    while angle < -90.0:
         angle += 180.0
 
     return angle
@@ -4557,11 +4576,13 @@ def mct_counterattack_text_angle(values, feature=None, parent=None):
 def mct_counterattack_by_fire_bracket(values, feature=None, parent=None):
 
     """
-    Counterattack by Fire's own bracket (340700) - a bar across the
-    axis, standing clear beyond PT1.
+    Counterattack by Fire's own bracket (340700) - an open bracket
+    WRAPPING the arrowhead, standing a little clear of its tip.
 
     Use as mct_counterattack_by_fire_bracket($geometry, @map_scale,
-    <body height in mm>).
+    <body height in mm>). Its straight run spans the head's own flare,
+    so the two are the same size by construction rather than by
+    coincidence, and its arms sweep back past the tip on either side.
     """
 
     if len(values) < 3:
@@ -4577,12 +4598,21 @@ def mct_counterattack_by_fire_bracket(values, feature=None, parent=None):
     except (TypeError, ValueError):
         return QgsGeometry()
 
-    half = body_mm / 2.0
+    # The head's own outermost reach - see mct_counterattack_head().
+    flare = body_mm / 2.0 + _CATK_HEAD_FLARE_RATIO * body_mm
+
+    stand = _CATK_BY_FIRE_STANDOFF_MM
+
+    arm = stand - _CATK_BY_FIRE_ARM_BACK_MM
+
+    spread = flare + _CATK_BY_FIRE_ARM_OUT_MM
 
     return QgsGeometry.fromPolylineXY(
         [
-            _counterattack_offset(frame, _CATK_BY_FIRE_STANDOFF_MM, -half),
-            _counterattack_offset(frame, _CATK_BY_FIRE_STANDOFF_MM, half),
+            _counterattack_offset(frame, arm, spread),
+            _counterattack_offset(frame, stand, flare),
+            _counterattack_offset(frame, stand, -flare),
+            _counterattack_offset(frame, arm, -spread),
         ]
     )
 
@@ -4594,12 +4624,17 @@ def mct_counterattack_by_fire_bracket(values, feature=None, parent=None):
 def mct_counterattack_by_fire_arrow(values, feature=None, parent=None):
 
     """
-    The small SOLID arrow through Counterattack by Fire's bracket,
-    pointing on past it.
+    The small SOLID arrow past Counterattack by Fire's bracket.
 
-    Filled, unlike everything else in this symbol, because the
-    standard's own template and example both draw it filled - the one
-    part of the graphic its "dashed lines" note does not cover.
+    **A stem and a head, not a bare triangle.** A triangle sitting
+    against the bracket reads as a flag on a pole - which is exactly
+    what the first build drew, and what the maintainer sent back. The
+    standard's own example gives it a clear stem, and that is what
+    makes it read as an arrow.
+
+    Filled, unlike everything else in this symbol, because both of the
+    standard's pictures draw it filled - the one part of the graphic
+    its "dashed lines" note does not cover.
     """
 
     if len(values) < 2:
@@ -4610,17 +4645,25 @@ def mct_counterattack_by_fire_arrow(values, feature=None, parent=None):
     if frame is None:
         return QgsGeometry()
 
-    base = _CATK_BY_FIRE_STANDOFF_MM
+    start = _CATK_BY_FIRE_STANDOFF_MM + _CATK_BY_FIRE_ARROW_GAP_MM
 
-    tip = base + _CATK_BY_FIRE_ARROW_LENGTH_MM
+    shoulder = start + _CATK_BY_FIRE_ARROW_STEM_MM
 
-    half = _CATK_BY_FIRE_ARROW_WIDTH_MM / 2.0
+    tip = shoulder + _CATK_BY_FIRE_ARROW_HEAD_MM
+
+    stem = _CATK_BY_FIRE_ARROW_STEM_HALF_MM
+
+    half = _CATK_BY_FIRE_ARROW_HALF_WIDTH_MM
 
     corners = [
+        (start, stem),
+        (shoulder, stem),
+        (shoulder, half),
         (tip, 0.0),
-        (base, half),
-        (base, -half),
-        (tip, 0.0),
+        (shoulder, -half),
+        (shoulder, -stem),
+        (start, -stem),
+        (start, stem),
     ]
 
     return QgsGeometry.fromPolygonXY(

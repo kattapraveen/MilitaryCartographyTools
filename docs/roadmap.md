@@ -8619,28 +8619,46 @@ That also simplified the symbol: only the RAILS still need
 end-trim. The head and the bar read PT1 and the last vertex directly
 and are drawn the right way round either way.
 
-**"align CATK text with the arrowhead, in case drawn inverted as you
-say right to left, include a logic to keep the text straight".** So
+**"align CATK text with the arrowhead".** So
 `mct_counterattack_text_angle()` takes the arrowhead's own direction
-and folds it into (-90, 90] - an arrow drawn east to west writes its
-text the same way up as one drawn west to east, mirrored about the
-vertical rather than turned over. Pinned by a test that walks the whole
-compass and asserts nothing ever leaves that half turn. It is the only
-rotated label on this layer; every other one is upright, which was the
-convoy's own convention and is what this replaces here.
+and folds it into the half turn that reads left to right on the page.
+The maintainer restated what "upright" had to mean after a first build
+missed it, and their restatement is the clearest test of it: "left to
+right K is near the arrowhead, right to left C is near the arrowhead".
+Both follow from the fold, and both are pinned.
 
-**Counterattack by Fire is that arrow plus one detached piece**: a
-bracket across the axis standing clear beyond PT1, with a small solid
-arrow through it pointing on. The standard draws it in both its
-template and its example and gives no dimension for any of it - the
-bracket is the arrow's own bar height, four millimetres clear of the
-tip, with an arrow four long and three wide. Those three numbers were
-offered as a proposal and taken as offered, which is worth recording:
-they are this build's, not the standard's.
+**That first build had the sign backwards.** QGIS's own label rotation
+is CLOCKWISE from east; the angle was computed counter-clockwise, so
+every label drew mirrored about the horizontal - which reads as
+plausibly-rotated-but-wrong rather than as an obvious error, and only a
+render caught it. Established by render, not by documentation, and the
+test now asserts a north-east head gives a NEGATIVE rotation.
 
-The arrow is the one FILLED part, and the one part the symbol's own
-"dashed lines" note does not cover - both of the standard's pictures
-draw it solid.
+It is the only rotated label on this layer; every other one is upright,
+which was the convoy's own convention and is what this replaces here.
+
+**Counterattack by Fire is that arrow plus one detached piece, and the
+first attempt at it was wrong.** It was built as a bar across the axis
+with a filled triangle sitting on it, from a proposal made without
+looking closely enough at the page - and a triangle against a bar reads
+as a pennant. The maintainer's response was the right question: "why is
+there a flag after the arrow head".
+
+What the standard actually draws, measured off the example at 600 dpi:
+an open bracket that WRAPS the arrowhead - an arm sweeping in from
+beyond it, a straight run past its flare, an arm sweeping back out -
+and then, after a clear gap, a small solid arrow WITH A STEM. The stem
+is what makes it an arrow rather than a flag, and the bracket's
+straight run is set from the head's own flare so the two are the same
+size by construction.
+
+The small arrow is the one FILLED part, and the one part the symbol's
+own "dashed lines" note does not cover - both of the standard's
+pictures draw it solid.
+
+**The lesson is the same one this appendix keeps teaching**: the
+template picture is the specification, and a proposal written from a
+glance at it is a guess. Crop the page and measure it first.
 
 **Appendix H is complete.** 1284 tests passing on both QGIS versions.
 
