@@ -2731,12 +2731,18 @@ def _trip_wire_symbol():
 # fiddly shapes, and it was faster again this time).
 #
 # NEITHER "disrupt" NOR "fix" may ever reuse a measure_type key from
-# Table H-XXIV (Mission Tasks, H21, not yet built) even though that
-# table has its own same-named entries - they are DIFFERENT SIDCs on a
-# different table, and conflating them is the exact bug the maintainer
-# found and fixed in the old stage-based pass (see this module's own
-# batch-B0 audit notes). Checked now, empty: nothing in this codebase
-# defines "disrupt"/"fix"/"block"/"turn" outside this module today.
+# Table H-XXIV (Mission Tasks, H21) even though that table has its own
+# same-named entries - they are DIFFERENT SIDCs on a different table,
+# and conflating them is the exact bug the maintainer found and fixed
+# in the old stage-based pass (see this module's own batch-B0 audit
+# notes).
+#
+# **H-XXIV is built now** (2026-08-16) and it does define its own
+# "block", "disrupt", "fix", "penetrate" and more - on its OWN layer,
+# with its own measure_type vocabulary, so the two never meet. Several
+# of them reach these functions through an optional argument that
+# defaults to the behaviour here, which is what keeps this module's
+# own symbols unchanged; see mission_task_control_measures.py.
 def _block_symbol():
 
     """

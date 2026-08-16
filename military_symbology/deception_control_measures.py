@@ -49,8 +49,10 @@ belongs in a later table - neither needs new code in this module**:
   Nothing new needed here.
 - **Decoy Mined Area** and **Dummy Minefield** are both the standard's
   own explicit forward-reference ("See Decoy Mined Area under
-  Obstacles") to Table H-XIX (H.5.21, Mini-Phase H15/H16, not yet
-  reached in this pass). Deferred to that mini-phase, not built here.
+  Obstacles") to Table H-XIX (H.5.21). They are BUILT there - see
+  obstacle_control_measures.py's own 270703/270705 entries - and
+  deliberately not duplicated here, which is what the forward
+  reference asks for.
 
 Military Cartography Tools
 """

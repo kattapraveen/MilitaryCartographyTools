@@ -23,8 +23,9 @@ separate segment. The answer was to stop drawing the digitized path at
 all and generate BOTH halves of the symbol from it instead (see
 _attack_by_fire_position_symbol()), which also made Support by Fire
 Position's own rebuild straightforward - the two now share their back
-side's own geometry helper. **Ambush (141700)** remains unbuilt, and is
-the last outstanding entry in this table.
+side's own geometry helper. **Ambush (141700)** was deferred for the
+same reason and built the same day, once that technique existed - see
+_ambush_symbol(). Nothing in this table is outstanding.
 
 **Two entries nominally coded as "Areas" in the standard's own SIDC
 numbering (a "15" prefix) are built on the LINES layer here instead**,
@@ -114,7 +115,8 @@ __all__ = [
 
 # Table H-XII, H.5.14 - see module docstring for why these two are on
 # the LINES layer despite the standard's own "15" (Area) SIDC prefix,
-# and for what was skipped (Attack By Fire Position, Ambush).
+# and for what was deferred and later built (Attack By Fire Position,
+# Ambush - both 2026-08-12).
 LINE_MEASURE_TYPE_LABELS = {
     "attack_by_fire_position": "Attack By Fire Position",
     "ambush": "Ambush",

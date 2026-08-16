@@ -39,14 +39,21 @@ rather than forced onto one uniform abbreviation scheme - the standard
 itself is inconsistent here (some spell the word "ZONE" out, others
 don't).
 
-**Two entries skipped outright**: **Weapon/Sensor Range Fan - Circular
-(242100)** and **Weapon/Sensor Range Fan - Sector (242200)** both need
-genuinely parametric/computed geometry from a single anchor point - one
-or more concentric range RINGS (Circular) or a pie-shaped SECTOR with
-an azimuth-defined centreline plus left/right limits and multiple range
-arcs (Sector) - not a freeform polygon a user directly digitizes. The
-same "doesn't fit this project's own techniques" reasoning already
-applied to H4's Contain/Retain (also a computed-circle construct).
+**Two entries were skipped at first and BUILT on 2026-08-14**:
+**Weapon/Sensor Range Fan - Circular (242100)** and **Weapon/Sensor
+Range Fan - Sector (242200)**, now on this module's own Range Fans
+layer. They were deferred because they need genuinely parametric
+geometry from a single anchor point - concentric range RINGS, or a
+pie-shaped SECTOR with an azimuth centreline plus left/right limits -
+rather than a freeform polygon a user digitizes, the same reasoning
+that deferred H4's Contain/Retain.
+
+That reasoning did not survive contact: the maintainer dictated the
+construction and it turned out the two codes are ONE symbol, Circular
+being Sector left at its default angles. Recorded because the deferral
+was the wrong call, not because it was a close one - both of these
+"doesn't fit our techniques" judgements were reversed the moment
+someone described the shape.
 
 Military Cartography Tools
 """

@@ -4,19 +4,24 @@
 MIL-STD-2525D Appendix H.5.26 (Table H-XXIV, "Mission Task Symbols") -
 Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
+**COMPLETE, 2026-08-16.** Every drawable row of Table H-XXIV is built
+and cleared, and with it the whole of Appendix H.
+
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Twenty-two LINE tasks followed
-on 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate,
-Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure,
-Bypass, Breach, Canalize, Clear, Relief in Place, Security's own Cover,
-Guard and Screen, and both Follows. Everything still unbuilt is listed
-by code in TABLE_H_XXIV_REMAINING.
+anchor point each, milsymbol-rendered. The other 24 rows are LINE
+tasks, built 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy,
+Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under
+Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Security's
+own Cover, Guard and Screen, both Follows, and both Counterattacks.
+
+The two rows left in TABLE_H_XXIV_REMAINING are parents the standard
+gives no template for; see that record.
 
 **milsymbol has an icon for the three points and for nothing else in
 this table** - verified entry by entry against its own
 src/numbersidc/sidc/control-measure.js. Every line task here is
-hand-built QGIS symbology, and most of them are an existing
+hand-built QGIS symbology, and all but four are an existing
 construction from another table reused whole (see the LINES section).
 
 **All three are RELOCATED, not new.** They already existed in sidc.py
@@ -51,7 +56,6 @@ from ._control_measure_shared import (
 from .supply_points import (
     CONVOY_BODY_HEIGHT_MM,
     CONVOY_HEAD_LENGTH_MM,
-    CONVOY_REAR_BAR_WIDTH_MM,
 )
 
 from ._point_symbol_layer import (
@@ -78,7 +82,6 @@ from qgis.core import (
     QgsSimpleLineSymbolLayer,
     QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
-    QgsSvgMarkerSymbolLayer,
     QgsSymbol,
     QgsSymbolLayer,
     QgsVectorLayer,
@@ -126,28 +129,18 @@ POINT_MARKER_SIZE_SCALES = {
     entity: _MISSION_TASK_MARKER_SIZE_SCALE for entity in POINT_ENTITY_CODES
 }
 
-# --- Audited, NOT built. ---
+# --- The two rows that will never be built. ---
 #
-# What is left of Table H-XXIV. 340000 is the section's own parent
-# entry, with TEMPLATE and EXAMPLE both reading "N/A", so it will never
-# be built.
+# **Nothing here is outstanding work.** 340000 is the table's own
+# section parent and 342200 is its Security group parent; both read
+# "N/A" for TEMPLATE and EXAMPLE, so neither has a symbol to draw. The
+# maintainer confirmed 342200 directly, 2026-08-16: "in security 342200
+# there is nothing to be built drop it".
 #
-# Every one is a multi-anchor construction rather than a centred glyph,
-# and none has a milsymbol icon. Roughly three families:
-#
-# - Arrow tasks - N anchor points, PT1 at the arrowhead's tip, working
-#   back to the rear. Counterattack's own draw rules allow N between 3
-#   and 50, which is the reason none of these is a Delay in disguise:
-#   the shape is not fixed by the anchor count.
-# - Bracket/effect tasks - the shapes Table H-XIX's own obstacle
-#   effects already build here, under DIFFERENT codes. See the module
-#   docstring: these are not the same symbols.
-
-# **Check each of these against Table H-XIX before building it.** This
-# list was annotated "nothing left shares a shape with anything already
-# built" once, and Bypass (340300) was Obstacle Bypass Easy (270601)
-# whole - two arrows, a joining line, one added letter. The rest look
-# like their own geometry, but that has been wrong before.
+# **They stay on this record on purpose.** The test below adds built
+# plus unbuilt and checks the total against the table's own 29 printed
+# rows; drop these two and that check silently stops covering them.
+# Do not "tidy" them away.
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
@@ -471,25 +464,12 @@ _COUNTERATTACK_BY_FIRE_ARROW_EXPRESSION = (
 
 # **The dashes are the symbol, not its status.** Its own note reads
 # "The dashed lines in this graphic shall be displayed in present and
-# anticipated status" - the same clause Follow and Assume carries.
+# anticipated status" - the same clause Follow and Assume carries, and
+# it covers every part of the symbol including the head.
 #
-# The head cannot follow: it is an SVG glyph, and an SVG has no pen
-# style to dash. It draws solid, which the standard's own picture does
-# not - flagged to the maintainer 2026-08-16 rather than worked around.
-
-# The string form of this layer's own affiliation palette. An SVG
-# parameter takes a colour STRING rather than a colour value, which is
-# the whole reason this is spelled out separately from
-# _apply_affiliation_color().
-_COUNTERATTACK_GLYPH_COLOR_EXPRESSION = (
-    "CASE "
-    "WHEN \"affiliation\" = 'friend' THEN 'rgb(0,0,255)' "
-    "WHEN \"affiliation\" = 'hostile' THEN 'rgb(255,0,0)' "
-    "WHEN \"affiliation\" = 'neutral' THEN 'rgb(0,255,0)' "
-    "WHEN \"affiliation\" = 'unknown' THEN 'rgb(255,255,0)' "
-    "ELSE 'rgb(0,0,0)' "
-    "END"
-)
+# That is why the head and the rear bar are geometry rather than the
+# convoy's own SVG glyphs, which is how they were built first: an SVG
+# has no pen style, so nothing about a marker can be dashed.
 
 _CATK_TEXT_MAX_POINTS = 24.0
 

@@ -136,8 +136,8 @@ pictures (pages 428-439) before fixing, not from memory**:
     own colour system doesn't need the user to separately confirm
     "yes, this actually is hostile" a second time via a different
     field once the measure type itself already says so.
-  - **Infiltration Lane (140800) was skipped outright** - re-reading
-    its own draw rules directly (page 435) showed it's NOT the same
+  - **Infiltration Lane (140800) was skipped at first, then built** -
+    re-reading its own draw rules directly (page 435) showed it's NOT the same
     kind of variable-width tapered-ribbon construction as the Axis of
     Advance family (which really does need genuine polygon-offset
     synthesis this project still doesn't build) - it's just two

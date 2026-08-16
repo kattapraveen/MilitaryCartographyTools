@@ -2,7 +2,8 @@
 
 """
 Tests for military_symbology/mission_task_control_measures.py -
-Table H-XXIV, Mini-Phase H21 (points only).
+Table H-XXIV, Mini-Phase H21. Three point symbols and twenty-four line
+tasks; the table is complete.
 
 Military Cartography Tools
 """
@@ -117,9 +118,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
         # unbuilt one are keyed by CODE, so the two can never be
         # matched up by name alone.
         #
-        # Block, Disrupt and Fix have SHIPPED as mission tasks now, so
-        # they belong to the built record; the rest are still unbuilt.
-        # Every one has to appear in exactly one of the two.
+        # Every one of them has SHIPPED as a mission task now, so the
+        # built record is where they all live - but this still asserts
+        # "exactly one of the two" rather than "built", because the
+        # point is that the two records cannot both claim a name, in
+        # either direction.
         for name in ("Block", "Breach", "Bypass", "Canalize", "Disrupt",
                      "Fix", "Penetrate", "Seize", "Withdraw"):
 

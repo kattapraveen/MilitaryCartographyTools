@@ -639,8 +639,9 @@ dialog, and clicking an entry again never replaces a layer that already
 exists (each is checked independently, so it only adds back whichever
 ones are still missing).
 
-**Work in progress, being rebuilt one Appendix H section at a time.** C2
-Measures' Lines layer currently offers **Boundary** and **Light Line**;
+**Appendix H is complete** — every one of its logical groups was rebuilt
+and verified one section at a time, finishing 2026-08-16. C2
+Measures' Lines layer offers **Boundary** and **Light Line**;
 its Areas layer offers **Area of Operations**, **Named Area of
 Interest**, **Target Area of Interest**, and **Airfield Zone** (H.5.5/
 Table H-IV and H.5.9/Table H-V, verified against the real MIL-STD-2525D
@@ -655,11 +656,12 @@ exist in Table H-VI, or anywhere in MIL-STD-2525D at all) - every other
 line/area measure type from an earlier,
 less rigorous build pass was removed rather than left half-verified
 alongside these, so what's in each dropdown is always exactly what's
-actually been checked. Further Appendix H logical groups (Maneuver,
-Defensive, Offensive, Airspace, Maritime, and the rest) get their own new
-dropdown entry and their own layer(s), freshly verified, as each group's
-own mini-phase gets its turn - see docs/roadmap.md's Phase 10 entry for
-progress. Every H.5.x group now has its own point layer: the shared
+actually been checked. Every other Appendix H logical group (Maneuver,
+Defensive, Offensive, Airspace, Maritime, Obstacles, CBRN, Sustainment,
+Supply, Mission Tasks, Intelligence, and the rest) has its own dropdown
+entry and its own layer(s), built and verified the same way - see
+docs/roadmap.md's own "Appendix H — complete" section for the ledger.
+Every H.5.x group now has its own point layer: the shared
 Control Measure Points layer that used to hold whatever hadn't been
 split out yet was emptied and retired on 2026-08-14, when
 Sustainment/Supply/Mission Task Points took its last 21 entries. It
@@ -893,10 +895,10 @@ of simple end-labelled lines:
 (ATK)**, and **Objective Area (OBJ)** - all the familiar "prefix +
 optional name" pattern.
 
-**Infiltration Lane** and **Point of Departure** are not built here -
-Infiltration Lane is another variable-width construction (like Axis of
-Advance, but as a "lane" a single line doesn't read well as an
-approximation of), and Point of Departure is a point symbol on this
+**Infiltration Lane** is here too — two parallel lines with a plain
+designation centred between them, approximated the same way Main
+Attack's doubled outline is rather than with genuine variable-width
+geometry. **Point of Departure** is a point symbol, so it lives on this
 group's own Points layer.
 
 ### Maneuver Control Measures II
@@ -918,11 +920,15 @@ at each end), **Bridgehead Line (BL)**, **Holding Line (HL)**, and
 technique as Defensive Control Measures' own Strong Point) and
 **Penetration Box** (a plain outline, no label).
 
-**Attack By Fire Position** and **Ambush** are not built here - both
-need an arrow shaft that connects not to a point you actually digitize
-but to the *computed midpoint* of a separate line between two other
-points, a genuinely different construction from every arrow-based
-symbol built elsewhere in this plugin.
+**Attack By Fire Position** is on the Maneuver Control Measures layer
+rather than here. It needed a shaft whose tail meets not a point you
+digitize but the *computed midpoint* between two others, so both halves
+of the symbol are generated from the clicked path instead of the path
+being drawn directly — the same technique Support by Fire Position was
+rebuilt onto.
+
+**Ambush** is on that same layer, for the same reason and built with
+the same technique.
 
 ### Airspace Control Measures
 
@@ -1079,8 +1085,8 @@ of Advance for a Feint** and **Direction of Attack for a Feint** are the
 standard's own cross-references to symbols already on the **Offensive
 Control Measures** layer (`axis_of_advance_feint`/
 `direction_of_attack_feint`); **Decoy Mined Area** and **Dummy
-Minefield** are the standard's own forward-references to the future
-Obstacles table.
+Minefield** are the standard's own forward-references to the
+**Obstacles** layer, where both are built.
 
 ### Fire Support Coordination Measures
 
@@ -1333,12 +1339,6 @@ Munition Footprint (TGMF)**, **Blue Kill Box (BKB)**, **Purple Kill Box
 template exactly — the standard itself isn't consistent about spelling
 "ZONE" out, so this plugin doesn't force one either.
 
-**Weapon/Sensor Range Fan (Circular and Sector variants)** are not built
-yet — both need genuinely computed geometry from a single anchor point
-(one or more concentric range rings, or a pie-shaped sector with an
-azimuth centreline and left/right limits) rather than a boundary you
-directly digitize. They are on the list to build.
-
 **Weapon/Sensor Range Fans** comes with the same menu entry, and covers
 both of the table's range-fan codes with one symbol — Circular (242100)
 is simply Sector (242200) left at its default angles.
@@ -1389,11 +1389,11 @@ emptied by these three.
   to X. They share roman numerals and mean different things, so every
   entry says which standard it belongs to.
 - **Mission Task Points** — Destroy, Interdict and Neutralize. These
-  are the only three of Table H-XXIV's 29 mission tasks drawn as a
-  single centred glyph on one anchor point; the other 26 are arrows,
-  brackets and outlined regions built from two to fifty anchor points.
-  All twenty-four of those are built, on their own **Mission Task
-  Lines** layer described below.
+  are the only three of Table H-XXIV's 29 rows drawn as a single
+  centred glyph on one anchor point. Twenty-four more are arrows,
+  brackets and outlined regions built from two to fifty anchor points,
+  all of them on the **Mission Task Lines** layer described below. The
+  last two rows are group headings the standard draws nothing for.
 
 All three render through the same verified milsymbol library as the
 Units layer, not hand-built QGIS symbology, so they are spec-exact

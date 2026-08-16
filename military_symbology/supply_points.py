@@ -719,10 +719,12 @@ _CONVOY_END_MODES = {
     "halted_convoy": "halted",
 }
 
-# **Public, because Table H-XXIV's own Counterattack borrows them.**
-# The maintainer's instruction there was "draw an arrow of same
-# dimensions as moving convoy", and a shared name is what makes that
-# true rather than a coincidence that drifts.
+# **These two are public because Table H-XXIV's own Counterattack
+# borrows them.** The maintainer's instruction there was "draw an arrow
+# of same dimensions as moving convoy", and a shared name is what makes
+# that true rather than a coincidence that drifts. The rear bar's own
+# width below is NOT borrowed - Counterattack draws its rear as
+# geometry so that it can be dashed - so it stays private.
 #
 # **Both numbers are mine, not the standard's**, which gives neither -
 # it draws the bar and the head to no stated proportion. Sized so one
@@ -741,7 +743,7 @@ _CONVOY_DTG_OFFSET_MM = CONVOY_BODY_HEIGHT_MM / 2.0 + 2.6
 # the bar exactly the BODY's height is that ratio of it, not the height
 # itself. Sized as the height directly, it drew at a ninth of the bar it
 # was meant to close.
-CONVOY_REAR_BAR_WIDTH_MM = CONVOY_BODY_HEIGHT_MM * 10.0 / 110.0
+_CONVOY_REAR_BAR_WIDTH_MM = CONVOY_BODY_HEIGHT_MM * 10.0 / 110.0
 
 
 def _convoy_body_layer(measure_type, side):
@@ -849,7 +851,7 @@ def _convoy_symbol(measure_type):
         _convoy_end_layer(
             "rear",
             Qgis.MarkerLinePlacement.FirstVertex,
-            CONVOY_REAR_BAR_WIDTH_MM,
+            _CONVOY_REAR_BAR_WIDTH_MM,
         )
     )
 
