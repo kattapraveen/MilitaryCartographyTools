@@ -1523,7 +1523,8 @@ arc is drawn at all, since there is no side for it to be on.
 runs unbroken, plus a second arrow parallel to the first and pointing
 back the other way — two units passing each other. Its head meets the
 far end of the curve, and **RIP** is written in the middle of the
-shape.
+shape. That text grows with the symbol so it fills the shape at any
+size, stopping at 24pt.
 
 **Cover**, **Guard** and **Screen** are one shape with three letters —
 **C**, **G** and **S**. Click three points: one end, then the **centre**,

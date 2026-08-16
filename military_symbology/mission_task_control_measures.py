@@ -61,6 +61,7 @@ from qgis.core import (
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
     QgsMapUnitScale,
+    QgsPalLayerSettings,
     QgsMarkerLineSymbolLayer,
     QgsMarkerSymbol,
     QgsProject,
@@ -1053,6 +1054,19 @@ _LINE_SYMBOL_BUILDERS = {
 # is what keeps its own line continuous.
 LABELLED_MEASURE_TYPES = tuple(LINE_LETTERS) + ("relief_in_place",)
 
+# **"RIP" is the only text on this layer that is not a fixed size.**
+# The maintainer's own instruction: "make it variable so as to fit the
+# area reasonably well subject to a maximum of 24pt". Every letter here
+# sits in a gap cut to its own width, so a fixed size is what keeps the
+# two agreeing; "RIP" sits in open paper inside a shape whose size the
+# user sets, so it grows with the shape instead and stops here.
+_RIP_TEXT_MAX_POINTS = 24.0
+
+_RIP_TEXT_SIZE_EXPRESSION = (
+    "mct_relief_in_place_text_size($geometry, @map_extent, @map_scale,"
+    " {maximum})".format(maximum=_RIP_TEXT_MAX_POINTS)
+)
+
 
 def _label_specifications(measure_type):
 
@@ -1117,6 +1131,17 @@ def _configure_lines_labeling(layer):
                 label_geometry_expression=point,
                 quadrant=Qgis.LabelQuadrantPosition.Over,
             )
+
+            # Set BEFORE the rule takes ownership of these settings -
+            # a QgsRuleBasedLabeling.Rule takes the pointer, and this
+            # module has been bitten before by reaching back into a
+            # QGIS object after handing it over.
+            if measure_type == "relief_in_place":
+
+                settings.dataDefinedProperties().setProperty(
+                    QgsPalLayerSettings.Property.Size,
+                    QgsProperty.fromExpression(_RIP_TEXT_SIZE_EXPRESSION)
+                )
 
             rule = QgsRuleBasedLabeling.Rule(settings)
 

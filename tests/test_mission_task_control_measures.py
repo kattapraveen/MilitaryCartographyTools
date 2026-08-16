@@ -1721,6 +1721,47 @@ class TestReliefInPlace(QgisTestCase):
         self.assertAlmostEqual(point.y(), 3.0, places=6)
 
 
+    def test_the_rip_text_grows_with_the_shape_and_stops_at_24pt(self):
+
+        def size(wkt, scale):
+
+            return QgsExpression(
+                "mct_relief_in_place_text_size(geom_from_wkt('{}'),"
+                " make_rectangle_3points(make_point(0, 0), make_point(1, 0),"
+                " make_point(1, 1)), {}, 24)".format(wkt, scale)
+            ).evaluate()
+
+        # Zoomed out far enough, the shape is small on the page and so
+        # is the text.
+        small = size(self._RIP, 100000000)
+
+        self.assertGreater(small, 0.0)
+
+        self.assertLess(small, 24.0)
+
+        # Zoomed in, it stops at the cap rather than filling the screen.
+        self.assertAlmostEqual(size(self._RIP, 1000), 24.0, places=6)
+
+
+    def test_a_narrow_shape_sizes_the_rip_text_by_its_width(self):
+
+        # The shaft and the gap are set by different clicks, so the
+        # text has to fit BOTH or it runs out through the arrows.
+        def size(wkt):
+
+            return QgsExpression(
+                "mct_relief_in_place_text_size(geom_from_wkt('{}'),"
+                " make_rectangle_3points(make_point(0, 0), make_point(1, 0),"
+                " make_point(1, 1)), 100000000, 24)".format(wkt)
+            ).evaluate()
+
+        # Same gap between the arrows, a quarter of the shaft.
+        self.assertLess(
+            size("LineString(0 0, 2.5 0, 2.5 6)"),
+            size("LineString(0 0, 10 0, 10 6)")
+        )
+
+
     def test_the_rip_text_needs_no_gap_cut_for_it(self):
 
         # Unlike every letter on this layer it does not sit on a line,

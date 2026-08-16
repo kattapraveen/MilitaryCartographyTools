@@ -8699,6 +8699,24 @@ Place stays out of `LINE_LETTERS` and a wider
 lists mean different things now, and conflating them would put a gap
 back in the shaft.
 
+**And it is the only text on this layer that is not a fixed size** -
+"make it variable so as to fit the area reasonably well subject to a
+maximum of 24pt - see the manual", the same day again. Every letter
+here sits in a gap cut to its own width, so a fixed size is what keeps
+the two agreeing; "RIP" sits in open paper inside a shape whose size
+the user sets, so it grows with the shape and stops at the cap.
+
+Both of the shape's dimensions bind, smallest winning, and that is not
+belt-and-braces: the shaft is set by PT1/PT2 and the gap between the
+arrows by PT3, so a tall narrow one sized on height alone would run
+the text out through its own arrows. The fractions - 0.40 of the gap
+as a font size, 0.60 of the shaft as a width - are measured off the
+standard's own template, where they happen to land on the same answer.
+
+`mct_relief_in_place_text_size()` returns POINTS and is wired as a
+data-defined Size on the label, set BEFORE the rule takes ownership of
+the settings rather than reached back into afterwards.
+
 Three anchor points rather than the standard's four: its PT3/PT4 set
 the second arrow's length independently, and here it takes the first
 arrow's. The maintainer's construction, and it keeps the whole Delay

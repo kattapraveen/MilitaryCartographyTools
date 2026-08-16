@@ -4135,6 +4135,93 @@ def mct_relief_in_place_text_point(values, feature=None, parent=None):
     )
 
 
+# **"RIP" is sized to the shape it sits in, capped.** The maintainer's
+# own instruction: "make it variable so as to fit the area reasonably
+# well subject to a maximum of 24pt - see the manual".
+#
+# Both fractions are measured off the standard's own template (printed
+# page 649): the text's cap height is about 0.25 of the gap between the
+# two arrows, and its width about 0.60 of the shaft. A cap height is
+# roughly 0.7 of a font's own size, so 0.25 of the gap becomes 0.36 of
+# it as a font size - taken as 0.40, which is where the two constraints
+# meet on the template's own proportions.
+#
+# BOTH are applied, smallest wins. The shape's two dimensions are set
+# by different clicks - the shaft by PT1/PT2, the gap by PT3 - so a
+# tall narrow one would otherwise run the text out through its own
+# arrows.
+_RIP_TEXT_HEIGHT_FRACTION = 0.40
+_RIP_TEXT_WIDTH_FRACTION = 0.60
+
+_RIP_TEXT = "RIP"
+
+
+@qgsfunction(
+    'mct_relief_in_place_text_size',
+    group='Military Cartography Tools'
+)
+def mct_relief_in_place_text_size(values, feature=None, parent=None):
+
+    """
+    What point size Relief in Place's own "RIP" should draw at to fit
+    the shape it sits in, never more than `maximum_points`.
+
+    Use as mct_relief_in_place_text_size($geometry, @map_extent,
+    @map_scale, 24).
+
+    Measured against the SHAPE, which is ground, so it grows as the map
+    is zoomed in and stops at the cap. Zero for a geometry that cannot
+    carry the symbol at all, which QGIS draws as nothing rather than
+    erroring.
+    """
+
+    if len(values) < 4:
+        return 0.0
+
+    frame = _delay_frame(values)
+
+    if frame is None:
+        return 0.0
+
+    pt1, pt2, pt3 = frame
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return 0.0
+
+    try:
+        maximum_points = float(values[3])
+    except (TypeError, ValueError):
+        return 0.0
+
+    millimetres_per_unit = _map_millimetres_per_unit(values[1], values[2])
+
+    if millimetres_per_unit <= 0:
+        return 0.0
+
+    shaft_mm = math.hypot(
+        pt2.x() - pt1.x(), pt2.y() - pt1.y()
+    ) * millimetres_per_unit
+
+    reach_mm = projection[2] * millimetres_per_unit
+
+    # Text width is linear in font size, so one measurement at 1 mm
+    # gives the ratio for every size.
+    width_per_mm = _text_width_mm(_RIP_TEXT, 1.0)
+
+    if width_per_mm <= 0:
+        return 0.0
+
+    size_mm = min(
+        _RIP_TEXT_HEIGHT_FRACTION * reach_mm,
+        _RIP_TEXT_WIDTH_FRACTION * shaft_mm / width_per_mm,
+        maximum_points * 25.4 / 72.0,
+    )
+
+    return max(size_mm, 0.0) * 72.0 / 25.4
+
+
 @qgsfunction(
     'mct_relief_in_place_return_arrow',
     group='Military Cartography Tools'
@@ -7564,6 +7651,7 @@ _FUNCTIONS = [
     mct_delay_letter_point,
     mct_relief_in_place_return_arrow,
     mct_relief_in_place_text_point,
+    mct_relief_in_place_text_size,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,
