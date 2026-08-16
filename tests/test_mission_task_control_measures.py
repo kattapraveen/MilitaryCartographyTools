@@ -31,6 +31,7 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     BYPASS_CONSTRUCTION_MEASURE_TYPES,
     DELAY_CONSTRUCTION_MEASURE_TYPES,
     LABELLED_MEASURE_TYPES,
+    COUNTERATTACK_MEASURE_TYPES,
     FOLLOW_CONSTRUCTION_MEASURE_TYPES,
     SECURITY_CONSTRUCTION_MEASURE_TYPES,
     LINE_LETTERS,
@@ -75,11 +76,17 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 23 line tasks + 3 still unbuilt = the table's own
-        # 29 rows. This arithmetic is what keeps a row from going
-        # missing between builds - and what caught the remaining list
-        # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 3)
+        # 3 points + 24 line tasks + 2 still unbuilt = the table's own
+        # 29 rows, and **Appendix H is complete**: the two rows left
+        # are the table's own section parent and the Security group
+        # parent, both "N/A" for TEMPLATE and EXAMPLE, and neither will
+        # ever be built. They stay on the record so this arithmetic
+        # still runs.
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 2)
+
+        for code in TABLE_H_XXIV_REMAINING:
+
+            self.assertIn("N/A", TABLE_H_XXIV_REMAINING[code])
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -2425,11 +2432,13 @@ class TestCounterattack(QgisTestCase):
 
         # The convoy's own head sits on its LAST vertex; this one has to
         # sit on PT1, the first click. Reversing the geometry is what
-        # lets every convoy setting carry over untouched instead of
-        # being re-derived with the signs flipped.
+        # lets the convoy's offset and end-trim carry over untouched
+        # instead of being re-derived with the signs flipped.
         inner = self._inner()
 
-        self.assertEqual(inner.symbolLayerCount(), 4)
+        # The two rails, and nothing else - the end pieces are their
+        # own layers now, reading PT1 and the last vertex directly.
+        self.assertEqual(inner.symbolLayerCount(), 2)
 
 
     def test_the_rails_are_the_convoys_own_dimensions(self):
@@ -2535,3 +2544,274 @@ class TestCounterattack(QgisTestCase):
             ).evaluate(),
             0.0
         )
+
+
+class TestCounterattackByFireAndTheDashedHead(QgisTestCase):
+
+    """
+    The two changes the maintainer asked for after Counterattack's own
+    smoke render, plus Counterattack by Fire (340700).
+
+    "the arrowhead being solid is not acceptable, so change it to
+    dashed - figure it out; align CATK text with the arrowhead, in case
+    drawn inverted as you say right to left, include a logic to keep
+    the text straight".
+    """
+
+    _CATK = "LineString(0.05 0, 0.03 0, 0 0)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+        self.layer = create_mission_task_lines_layer()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _expressions(self, measure_type):
+
+        for rule in self.layer.renderer().rootRule().children():
+
+            if rule.filterExpression() == (
+                "\"measure_type\" = '{}'".format(measure_type)
+            ):
+                symbol = rule.symbol()
+
+                return [
+                    symbol.symbolLayer(index).geometryExpression()
+                    for index in range(symbol.symbolLayerCount())
+                ]
+
+        self.fail("no renderer rule for " + measure_type)
+
+
+    def test_the_head_is_geometry_now_so_that_it_can_be_dashed(self):
+
+        # An SVG has no pen style, which is why the first build could
+        # not dash it. Drawn as real geometry it takes the same stroke
+        # the rails do.
+        self.assertTrue(
+            any(each.startswith("mct_counterattack_head($geometry,")
+                for each in self._expressions("counterattack"))
+        )
+
+        symbol = None
+
+        for rule in self.layer.renderer().rootRule().children():
+
+            if rule.filterExpression() == "\"measure_type\" = 'counterattack'":
+                symbol = rule.symbol()
+
+        for index in range(symbol.symbolLayerCount()):
+
+            generator = symbol.symbolLayer(index)
+
+            if not generator.geometryExpression().startswith(
+                "mct_counterattack_head"
+            ):
+                continue
+
+            self.assertEqual(
+                generator.subSymbol().symbolLayer(0).penStyle(),
+                Qt.PenStyle.DashLine
+            )
+
+            return
+
+        self.fail("no head layer")
+
+
+    def test_the_head_keeps_the_convoy_glyphs_own_flare(self):
+
+        # Redrawn from the convoy's SVG rather than reinvented, so this
+        # asserts the ratio the SVG uses is the ratio the geometry
+        # uses - the link the comment claims.
+        from MilitaryCartographyTools.expressions import (
+            military_symbology_functions as functions
+        )
+
+        self.assertAlmostEqual(
+            functions._CATK_HEAD_FLARE_RATIO,
+            functions._CONVOY_SVG_HEAD_FLARE / functions._CONVOY_SVG_BODY,
+            places=12
+        )
+
+
+    def test_the_head_sits_at_pt1_and_flares_past_the_bar(self):
+
+        head = QgsExpression(
+            "mct_counterattack_head(geom_from_wkt('{}'), 20000, 6, 6)".format(
+                self._CATK
+            )
+        ).evaluate().asPolyline()
+
+        self.assertEqual(len(head), 5)
+
+        # Its middle point is the tip, on PT1 itself.
+        self.assertAlmostEqual(head[2].x(), 0.05, places=9)
+        self.assertAlmostEqual(head[2].y(), 0.0, places=9)
+
+        # And it reaches wider than the bar it grows out of.
+        reach = max(abs(point.y()) for point in head)
+
+        bar = QgsExpression(
+            "mct_counterattack_rear(geom_from_wkt('{}'), 20000, 6)".format(
+                self._CATK
+            )
+        ).evaluate().asPolyline()
+
+        self.assertGreater(reach, max(abs(point.y()) for point in bar))
+
+
+    def test_the_rear_bar_closes_the_arrow_at_the_last_click(self):
+
+        bar = QgsExpression(
+            "mct_counterattack_rear(geom_from_wkt('{}'), 20000, 6)".format(
+                self._CATK
+            )
+        ).evaluate().asPolyline()
+
+        self.assertEqual(len(bar), 2)
+
+        for point in bar:
+
+            self.assertAlmostEqual(point.x(), 0.0, places=9)
+
+
+    def test_the_text_follows_the_arrow_but_never_stands_on_its_head(self):
+
+        def angle(wkt):
+
+            return QgsExpression(
+                "mct_counterattack_text_angle(geom_from_wkt('{}'))".format(wkt)
+            ).evaluate()
+
+        # Pointing east - upright and unrotated.
+        self.assertAlmostEqual(angle("LineString(1 0, 0 0)"), 0.0, places=9)
+
+        # Pointing WEST. Read literally that is half a turn, which
+        # would write CATK upside down; folded, it is the same as east.
+        self.assertAlmostEqual(angle("LineString(0 0, 1 0)"), 0.0, places=9)
+
+        # A shallow climb either way keeps its own slope.
+        self.assertAlmostEqual(angle("LineString(1 1, 0 0)"), 45.0, places=9)
+
+        self.assertAlmostEqual(
+            angle("LineString(0 0, 1 1)"), 45.0, places=9
+        )
+
+        # Every direction of the compass stays legible.
+        for degrees in range(0, 360, 7):
+
+            radians = math.radians(degrees)
+
+            result = angle(
+                "LineString({} {}, 0 0)".format(
+                    math.cos(radians), math.sin(radians)
+                )
+            )
+
+            self.assertGreater(result, -90.0)
+
+            self.assertLessEqual(result, 90.0)
+
+
+    def test_the_angle_is_wired_onto_both_counterattack_labels(self):
+
+        rotated = {}
+
+        for rule in self.layer.labeling().rootRule().children():
+
+            if rule.description() not in COUNTERATTACK_MEASURE_TYPES:
+                continue
+
+            rotated[rule.description()] = rule.settings(
+            ).dataDefinedProperties().isActive(
+                QgsPalLayerSettings.Property.LabelRotation
+            )
+
+        self.assertEqual(
+            rotated,
+            {"counterattack": True, "counterattack_by_fire": True}
+        )
+
+
+    def test_by_fire_is_counterattack_plus_a_bracket_and_a_solid_arrow(self):
+
+        plain = self._expressions("counterattack")
+
+        by_fire = self._expressions("counterattack_by_fire")
+
+        for expression in plain:
+
+            self.assertIn(expression, by_fire)
+
+        self.assertEqual(len(by_fire), len(plain) + 2)
+
+        self.assertIn(
+            "mct_counterattack_by_fire_arrow($geometry, @map_scale)", by_fire
+        )
+
+
+    def test_the_bracket_stands_clear_beyond_pt1(self):
+
+        bracket = QgsExpression(
+            "mct_counterattack_by_fire_bracket(geom_from_wkt('{}'),"
+            " 20000, 6)".format(self._CATK)
+        ).evaluate().asPolyline()
+
+        self.assertEqual(len(bracket), 2)
+
+        for point in bracket:
+
+            self.assertGreater(point.x(), 0.05)
+
+
+    def test_the_by_fire_arrow_is_filled_and_points_on_past_the_bracket(self):
+
+        arrow = QgsExpression(
+            "mct_counterattack_by_fire_arrow(geom_from_wkt('{}'),"
+            " 20000)".format(self._CATK)
+        ).evaluate()
+
+        self.assertEqual(arrow.wkbType(), Qgis.WkbType.Polygon)
+
+        bracket = QgsExpression(
+            "mct_counterattack_by_fire_bracket(geom_from_wkt('{}'),"
+            " 20000, 6)".format(self._CATK)
+        ).evaluate()
+
+        # Its tip is the furthest thing forward in the whole symbol.
+        self.assertGreater(
+            arrow.boundingBox().xMaximum(), bracket.boundingBox().xMaximum()
+        )
+
+
+    def test_degenerate_input_draws_none_of_it(self):
+
+        for expression, arguments in (
+            ("mct_counterattack_head", "20000, 6, 6"),
+            ("mct_counterattack_rear", "20000, 6"),
+            ("mct_counterattack_by_fire_bracket", "20000, 6"),
+            ("mct_counterattack_by_fire_arrow", "20000"),
+        ):
+            for wkt in ("LineString(0 0, 0 0)", "LineString(0 0)"):
+
+                self.assertTrue(
+                    QgsExpression(
+                        "{}(geom_from_wkt('{}'), {})".format(
+                            expression, wkt, arguments
+                        )
+                    ).evaluate().isEmpty(),
+                    msg="{} {}".format(expression, wkt)
+                )

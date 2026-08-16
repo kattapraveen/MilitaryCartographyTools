@@ -8598,6 +8598,54 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Counterattack by Fire (340700), and Appendix H closes (2026-08-16)
+
+The last symbol in Appendix H, plus two corrections to Counterattack
+itself from the maintainer's own render review.
+
+**"the arrowhead being solid is not acceptable, so change it to dashed
+- figure it out".** It could not be dashed as built: the head was the
+convoy's own SVG glyph, and an SVG has no pen style. So the head and
+the rear bar are GEOMETRY now - `mct_counterattack_head()` and
+`mct_counterattack_rear()` - redrawn point for point from that glyph's
+own path, which lets the whole outline take the same dashed stroke the
+rails do. The flare ratio is written out rather than derived from
+`_CONVOY_SVG_HEAD_FLARE / _CONVOY_SVG_BODY`, which would be a forward
+reference at import time; a test asserts the two agree, so the link is
+checked rather than merely claimed.
+
+That also simplified the symbol: only the RAILS still need
+`reverse($geometry)`, because only they rely on the convoy's own
+end-trim. The head and the bar read PT1 and the last vertex directly
+and are drawn the right way round either way.
+
+**"align CATK text with the arrowhead, in case drawn inverted as you
+say right to left, include a logic to keep the text straight".** So
+`mct_counterattack_text_angle()` takes the arrowhead's own direction
+and folds it into (-90, 90] - an arrow drawn east to west writes its
+text the same way up as one drawn west to east, mirrored about the
+vertical rather than turned over. Pinned by a test that walks the whole
+compass and asserts nothing ever leaves that half turn. It is the only
+rotated label on this layer; every other one is upright, which was the
+convoy's own convention and is what this replaces here.
+
+**Counterattack by Fire is that arrow plus one detached piece**: a
+bracket across the axis standing clear beyond PT1, with a small solid
+arrow through it pointing on. The standard draws it in both its
+template and its example and gives no dimension for any of it - the
+bracket is the arrow's own bar height, four millimetres clear of the
+tip, with an arrow four long and three wide. Those three numbers were
+offered as a proposal and taken as offered, which is worth recording:
+they are this build's, not the standard's.
+
+The arrow is the one FILLED part, and the one part the symbol's own
+"dashed lines" note does not cover - both of the standard's pictures
+draw it solid.
+
+**Appendix H is complete.** 1284 tests passing on both QGIS versions.
+
+---
+
 ### Counterattack (340600), the Moving Convoy's arrow dashed (2026-08-16)
 
 "let's start with moving convoy 330100 as template; user click three
@@ -9443,18 +9491,27 @@ request for a second look.
 
 ---
 
-## Appendix H — what is left to construct (audited 2026-08-15)
+## Appendix H — complete (closed 2026-08-16)
 
-Every Appendix H table is now built or explicitly closed. What remains
-is **1 symbol in 1 unit**, all of it construction rather than
-correction, and **nothing in Appendix H is blocked any more** - the one
-standing blocker, the CBRN contaminated areas' centred triangle, turned
-out not to be a blocker at all (see below). It was 36 in 2 before Table
-H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
-Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. The one that is left is
-a LINE or an AREA - not a coincidence, since milsymbol renders points
-and nothing else, so the whole remainder is hand-built QGIS symbology.
+**APPENDIX H IS COMPLETE**, 2026-08-16. Every table is built or
+explicitly closed, and **nothing is left to construct**.
+
+Two rows remain on the record and never will be built: 340000, Table
+H-XXIV's own section parent, and 342200, its Security group parent.
+Both read "N/A" for TEMPLATE and EXAMPLE. They stay listed so each
+module's built-plus-unbuilt arithmetic still adds to its table's own
+printed row count.
+
+It was 1 in 1 unit that morning, 36 in 2 before Table H-XXI closed on
+2026-08-15, and 54 in 5 before Maritime's Navigational, H-XXIII's eight
+supply routes and its seven sustainment areas were all built on
+2026-08-14. Every one of those last 54 was a LINE or an AREA - not a
+coincidence, since milsymbol renders points and nothing else, so the
+whole remainder was hand-built QGIS symbology.
+
+**Nothing was ever really blocked.** The one standing blocker, the CBRN
+contaminated areas' centred triangle, turned out not to be a blocker at
+all (see below).
 
 **The total was wrong until 2026-08-14** - written as 53, then 52, by
 arithmetic on the summary line rather than on the table's own rows,
@@ -9466,7 +9523,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 1 | **Counterattack by Fire** - the last symbol in the whole of Appendix H. Two more rows are recorded but will never be built: 340000, the table's own section parent, and 342200, the Security group parent; both read "N/A" for TEMPLATE and EXAMPLE. **Twenty-three built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Cover, Guard, Screen, Follow and Assume, Follow and Support, Counterattack. |
+| ~~1~~ | ~~H-XXIV Mission Tasks~~ | ~~25~~ | **Built 2026-08-15/16** - 3 points and 24 lines: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Cover, Guard, Screen, Follow and Assume, Follow and Support, Counterattack, Counterattack by Fire. Table H-XXIV closed, and with it Appendix H. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

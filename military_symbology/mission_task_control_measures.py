@@ -151,7 +151,6 @@ POINT_MARKER_SIZE_SCALES = {
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
-    "340700": "Counterattack by Fire",
     "342200": "Security (group parent; TEMPLATE and EXAMPLE both N/A)",
 }
 
@@ -236,6 +235,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "follow_and_assume": "Follow and Assume",
     "follow_and_support": "Follow and Support",
     "counterattack": "Counterattack",
+    "counterattack_by_fire": "Counterattack by Fire",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -262,6 +262,7 @@ LINE_MEASURE_TYPE_CODES = {
     "follow_and_assume": "341200",
     "follow_and_support": "341300",
     "counterattack": "340600",
+    "counterattack_by_fire": "340700",
 }
 
 
@@ -437,6 +438,36 @@ FOLLOW_CONSTRUCTION_MEASURE_TYPES = (
 # same shape a convoy expects, and every one of its settings carries
 # over untouched rather than being re-derived with the signs flipped.
 _COUNTERATTACK_GEOMETRY = "reverse($geometry)"
+
+COUNTERATTACK_MEASURE_TYPES = ("counterattack", "counterattack_by_fire")
+
+# **Counterattack by Fire is Counterattack plus one detached piece**: a
+# bracket across the axis beyond PT1 with a small solid arrow through
+# it. The standard draws it in both its template and its example and
+# gives no dimension for any of it; the sizes are this build's own,
+# offered as a proposal and taken - see the expressions module.
+
+_COUNTERATTACK_HEAD_EXPRESSION = (
+    "mct_counterattack_head($geometry, @map_scale, {body}, {head})".format(
+        body=CONVOY_BODY_HEIGHT_MM, head=CONVOY_HEAD_LENGTH_MM
+    )
+)
+
+_COUNTERATTACK_REAR_EXPRESSION = (
+    "mct_counterattack_rear($geometry, @map_scale, {body})".format(
+        body=CONVOY_BODY_HEIGHT_MM
+    )
+)
+
+_COUNTERATTACK_BY_FIRE_BRACKET_EXPRESSION = (
+    "mct_counterattack_by_fire_bracket($geometry, @map_scale, {body})".format(
+        body=CONVOY_BODY_HEIGHT_MM
+    )
+)
+
+_COUNTERATTACK_BY_FIRE_ARROW_EXPRESSION = (
+    "mct_counterattack_by_fire_arrow($geometry, @map_scale)"
+)
 
 # **The dashes are the symbol, not its status.** Its own note reads
 # "The dashed lines in this graphic shall be displayed in present and
@@ -727,87 +758,28 @@ def _counterattack_rail_layer(side):
     return rail
 
 
-def _counterattack_end_layer(mode, placement, length_mm):
+def _counterattack_symbol(measure_type):
 
     """
-    One end piece of Counterattack's arrow, drawn by the convoy's own
-    SVG so the two really are the same glyph.
+    Counterattack (340600) and Counterattack by Fire (340700) - the
+    Moving Convoy's arrow, dashed throughout, its head on PT1.
 
-    A marker is CENTRED on its vertex, so setOffsetAlongLine() backs it
-    off by half its own length - positive, because QGIS measures that
-    offset backwards from the end.
+    **The rails ride a geometry generator over reverse($geometry)**;
+    the end pieces do not need to. Reversed, the feature is the shape a
+    convoy expects - rear first, tip last - so the convoy's own offset
+    and end-trim carry over with no signs flipped. The head and the
+    rear bar read PT1 and the last vertex directly, so they are drawn
+    the right way round either way.
+
+    **Every part is geometry, none of it a marker**, which is the whole
+    reason the head can be dashed - see the expressions module.
     """
 
-    glyph = QgsSvgMarkerSymbolLayer("")
+    rails = QgsLineSymbol()
 
-    glyph.setSize(length_mm)
+    rails.changeSymbolLayer(0, _counterattack_rail_layer(1))
 
-    glyph.setDataDefinedProperty(
-        QgsSymbolLayer.Property.Name,
-        QgsProperty.fromExpression(
-            "mct_convoy_end_svg('{mode}', {length}, {colour})".format(
-                mode=mode,
-                length=(
-                    1.0 if mode == "rear"
-                    else length_mm / CONVOY_BODY_HEIGHT_MM
-                ),
-                colour=_COUNTERATTACK_GLYPH_COLOR_EXPRESSION,
-            )
-        )
-    )
-
-    marker = QgsMarkerSymbol()
-
-    marker.changeSymbolLayer(0, glyph)
-
-    marker_line = QgsMarkerLineSymbolLayer(True)
-
-    marker_line.setSubSymbol(marker)
-
-    marker_line.setPlacements(placement)
-
-    marker_line.setRotateSymbols(True)
-
-    marker_line.setOffsetAlongLine(length_mm / 2.0)
-
-    marker_line.setOffsetAlongLineUnit(Qgis.RenderUnit.Millimeters)
-
-    return marker_line
-
-
-def _counterattack_symbol():
-
-    """
-    Counterattack (340600) - the Moving Convoy's arrow, dashed, run
-    BACKWARDS so its head lands on PT1.
-
-    Every part rides one geometry generator over reverse($geometry).
-    That is the whole trick: reversed, the feature is the shape a
-    convoy expects - rear first, tip last - so the convoy's own
-    offsets, trims and placements carry over with no signs flipped.
-    """
-
-    inner = QgsLineSymbol()
-
-    inner.changeSymbolLayer(0, _counterattack_rail_layer(1))
-
-    inner.appendSymbolLayer(_counterattack_rail_layer(-1))
-
-    inner.appendSymbolLayer(
-        _counterattack_end_layer(
-            "rear",
-            Qgis.MarkerLinePlacement.FirstVertex,
-            CONVOY_REAR_BAR_WIDTH_MM,
-        )
-    )
-
-    inner.appendSymbolLayer(
-        _counterattack_end_layer(
-            "moving",
-            Qgis.MarkerLinePlacement.LastVertex,
-            CONVOY_HEAD_LENGTH_MM,
-        )
-    )
+    rails.appendSymbolLayer(_counterattack_rail_layer(-1))
 
     generator = QgsGeometryGeneratorSymbolLayer.create({})
 
@@ -815,11 +787,36 @@ def _counterattack_symbol():
 
     generator.setGeometryExpression(_COUNTERATTACK_GEOMETRY)
 
-    generator.setSubSymbol(inner)
+    generator.setSubSymbol(rails)
 
     symbol = QgsLineSymbol()
 
     symbol.changeSymbolLayer(0, generator)
+
+    for expression in (
+        _COUNTERATTACK_HEAD_EXPRESSION, _COUNTERATTACK_REAR_EXPRESSION
+    ):
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer(expression, always_dashed=True)
+        )
+
+    if measure_type == "counterattack_by_fire":
+
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer(
+                _COUNTERATTACK_BY_FIRE_BRACKET_EXPRESSION,
+                always_dashed=True,
+            )
+        )
+
+        # The one filled part, and the one part the symbol's own
+        # "dashed lines" note does not cover - both of the standard's
+        # own pictures draw this arrow solid.
+        symbol.appendSymbolLayer(
+            _task_fill_generator_layer(
+                _COUNTERATTACK_BY_FIRE_ARROW_EXPRESSION
+            )
+        )
 
     return symbol
 
@@ -861,8 +858,8 @@ def _task_fill_generator_layer(geometry_expression):
 
 def _mission_task_line_symbol(measure_type):
 
-    if measure_type == "counterattack":
-        return _counterattack_symbol()
+    if measure_type in COUNTERATTACK_MEASURE_TYPES:
+        return _counterattack_symbol(measure_type)
 
 
     """
@@ -1335,8 +1332,7 @@ _LINE_SYMBOL_BUILDERS = {
 # is what keeps its own line continuous.
 LABELLED_MEASURE_TYPES = tuple(LINE_LETTERS) + (
     "relief_in_place",
-    "counterattack",
-)
+) + COUNTERATTACK_MEASURE_TYPES
 
 # **"RIP" is the only text on this layer that is not a fixed size.**
 # The maintainer's own instruction: "make it variable so as to fit the
@@ -1359,6 +1355,18 @@ _RIP_TEXT_SIZE_EXPRESSION = (
 _LABEL_SIZE_EXPRESSIONS = {
     "relief_in_place": _RIP_TEXT_SIZE_EXPRESSION,
     "counterattack": _CATK_TEXT_SIZE_EXPRESSION,
+    "counterattack_by_fire": _CATK_TEXT_SIZE_EXPRESSION,
+}
+
+# **"CATK" is written along its own arrow**, at the maintainer's own
+# instruction, and folded to stay upright: "align CATK text with the
+# arrowhead, in case drawn inverted as you say right to left, include a
+# logic to keep the text straight". The only rotated label on this
+# layer - every other one is upright, which is the convoy's own
+# convention and the one this replaces here.
+_LABEL_ANGLE_EXPRESSIONS = {
+    measure_type: "mct_counterattack_text_angle($geometry)"
+    for measure_type in COUNTERATTACK_MEASURE_TYPES
 }
 
 
@@ -1375,7 +1383,7 @@ def _label_specifications(measure_type):
     # Half way along the arrow, inside its own bar - where the
     # standard's own picture writes it and where the moving convoy
     # already writes its Field V/H.
-    if measure_type == "counterattack":
+    if measure_type in COUNTERATTACK_MEASURE_TYPES:
         return [
             (
                 "'CATK'",
@@ -1441,14 +1449,20 @@ def _configure_lines_labeling(layer):
             # a QgsRuleBasedLabeling.Rule takes the pointer, and this
             # module has been bitten before by reaching back into a
             # QGIS object after handing it over.
-            if measure_type in _LABEL_SIZE_EXPRESSIONS:
+            for properties, expressions in (
+                (QgsPalLayerSettings.Property.Size,
+                 _LABEL_SIZE_EXPRESSIONS),
+                (QgsPalLayerSettings.Property.LabelRotation,
+                 _LABEL_ANGLE_EXPRESSIONS),
+            ):
+                if measure_type in expressions:
 
-                settings.dataDefinedProperties().setProperty(
-                    QgsPalLayerSettings.Property.Size,
-                    QgsProperty.fromExpression(
-                        _LABEL_SIZE_EXPRESSIONS[measure_type]
+                    settings.dataDefinedProperties().setProperty(
+                        properties,
+                        QgsProperty.fromExpression(
+                            expressions[measure_type]
+                        )
                     )
-                )
 
             rule = QgsRuleBasedLabeling.Rule(settings)
 

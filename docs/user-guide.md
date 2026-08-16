@@ -1392,8 +1392,8 @@ emptied by these three.
   are the only three of Table H-XXIV's 29 mission tasks drawn as a
   single centred glyph on one anchor point; the other 26 are arrows,
   brackets and outlined regions built from two to fifty anchor points.
-  Twenty-three of those are built, on their own **Mission Task Lines** layer
-  described below.
+  All twenty-four of those are built, on their own **Mission Task
+  Lines** layer described below.
 
 All three render through the same verified milsymbol library as the
 Units layer, not hand-built QGIS symbology, so they are spec-exact
@@ -1455,8 +1455,8 @@ apart on the map. And **Convoy** — moving or halted — is on the Supply
 Routes layer rather than a layer of its own: it is a route with a head
 at PT1 and a bar at the far end, so it belongs where the routes are.
 
-**Mission Task Lines** comes with the Mission Tasks menu entry — twenty-three
-of Table H-XXIV's multi-anchor tasks, drawn with QGIS's own **Add Line
+**Mission Task Lines** comes with the Mission Tasks menu entry — all
+twenty-four of Table H-XXIV's multi-anchor tasks, drawn with QGIS's own **Add Line
 Feature** tool. Each carries its own letter, set into a real gap cut in
 the shaft or arc it sits on rather than painted over it.
 
@@ -1550,11 +1550,14 @@ Assume's line stays dashed whether the feature is present or planned —
 also the standard's rule, and the one place on this layer where a dash
 does not mean "planned".
 
-**Counterattack** is the Supply Routes layer's own **Moving Convoy**
-arrow, dashed: click three points, and the arrow runs from PT3 back to
-an arrowhead at **PT1**, with **CATK** written inside it. Its dashes
-stay dashed whether the feature is present or planned — the standard's
-own rule, as with Follow and Assume.
+**Counterattack** and **Counterattack by Fire** are the Supply Routes
+layer's own **Moving Convoy** arrow, dashed throughout: click three
+points, and the arrow runs from PT3 back to an arrowhead at **PT1**,
+with **CATK** written along it. By Fire adds a bracket just beyond the
+tip with a small solid arrow through it. The dashes stay dashed whether
+the feature is present or planned — the standard's own rule, as with
+Follow and Assume — and CATK follows the arrow's own direction while
+staying the right way up however you draw it.
 
 **Seize** is the odd one out — three points, PT1 carrying a circle, a
 curve running PT1-PT2-PT3 that starts on that circle's perimeter rather
@@ -1562,9 +1565,10 @@ than at its centre, an arrowhead at PT3 and letter **S** on the curve.
 It is **Turn**'s own curve from the Obstacles layer with the circle
 added.
 
-The remaining 3 rows of Table H-XXIV are not built — see
-`military_symbology/mission_task_control_measures.py` for the full
-audit of what is left and why.
+**Table H-XXIV is complete**, and with it the whole of Appendix H. The
+two rows the module still lists are the table's own section parent and
+its Security group parent, neither of which the standard gives a
+template for.
 
 ### Intelligence Control Measures
 

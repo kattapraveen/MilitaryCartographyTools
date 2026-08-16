@@ -4310,6 +4310,329 @@ def mct_counterattack_text_size(values, feature=None, parent=None):
     return max(size_mm, 0.0) * 72.0 / 25.4
 
 
+
+# **Counterattack's head and rear are GEOMETRY, not the convoy's own
+# SVG glyphs.** They started as those glyphs - it is the same arrow -
+# and the maintainer rejected the result: "the arrowhead being solid is
+# not acceptable, so change it to dashed - figure it out". An SVG has
+# no pen style, so nothing about the marker could be dashed; drawn as
+# real line geometry the whole outline takes the same dashed stroke the
+# rails do.
+#
+# The shape is the convoy glyph's, point for point - the head flares
+# beyond the body on each side, and runs from the bar's edge out to the
+# flare, in to the tip, and back.
+#
+# Written out rather than derived from _CONVOY_SVG_HEAD_FLARE /
+# _CONVOY_SVG_BODY, which are declared further down this module and
+# would be a forward reference at import time. A test asserts the two
+# agree, so the link is checked rather than merely claimed.
+_CATK_HEAD_FLARE_RATIO = 0.40
+
+# Counterattack by Fire's own extra piece, beyond the tip: a bracket
+# across the axis and a small solid arrow through it, pointing on.
+#
+# **Every one of these three numbers is mine.** The standard draws the
+# piece in both its template and its example but gives no dimension for
+# any of it, and the maintainer took the proposal as offered rather
+# than dictating their own: the bracket is the arrow's own bar height,
+# standing a short way clear of the tip, with an arrow two thirds of
+# that long.
+_CATK_BY_FIRE_STANDOFF_MM = 4.0
+_CATK_BY_FIRE_ARROW_LENGTH_MM = 4.0
+_CATK_BY_FIRE_ARROW_WIDTH_MM = 3.0
+
+
+def _counterattack_frame(values):
+
+    """
+    (tip, along, across, millimetre) for Counterattack - the direction
+    INTO PT1, which is the first clicked vertex and the end the
+    arrowhead sits on.
+    """
+
+    if len(values) < 2:
+        return None
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return None
+
+    try:
+        vertices = geometry.asPolyline()
+    except (TypeError, ValueError):
+        return None
+
+    if len(vertices) < 2:
+        return None
+
+    tip, behind = QgsPointXY(vertices[0]), QgsPointXY(vertices[1])
+
+    span = math.hypot(tip.x() - behind.x(), tip.y() - behind.y())
+
+    if span == 0:
+        return None
+
+    along = ((tip.x() - behind.x()) / span, (tip.y() - behind.y()) / span)
+
+    millimetre = _millimetres_in_map_units(1.0, values[1], tip)
+
+    if millimetre <= 0:
+        return None
+
+    return tip, along, (-along[1], along[0]), millimetre
+
+
+def _counterattack_offset(frame, forward_mm, sideways_mm):
+
+    """A page-millimetre offset from the tip, in map units."""
+
+    tip, along, across, millimetre = frame
+
+    forward = forward_mm * millimetre
+    sideways = sideways_mm * millimetre
+
+    return QgsPointXY(
+        tip.x() + forward * along[0] + sideways * across[0],
+        tip.y() + forward * along[1] + sideways * across[1],
+    )
+
+
+@qgsfunction(
+    'mct_counterattack_head',
+    group='Military Cartography Tools'
+)
+def mct_counterattack_head(values, feature=None, parent=None):
+
+    """
+    Counterattack's own arrowhead at PT1 - the moving convoy's outline,
+    drawn as geometry so it can be dashed like the rest of the symbol.
+
+    Use as mct_counterattack_head($geometry, @map_scale, <body height
+    in mm>, <head length in mm>). Both sizes are passed in rather than
+    restated here, so they can only ever be the convoy's own.
+    """
+
+    if len(values) < 4:
+        return QgsGeometry()
+
+    frame = _counterattack_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    try:
+        body_mm = float(values[2])
+        head_mm = float(values[3])
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    half = body_mm / 2.0
+
+    flare = half + _CATK_HEAD_FLARE_RATIO * body_mm
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            _counterattack_offset(frame, -head_mm, -half),
+            _counterattack_offset(frame, -head_mm, -flare),
+            _counterattack_offset(frame, 0.0, 0.0),
+            _counterattack_offset(frame, -head_mm, flare),
+            _counterattack_offset(frame, -head_mm, half),
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_counterattack_rear',
+    group='Military Cartography Tools'
+)
+def mct_counterattack_rear(values, feature=None, parent=None):
+
+    """
+    The bar closing Counterattack's arrow at its rear - the LAST
+    clicked vertex, which is PT3.
+
+    Its own short geometry rather than a marker, for the same reason
+    the head is: it has to dash with everything else.
+    """
+
+    if len(values) < 3:
+        return QgsGeometry()
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return QgsGeometry()
+
+    try:
+        vertices = geometry.asPolyline()
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    if len(vertices) < 2:
+        return QgsGeometry()
+
+    rear, ahead = QgsPointXY(vertices[-1]), QgsPointXY(vertices[-2])
+
+    span = math.hypot(rear.x() - ahead.x(), rear.y() - ahead.y())
+
+    if span == 0:
+        return QgsGeometry()
+
+    try:
+        body_mm = float(values[2])
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    millimetre = _millimetres_in_map_units(1.0, values[1], rear)
+
+    if millimetre <= 0:
+        return QgsGeometry()
+
+    across = (
+        -(rear.y() - ahead.y()) / span,
+        (rear.x() - ahead.x()) / span,
+    )
+
+    reach = body_mm / 2.0 * millimetre
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            QgsPointXY(
+                rear.x() - reach * across[0], rear.y() - reach * across[1]
+            ),
+            QgsPointXY(
+                rear.x() + reach * across[0], rear.y() + reach * across[1]
+            ),
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_counterattack_text_angle',
+    group='Military Cartography Tools'
+)
+def mct_counterattack_text_angle(values, feature=None, parent=None):
+
+    """
+    What angle "CATK" should be written at - along the arrow, but never
+    upside down.
+
+    "align CATK text with the arrowhead, in case drawn inverted as you
+    say right to left, include a logic to keep the text straight" - the
+    maintainer's own instruction. So the angle is the arrowhead's own
+    direction, folded into the half turn that reads left to right: an
+    arrow drawn east to west writes its text the same way up as one
+    drawn west to east, just mirrored about the vertical.
+
+    Degrees counter-clockwise from east, which is what QGIS's own label
+    rotation takes.
+    """
+
+    frame = _counterattack_frame(values + [1.0])
+
+    if frame is None:
+        return 0.0
+
+    _tip, along, _across, _millimetre = frame
+
+    angle = math.degrees(math.atan2(along[1], along[0]))
+
+    # Fold into (-90, 90]. Past a quarter turn either way the text would
+    # be standing on its head, and half a turn back reads the same.
+    while angle > 90.0:
+        angle -= 180.0
+
+    while angle <= -90.0:
+        angle += 180.0
+
+    return angle
+
+
+@qgsfunction(
+    'mct_counterattack_by_fire_bracket',
+    group='Military Cartography Tools'
+)
+def mct_counterattack_by_fire_bracket(values, feature=None, parent=None):
+
+    """
+    Counterattack by Fire's own bracket (340700) - a bar across the
+    axis, standing clear beyond PT1.
+
+    Use as mct_counterattack_by_fire_bracket($geometry, @map_scale,
+    <body height in mm>).
+    """
+
+    if len(values) < 3:
+        return QgsGeometry()
+
+    frame = _counterattack_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    try:
+        body_mm = float(values[2])
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    half = body_mm / 2.0
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            _counterattack_offset(frame, _CATK_BY_FIRE_STANDOFF_MM, -half),
+            _counterattack_offset(frame, _CATK_BY_FIRE_STANDOFF_MM, half),
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_counterattack_by_fire_arrow',
+    group='Military Cartography Tools'
+)
+def mct_counterattack_by_fire_arrow(values, feature=None, parent=None):
+
+    """
+    The small SOLID arrow through Counterattack by Fire's bracket,
+    pointing on past it.
+
+    Filled, unlike everything else in this symbol, because the
+    standard's own template and example both draw it filled - the one
+    part of the graphic its "dashed lines" note does not cover.
+    """
+
+    if len(values) < 2:
+        return QgsGeometry()
+
+    frame = _counterattack_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    base = _CATK_BY_FIRE_STANDOFF_MM
+
+    tip = base + _CATK_BY_FIRE_ARROW_LENGTH_MM
+
+    half = _CATK_BY_FIRE_ARROW_WIDTH_MM / 2.0
+
+    corners = [
+        (tip, 0.0),
+        (base, half),
+        (base, -half),
+        (tip, 0.0),
+    ]
+
+    return QgsGeometry.fromPolygonXY(
+        [
+            [
+                _counterattack_offset(frame, forward, sideways)
+                for forward, sideways in corners
+            ]
+        ]
+    )
+
+
 @qgsfunction(
     'mct_relief_in_place_return_arrow',
     group='Military Cartography Tools'
@@ -8050,6 +8373,11 @@ _FUNCTIONS = [
     mct_relief_in_place_text_point,
     mct_relief_in_place_text_size,
     mct_counterattack_text_size,
+    mct_counterattack_text_angle,
+    mct_counterattack_head,
+    mct_counterattack_rear,
+    mct_counterattack_by_fire_bracket,
+    mct_counterattack_by_fire_arrow,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,
