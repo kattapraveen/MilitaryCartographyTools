@@ -272,8 +272,16 @@ Contours are generated for the **DEM layer's own full extent**, clipped and
 reprojected to the appropriate local UTM zone automatically — the current
 map canvas view has no effect on the result, so regenerating (e.g. after
 tweaking a parameter) always produces the same output regardless of where
-you've since panned or zoomed. On a large DEM, generation may take longer;
-crop the DEM itself first if you only need a smaller area.
+you've since panned or zoomed.
+
+The dialog carries a standing **caution** about generation time, and it's
+a real one: a large DEM and a fine contour interval multiply together into
+a lot of work, and QGIS will simply look busy until it finishes rather
+than showing progress. The two settings that cost the most are **contour
+interval** (smaller means far more lines) and **segment length** (smaller
+means every line is cut into more pieces, each needing its own elevation
+sample). If a run is taking longer than you want to wait, crop the DEM
+itself first, or start with a coarser interval and refine from there.
 
 ### Getting a DEM
 

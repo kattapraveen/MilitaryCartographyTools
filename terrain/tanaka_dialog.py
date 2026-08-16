@@ -4,7 +4,9 @@
 Qt UI for generating Tanaka contours - picks a DEM plus the
 illumination/styling parameters, then hands off to
 tanaka_contours.generate_tanaka_contours() for the DEM's own full
-extent.
+extent. Carries a standing caution about generation time (see
+CAUTION_TEXT), since a large DEM and/or a fine contour interval can
+leave the dialog looking hung for a while.
 
 Military Cartography Tools
 """
@@ -17,6 +19,7 @@ from qgis.PyQt.QtWidgets import (
     QComboBox,
     QDialog,
     QFormLayout,
+    QLabel,
     QVBoxLayout,
     QDoubleSpinBox,
     QDialogButtonBox,
@@ -37,6 +40,20 @@ from .tanaka_contours import (
     STYLE_ELEVATION_COLOR,
     STYLE_ILLUMINATED_OVERLAY,
     STYLE_MONOCHROME,
+)
+
+
+# Shown in the dialog itself rather than pushed to the message bar
+# after the fact: a warning about how long a run takes is only useful
+# while the settings that drive it are still on screen and editable.
+# Deliberately unconditional - no pixel-count/interval threshold to
+# decide when it appears, since any such threshold would have to be
+# guessed rather than measured, and a caution that sometimes appears
+# is a worse signal than one that's simply always there.
+CAUTION_TEXT = (
+    "Caution: Tanaka Contour generation may take a long time, "
+    "depending on your area's dimensions and the other selections "
+    "in this dialog."
 )
 
 
@@ -179,6 +196,21 @@ class TanakaContourDialog(QDialog):
         form.addRow("Style", self.style_mode_combo)
         form.addRow(self.new_layer_checkbox)
 
+        self.caution_label = QLabel(
+            CAUTION_TEXT
+        )
+
+        self.caution_label.setWordWrap(
+            True
+        )
+
+        caution_font = self.caution_label.font()
+        caution_font.setBold(True)
+
+        self.caution_label.setFont(
+            caution_font
+        )
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
             | QDialogButtonBox.StandardButton.Cancel
@@ -195,6 +227,7 @@ class TanakaContourDialog(QDialog):
         outer = QVBoxLayout()
 
         outer.addLayout(form)
+        outer.addWidget(self.caution_label)
         outer.addWidget(buttons)
 
         self.setLayout(

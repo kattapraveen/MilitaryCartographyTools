@@ -41,7 +41,11 @@ from MilitaryCartographyTools.terrain.tanaka_contours import (
     STYLE_ILLUMINATED_OVERLAY,
     STYLE_MONOCHROME,
 )
-from MilitaryCartographyTools.terrain.tanaka_dialog import generate_from_dialog_values
+from MilitaryCartographyTools.terrain.tanaka_dialog import (
+    CAUTION_TEXT,
+    generate_from_dialog_values,
+    TanakaContourDialog,
+)
 
 
 class TestGenerateFromDialogValues(QgisTestCase):
@@ -298,3 +302,42 @@ class TestGenerateFromDialogValues(QgisTestCase):
         self.assertIsNotNone(
             QgsProject.instance().mapLayer(first.id())
         )
+
+
+class TestGenerationTimeCaution(QgisTestCase):
+
+    """
+    The standing caution about how long a run can take - see
+    tanaka_dialog.py's own CAUTION_TEXT. Deliberately unconditional,
+    so there is no "heavy DEM" case to test it against; what matters
+    is that it's actually in the dialog, and readable.
+    """
+
+    def test_the_caution_is_shown_in_the_dialog(self):
+
+        dialog = TanakaContourDialog()
+
+        self.assertEqual(
+            dialog.caution_label.text(),
+            CAUTION_TEXT
+        )
+
+        self.assertTrue(
+            dialog.caution_label.isVisibleTo(dialog)
+        )
+
+
+    def test_the_caution_wraps_rather_than_widening_the_dialog(self):
+
+        dialog = TanakaContourDialog()
+
+        self.assertTrue(
+            dialog.caution_label.wordWrap()
+        )
+
+
+    def test_the_caution_names_the_feature_and_the_risk(self):
+
+        self.assertIn("Caution", CAUTION_TEXT)
+        self.assertIn("Tanaka Contour", CAUTION_TEXT)
+        self.assertIn("long time", CAUTION_TEXT)
