@@ -8598,6 +8598,43 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Breach (340200) and Canalize (340400), Bypass with its heads replaced (2026-08-16)
+
+"same as bypass, replace the arrowheads with slanting lines at the
+edges, converging out" for Breach; "same as breach, replace B with C,
+and reverse the orientation slanting lines, converging in" for
+Canalize. So all three share `mct_obstacle_bypass_arrows()` and the
+joining line, and `BYPASS_CONSTRUCTION_MEASURE_TYPES` holds the set the
+way `DELAY_CONSTRUCTION_MEASURE_TYPES` does.
+
+**The ticks are real geometry, not rotated markers, and that is the
+one decision here worth keeping.** A marker line places ONE angle on
+every part it fires on, and the two ticks are mirror images of each
+other - so the angle would have to be keyed to which ARM each tick sat
+on. It would have worked until a user clicked PT1 and PT2 the other way
+round, at which point Breach would have drawn Canalize's picture and
+nothing would have errored. `mct_bypass_ticks()` takes each tick's
+outward direction from its own tip's side of the opening instead, so
+click order cannot change the symbol. Pinned by a test that swaps the
+two points and asserts the drawing is unchanged.
+
+**Two numbers, both measured off the standard's own pages 645-646.**
+The tilt is 30 degrees off the perpendicular, 60 degrees to the arm:
+four ticks fitted by principal axis came out at 66, 62, 59 and 53
+degrees, a hand-drawn spread with 60 through the middle. The length is
+a quarter of the arm capped at 6 mm - not measured but INHERITED, since
+that is exactly the arrowhead each tick replaces, and the instruction
+was to swap one for the other rather than to resize anything.
+
+The cap is applied inside the geometry rather than by a marker's
+QgsMapUnitScale, which needed `_page_gap_in_map_units()` to express 6
+page millimetres in the map units the ticks are drawn in - the same
+conversion every letter gap on this layer uses.
+
+1225 tests passing on both QGIS versions.
+
+---
+
 ### Bypass (340300), on Obstacle Bypass Easy's own construction (2026-08-16)
 
 "same as obstacle bypass easy 270601, except add B (masked) on line
@@ -9142,13 +9179,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **12 symbols in 1 unit**, all of it construction rather than
+is **10 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 12 is
+areas were all built on 2026-08-14. Every one of the 10 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9162,7 +9199,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 12 | Breach, Canalize, Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 12 drawable symbols, plus the section parent row, which draws nothing. **Thirteen built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass. **Check every remaining row against Table H-XIX before building it** - Bypass turned out to be 270601 whole, after this table had been declared out of reuse. |
+| 1 | H-XXIV Mission Tasks | 10 | Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 10 drawable symbols, plus the section parent row, which draws nothing. **Fifteen built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize. **Check every remaining row against Table H-XIX before building it** - Bypass turned out to be 270601 whole, after this table had been declared out of reuse, and Breach and Canalize followed from it. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

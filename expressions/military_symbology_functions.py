@@ -4090,6 +4090,126 @@ def mct_isolate_teeth(values, feature=None, parent=None):
 
 
 
+
+# --- Breach (340200) and Canalize (340400), Table H-XXIV ---
+#
+# Both are Bypass's own construction with the ARROWHEADS REPLACED by a
+# slanting line across each arm's tip, at the maintainer's own
+# instruction: Breach is "same as bypass, replace the arrowheads with
+# slanting lines at the edges, converging out"; Canalize is "same as
+# breach, replace B with C, and reverse the orientation slanting lines,
+# converging in".
+#
+# **Which way a tick leans has to come from the geometry, not from
+# which arm it is.** A marker rotated onto each arm's last vertex takes
+# ONE angle, and the two ticks are mirror images of each other - so a
+# fixed angle per part would flip the whole symbol between Breach's
+# look and Canalize's the moment a user clicked PT1 and PT2 the other
+# way round. These are real line geometry instead, with each tick's
+# outward direction taken from that tip's own side of the opening.
+#
+# **The tilt is 30 degrees off the perpendicular** - 60 degrees to the
+# arm. Fitted to the standard's own template and example on printed
+# pages 645-646: four ticks, principal axes at 66, 62, 59 and 53
+# degrees to their arm, which is a hand-drawn spread with 60 through
+# the middle of it.
+_BYPASS_TICK_TILT_DEG = 30.0
+
+# How long each tick is, as a fraction of the arm it crosses - the same
+# quarter the Bypass arrowhead it replaces uses, so the three symbols
+# keep drawing at the same size. Capped in PAGE millimetres by the
+# caller, for the same reason that head is.
+_BYPASS_TICK_ARM_FRACTION = 0.25
+
+
+@qgsfunction(
+    'mct_bypass_ticks',
+    group='Military Cartography Tools'
+)
+def mct_bypass_ticks(values, feature=None, parent=None):
+
+    """
+    The slanting lines that stand in for Bypass's arrowheads on Breach
+    (340200) and Canalize (340400) - one across each arm's own tip,
+    centred on it.
+
+    `converging_out` true leans each tick's OUTER end back toward the
+    rear, so the pair closes as it goes outward: Breach. False mirrors
+    them: Canalize. `max_mm` and `map_scale` cap the length on the
+    page, the way the arrowhead they replace is capped.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    _rear_top, _rear_bottom, arrow_top, arrow_bottom, depth = (
+        _obstacle_bypass_frame(pt1, pt2, pt3)
+    )
+
+    opening = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y())
+
+    if depth == 0 or opening == 0:
+        return QgsGeometry()
+
+    converging_out = True if len(values) < 2 else bool(values[1])
+
+    # Along the arms, rear to tip - the same for both, since the two
+    # arms are parallel by construction.
+    ux = (arrow_top[1].x() - arrow_top[0].x()) / depth
+    uy = (arrow_top[1].y() - arrow_top[0].y()) / depth
+
+    length = _BYPASS_TICK_ARM_FRACTION * depth
+
+    cap = _page_gap_in_map_units(values, 2, pt1)
+
+    if cap > 0:
+        length = min(length, cap)
+
+    lean = math.sin(math.radians(_BYPASS_TICK_TILT_DEG))
+    across = math.cos(math.radians(_BYPASS_TICK_TILT_DEG))
+
+    if not converging_out:
+        lean = -lean
+
+    ticks = []
+
+    for tip, other in ((pt1, pt2), (pt2, pt1)):
+
+        # Outward across the opening - away from the other tip, so it
+        # follows the points the user actually clicked rather than
+        # which arm this is.
+        sx = (tip.x() - other.x()) / opening
+        sy = (tip.y() - other.y()) / opening
+
+        dx = across * sx - lean * ux
+        dy = across * sy - lean * uy
+
+        ticks.append(
+            [
+                QgsPointXY(
+                    tip.x() - length / 2.0 * dx, tip.y() - length / 2.0 * dy
+                ),
+                QgsPointXY(
+                    tip.x() + length / 2.0 * dx, tip.y() + length / 2.0 * dy
+                ),
+            ]
+        )
+
+    return QgsGeometry.fromMultiPolylineXY(ticks)
+
+
 # --- Delay (Table H-XXIV, 340800) ---
 #
 # The maintainer's own construction: "user clicks pt1, pt2 and pt3.
@@ -7087,6 +7207,7 @@ _FUNCTIONS = [
     mct_obstacle_bypass_arrow_length,
     mct_obstacle_bypass_rear_easy,
     mct_obstacle_bypass_rear_midpoint,
+    mct_bypass_ticks,
     mct_obstacle_bypass_rear_difficult,
     mct_obstacle_bypass_rear_impossible,
     mct_roadblock_main_line,

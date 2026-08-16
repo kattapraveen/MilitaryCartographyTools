@@ -25,6 +25,7 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     POINT_ENTITY_CODES,
     POINT_ENTITY_LABELS,
     POINT_MARKER_SIZE_SCALES,
+    BYPASS_CONSTRUCTION_MEASURE_TYPES,
     DELAY_CONSTRUCTION_MEASURE_TYPES,
     LINE_LETTERS,
     LINE_MEASURE_TYPE_CODES,
@@ -64,11 +65,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 13 line tasks + 13 still unbuilt = the table's own
+        # 3 points + 15 line tasks + 11 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 13)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 11)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -1112,3 +1113,255 @@ class TestBypass(QgisTestCase):
             return
 
         self.fail("no labelling rule for bypass")
+
+
+class TestBreachAndCanalize(QgisTestCase):
+
+    """
+    Breach (340200) and Canalize (340400) - Bypass with the arrowheads
+    replaced by a slanting line across each arm's tip.
+
+    "same as bypass, replace the arrowheads with slanting lines at the
+    edges, converging out" (Breach), then "same as breach, replace B
+    with C, and reverse the orientation slanting lines, converging in"
+    (Canalize) - the maintainer's own instructions.
+    """
+
+    # PT1 and PT2 are the opening's two ends, PT3 sets how far the arms
+    # run. The rear line sits on PT3's side and the arms run back OUT
+    # from it to the tips - so with PT3 to the east, the arms run due
+    # WEST and "toward the rear" is a LARGER x.
+    _BYPASS = "LineString(0 10, 0 0, 8 5)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _ticks(self, converging_out, wkt=None):
+
+        return QgsExpression(
+            "mct_bypass_ticks(geom_from_wkt('{}'), {})".format(
+                wkt or self._BYPASS, str(converging_out).lower()
+            )
+        ).evaluate().asMultiPolyline()
+
+
+    @staticmethod
+    def _outer_and_inner(tick, tip_y, centre_y):
+
+        """The tick's two ends, sorted by distance from the centreline."""
+
+        return sorted(
+            tick,
+            key=lambda point: abs(point.y() - centre_y),
+            reverse=True
+        )
+
+
+    def test_one_tick_per_arm_centred_on_its_own_tip(self):
+
+        ticks = self._ticks(True)
+
+        self.assertEqual(len(ticks), 2)
+
+        for tick, tip in zip(ticks, ((0.0, 10.0), (0.0, 0.0))):
+
+            self.assertEqual(len(tick), 2)
+
+            self.assertAlmostEqual(
+                (tick[0].x() + tick[1].x()) / 2.0, tip[0], places=6
+            )
+
+            self.assertAlmostEqual(
+                (tick[0].y() + tick[1].y()) / 2.0, tip[1], places=6
+            )
+
+
+    def test_breachs_ticks_lean_their_outer_ends_back(self):
+
+        # Converging out: the pair closes as it runs away from the
+        # symbol, which is what makes the outer end the rearward one.
+        for tick, tip_y in zip(self._ticks(True), (10.0, 0.0)):
+
+            outer, inner = self._outer_and_inner(tick, tip_y, 5.0)
+
+            self.assertGreater(outer.x(), inner.x())
+
+
+    def test_canalize_mirrors_them(self):
+
+        for tick, tip_y in zip(self._ticks(False), (10.0, 0.0)):
+
+            outer, inner = self._outer_and_inner(tick, tip_y, 5.0)
+
+            self.assertLess(outer.x(), inner.x())
+
+
+    def test_the_ticks_do_not_flip_when_pt1_and_pt2_are_swapped(self):
+
+        # The whole point of building these as geometry rather than as
+        # a rotated marker per arm: each tick's outward direction comes
+        # from its own tip's side of the opening, so clicking the two
+        # ends the other way round draws the SAME symbol rather than
+        # turning Breach into Canalize.
+        swapped = self._ticks(True, "LineString(0 0, 0 10, 8 5)")
+
+        for tick in swapped:
+
+            outer, inner = self._outer_and_inner(tick, 0.0, 5.0)
+
+            self.assertGreater(outer.x(), inner.x())
+
+
+    def test_the_tick_is_sixty_degrees_to_its_arm(self):
+
+        for tick in self._ticks(True):
+
+            # Arms run due east, so the angle to the arm is the tick's
+            # own angle off horizontal.
+            angle = math.degrees(
+                math.atan2(
+                    abs(tick[1].y() - tick[0].y()),
+                    abs(tick[1].x() - tick[0].x()),
+                )
+            )
+
+            self.assertAlmostEqual(angle, 60.0, places=6)
+
+
+    def test_the_length_is_a_quarter_of_the_arm_until_the_cap_bites(self):
+
+        # PT3 is 8 out, so each arm is 8 and each tick a quarter of it.
+        for tick in self._ticks(True):
+
+            self.assertAlmostEqual(
+                math.hypot(
+                    tick[1].x() - tick[0].x(), tick[1].y() - tick[0].y()
+                ),
+                2.0,
+                places=6
+            )
+
+        # With a cap given, the tick can only get shorter.
+        capped = QgsExpression(
+            "mct_bypass_ticks(geom_from_wkt('{}'), true, 6, 1000)".format(
+                self._BYPASS
+            )
+        ).evaluate().asMultiPolyline()
+
+        self.assertLess(
+            math.hypot(
+                capped[0][1].x() - capped[0][0].x(),
+                capped[0][1].y() - capped[0][0].y(),
+            ),
+            2.0
+        )
+
+
+    def test_degenerate_input_draws_no_ticks(self):
+
+        # PT3 on the PT1-PT2 line leaves no arms to put them on.
+        self.assertTrue(
+            QgsExpression(
+                "mct_bypass_ticks(geom_from_wkt("
+                "'LineString(0 10, 0 0, 0 5)'), true)"
+            ).evaluate().isEmpty()
+        )
+
+
+    def test_all_three_share_the_arrows_and_the_joining_line(self):
+
+        self.assertEqual(
+            BYPASS_CONSTRUCTION_MEASURE_TYPES,
+            ("bypass", "breach", "canalize")
+        )
+
+        layer = create_mission_task_lines_layer()
+
+        drawn = {}
+
+        for rule in layer.renderer().rootRule().children():
+
+            for measure_type in BYPASS_CONSTRUCTION_MEASURE_TYPES:
+
+                if rule.filterExpression() != (
+                    "\"measure_type\" = '{}'".format(measure_type)
+                ):
+                    continue
+
+                symbol = rule.symbol()
+
+                drawn[measure_type] = [
+                    symbol.symbolLayer(index).geometryExpression()
+                    for index in range(symbol.symbolLayerCount())
+                ]
+
+        self.assertEqual(len(drawn), 3)
+
+        for measure_type, expressions in drawn.items():
+
+            self.assertIn(
+                "mct_obstacle_bypass_arrows($geometry)", expressions,
+                msg=measure_type
+            )
+
+            self.assertTrue(
+                any(each.startswith("mct_obstacle_bypass_rear_easy($geometry,")
+                    for each in expressions),
+                msg=measure_type
+            )
+
+        # Only Bypass carries arrowheads; only the other two carry ticks.
+        self.assertEqual(
+            drawn["bypass"].count("mct_obstacle_bypass_arrows($geometry)"), 2
+        )
+
+        for measure_type, outward in (("breach", "true"), ("canalize", "false")):
+
+            self.assertIn(
+                "mct_bypass_ticks($geometry, {}, 6, @map_scale)".format(
+                    outward
+                ),
+                drawn[measure_type],
+                msg=measure_type
+            )
+
+            self.assertEqual(
+                drawn[measure_type].count(
+                    "mct_obstacle_bypass_arrows($geometry)"
+                ),
+                1,
+                msg=measure_type
+            )
+
+
+    def test_breach_letters_b_and_canalize_letters_c(self):
+
+        layer = create_mission_task_lines_layer()
+
+        lettered = {}
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() in ("breach", "canalize"):
+
+                lettered[rule.description()] = rule.settings().fieldName
+
+                self.assertEqual(
+                    rule.settings().geometryGenerator,
+                    "mct_obstacle_bypass_rear_midpoint($geometry)"
+                )
+
+        self.assertEqual(lettered, {"breach": "'B'", "canalize": "'C'"})

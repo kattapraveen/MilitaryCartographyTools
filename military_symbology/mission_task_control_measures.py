@@ -6,10 +6,11 @@ Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Thirteen LINE tasks followed on
+anchor point each, milsymbol-rendered. Fifteen LINE tasks followed on
 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize,
-Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure and Bypass.
-Everything still unbuilt is listed by code in TABLE_H_XXIV_REMAINING.
+Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass,
+Breach and Canalize. Everything still unbuilt is listed by code in
+TABLE_H_XXIV_REMAINING.
 
 **milsymbol has an icon for the three points and for nothing else in
 this table** - verified entry by entry against its own
@@ -142,8 +143,6 @@ POINT_MARKER_SIZE_SCALES = {
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
-    "340200": "Breach",
-    "340400": "Canalize",
     "340500": "Clear",
     "340600": "Counterattack",
     "340700": "Counterattack by Fire",
@@ -227,6 +226,8 @@ LINE_MEASURE_TYPE_LABELS = {
     "withdraw": "Withdraw",
     "withdraw_under_pressure": "Withdraw Under Pressure",
     "bypass": "Bypass",
+    "breach": "Breach",
+    "canalize": "Canalize",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -243,6 +244,8 @@ LINE_MEASURE_TYPE_CODES = {
     "withdraw": "342400",
     "withdraw_under_pressure": "342500",
     "bypass": "340300",
+    "breach": "340200",
+    "canalize": "340400",
 }
 
 
@@ -265,6 +268,8 @@ LINE_LETTERS = {
     "withdraw": "W",
     "withdraw_under_pressure": "WP",
     "bypass": "B",
+    "breach": "B",
+    "canalize": "C",
 }
 
 # **Four rows, ONE construction** - Delay and the three withdrawal
@@ -293,6 +298,21 @@ _ARROWHEAD_SIZE_MM = 6
 # size - the same quarter-of-the-arrow Table H-XIX's own 270601 uses,
 # so the two symbols keep drawing alike.
 _BYPASS_ARROWHEAD_ARROW_FRACTION = 0.25
+
+# **Breach and Canalize are Bypass with the heads replaced.** The
+# maintainer's own instruction: Breach is "same as bypass, replace the
+# arrowheads with slanting lines at the edges, converging out";
+# Canalize is "same as breach, replace B with C, and reverse the
+# orientation slanting lines, converging in".
+#
+# So all three share the arrows and the joining line, and differ only
+# in what sits at the arms' tips and which letter the joining line
+# carries. Kept as one tuple for the same reason the Delay family is.
+BYPASS_CONSTRUCTION_MEASURE_TYPES = ("bypass", "breach", "canalize")
+
+# True where the ticks close as they run outward - Breach's own look,
+# and the one thing Canalize reverses.
+_TICKS_CONVERGE_OUTWARD = {"breach": True, "canalize": False}
 
 # **Occupy's cross scales with its own circle.** Fixed, it swamped a
 # small Occupy and vanished on a large one - the maintainer's own
@@ -439,7 +459,7 @@ def _line_geometry_expression(measure_type):
     # two arrows, in the middle of the line". The two arrows are that
     # symbol's own call; the rear line they join is a symbol layer
     # below, and the gap for the "B" is cut into it.
-    if measure_type == "bypass":
+    if measure_type in BYPASS_CONSTRUCTION_MEASURE_TYPES:
         return "mct_obstacle_bypass_arrows($geometry)"
 
     if measure_type == "seize":
@@ -604,14 +624,18 @@ def _mission_task_line_symbol(measure_type):
             )
         )
 
-    if measure_type == "bypass":
+    if measure_type in BYPASS_CONSTRUCTION_MEASURE_TYPES:
 
         symbol.appendSymbolLayer(
             _task_line_generator_layer(
                 "mct_obstacle_bypass_rear_easy($geometry, {gap},"
-                " @map_scale)".format(gap=_letter_gap_expression("bypass"))
+                " @map_scale)".format(
+                    gap=_letter_gap_expression(measure_type)
+                )
             )
         )
+
+    if measure_type == "bypass":
 
         # A head on each arrow's own tip, at PT1 and PT2. Sized in MAP
         # UNITS as a quarter of the arrow it sits on and capped at the
@@ -627,6 +651,24 @@ def _mission_task_line_symbol(measure_type):
                         _BYPASS_ARROWHEAD_ARROW_FRACTION
                     )
                 ),
+            )
+        )
+
+    # Breach and Canalize replace those heads with a slanting line
+    # across each tip. Real geometry rather than a rotated marker: the
+    # two ticks are mirror images, one marker layer can only carry one
+    # angle, and keying the angle to which ARM it is would flip the
+    # whole symbol when a user clicked PT1 and PT2 the other way round.
+    if measure_type in _TICKS_CONVERGE_OUTWARD:
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer(
+                "mct_bypass_ticks($geometry, {outward}, {maximum},"
+                " @map_scale)".format(
+                    outward=str(
+                        _TICKS_CONVERGE_OUTWARD[measure_type]
+                    ).lower(),
+                    maximum=_ARROWHEAD_SIZE_MM,
+                )
             )
         )
 
@@ -940,7 +982,7 @@ def _letter_point_expression(measure_type):
     if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
         return "mct_delay_letter_point($geometry)"
 
-    if measure_type == "bypass":
+    if measure_type in BYPASS_CONSTRUCTION_MEASURE_TYPES:
         return "mct_obstacle_bypass_rear_midpoint($geometry)"
 
     # The middle of the curve, which is the middle of the gap the
