@@ -1522,8 +1522,8 @@ arc is drawn at all, since there is no side for it to be on.
 **Relief in Place** is that same shape with no letter, so its line
 runs unbroken, plus a second arrow parallel to the first and pointing
 back the other way — two units passing each other. Its head meets the
-far end of the curve. The standard's own picture writes "RIP" inside
-the shape; this build does not.
+far end of the curve, and **RIP** is written in the middle of the
+shape.
 
 **Seize** is the odd one out — three points, PT1 carrying a circle, a
 curve running PT1-PT2-PT3 that starts on that circle's perimeter rather

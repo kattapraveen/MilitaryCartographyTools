@@ -977,6 +977,32 @@ _LINE_SYMBOL_BUILDERS = {
 }
 
 
+# Every measure type that writes something on the map. **Not the same
+# as LINE_LETTERS**: Relief in Place carries the standard's own "RIP"
+# rather than a single letter, and unlike every letter here it sits in
+# open paper, so it cuts no gap and stays out of LINE_LETTERS - which
+# is what keeps its own line continuous.
+LABELLED_MEASURE_TYPES = tuple(LINE_LETTERS) + ("relief_in_place",)
+
+
+def _label_specifications(measure_type):
+
+    """
+    The (text, anchor point) pairs one measure type writes - a list,
+    because a symbol may carry more than one.
+    """
+
+    if measure_type == "relief_in_place":
+        return [("'RIP'", "mct_relief_in_place_text_point($geometry)")]
+
+    return [
+        (
+            "'{}'".format(LINE_LETTERS[measure_type]),
+            _letter_point_expression(measure_type),
+        )
+    ]
+
+
 def _configure_lines_labeling(layer):
 
     """
@@ -993,25 +1019,27 @@ def _configure_lines_labeling(layer):
 
     root_rule = QgsRuleBasedLabeling.Rule(None)
 
-    for measure_type in LINE_LETTERS:
+    for measure_type in LABELLED_MEASURE_TYPES:
 
-        settings = _build_pal_layer_settings(
-            layer,
-            Qgis.LabelPlacement.OverPoint,
-            "'{}'".format(LINE_LETTERS[measure_type]),
-            label_geometry_expression=_letter_point_expression(measure_type),
-            quadrant=Qgis.LabelQuadrantPosition.Over,
-        )
+        for text, point in _label_specifications(measure_type):
 
-        rule = QgsRuleBasedLabeling.Rule(settings)
+            settings = _build_pal_layer_settings(
+                layer,
+                Qgis.LabelPlacement.OverPoint,
+                text,
+                label_geometry_expression=point,
+                quadrant=Qgis.LabelQuadrantPosition.Over,
+            )
 
-        rule.setFilterExpression(
-            "\"measure_type\" = '{}'".format(measure_type)
-        )
+            rule = QgsRuleBasedLabeling.Rule(settings)
 
-        rule.setDescription(measure_type)
+            rule.setFilterExpression(
+                "\"measure_type\" = '{}'".format(measure_type)
+            )
 
-        root_rule.appendChild(rule)
+            rule.setDescription(measure_type)
+
+            root_rule.appendChild(rule)
 
     layer.setLabeling(QgsRuleBasedLabeling(root_rule))
 

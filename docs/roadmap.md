@@ -8624,11 +8624,21 @@ how these are drawn now that the arc is forced perpendicular - but on a
 skewed click the raw PT3 would leave the arrowhead floating off the end
 of the curve. Pinned by a test on a deliberately skewed PT3.
 
-**The standard draws "RIP" centred inside the shape, and this does
-not.** Its own template and example both carry it. The instruction was
-about removing the letter from the shaft, and adding a different piece
-of text was not asked for, so it is left out and raised rather than
-assumed. One line to add if wanted.
+**The standard draws "RIP" centred inside the shape**, in both its
+template and its example. That was raised rather than assumed - the
+instruction was about removing the letter from the shaft, not about
+adding different text - and the maintainer took it the same day:
+"correct about RIP text - add it".
+
+It goes in the middle of the enclosed shape:
+`mct_relief_in_place_text_point()` is the shaft's midpoint carried half
+way out along the perpendicular. Unlike every letter on this layer it
+sits in OPEN PAPER rather than on a line, so it cuts no gap - which is
+exactly what lets the shaft stay continuous. That is why Relief in
+Place stays out of `LINE_LETTERS` and a wider
+`LABELLED_MEASURE_TYPES` drives the labelling loop instead: the two
+lists mean different things now, and conflating them would put a gap
+back in the shaft.
 
 Three anchor points rather than the standard's four: its PT3/PT4 set
 the second arrow's length independently, and here it takes the first

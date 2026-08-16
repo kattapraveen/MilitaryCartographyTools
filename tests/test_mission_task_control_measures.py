@@ -27,6 +27,7 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     POINT_MARKER_SIZE_SCALES,
     BYPASS_CONSTRUCTION_MEASURE_TYPES,
     DELAY_CONSTRUCTION_MEASURE_TYPES,
+    LABELLED_MEASURE_TYPES,
     LINE_LETTERS,
     LINE_MEASURE_TYPE_CODES,
     LINE_MEASURE_TYPE_LABELS,
@@ -1693,10 +1694,51 @@ class TestReliefInPlace(QgisTestCase):
         else:
             self.fail("no renderer rule for relief_in_place")
 
-        # And no labelling rule at all.
-        for rule in layer.labeling().rootRule().children():
+        # It writes the standard's own "RIP" rather than a letter, and
+        # that is why it stays out of LINE_LETTERS: the text sits in
+        # open paper, so nothing cuts a gap for it.
+        written = [
+            rule.settings().fieldName
+            for rule in layer.labeling().rootRule().children()
+            if rule.description() == "relief_in_place"
+        ]
 
-            self.assertNotEqual(rule.description(), "relief_in_place")
+        self.assertEqual(written, ["'RIP'"])
+
+
+    def test_the_rip_text_sits_between_the_two_arrows(self):
+
+        point = QgsExpression(
+            "mct_relief_in_place_text_point(geom_from_wkt('{}'))".format(
+                self._RIP
+            )
+        ).evaluate().asPoint()
+
+        # Half way along the shaft and half way out to the return
+        # arrow - the middle of the enclosed shape.
+        self.assertAlmostEqual(point.x(), 5.0, places=6)
+        self.assertAlmostEqual(point.y(), 3.0, places=6)
+
+
+    def test_the_rip_text_needs_no_gap_cut_for_it(self):
+
+        # Unlike every letter on this layer it does not sit on a line,
+        # which is what let the shaft stay continuous.
+        self.assertNotIn("relief_in_place", LINE_LETTERS)
+
+        self.assertIn("relief_in_place", LABELLED_MEASURE_TYPES)
+
+
+    def test_degenerate_input_writes_nothing(self):
+
+        for wkt in ("LineString(0 0, 10 0, 25 0)", "LineString(0 0, 10 0)"):
+
+            self.assertTrue(
+                QgsExpression(
+                    "mct_relief_in_place_text_point(geom_from_wkt('{}'))"
+                    .format(wkt)
+                ).evaluate().isEmpty()
+            )
 
 
     def test_the_four_lettered_delay_tasks_still_exclude_it(self):

@@ -4094,6 +4094,48 @@ def mct_isolate_teeth(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_relief_in_place_text_point',
+    group='Military Cartography Tools'
+)
+def mct_relief_in_place_text_point(values, feature=None, parent=None):
+
+    """
+    Where Relief in Place's own "RIP" goes - centred between its two
+    arrows, which is the middle of the shaft carried half way out
+    along the perpendicular toward the return arrow.
+
+    The standard's own template and example both write it there. It sits
+    in open paper rather than on a line, so unlike every letter on this
+    layer it needs no gap cut for it - which is what let the shaft stay
+    continuous, as the maintainer asked.
+    """
+
+    if len(values) < 1:
+        return QgsGeometry()
+
+    frame = _delay_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    pt1, pt2, pt3 = frame
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return QgsGeometry()
+
+    (_ux, _uy), (nx, ny), reach = projection
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            (pt1.x() + pt2.x()) / 2.0 + reach / 2.0 * nx,
+            (pt1.y() + pt2.y()) / 2.0 + reach / 2.0 * ny,
+        )
+    )
+
+
+@qgsfunction(
     'mct_relief_in_place_return_arrow',
     group='Military Cartography Tools'
 )
@@ -7330,6 +7372,7 @@ _FUNCTIONS = [
     mct_delay_shaft,
     mct_delay_letter_point,
     mct_relief_in_place_return_arrow,
+    mct_relief_in_place_text_point,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,
