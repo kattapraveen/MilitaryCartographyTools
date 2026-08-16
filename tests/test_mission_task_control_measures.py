@@ -9,6 +9,8 @@ Military Cartography Tools
 
 import base64
 
+import math
+
 import re
 
 from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
@@ -25,6 +27,7 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     POINT_MARKER_SIZE_SCALES,
     LINE_MEASURE_TYPE_CODES,
     LINE_MEASURE_TYPE_LABELS,
+    create_mission_task_lines_layer,
     TABLE_H_XXIV_REMAINING,
     add_mission_task_points_layer,
     create_mission_task_points_layer,
@@ -57,14 +60,13 @@ class TestMissionTaskVocabulary(QgisTestCase):
         )
 
 
-    def test_the_twenty_six_unbuilt_rows_are_recorded_not_forgotten(self):
+    def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 26 others = the table's own 29.
-        # 3 points + 7 line tasks + 19 still unbuilt = the table's own
+        # 3 points + 8 line tasks + 18 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 19)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 18)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -350,3 +352,217 @@ class TestMissionTaskMarkerSize(QgisTestCase):
             for scale in scales[1:]:
 
                 self.assertAlmostEqual(scale, scales[0], places=6, msg=entity)
+
+
+class TestIsolateTriangles(QgisTestCase):
+
+    """
+    Isolate (341500) - Secure's own arc, with inward triangles standing
+    on it.
+
+    "triangles start 30 deg from pt2, and end 30 deg before the arrow
+    head, size of triangles (base to tip) 1/3 of radius" - the
+    maintainer's own instruction. The spacing and the base width are
+    the standard's template's, measured off the rendered page; see
+    _ISOLATE_TOOTH_STEP_DEG.
+    """
+
+    # PT1 the centre, PT2 due north at radius 10 - so the sweep starts
+    # at a bearing of 90 degrees and runs CLOCKWISE, like Retain's.
+    _ISOLATE = "LineString(0 0, 0 10)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _triangles(self, wkt=None):
+
+        return QgsExpression(
+            "mct_isolate_teeth(geom_from_wkt('{}'))".format(wkt or self._ISOLATE)
+        ).evaluate().asMultiPolyline()
+
+
+    @staticmethod
+    def _bearing(point):
+
+        return math.degrees(math.atan2(point.y(), point.x()))
+
+
+    @staticmethod
+    def _clockwise_from(bearing, reference):
+
+        """How far clockwise `bearing` sits from `reference`, 0 to 360."""
+
+        return (reference - bearing) % 360.0
+
+
+    def test_seven_triangles_run_from_thirty_degrees_to_three_hundred(self):
+
+        triangles = self._triangles()
+
+        self.assertEqual(len(triangles), 7)
+
+        for index, triangle in enumerate(triangles):
+
+            apex = triangle[1]
+
+            # Clockwise from PT2's own 90 degrees.
+            self.assertAlmostEqual(
+                self._clockwise_from(self._bearing(apex), 90.0),
+                30.0 + index * 45.0,
+                places=4,
+                msg="triangle {}".format(index)
+            )
+
+        # The last one stands 30 degrees short of the arrowhead, which
+        # sits 330 degrees round.
+        self.assertAlmostEqual(
+            self._clockwise_from(self._bearing(triangles[-1][1]), 90.0),
+            300.0,
+            places=4
+        )
+
+
+    def test_each_apex_reaches_a_third_of_the_radius_inward(self):
+
+        for triangle in self._triangles():
+
+            apex = triangle[1]
+
+            self.assertAlmostEqual(
+                math.hypot(apex.x(), apex.y()), 10.0 * 2.0 / 3.0, places=6
+            )
+
+
+    def test_the_base_is_not_drawn_and_its_corners_sit_on_the_perimeter(self):
+
+        for triangle in self._triangles():
+
+            # Corner, apex, corner - an OPEN run. The arc it stands on
+            # is the base, so a fourth point closing the ring would
+            # draw the one line the instruction says not to.
+            self.assertEqual(len(triangle), 3)
+
+            self.assertNotEqual(
+                (triangle[0].x(), triangle[0].y()),
+                (triangle[-1].x(), triangle[-1].y())
+            )
+
+            for corner in (triangle[0], triangle[-1]):
+
+                self.assertAlmostEqual(
+                    math.hypot(corner.x(), corner.y()), 10.0, places=6
+                )
+
+
+    def test_the_triangles_hold_their_shape_at_any_radius(self):
+
+        # Base and height both scale with the radius, so the arc each
+        # base subtends is a constant - which is what keeps a large
+        # Isolate from looking like a different symbol to a small one.
+        subtended = []
+
+        for wkt in ("LineString(0 0, 0 10)", "LineString(0 0, 0 1000)"):
+
+            triangle = self._triangles(wkt)[0]
+
+            subtended.append(
+                self._clockwise_from(
+                    self._bearing(triangle[0]), self._bearing(triangle[-1])
+                )
+            )
+
+        self.assertAlmostEqual(subtended[0], subtended[1], places=6)
+
+        self.assertAlmostEqual(
+            subtended[0], 2.0 * math.degrees(math.asin(1.0 / 6.0)), places=6
+        )
+
+
+    def test_a_degenerate_geometry_is_handed_back_untouched(self):
+
+        # PT1 == PT2 leaves no radius. It has to fall through rather
+        # than raise mid-render, the same way Retain's own arc does.
+        self.assertIsNotNone(
+            QgsExpression(
+                "mct_isolate_teeth(geom_from_wkt('LineString(0 0, 0 0)'))"
+            ).evaluate()
+        )
+
+
+class TestIsolateSymbol(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_isolate_draws_the_arc_the_triangles_and_the_arrowhead(self):
+
+        layer = create_mission_task_lines_layer()
+
+        symbol = None
+
+        for child in layer.renderer().rootRule().children():
+
+            if child.filterExpression() == "\"measure_type\" = 'isolate'":
+                symbol = child.symbol()
+
+        self.assertIsNotNone(symbol)
+
+        expressions = [
+            symbol.symbolLayer(index).geometryExpression()
+            for index in range(symbol.symbolLayerCount())
+        ]
+
+        # Secure's own arc, Secure's own arrowhead tail, and the
+        # triangles standing on that arc.
+        self.assertIn("mct_retain_arc($geometry)", expressions)
+        self.assertIn("mct_retain_arc_end($geometry)", expressions)
+        self.assertIn("mct_isolate_teeth($geometry)", expressions)
+
+
+    def test_isolate_carries_the_letter_i_on_the_perimeter(self):
+
+        layer = create_mission_task_lines_layer()
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() != "isolate":
+                continue
+
+            settings = rule.settings()
+
+            self.assertEqual(settings.fieldName, "'I'")
+
+            self.assertEqual(
+                settings.geometryGenerator,
+                "mct_secure_letter_point($geometry)"
+            )
+
+            return
+
+        self.fail("no labelling rule for isolate")

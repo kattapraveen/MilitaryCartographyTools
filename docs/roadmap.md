@@ -8598,6 +8598,59 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Isolate (341500), Secure with triangles on it (2026-08-16)
+
+The maintainer's own construction: "start with same construction rules
+as secure including the arrowhead, replace 'S' with 'I'; now draw
+triangles facing inwards, based on the perimeter, base is not drawn the
+perimeter arc acts like the base, triangles start 30 deg from pt2, and
+end 30 deg before the arrow head, size of triangles (base to tip) 1/3
+of radius".
+
+So the arc is `mct_retain_arc()` for the third time - Retain, Secure,
+Occupy and now Isolate are one construction - and the arrowhead is
+`mct_retain_arc_end()` unchanged. The only new geometry is
+`mct_isolate_teeth()`, and it is genuinely new: Retain's own teeth are
+radial TICKS a fifth of the radius long, not triangles standing on the
+perimeter.
+
+Each triangle is an OPEN three-point run - corner, apex, corner. The
+base is not drawn because the arc it stands on already is the base, so
+closing the ring would draw the one line the instruction rules out.
+
+**Two figures the instruction leaves open, both measured off the
+standard's own template** (page 646, rendered at 900 dpi and read
+back as a radial profile rather than eyeballed):
+
+- The SPACING. The template's apexes measure out at 0, 42, 93 and 142
+  degrees round the half of the drawing its captions do not cross -
+  45 degrees apart. 45 also divides the 270 degrees the instruction
+  leaves for them exactly six times, so seven triangles land on 30, 75,
+  120, 165, 210, 255 and 300 degrees of sweep, first and last exactly
+  where they were asked for. Both readings agree, which is why this is
+  a measurement worth trusting rather than a guess.
+- The BASE WIDTH, which the instruction does not give at all. Set equal
+  to the height - a third of the radius - which sits inside the 18 to
+  25 degrees of arc the template's own bases subtend. Because base and
+  radius scale together the half-angle is a CONSTANT, `asin(1/6)`, so
+  the triangles hold their shape at every radius. Pinned by a test.
+
+**One thing the template settles the other way, and the maintainer's
+word wins.** Table H-XXIV's Isolate draws no arrowhead - what looks
+like one is the leader line pointing at the "PT. 2 (START POINT)"
+caption. The instruction says "including the arrowhead", so it carries
+Secure's. Worth recording because the same leader line could easily be
+read as part of a future symbol on this page.
+
+Small refactor alongside: the stroke every mission-task line draws with
+- black, affiliation-driven, dashed when planned - is now
+`_task_line_layer()`, shared by the symbol's own run and by Isolate's
+triangles, so the two cannot drift apart.
+
+1198 tests passing on both QGIS versions.
+
+---
+
 ### Penetrate's head scales, and the manual is re-read (2026-08-15)
 
 Two from the maintainer: "recheck the manual, the way we have drawn
@@ -8944,13 +8997,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **18 symbols in 1 unit**, all of it construction rather than
+is **17 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 18 is
+areas were all built on 2026-08-14. Every one of the 17 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -8964,7 +9017,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 18 | Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Follow and Assume, Follow and Support, Isolate, Relief in Place, Retire, Security (+Cover/Guard/Screen), Withdraw (+Under Pressure). **Seven built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize. **Isolate is next and fully specified.** Retire + Withdraw + Withdraw Under Pressure are ONE construction with three letters. |
+| 1 | H-XXIV Mission Tasks | 17 | Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Delay, Follow and Assume, Follow and Support, Relief in Place, Retire, Security (+Cover/Guard/Screen), Withdraw (+Under Pressure) - 17 drawable symbols, plus the section parent row, which draws nothing. **Eight built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate. **Retire + Withdraw + Withdraw Under Pressure are the next quick win** - ONE construction with three letters. Nothing else left shares a shape with anything already built. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

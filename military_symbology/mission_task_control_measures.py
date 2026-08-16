@@ -134,13 +134,10 @@ POINT_MARKER_SIZE_SCALES = {
 #   Screen are sub-codes of Security, drawn as an open bracket along
 #   the screened front.
 #
-# **Isolate (341500) is next and is fully specified** by the
-# maintainer: Secure's construction including the arrowhead, letter
-# "I", plus triangles facing INWARD based on the perimeter - base not
-# drawn, the arc is the base - starting 30 degrees from PT2, ending 30
-# degrees before the arrowhead, base-to-tip a third of the radius. It
-# needs new geometry: Retain's teeth are radial TICKS a fifth of the
-# radius long, not triangles.
+# **Retire, Withdraw and Withdraw Under Pressure are the next quick
+# win** - one construction, three letters, three codes, per the note
+# above. Nothing else in the list shares a shape with anything already
+# built here.
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
@@ -153,7 +150,6 @@ TABLE_H_XXIV_REMAINING = {
     "340800": "Delay",
     "341200": "Follow and Assume",
     "341300": "Follow and Support",
-    "341500": "Isolate",
     "341900": "Relief in Place (RIP)",
     "342000": "Retire/Retirement",
     "342200": "Security",
@@ -229,6 +225,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "occupy": "Occupy",
     "penetrate": "Penetrate",
     "seize": "Seize",
+    "isolate": "Isolate",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -239,6 +236,7 @@ LINE_MEASURE_TYPE_CODES = {
     "occupy": "341700",
     "penetrate": "341800",
     "seize": "342300",
+    "isolate": "341500",
 }
 
 
@@ -255,6 +253,7 @@ LINE_LETTERS = {
     "occupy": "O",
     "penetrate": "P",
     "seize": "S",
+    "isolate": "I",
 }
 
 _LINE_WIDTH_MM = 0.4
@@ -375,7 +374,11 @@ def _line_geometry_expression(measure_type):
     # except, replace 'S' with 'O', and have a X - drawn in the same
     # size as the arrowhead twice like this >< in place of the secure's
     # arrowhead". So the arc itself is the same call again.
-    if measure_type in ("secure", "occupy"):
+    # **Isolate is Secure again**, with triangles standing on the same
+    # arc - "start with same construction rules as secure including the
+    # arrowhead, replace 'S' with 'I'". The triangles are their own
+    # symbol layer; the arc itself is this same call a third time.
+    if measure_type in ("secure", "occupy", "isolate"):
         return "mct_retain_arc($geometry)"
 
     # **Seize is Turn's curve with a circle at its start.** The
@@ -407,16 +410,14 @@ def _line_geometry_expression(measure_type):
     return f"mct_fix_geometry($geometry, {gap}, @map_scale)"
 
 
-def _mission_task_line_symbol(measure_type):
+def _task_line_layer():
 
     """
-    One of the three, drawn on Table H-XIX's own geometry.
+    A plain stroke in the task's own colour and status style - black by
+    default, affiliation-driven, dashed when the feature is anticipated.
 
-    **Affiliation-coloured, defaulting to BLACK** - the maintainer's
-    own instruction. The obstacle versions default to GREEN because
-    H.5.21.1 makes obstacles an explicit exception; H.5.26 claims
-    nothing like it, so these follow the appendix's ordinary rule and
-    the layer's own "Unspecified (black)" default lands on black.
+    Shared by the symbol's main run and by any extra generated part
+    that has to match it, so the two can never drift.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -434,6 +435,42 @@ def _mission_task_line_symbol(measure_type):
         QgsSymbolLayer.Property.StrokeStyle,
         QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
     )
+
+    return line_layer
+
+
+def _task_line_generator_layer(geometry_expression):
+
+    """One extra generated run, drawn exactly like the symbol's own."""
+
+    inner = QgsLineSymbol()
+
+    inner.changeSymbolLayer(0, _task_line_layer())
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(geometry_expression)
+
+    generator.setSubSymbol(inner)
+
+    return generator
+
+
+def _mission_task_line_symbol(measure_type):
+
+    """
+    One of the three, drawn on Table H-XIX's own geometry.
+
+    **Affiliation-coloured, defaulting to BLACK** - the maintainer's
+    own instruction. The obstacle versions default to GREEN because
+    H.5.21.1 makes obstacles an explicit exception; H.5.26 claims
+    nothing like it, so these follow the appendix's ordinary rule and
+    the layer's own "Unspecified (black)" default lands on black.
+    """
+
+    line_layer = _task_line_layer()
 
     inner = QgsLineSymbol()
 
@@ -488,12 +525,22 @@ def _mission_task_line_symbol(measure_type):
             )
         )
 
-    if measure_type == "secure":
+    # Isolate carries Secure's own arrowhead, at the maintainer's own
+    # instruction - "same construction rules as secure INCLUDING the
+    # arrowhead". The standard's template for 341500 draws none; what
+    # looks like one there is the leader line pointing at the "PT. 2
+    # (START POINT)" caption, and the maintainer asked for a real one.
+    if measure_type in ("secure", "isolate"):
         symbol.appendSymbolLayer(
             _arrowhead_layer(
                 "mct_retain_arc_end($geometry)",
                 Qgis.MarkerLinePlacement.LastVertex,
             )
+        )
+
+    if measure_type == "isolate":
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer("mct_isolate_teeth($geometry)")
         )
 
     if measure_type == "occupy":
@@ -778,7 +825,7 @@ def _letter_point_expression(measure_type):
     if measure_type == "disrupt":
         return "mct_disrupt_letter_point($geometry)"
 
-    if measure_type in ("secure", "occupy"):
+    if measure_type in ("secure", "occupy", "isolate"):
         return "mct_secure_letter_point($geometry)"
 
     # The middle of the curve, which is the middle of the gap the

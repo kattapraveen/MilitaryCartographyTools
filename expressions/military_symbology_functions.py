@@ -3893,6 +3893,126 @@ def mct_secure_letter_point(values, feature=None, parent=None):
     )
 
 
+
+# --- Isolate (Table H-XXIV, 341500) ---
+#
+# **Secure's construction with triangles standing on it**, at the
+# maintainer's own instruction: the same 330-degree arc, the same
+# arrowhead where it ends, "I" for "S", and then "draw triangles facing
+# inwards, based on the perimeter, base is not drawn the perimeter arc
+# acts like the base, triangles start 30 deg from pt2, and end 30 deg
+# before the arrow head, size of triangles (base to tip) 1/3 of
+# radius".
+#
+# Two figures that instruction leaves open, both taken off the
+# standard's own template (page 646, measured on the rendered page):
+#
+# - The SPACING. The template's triangles sit 45 degrees apart - their
+#   apexes measure out at 0, 42, 93 and 142 degrees round the half of
+#   the drawing its captions do not cross. 45 also divides the 270
+#   degrees the instruction leaves for them exactly six times, so seven
+#   triangles land on 30, 75, 120, 165, 210, 255 and 300 degrees of
+#   sweep, the first and last exactly where they were asked for.
+# - The BASE WIDTH, which the instruction does not give at all. Set
+#   equal to the height - a third of the radius - which sits inside the
+#   18 to 25 degrees of arc the template's own bases subtend. Base and
+#   radius scale together, so the half-angle it subtends is a CONSTANT,
+#   asin(1/6), and the triangles hold their shape at every radius.
+_ISOLATE_TOOTH_START_DEG = 30.0
+_ISOLATE_TOOTH_END_MARGIN_DEG = 30.0
+_ISOLATE_TOOTH_STEP_DEG = 45.0
+_ISOLATE_TOOTH_HEIGHT_RATIO = 1.0 / 3.0
+_ISOLATE_TOOTH_BASE_RATIO = 1.0 / 3.0
+
+
+def _polar_point(centre, radius, angle_rad):
+
+    """A point at `radius` and `angle_rad` from `centre`."""
+
+    return QgsPointXY(
+        centre.x() + radius * math.cos(angle_rad),
+        centre.y() + radius * math.sin(angle_rad),
+    )
+
+
+def _isolate_triangles(centre, radius, start_rad, sweep_rad):
+
+    """
+    Isolate's inward triangles, each a THREE-point open run - corner,
+    apex, corner.
+
+    **The base is not drawn**: the arc the triangle stands on is its
+    base, which is why this returns an open polyline rather than a ring.
+    """
+
+    direction = 1.0 if sweep_rad >= 0 else -1.0
+
+    span = (
+        abs(math.degrees(sweep_rad))
+        - _ISOLATE_TOOTH_START_DEG
+        - _ISOLATE_TOOTH_END_MARGIN_DEG
+    )
+
+    if span < 0:
+        return []
+
+    count = int(round(span / _ISOLATE_TOOTH_STEP_DEG))
+
+    half_base = math.asin(_ISOLATE_TOOTH_BASE_RATIO / 2.0)
+
+    apex_radius = radius * (1.0 - _ISOLATE_TOOTH_HEIGHT_RATIO)
+
+    triangles = []
+
+    for i in range(count + 1):
+
+        middle = start_rad + direction * math.radians(
+            _ISOLATE_TOOTH_START_DEG + i * _ISOLATE_TOOTH_STEP_DEG
+        )
+
+        triangles.append(
+            [
+                _polar_point(centre, radius, middle - half_base),
+                _polar_point(centre, apex_radius, middle),
+                _polar_point(centre, radius, middle + half_base),
+            ]
+        )
+
+    return triangles
+
+
+@qgsfunction(
+    'mct_isolate_teeth',
+    group='Military Cartography Tools'
+)
+def mct_isolate_teeth(values, feature=None, parent=None):
+
+    """
+    Isolate's own inward-facing triangles (341500), standing on the
+    perimeter of the arc mct_retain_arc() draws.
+
+    Reads the same PT1/PT2 frame Retain and Secure read, so the
+    triangles can never drift off the arc they stand on.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    frame = _retain_frame(values[0])
+
+    if frame is None:
+        return values[0]
+
+    centre, radius, start, sweep = frame
+
+    triangles = _isolate_triangles(centre, radius, start, sweep)
+
+    if not triangles:
+        return QgsGeometry()
+
+    return QgsGeometry.fromMultiPolylineXY(triangles)
+
+
 # --- Weapon/Sensor Range Fan (Table H-XVIII, 242100 and 242200) ---
 #
 # **Two codes, one construction** - Circular (242100) is the Sector
@@ -6643,6 +6763,7 @@ _FUNCTIONS = [
     mct_mm_in_map_units,
     mct_radius_mm,
     mct_secure_letter_point,
+    mct_isolate_teeth,
     mct_convoy_end_svg,
     mct_safe_distance_ring,
     mct_text_width_mm,

@@ -628,9 +628,11 @@ H gets built):
 
 - **C2 Measures** — adds a "Lines" layer, an "Areas" layer, and a
   "Points" layer (H.5.5/H.5.9/H.5.10, described below).
-- **Sustainment Points**, **Supply Points**, **Mission Task Points** —
-  three point layers, one per table (H.5.24/H.5.25/H.5.26, described
-  further down this section).
+- **Sustainment Points**, **Supply Points**, **Mission Tasks** —
+  one menu entry per table (H.5.24/H.5.25/H.5.26, described further
+  down this section). Each adds its own point layer; Supply Points also
+  adds a lines layer and an areas layer, and Mission Tasks also adds a
+  lines layer.
 
 Each layer is created empty and ready to use immediately; there's no
 dialog, and clicking an entry again never replaces a layer that already
@@ -1389,8 +1391,9 @@ emptied by these three.
 - **Mission Task Points** — Destroy, Interdict and Neutralize. These
   are the only three of Table H-XXIV's 29 mission tasks drawn as a
   single centred glyph on one anchor point; the other 26 are arrows,
-  brackets and outlined regions built from two to fifty anchor points,
-  and none of them is built yet.
+  brackets and outlined regions built from two to fifty anchor points.
+  Eight of those are built, on their own **Mission Task Lines** layer
+  described below.
 
 All three render through the same verified milsymbol library as the
 Units layer, not hand-built QGIS symbology, so they are spec-exact
@@ -1448,10 +1451,56 @@ out and take a **unique designation** on a line beneath it. There is no
 **Two things to know.** NATO Multiple Supply Class Point draws the same
 plain box as General Supply Point, with no icon of its own — that is the
 standard's doing, and the Supply class field above is what tells the two
-apart on the map. And Table H-XXIII's own eight holding/support areas and
-eleven convoy and supply-route lines are not built — see
-`military_symbology/supply_points.py` for the full audit of what
-remains.
+apart on the map. And **Convoy** — moving or halted — is on the Supply
+Routes layer rather than a layer of its own: it is a route with a head
+at PT1 and a bar at the far end, so it belongs where the routes are.
+
+**Mission Task Lines** comes with the Mission Tasks menu entry — eight
+of Table H-XXIV's multi-anchor tasks, drawn with QGIS's own **Add Line
+Feature** tool. Each carries its own letter, set into a real gap cut in
+the shaft or arc it sits on rather than painted over it.
+
+Three of them are clicked exactly like the obstacle effects of the same
+name on the Obstacles layer, because they *are* the same construction —
+three points, PT1 and PT2 setting the base line and PT3 the depth:
+
+- **Block** — the "T", letter **B** on the crossbar.
+- **Disrupt** — three arrows, letter **D** on the middle one. Click PT1
+  and PT2 the way round you want the long arrow to fall.
+- **Fix** — the wavy shaft, letter **F** on its first straight segment,
+  arrowhead at PT1.
+- **Penetrate** — Block's shape again, letter **P**, and the arrowhead
+  where the stem meets the base rather than at its tip.
+
+**These are not the obstacle effects.** Block, Disrupt and Fix each
+appear twice in the standard under different codes and different
+drawn forms; the Obstacles layer's versions draw green per H.5.21.1,
+these draw black.
+
+Three more are built on a circle — **PT1 the centre, PT2 both the start
+point and the radius**, sweeping 330 degrees clockwise and leaving the
+standard's own 30-degree opening. They are the same construction as
+**Retain** on the Defensive Control Measures layer:
+
+- **Secure** — plain arc, arrowhead where it ends, letter **S** on the
+  perimeter half way round.
+- **Occupy** — the same, letter **O**, and `><` in place of the
+  arrowhead. The cross is a fifth of the radius, capped so it never
+  swamps a small symbol.
+- **Isolate** — the same again, letter **I**, plus seven triangles
+  facing inward off the perimeter. Their base is not drawn — the arc
+  itself is the base. They stand 45 degrees apart, starting 30 degrees
+  from PT2 and stopping 30 degrees short of the arrowhead, each a third
+  of the radius deep.
+**Seize** is the odd one out — three points, PT1 carrying a circle, a
+curve running PT1-PT2-PT3 that starts on that circle's perimeter rather
+than at its centre, an arrowhead at PT3 and letter **S** on the curve.
+It is **Turn**'s own curve from the Obstacles layer with the circle
+added.
+
+The remaining 18 rows of Table H-XXIV are not built — see
+`military_symbology/mission_task_control_measures.py` for the full
+audit of what is left and why.
 
 ### Intelligence Control Measures
 
