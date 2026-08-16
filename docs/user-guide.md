@@ -1556,8 +1556,9 @@ points, and the arrow runs from PT3 back to an arrowhead at **PT1**,
 with **CATK** written along it. By Fire adds a bracket just beyond the
 tip with a small solid arrow through it. The dashes stay dashed whether
 the feature is present or planned — the standard's own rule, as with
-Follow and Assume — and CATK follows the arrow's own direction while
-staying the right way up however you draw it.
+Follow and Assume — and CATK sits just behind the arrowhead, following
+the arrow's own direction while staying the right way up however you
+draw it.
 
 **Seize** is the odd one out — three points, PT1 carrying a circle, a
 curve running PT1-PT2-PT3 that starts on that circle's perimeter rather

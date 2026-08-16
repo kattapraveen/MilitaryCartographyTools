@@ -4258,6 +4258,111 @@ _CATK_TEXT_HEIGHT_FRACTION = 0.62
 
 _CATK_TEXT_WIDTH_FRACTION = 0.60
 
+# **"CATK" sits just BEHIND the arrowhead, not at the middle of the
+# arrow.** The maintainer's own correction after seeing it centred:
+# "the text at mid point is not fine, put it slightly behind the arrow
+# head as is shown in the manual", and the standard's own example
+# indeed ends the word where the head's flare begins.
+#
+# Centring it also put the text ON THE BEND of a three-point arrow,
+# where it crossed both rails - which is what made the placement look
+# wrong before anyone checked it against the page.
+_CATK_TEXT_CLEARANCE_MM = 1.0
+
+
+def _counterattack_text_size_mm(geometry, map_extent, map_scale,
+                                bar_height_mm, maximum_points):
+
+    """
+    The size "CATK" draws at, in page millimetres - shared by the size
+    the label takes and the point it hangs from, which has to know how
+    wide the word will be before it can stand it off the head.
+    """
+
+    millimetres_per_unit = _map_millimetres_per_unit(map_extent, map_scale)
+
+    if millimetres_per_unit <= 0 or bar_height_mm <= 0:
+        return 0.0
+
+    length_mm = geometry.length() * millimetres_per_unit
+
+    width_per_mm = _text_width_mm(_CATK_TEXT, 1.0)
+
+    if width_per_mm <= 0 or length_mm <= 0:
+        return 0.0
+
+    return max(
+        min(
+            _CATK_TEXT_HEIGHT_FRACTION * bar_height_mm,
+            _CATK_TEXT_WIDTH_FRACTION * length_mm / width_per_mm,
+            maximum_points * 25.4 / 72.0,
+        ),
+        0.0,
+    )
+
+
+@qgsfunction(
+    'mct_counterattack_text_point',
+    group='Military Cartography Tools'
+)
+def mct_counterattack_text_point(values, feature=None, parent=None):
+
+    """
+    Where Counterattack's own "CATK" hangs - back along the arrow from
+    PT1 by the head's own length, the word's own half width and a
+    little clearance, so it ends just short of the head.
+
+    Use as mct_counterattack_text_point($geometry, @map_extent,
+    @map_scale, <bar height in mm>, <head length in mm>, 24).
+
+    Walks the geometry from PT1, so on a bent arrow the text follows
+    the leg the head is on rather than landing on the bend.
+
+    Falls back to the middle of the arrow when it is too short to stand
+    the word off the head at all - better a cramped label than one
+    hanging off the back of the symbol.
+    """
+
+    if len(values) < 6:
+        return QgsGeometry()
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return QgsGeometry()
+
+    try:
+        bar_height_mm = float(values[3])
+        head_mm = float(values[4])
+        maximum_points = float(values[5])
+    except (TypeError, ValueError):
+        return QgsGeometry()
+
+    size_mm = _counterattack_text_size_mm(
+        geometry, values[1], values[2], bar_height_mm, maximum_points
+    )
+
+    if size_mm <= 0:
+        return QgsGeometry()
+
+    millimetres_per_unit = _map_millimetres_per_unit(values[1], values[2])
+
+    if millimetres_per_unit <= 0:
+        return QgsGeometry()
+
+    half_word_mm = _text_width_mm(_CATK_TEXT, size_mm) / 2.0
+
+    back_mm = head_mm + _CATK_TEXT_CLEARANCE_MM + half_word_mm
+
+    length = geometry.length()
+
+    back = back_mm / millimetres_per_unit
+
+    if back >= length:
+        back = length / 2.0
+
+    return geometry.interpolate(back)
+
 
 @qgsfunction(
     'mct_counterattack_text_size',
@@ -4289,25 +4394,9 @@ def mct_counterattack_text_size(values, feature=None, parent=None):
     except (TypeError, ValueError):
         return 0.0
 
-    millimetres_per_unit = _map_millimetres_per_unit(values[1], values[2])
-
-    if millimetres_per_unit <= 0 or bar_height_mm <= 0:
-        return 0.0
-
-    length_mm = geometry.length() * millimetres_per_unit
-
-    width_per_mm = _text_width_mm(_CATK_TEXT, 1.0)
-
-    if width_per_mm <= 0 or length_mm <= 0:
-        return 0.0
-
-    size_mm = min(
-        _CATK_TEXT_HEIGHT_FRACTION * bar_height_mm,
-        _CATK_TEXT_WIDTH_FRACTION * length_mm / width_per_mm,
-        maximum_points * 25.4 / 72.0,
-    )
-
-    return max(size_mm, 0.0) * 72.0 / 25.4
+    return _counterattack_text_size_mm(
+        geometry, values[1], values[2], bar_height_mm, maximum_points
+    ) * 72.0 / 25.4
 
 
 
@@ -8417,6 +8506,7 @@ _FUNCTIONS = [
     mct_relief_in_place_text_size,
     mct_counterattack_text_size,
     mct_counterattack_text_angle,
+    mct_counterattack_text_point,
     mct_counterattack_head,
     mct_counterattack_rear,
     mct_counterattack_by_fire_bracket,

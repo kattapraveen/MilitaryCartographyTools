@@ -8637,6 +8637,22 @@ test now asserts a north-east head gives a NEGATIVE rotation.
 It is the only rotated label on this layer; every other one is upright,
 which was the convoy's own convention and is what this replaces here.
 
+**And it stands just behind the arrowhead, not at the middle of the
+arrow** - the maintainer's own correction once the rotation was right:
+"the text at mid point is not fine, put it slightly behind the arrow
+head as is shown in the manual". Centring it had a second fault the
+page also shows: on a three-point arrow the middle IS the bend, so the
+word sat across both rails.
+
+`mct_counterattack_text_point()` walks BACK from PT1 by the head's own
+length, the word's own half width and a millimetre of clearance - so it
+ends just short of the head at any size, and on a bent arrow it stays
+on the leg the head is on. It needs the font size to know how wide the
+word will be, so the size calculation is now a shared helper rather
+than living inside the size function. A very short arrow falls back to
+its own middle: better a cramped label than one hanging off the back of
+the symbol.
+
 **Counterattack by Fire is that arrow plus one detached piece, and the
 first attempt at it was wrong.** It was built as a bar across the axis
 with a filled triangle sitting on it, from a proposal made without

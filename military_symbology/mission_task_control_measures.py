@@ -493,6 +493,20 @@ _COUNTERATTACK_GLYPH_COLOR_EXPRESSION = (
 
 _CATK_TEXT_MAX_POINTS = 24.0
 
+# **Just behind the arrowhead, not at the middle of the arrow.** The
+# maintainer's own correction: "the text at mid point is not fine, put
+# it slightly behind the arrow head as is shown in the manual".
+# Centring it also landed the word on a three-point arrow's own BEND,
+# across both rails.
+_CATK_TEXT_POINT_EXPRESSION = (
+    "mct_counterattack_text_point($geometry, @map_extent, @map_scale,"
+    " {body}, {head}, {maximum})".format(
+        body=CONVOY_BODY_HEIGHT_MM,
+        head=CONVOY_HEAD_LENGTH_MM,
+        maximum=_CATK_TEXT_MAX_POINTS,
+    )
+)
+
 _CATK_TEXT_SIZE_EXPRESSION = (
     "mct_counterattack_text_size($geometry, @map_extent, @map_scale,"
     " {height}, {maximum})".format(
@@ -1384,12 +1398,7 @@ def _label_specifications(measure_type):
     # standard's own picture writes it and where the moving convoy
     # already writes its Field V/H.
     if measure_type in COUNTERATTACK_MEASURE_TYPES:
-        return [
-            (
-                "'CATK'",
-                "line_interpolate_point($geometry, length($geometry) / 2)",
-            )
-        ]
+        return [("'CATK'", _CATK_TEXT_POINT_EXPRESSION)]
 
     # **Two labels, one either side of the reserved symbol space** -
     # the only symbols on this layer that write the same letter twice.

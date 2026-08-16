@@ -2482,6 +2482,60 @@ class TestCounterattack(QgisTestCase):
             )
 
 
+    def test_catk_stands_just_behind_the_arrowhead(self):
+
+        # "put it slightly behind the arrow head as is shown in the
+        # manual". Centring it also landed the word on a three-point
+        # arrow's own bend, across both rails.
+        point = QgsExpression(
+            "mct_counterattack_text_point(geom_from_wkt("
+            "'LineString(0.06 0, 0.03 0, 0 0)'),"
+            " make_rectangle_3points(make_point(0, 0), make_point(1, 0),"
+            " make_point(1, 1)), 200000, 6, 6, 24)"
+        ).evaluate().asPoint()
+
+        # Behind PT1 - which is at 0.06 - but well forward of the
+        # midpoint at 0.03, where it used to sit.
+        self.assertLess(point.x(), 0.06)
+
+        self.assertGreater(point.x(), 0.03)
+
+        self.assertAlmostEqual(point.y(), 0.0, places=12)
+
+
+    def test_catk_follows_the_leg_the_head_is_on(self):
+
+        # Walked from PT1 along the geometry, so on a bent arrow it
+        # stays on the head's own leg instead of landing on the bend.
+        point = QgsExpression(
+            "mct_counterattack_text_point(geom_from_wkt("
+            "'LineString(0.06 0.06, 0.06 0, 0 0)'),"
+            " make_rectangle_3points(make_point(0, 0), make_point(1, 0),"
+            " make_point(1, 1)), 200000, 6, 6, 24)"
+        ).evaluate().asPoint()
+
+        # PT1 is due north of the bend, so the text is too.
+        self.assertAlmostEqual(point.x(), 0.06, places=12)
+
+        self.assertLess(point.y(), 0.06)
+
+        self.assertGreater(point.y(), 0.0)
+
+
+    def test_a_short_arrow_falls_back_to_its_middle(self):
+
+        # Better a cramped label than one hanging off the back of the
+        # symbol entirely.
+        point = QgsExpression(
+            "mct_counterattack_text_point(geom_from_wkt("
+            "'LineString(0.0002 0, 0 0)'),"
+            " make_rectangle_3points(make_point(0, 0), make_point(1, 0),"
+            " make_point(1, 1)), 200000, 6, 6, 24)"
+        ).evaluate().asPoint()
+
+        self.assertAlmostEqual(point.x(), 0.0001, places=12)
+
+
     def test_it_writes_catk_sized_to_its_own_arrow(self):
 
         layer = create_mission_task_lines_layer()
