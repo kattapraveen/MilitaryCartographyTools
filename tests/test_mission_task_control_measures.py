@@ -64,11 +64,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 12 line tasks + 14 still unbuilt = the table's own
+        # 3 points + 13 line tasks + 13 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 14)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 13)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -956,3 +956,159 @@ class TestDelayConstructionIsSharedByFour(QgisTestCase):
                 "withdraw_under_pressure": "'WP'",
             }
         )
+
+
+class TestBypass(QgisTestCase):
+
+    """
+    Bypass (340300) - Table H-XIX's own Obstacle Bypass Easy (270601)
+    with a "B" set into the line joining the two arrows.
+
+    "same as obstacle bypass easy 270601, except add B (masked) on line
+    segment joining the two arrows, in the middle of the line" - the
+    maintainer's own instruction.
+    """
+
+    # PT1 and PT2 are the two arrow TIPS; PT3's perpendicular distance
+    # from the PT1-PT2 line sets both the rear line's offset and the
+    # arrows' length. Here that distance is 4.
+    _BYPASS = "LineString(0 0, 0 10, 4 5)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_the_letter_sits_at_the_middle_of_the_joining_line(self):
+
+        rear = QgsExpression(
+            "mct_obstacle_bypass_rear_easy(geom_from_wkt('{}'))".format(
+                self._BYPASS
+            )
+        ).evaluate().asPolyline()
+
+        letter = QgsExpression(
+            "mct_obstacle_bypass_rear_midpoint(geom_from_wkt('{}'))".format(
+                self._BYPASS
+            )
+        ).evaluate().asPoint()
+
+        self.assertAlmostEqual(
+            letter.x(), (rear[0].x() + rear[-1].x()) / 2.0, places=6
+        )
+
+        self.assertAlmostEqual(
+            letter.y(), (rear[0].y() + rear[-1].y()) / 2.0, places=6
+        )
+
+
+    def test_the_gap_breaks_that_line_around_the_letter(self):
+
+        parts = QgsExpression(
+            "mct_obstacle_bypass_rear_easy(geom_from_wkt('{}'), 2, 1000)".format(
+                self._BYPASS
+            )
+        ).evaluate().asMultiPolyline()
+
+        self.assertEqual(len(parts), 2)
+
+        letter = QgsExpression(
+            "mct_obstacle_bypass_rear_midpoint(geom_from_wkt('{}'))".format(
+                self._BYPASS
+            )
+        ).evaluate().asPoint()
+
+        before = math.hypot(
+            letter.x() - parts[0][-1].x(), letter.y() - parts[0][-1].y()
+        )
+
+        after = math.hypot(
+            parts[1][0].x() - letter.x(), parts[1][0].y() - letter.y()
+        )
+
+        self.assertGreater(before, 0.0)
+
+        self.assertAlmostEqual(before, after, places=9)
+
+        # The line still runs end to end - only the middle is missing.
+        whole = QgsExpression(
+            "mct_obstacle_bypass_rear_easy(geom_from_wkt('{}'))".format(
+                self._BYPASS
+            )
+        ).evaluate().asPolyline()
+
+        self.assertAlmostEqual(parts[0][0].x(), whole[0].x(), places=6)
+        self.assertAlmostEqual(parts[-1][-1].x(), whole[-1].x(), places=6)
+
+
+    def test_the_obstacle_version_is_untouched_without_a_gap(self):
+
+        # Table H-XIX's own 270601 passes neither argument, so it has
+        # to keep drawing one unbroken part. Every reuse on this layer
+        # reaches the original the same way.
+        self.assertFalse(
+            QgsExpression(
+                "mct_obstacle_bypass_rear_easy(geom_from_wkt('{}'))".format(
+                    self._BYPASS
+                )
+            ).evaluate().isMultipart()
+        )
+
+
+    def test_bypass_draws_the_arrows_the_joining_line_and_two_heads(self):
+
+        layer = create_mission_task_lines_layer()
+
+        for rule in layer.renderer().rootRule().children():
+
+            if rule.filterExpression() != "\"measure_type\" = 'bypass'":
+                continue
+
+            symbol = rule.symbol()
+
+            expressions = [
+                symbol.symbolLayer(index).geometryExpression()
+                for index in range(symbol.symbolLayerCount())
+            ]
+
+            # The arrows twice - once drawn, once carrying the heads.
+            self.assertEqual(
+                expressions.count("mct_obstacle_bypass_arrows($geometry)"), 2
+            )
+
+            self.assertTrue(
+                any(each.startswith("mct_obstacle_bypass_rear_easy($geometry,")
+                    for each in expressions)
+            )
+
+            break
+
+        else:
+            self.fail("no renderer rule for bypass")
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() != "bypass":
+                continue
+
+            self.assertEqual(rule.settings().fieldName, "'B'")
+
+            self.assertEqual(
+                rule.settings().geometryGenerator,
+                "mct_obstacle_bypass_rear_midpoint($geometry)"
+            )
+
+            return
+
+        self.fail("no labelling rule for bypass")

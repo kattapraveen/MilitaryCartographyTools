@@ -6,9 +6,9 @@ Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Twelve LINE tasks followed on
+anchor point each, milsymbol-rendered. Thirteen LINE tasks followed on
 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize,
-Isolate, Delay, Retire, Withdraw and Withdraw Under Pressure.
+Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure and Bypass.
 Everything still unbuilt is listed by code in TABLE_H_XXIV_REMAINING.
 
 **milsymbol has an icon for the three points and for nothing else in
@@ -58,6 +58,7 @@ from qgis.core import (
     QgsField,
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
+    QgsMapUnitScale,
     QgsMarkerLineSymbolLayer,
     QgsMarkerSymbol,
     QgsProject,
@@ -133,15 +134,15 @@ POINT_MARKER_SIZE_SCALES = {
 #   Screen are sub-codes of Security, drawn as an open bracket along
 #   the screened front.
 #
-# **Nothing left shares a shape with anything already built.** The
-# cheap reuse is spent: the last four rows to ship were Delay and the
-# three withdrawal tasks, one construction between them, and every row
-# still listed here needs geometry of its own.
+# **Check each of these against Table H-XIX before building it.** This
+# list was annotated "nothing left shares a shape with anything already
+# built" once, and Bypass (340300) was Obstacle Bypass Easy (270601)
+# whole - two arrows, a joining line, one added letter. The rest look
+# like their own geometry, but that has been wrong before.
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
     "340200": "Breach",
-    "340300": "Bypass",
     "340400": "Canalize",
     "340500": "Clear",
     "340600": "Counterattack",
@@ -225,6 +226,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "retire": "Retire/Retirement",
     "withdraw": "Withdraw",
     "withdraw_under_pressure": "Withdraw Under Pressure",
+    "bypass": "Bypass",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -240,6 +242,7 @@ LINE_MEASURE_TYPE_CODES = {
     "retire": "342000",
     "withdraw": "342400",
     "withdraw_under_pressure": "342500",
+    "bypass": "340300",
 }
 
 
@@ -261,6 +264,7 @@ LINE_LETTERS = {
     "retire": "R",
     "withdraw": "W",
     "withdraw_under_pressure": "WP",
+    "bypass": "B",
 }
 
 # **Four rows, ONE construction** - Delay and the three withdrawal
@@ -284,6 +288,11 @@ _LINE_WIDTH_MM = 0.4
 
 # The same head Table H-XIX's own Disrupt uses.
 _ARROWHEAD_SIZE_MM = 6
+
+# Bypass's own heads scale with the arrows they sit on, capped at that
+# size - the same quarter-of-the-arrow Table H-XIX's own 270601 uses,
+# so the two symbols keep drawing alike.
+_BYPASS_ARROWHEAD_ARROW_FRACTION = 0.25
 
 # **Occupy's cross scales with its own circle.** Fixed, it swamped a
 # small Occupy and vanished on a large one - the maintainer's own
@@ -423,6 +432,15 @@ def _line_geometry_expression(measure_type):
     # the same shape with a different letter.
     if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
         return f"mct_delay_geometry($geometry, {gap}, @map_scale)"
+
+    # **Bypass is Table H-XIX's own Obstacle Bypass Easy (270601)**,
+    # at the maintainer's own instruction - "same as obstacle bypass
+    # easy 270601, except add B (masked) on line segment joining the
+    # two arrows, in the middle of the line". The two arrows are that
+    # symbol's own call; the rear line they join is a symbol layer
+    # below, and the gap for the "B" is cut into it.
+    if measure_type == "bypass":
+        return "mct_obstacle_bypass_arrows($geometry)"
 
     if measure_type == "seize":
 
@@ -586,6 +604,32 @@ def _mission_task_line_symbol(measure_type):
             )
         )
 
+    if measure_type == "bypass":
+
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer(
+                "mct_obstacle_bypass_rear_easy($geometry, {gap},"
+                " @map_scale)".format(gap=_letter_gap_expression("bypass"))
+            )
+        )
+
+        # A head on each arrow's own tip, at PT1 and PT2. Sized in MAP
+        # UNITS as a quarter of the arrow it sits on and capped at the
+        # layer's own 6 mm, which is what 270601 does - "arrowhead
+        # should also become small if the lines are small, upto the
+        # current size which will be the max".
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                "mct_obstacle_bypass_arrows($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+                map_unit_size_expression=(
+                    "mct_obstacle_bypass_arrow_length($geometry) * {}".format(
+                        _BYPASS_ARROWHEAD_ARROW_FRACTION
+                    )
+                ),
+            )
+        )
+
     if measure_type == "occupy":
 
         # ">" and "<" on the same point, tip to tip - the same
@@ -696,7 +740,7 @@ def _seize_circle_layer():
 
 
 def _arrowhead_layer(geometry_expression, placement, angle=0.0,
-                     size_expression=None):
+                     size_expression=None, map_unit_size_expression=None):
 
     """
     An arrowhead riding on its own geometry generator - shared by every
@@ -706,6 +750,13 @@ def _arrowhead_layer(geometry_expression, placement, angle=0.0,
     than the symbol's own: a marker at a LastVertex placement fires on
     the last vertex of EVERY part, and each of these shapes is a
     multi-part geometry once a letter gap is cut into it.
+
+    `size_expression` sizes the head in PAGE millimetres;
+    `map_unit_size_expression` sizes it in MAP UNITS instead, capped at
+    the layer's own millimetre size, so the head shrinks with a small
+    symbol and tops out on a large one. Only one of the two applies -
+    Bypass is the only task using the second, matching what Table
+    H-XIX's own 270601 already does.
     """
 
     head = QgsSimpleMarkerSymbolLayer(
@@ -725,6 +776,21 @@ def _arrowhead_layer(geometry_expression, placement, angle=0.0,
         head.setDataDefinedProperty(
             QgsSymbolLayer.Property.Size,
             QgsProperty.fromExpression(size_expression)
+        )
+
+    if map_unit_size_expression is not None:
+
+        head.setSizeUnit(Qgis.RenderUnit.MapUnits)
+
+        capped = QgsMapUnitScale()
+        capped.maxSizeMMEnabled = True
+        capped.maxSizeMM = _ARROWHEAD_SIZE_MM
+
+        head.setSizeMapUnitScale(capped)
+
+        head.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Size,
+            QgsProperty.fromExpression(map_unit_size_expression)
         )
 
     _apply_affiliation_color(head, [QgsSymbolLayer.Property.StrokeColor])
@@ -873,6 +939,9 @@ def _letter_point_expression(measure_type):
 
     if measure_type in DELAY_CONSTRUCTION_MEASURE_TYPES:
         return "mct_delay_letter_point($geometry)"
+
+    if measure_type == "bypass":
+        return "mct_obstacle_bypass_rear_midpoint($geometry)"
 
     # The middle of the curve, which is the middle of the gap the
     # curve carries. Not the circle: that holds a boxed Field A in the

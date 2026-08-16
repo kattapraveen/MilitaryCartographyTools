@@ -8598,6 +8598,46 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Bypass (340300), on Obstacle Bypass Easy's own construction (2026-08-16)
+
+"same as obstacle bypass easy 270601, except add B (masked) on line
+segment joining the two arrows, in the middle of the line" - the
+maintainer's own instruction, and a reminder that the cheap reuse was
+not quite as spent as the previous entry claimed.
+
+So the two arrows are `mct_obstacle_bypass_arrows()` untouched and the
+line joining them is `mct_obstacle_bypass_rear_easy()`, which gains the
+same OPTIONAL gap arguments every other reused construction here has -
+Table H-XIX's own 270601 passes neither and draws one unbroken part, a
+test pins that.
+
+**The arrowheads scale, because 270601's do.** They are sized in MAP
+UNITS as a quarter of the arrow they sit on and capped at this layer's
+own 6 mm, which is the behaviour the maintainer asked for on the
+obstacle version in 2026-08-13: "arrowhead should also become small if
+the lines are small, upto the current size which will be the max".
+Every other head on the Mission Task Lines layer is a fixed 6 mm, so
+`_arrowhead_layer()` gained a `map_unit_size_expression` rather than
+Bypass getting a chevron generator of its own copied out of
+`obstacle_control_measures.py`.
+
+Worth recording why the size expression can read `$geometry` here at
+all, given how often the opposite has bitten this project:
+`mct_obstacle_bypass_arrow_length()` was written to accept EITHER the
+feature's three clicked points or the generated arrows, precisely
+because inside a generator's sub-symbol `$geometry` is the generated
+one. Each generated arrow part is [rear, tip], so its own length is the
+same distance either way.
+
+**Bypass is the ninth name that appears twice in Appendix H** under
+different codes and different drawn forms - except that this pair
+really is the same drawing, which none of the earlier eight were. The
+records stay keyed by code regardless.
+
+1216 tests passing on both QGIS versions.
+
+---
+
 ### The Delay arc is forced perpendicular (2026-08-16)
 
 Raised when Delay shipped, answered the same day: "yes, force the arc
@@ -9102,13 +9142,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **13 symbols in 1 unit**, all of it construction rather than
+is **12 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 13 is
+areas were all built on 2026-08-14. Every one of the 12 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9122,7 +9162,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 13 | Breach, Bypass, Canalize, Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 13 drawable symbols, plus the section parent row, which draws nothing. **Twelve built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure. **The cheap reuse is spent** - every row left needs geometry of its own. |
+| 1 | H-XXIV Mission Tasks | 12 | Breach, Canalize, Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 12 drawable symbols, plus the section parent row, which draws nothing. **Thirteen built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass. **Check every remaining row against Table H-XIX before building it** - Bypass turned out to be 270601 whole, after this table had been declared out of reuse. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

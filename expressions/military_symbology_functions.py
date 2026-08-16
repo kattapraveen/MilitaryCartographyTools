@@ -2263,8 +2263,15 @@ def mct_obstacle_bypass_arrow_length(values, feature=None, parent=None):
 )
 def mct_obstacle_bypass_rear_easy(values, feature=None, parent=None):
 
-    """Obstacle Bypass Easy (270601) - the plain rear line, PT1/PT2
-    shifted toward PT3 by PT3's own perpendicular distance."""
+    """
+    Obstacle Bypass Easy (270601) - the plain rear line, PT1/PT2
+    shifted toward PT3 by PT3's own perpendicular distance.
+
+    Optional `gap` (page millimetres) and `map_scale` break it at its
+    own midpoint, for Table H-XXIV's own Bypass (340300), which is this
+    same symbol with a "B" set into that line. Table H-XIX's own 270601
+    passes neither and is unchanged.
+    """
 
     if len(values) < 1:
         return "Need a geometry (e.g. $geometry)"
@@ -2285,7 +2292,76 @@ def mct_obstacle_bypass_rear_easy(values, feature=None, parent=None):
         pt1, pt2, pt3
     )
 
-    return QgsGeometry.fromPolylineXY([rear_top, rear_bottom])
+    span = math.hypot(
+        rear_bottom.x() - rear_top.x(), rear_bottom.y() - rear_top.y()
+    )
+
+    gap_units = _page_gap_in_map_units(values, 1, rear_top)
+
+    if span == 0 or gap_units <= 0 or gap_units >= span:
+        return QgsGeometry.fromPolylineXY([rear_top, rear_bottom])
+
+    ux = (rear_bottom.x() - rear_top.x()) / span
+    uy = (rear_bottom.y() - rear_top.y()) / span
+
+    before = (span - gap_units) / 2.0
+    after = (span + gap_units) / 2.0
+
+    return QgsGeometry.fromMultiPolylineXY(
+        [
+            [
+                rear_top,
+                QgsPointXY(
+                    rear_top.x() + before * ux, rear_top.y() + before * uy
+                ),
+            ],
+            [
+                QgsPointXY(
+                    rear_top.x() + after * ux, rear_top.y() + after * uy
+                ),
+                rear_bottom,
+            ],
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_obstacle_bypass_rear_midpoint',
+    group='Military Cartography Tools'
+)
+def mct_obstacle_bypass_rear_midpoint(values, feature=None, parent=None):
+
+    """
+    The anchor for Table H-XXIV Bypass's own "B" - the middle of the
+    rear line, which is the middle of the gap
+    mct_obstacle_bypass_rear_easy() cuts for it.
+    """
+
+    if len(values) < 1:
+        return "Need a geometry (e.g. $geometry)"
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return geometry
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return geometry
+
+    pt1, pt2, pt3 = (QgsPointXY(v) for v in vertices[:3])
+
+    rear_top, rear_bottom, _at, _ab, _depth = _obstacle_bypass_frame(
+        pt1, pt2, pt3
+    )
+
+    return QgsGeometry.fromPointXY(
+        QgsPointXY(
+            (rear_top.x() + rear_bottom.x()) / 2.0,
+            (rear_top.y() + rear_bottom.y()) / 2.0,
+        )
+    )
 
 
 # Obstacle Bypass Difficult's own zigzag. Corrected twice on
@@ -7010,6 +7086,7 @@ _FUNCTIONS = [
     mct_obstacle_bypass_arrows,
     mct_obstacle_bypass_arrow_length,
     mct_obstacle_bypass_rear_easy,
+    mct_obstacle_bypass_rear_midpoint,
     mct_obstacle_bypass_rear_difficult,
     mct_obstacle_bypass_rear_impossible,
     mct_roadblock_main_line,
