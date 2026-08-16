@@ -6,12 +6,12 @@ Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Twenty LINE tasks followed on
-2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize,
-Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass,
-Breach, Canalize, Clear, Relief in Place, and Security's own Cover,
-Guard and Screen. Everything still unbuilt is listed by code in
-TABLE_H_XXIV_REMAINING.
+anchor point each, milsymbol-rendered. Twenty-two LINE tasks followed
+on 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate,
+Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure,
+Bypass, Breach, Canalize, Clear, Relief in Place, Security's own Cover,
+Guard and Screen, and both Follows. Everything still unbuilt is listed
+by code in TABLE_H_XXIV_REMAINING.
 
 **milsymbol has an icon for the three points and for nothing else in
 this table** - verified entry by entry against its own
@@ -58,6 +58,7 @@ from qgis.core import (
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsField,
+    QgsFillSymbol,
     QgsGeometryGeneratorSymbolLayer,
     QgsLineSymbol,
     QgsMapUnitScale,
@@ -67,6 +68,7 @@ from qgis.core import (
     QgsProject,
     QgsProperty,
     QgsRuleBasedLabeling,
+    QgsSimpleFillSymbolLayer,
     QgsSimpleLineSymbolLayer,
     QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
@@ -75,7 +77,7 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
-from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtCore import QMetaType, Qt
 
 from qgis.PyQt.QtGui import QColor
 
@@ -144,8 +146,6 @@ TABLE_H_XXIV_REMAINING = {
               "both N/A)",
     "340600": "Counterattack",
     "340700": "Counterattack by Fire",
-    "341200": "Follow and Assume",
-    "341300": "Follow and Support",
     "342200": "Security (group parent; TEMPLATE and EXAMPLE both N/A)",
 }
 
@@ -227,6 +227,8 @@ LINE_MEASURE_TYPE_LABELS = {
     "cover": "Security - Cover",
     "guard": "Security - Guard",
     "screen": "Security - Screen",
+    "follow_and_assume": "Follow and Assume",
+    "follow_and_support": "Follow and Support",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -250,6 +252,8 @@ LINE_MEASURE_TYPE_CODES = {
     "cover": "342201",
     "guard": "342202",
     "screen": "342203",
+    "follow_and_assume": "341200",
+    "follow_and_support": "341300",
 }
 
 
@@ -391,6 +395,21 @@ _OCCUPY_CROSS_SIZE_EXPRESSION = (
 # maintainer confirmed directly: "in security 342200 there is nothing
 # to be built drop it".
 SECURITY_CONSTRUCTION_MEASURE_TYPES = ("cover", "guard", "screen")
+
+# **Follow and Assume and Follow and Support are one construction with
+# three differences**, all of them visible in the standard's own
+# examples: the rear tag is notched on Support and straight on Assume,
+# the line between tag and head is dashed on Assume and solid on
+# Support, and the head is an outlined double chevron on Assume against
+# a solid triangle on Support.
+#
+# Both "vary only in length" per their own draw rules, so the tag and
+# the head are FIXED PAGE SIZES and only the line between them
+# stretches - see the millimetre figures in the expressions module.
+FOLLOW_CONSTRUCTION_MEASURE_TYPES = (
+    "follow_and_assume",
+    "follow_and_support",
+)
 
 # The space left at the centre for a unit symbol. **Reserved, not
 # filled** - the maintainer's own construction says "at pt2 - make a
@@ -542,6 +561,13 @@ def _line_geometry_expression(measure_type):
             start=_security_bolt_start_expression(measure_type)
         )
 
+    # The rear tag, notched on Support and straight on Assume. The
+    # line and the head are symbol layers over it.
+    if measure_type in FOLLOW_CONSTRUCTION_MEASURE_TYPES:
+        return "mct_follow_tag($geometry, @map_scale, {notched})".format(
+            notched=str(measure_type == "follow_and_support").lower()
+        )
+
     if measure_type == "seize":
 
         curve = "mct_turn_arc($geometry)"
@@ -560,7 +586,7 @@ def _line_geometry_expression(measure_type):
     return f"mct_fix_geometry($geometry, {gap}, @map_scale)"
 
 
-def _task_line_layer():
+def _task_line_layer(always_dashed=False):
 
     """
     A plain stroke in the task's own colour and status style - black by
@@ -568,6 +594,12 @@ def _task_line_layer():
 
     Shared by the symbol's main run and by any extra generated part
     that has to match it, so the two can never drift.
+
+    `always_dashed` takes the dash off the status and pins it on.
+    Follow and Assume needs it: its own note says "The dashed lines in
+    this graphic shall be displayed in present AND anticipated status",
+    so that line is dashed because of what the symbol IS, not because
+    of what state it is in.
     """
 
     line_layer = QgsSimpleLineSymbolLayer()
@@ -581,25 +613,63 @@ def _task_line_layer():
         [QgsSymbolLayer.Property.StrokeColor]
     )
 
-    line_layer.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-    )
+    if always_dashed:
+        line_layer.setPenStyle(Qt.PenStyle.DashLine)
+    else:
+        line_layer.setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeStyle,
+            QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
+        )
 
     return line_layer
 
 
-def _task_line_generator_layer(geometry_expression):
+def _task_line_generator_layer(geometry_expression, always_dashed=False):
 
     """One extra generated run, drawn exactly like the symbol's own."""
 
     inner = QgsLineSymbol()
 
-    inner.changeSymbolLayer(0, _task_line_layer())
+    inner.changeSymbolLayer(0, _task_line_layer(always_dashed))
 
     generator = QgsGeometryGeneratorSymbolLayer.create({})
 
     generator.setSymbolType(QgsSymbol.SymbolType.Line)
+
+    generator.setGeometryExpression(geometry_expression)
+
+    generator.setSubSymbol(inner)
+
+    return generator
+
+
+def _task_fill_generator_layer(geometry_expression):
+
+    """
+    One generated FILLED part, in the task's own colour.
+
+    Only Follow and Support's head needs it - a line symbol layer
+    cannot fill, and that head is solid in the standard's own example.
+    """
+
+    fill_layer = QgsSimpleFillSymbolLayer()
+
+    fill_layer.setColor(QColor(0, 0, 0))
+
+    fill_layer.setStrokeStyle(Qt.PenStyle.NoPen)
+
+    _apply_affiliation_color(
+        fill_layer,
+        [QgsSymbolLayer.Property.FillColor]
+    )
+
+    inner = QgsFillSymbol()
+
+    inner.changeSymbolLayer(0, fill_layer)
+
+    generator = QgsGeometryGeneratorSymbolLayer.create({})
+
+    generator.setSymbolType(QgsSymbol.SymbolType.Fill)
 
     generator.setGeometryExpression(geometry_expression)
 
@@ -730,6 +800,32 @@ def _mission_task_line_symbol(measure_type):
                 Qgis.MarkerLinePlacement.LastVertex,
             )
         )
+
+    if measure_type in FOLLOW_CONSTRUCTION_MEASURE_TYPES:
+
+        assume = measure_type == "follow_and_assume"
+
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer(
+                "mct_follow_connector($geometry, @map_scale, {})".format(
+                    str(assume).lower()
+                ),
+                always_dashed=assume,
+            )
+        )
+
+        if assume:
+            symbol.appendSymbolLayer(
+                _task_line_generator_layer(
+                    "mct_follow_assume_head($geometry, @map_scale)"
+                )
+            )
+        else:
+            symbol.appendSymbolLayer(
+                _task_fill_generator_layer(
+                    "mct_follow_support_head($geometry, @map_scale)"
+                )
+            )
 
     if measure_type == "relief_in_place":
 

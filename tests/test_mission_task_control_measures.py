@@ -13,7 +13,9 @@ import math
 
 import re
 
-from qgis.core import (QgsCoordinateReferenceSystem, QgsExpression,
+from qgis.PyQt.QtCore import Qt
+
+from qgis.core import (Qgis, QgsCoordinateReferenceSystem, QgsExpression,
                        QgsExpressionContext, QgsFeature, QgsProject,
                        QgsSymbolLayer)
 
@@ -28,6 +30,7 @@ from MilitaryCartographyTools.military_symbology.mission_task_control_measures i
     BYPASS_CONSTRUCTION_MEASURE_TYPES,
     DELAY_CONSTRUCTION_MEASURE_TYPES,
     LABELLED_MEASURE_TYPES,
+    FOLLOW_CONSTRUCTION_MEASURE_TYPES,
     SECURITY_CONSTRUCTION_MEASURE_TYPES,
     LINE_LETTERS,
     LINE_MEASURE_TYPE_CODES,
@@ -67,11 +70,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 20 line tasks + 6 still unbuilt = the table's own
+        # 3 points + 22 line tasks + 4 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 6)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 4)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -2070,3 +2073,289 @@ class TestSecurityTasks(QgisTestCase):
         self.assertIn("342200", TABLE_H_XXIV_REMAINING)
 
         self.assertIn("N/A", TABLE_H_XXIV_REMAINING["342200"])
+
+
+class TestFollowTasks(QgisTestCase):
+
+    """
+    Follow and Assume (341200) and Follow and Support (341300).
+
+    Two anchor points, PT1 the tip and PT2 the rear, and the standard's
+    own draw rules say the symbol "varies only in length" - so the tag
+    and the head are FIXED PAGE SIZES and only the line between them
+    stretches. That is what most of this pins.
+    """
+
+    # Running due east, rear at the origin. PT1 first, per the
+    # standard's own order and the one Delay already uses.
+    _FOLLOW = "LineString(0.01 0, 0 0, 0 0)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    @staticmethod
+    def _evaluate(expression, scale=20000):
+
+        return QgsExpression(
+            "{}(geom_from_wkt('LineString(0.01 0, 0 0)'), {})".format(
+                expression, scale
+            )
+        ).evaluate()
+
+
+    def test_the_tag_and_the_head_do_not_change_with_the_length(self):
+
+        # "varies only in length" - the whole point of building these
+        # out of page millimetres rather than fractions of the line.
+        def tag_height(wkt):
+
+            ring = QgsExpression(
+                "mct_follow_tag(geom_from_wkt('{}'), 100000)".format(wkt)
+            ).evaluate().asPolyline()
+
+            return max(p.y() for p in ring) - min(p.y() for p in ring)
+
+        short = tag_height("LineString(0.01 0, 0 0)")
+        long = tag_height("LineString(0.4 0, 0 0)")
+
+        self.assertGreater(short, 0.0)
+
+        self.assertAlmostEqual(short, long, places=12)
+
+
+    def test_the_tag_is_a_closed_ring_pointing_forward(self):
+
+        ring = self._evaluate("mct_follow_tag").asPolyline()
+
+        self.assertEqual(
+            (ring[0].x(), ring[0].y()), (ring[-1].x(), ring[-1].y())
+        )
+
+        # Its nose is the furthest point forward, on the axis.
+        nose = max(ring, key=lambda point: point.x())
+
+        self.assertAlmostEqual(nose.y(), 0.0, places=12)
+
+
+    def test_only_supports_tag_is_notched(self):
+
+        plain = QgsExpression(
+            "mct_follow_tag(geom_from_wkt('LineString(0.01 0, 0 0)'),"
+            " 100000, false)"
+        ).evaluate().asPolyline()
+
+        notched = QgsExpression(
+            "mct_follow_tag(geom_from_wkt('LineString(0.01 0, 0 0)'),"
+            " 100000, true)"
+        ).evaluate().asPolyline()
+
+        self.assertEqual(len(notched), len(plain) + 1)
+
+        # The notch bites forward into the back edge, on the axis.
+        bite = [
+            point for point in notched
+            if point.x() > 0 and abs(point.y()) < 1e-12
+        ]
+
+        self.assertEqual(len(bite), 2)
+
+
+    def test_assumes_head_is_an_outlined_ring_and_supports_is_filled(self):
+
+        assume = self._evaluate("mct_follow_assume_head")
+
+        self.assertEqual(
+            assume.wkbType(), Qgis.WkbType.LineString
+        )
+
+        ring = assume.asPolyline()
+
+        self.assertEqual(
+            (ring[0].x(), ring[0].y()), (ring[-1].x(), ring[-1].y())
+        )
+
+        support = self._evaluate("mct_follow_support_head")
+
+        self.assertEqual(
+            support.wkbType(), Qgis.WkbType.Polygon
+        )
+
+
+    def test_assumes_head_is_the_taller_of_the_two(self):
+
+        def height(geometry):
+
+            box = geometry.boundingBox()
+
+            return box.yMaximum() - box.yMinimum()
+
+        self.assertGreater(
+            height(self._evaluate("mct_follow_assume_head")),
+            height(self._evaluate("mct_follow_support_head"))
+        )
+
+
+    def test_both_heads_reach_pt1(self):
+
+        for expression in (
+            "mct_follow_assume_head", "mct_follow_support_head"
+        ):
+            box = self._evaluate(expression).boundingBox()
+
+            self.assertAlmostEqual(box.xMaximum(), 0.01, places=9)
+
+
+    def test_the_connector_is_the_only_part_that_stretches(self):
+
+        def connector_length(wkt):
+
+            run = QgsExpression(
+                "mct_follow_connector(geom_from_wkt('{}'), 20000)".format(wkt)
+            ).evaluate().asPolyline()
+
+            return math.hypot(
+                run[-1].x() - run[0].x(), run[-1].y() - run[0].y()
+            )
+
+        self.assertGreater(
+            connector_length("LineString(0.4 0, 0 0)"),
+            connector_length("LineString(0.01 0, 0 0)")
+        )
+
+
+    def test_a_symbol_too_short_for_its_own_glyphs_loses_the_line(self):
+
+        # Rather than drawing it backwards through the tag.
+        self.assertTrue(
+            QgsExpression(
+                "mct_follow_connector(geom_from_wkt("
+                "'LineString(0.00001 0, 0 0)'), 100000)"
+            ).evaluate().isEmpty()
+        )
+
+
+    def test_degenerate_input_draws_nothing(self):
+
+        for expression in (
+            "mct_follow_tag", "mct_follow_connector",
+            "mct_follow_assume_head", "mct_follow_support_head",
+        ):
+            for wkt in ("LineString(0 0, 0 0)", "LineString(0 0)"):
+
+                self.assertTrue(
+                    QgsExpression(
+                        "{}(geom_from_wkt('{}'), 100000)".format(
+                            expression, wkt
+                        )
+                    ).evaluate().isEmpty(),
+                    msg="{} {}".format(expression, wkt)
+                )
+
+
+    def test_assumes_line_is_dashed_whatever_the_status(self):
+
+        # "The dashed lines in this graphic shall be displayed in
+        # present and anticipated status" - the standard's own note, so
+        # this dash is what the symbol IS, not what state it is in.
+        layer = create_mission_task_lines_layer()
+
+        for rule in layer.renderer().rootRule().children():
+
+            if rule.filterExpression() != (
+                "\"measure_type\" = 'follow_and_assume'"
+            ):
+                continue
+
+            symbol = rule.symbol()
+
+            for index in range(symbol.symbolLayerCount()):
+
+                generator = symbol.symbolLayer(index)
+
+                if not generator.geometryExpression().startswith(
+                    "mct_follow_connector"
+                ):
+                    continue
+
+                stroke = generator.subSymbol().symbolLayer(0)
+
+                self.assertEqual(stroke.penStyle(), Qt.PenStyle.DashLine)
+
+                self.assertFalse(
+                    stroke.dataDefinedProperties().isActive(
+                        QgsSymbolLayer.Property.StrokeStyle
+                    )
+                )
+
+                return
+
+        self.fail("no connector layer for follow_and_assume")
+
+
+    def test_supports_line_follows_the_status_like_everything_else(self):
+
+        layer = create_mission_task_lines_layer()
+
+        for rule in layer.renderer().rootRule().children():
+
+            if rule.filterExpression() != (
+                "\"measure_type\" = 'follow_and_support'"
+            ):
+                continue
+
+            symbol = rule.symbol()
+
+            for index in range(symbol.symbolLayerCount()):
+
+                generator = symbol.symbolLayer(index)
+
+                if not generator.geometryExpression().startswith(
+                    "mct_follow_connector"
+                ):
+                    continue
+
+                stroke = generator.subSymbol().symbolLayer(0)
+
+                self.assertTrue(
+                    stroke.dataDefinedProperties().isActive(
+                        QgsSymbolLayer.Property.StrokeStyle
+                    )
+                )
+
+                return
+
+        self.fail("no connector layer for follow_and_support")
+
+
+    def test_the_pair_is_recorded_as_one_construction(self):
+
+        self.assertEqual(
+            FOLLOW_CONSTRUCTION_MEASURE_TYPES,
+            ("follow_and_assume", "follow_and_support")
+        )
+
+        self.assertEqual(
+            {LINE_MEASURE_TYPE_CODES[measure_type]
+             for measure_type in FOLLOW_CONSTRUCTION_MEASURE_TYPES},
+            {"341200", "341300"}
+        )
+
+        # Neither carries a letter, so neither cuts a gap.
+        for measure_type in FOLLOW_CONSTRUCTION_MEASURE_TYPES:
+
+            self.assertNotIn(measure_type, LINE_LETTERS)
+
+            self.assertNotIn(measure_type, LABELLED_MEASURE_TYPES)

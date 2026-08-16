@@ -8598,6 +8598,62 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Follow and Assume (341200) and Follow and Support (341300) (2026-08-16)
+
+Built from the standard alone - "follow the manual, i will give
+corrections after the smoke test if required" - so everything here is a
+reading rather than a dictated construction, and worth recording as
+such.
+
+Two anchor points, PT1 the tip and PT2 the rear, which is the
+standard's own order and the one Delay already uses on this layer.
+
+**"Points 1 and 2 determine the length of the symbol, WHICH VARIES
+ONLY IN LENGTH."** That clause is the whole design: the tag at the rear
+and the head at the tip are FIXED PAGE SIZES and only the line between
+them stretches. Building them as fractions of the line would have been
+the easy reading and the wrong one - a long Follow would have drawn a
+huge tag. Every figure is millimetres, converted to map units at draw
+time, and a test pins that the tag's height does not move when the
+symbol is made forty times longer.
+
+The two differ in exactly three ways, all off the standard's own
+examples on printed pages 644 and 645:
+
+- the rear tag is NOTCHED on Support, straight on Assume;
+- the line between tag and head is DASHED on Assume, solid on Support;
+- the head is an OUTLINED double chevron on Assume, twice the tag's
+  height, against a SOLID triangle on Support about as tall as it.
+
+**Assume's dashes are not a status style**, and that distinction
+matters here. Its own note says "The dashed lines in this graphic shall
+be displayed in present AND anticipated status" - so that line is
+dashed because of what the symbol IS. `_task_line_layer()` gained an
+`always_dashed` flag which pins the pen and leaves the status property
+off entirely, rather than trying to express it through the usual
+status expression. Both halves are pinned by tests.
+
+Support's head is the first FILLED part on this layer, so
+`_task_fill_generator_layer()` is new - a line symbol layer cannot
+fill, and that head is solid in the standard's example.
+
+The millimetre figures come off both examples measured at 800 dpi and
+scaled so the taller head is 8 mm, a marker's own width here. Ratios
+held from the page: the tag is half the assume head's height, its nose
+is a third of its own length, and the support head is as tall as the
+tag.
+
+**Field T is not drawn.** Both templates put a boxed T inside the rear
+tag - that is what the tag is for - and the layer already carries a
+`unique_designation` field that nothing on it draws. Left alone under
+the standing partial-amplifier decision rather than added speculatively;
+raised here because this is the one symbol where the amplifier has a
+container built for it.
+
+1268 tests passing on both QGIS versions.
+
+---
+
 ### Security: Cover, Guard and Screen (342201-342203) (2026-08-16)
 
 One construction with three letters, the way the Delay family is.
@@ -9338,13 +9394,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **4 symbols in 1 unit**, all of it construction rather than
+is **2 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 4 is
+areas were all built on 2026-08-14. Both of the 2 are
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9358,7 +9414,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 4 | **Counterattack, Counterattack by Fire, Follow and Assume, Follow and Support** - and that is the whole of Appendix H's remainder. Two more rows are recorded but will never be built: 340000, the table's own section parent, and 342200, the Security group parent; both read "N/A" for TEMPLATE and EXAMPLE. **Twenty built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Cover, Guard, Screen. |
+| 1 | H-XXIV Mission Tasks | 2 | **Counterattack and Counterattack by Fire** - and that is the whole of Appendix H's remainder. Two more rows are recorded but will never be built: 340000, the table's own section parent, and 342200, the Security group parent; both read "N/A" for TEMPLATE and EXAMPLE. **Twenty-two built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear, Relief in Place, Cover, Guard, Screen, Follow and Assume, Follow and Support. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

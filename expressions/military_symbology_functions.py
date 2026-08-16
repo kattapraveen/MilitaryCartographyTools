@@ -1495,6 +1495,20 @@ def _page_gap_in_map_units(values, first_index, reference_point):
     return ground_metres / metres_per_unit
 
 
+def _millimetres_in_map_units(millimetres, map_scale, reference_point):
+
+    """
+    The same page-to-ground-to-map-units conversion
+    _page_gap_in_map_units() does, but taking its two numbers directly
+    rather than picking them out of an expression's own argument list -
+    for callers that convert several page sizes from one call.
+    """
+
+    return _page_gap_in_map_units(
+        [None, millimetres, map_scale], 1, reference_point
+    )
+
+
 @qgsfunction(
     'mct_block_letter_point',
     group='Military Cartography Tools'
@@ -4267,6 +4281,315 @@ def mct_relief_in_place_return_arrow(values, feature=None, parent=None):
     )
 
     return QgsGeometry.fromPolylineXY([tail, head])
+
+
+
+# --- Follow and Assume (341200) and Follow and Support (341300) ---
+#
+# Two anchor points: "Point 1 defines the tip of the arrowhead and
+# point 2 defines the rear of the symbol", and "Points 1 and 2
+# determine the length of the symbol, WHICH VARIES ONLY IN LENGTH".
+#
+# That last clause is the whole design here: the tag at the rear and
+# the head at the tip are FIXED PAGE SIZES, and only the line between
+# them stretches. Every figure below is millimetres on the page,
+# converted into map units at draw time, which is why these read the
+# same at any zoom.
+#
+# The two symbols differ in exactly three ways, all visible in the
+# standard's own examples on printed pages 644 and 645:
+#
+#   rear    - Follow and Support's tag is NOTCHED at its back edge,
+#             Follow and Assume's is straight.
+#   line    - Follow and Assume's is DASHED, Follow and Support's is
+#             solid.
+#   head    - Follow and Assume's is an OUTLINED double chevron, twice
+#             the tag's height; Follow and Support's is a solid
+#             triangle about as tall as the tag.
+#
+# **Follow and Assume's dashes are not a status style.** Its own note
+# says "The dashed lines in this graphic shall be displayed in present
+# and anticipated status" - so that line stays dashed either way, and
+# the layer's usual present/planned dash does not reach it.
+#
+# The millimetre figures come off the two examples, measured at 800
+# dpi and scaled so the taller head is 8 mm - a marker's own width on
+# this plugin's layers. Ratios held from the page: the tag is half the
+# assume head's height and its nose is a third of its own length; the
+# support head is as tall as the tag, and deeper than it is tall.
+_FOLLOW_TAG_LENGTH_MM = 7.0
+_FOLLOW_TAG_HEIGHT_MM = 4.0
+_FOLLOW_TAG_NOSE_MM = 2.0
+_FOLLOW_TAG_NOTCH_MM = 2.0
+
+_FOLLOW_ASSUME_HEAD_HEIGHT_MM = 8.0
+_FOLLOW_ASSUME_HEAD_DEPTH_MM = 5.0
+_FOLLOW_ASSUME_HEAD_BAND_MM = 1.2
+
+_FOLLOW_SUPPORT_HEAD_HEIGHT_MM = 4.0
+_FOLLOW_SUPPORT_HEAD_DEPTH_MM = 4.5
+
+
+def _follow_frame(values):
+
+    """
+    (rear, along, across, length, millimetre) for the two Follow
+    symbols, or None.
+
+    PT1 is the TIP and PT2 the REAR, the standard's own order and the
+    one Delay already uses here, so `along` runs from the rear forward
+    to the tip. `millimetre` is one page millimetre expressed in map
+    units - every figure in this family is a page size.
+    """
+
+    if len(values) < 2:
+        return None
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return None
+
+    try:
+        vertices = geometry.asPolyline()
+    except (TypeError, ValueError):
+        return None
+
+    if len(vertices) < 2:
+        return None
+
+    tip, rear = QgsPointXY(vertices[0]), QgsPointXY(vertices[1])
+
+    length = math.hypot(tip.x() - rear.x(), tip.y() - rear.y())
+
+    if length == 0:
+        return None
+
+    along = ((tip.x() - rear.x()) / length, (tip.y() - rear.y()) / length)
+
+    across = (-along[1], along[0])
+
+    millimetre = _millimetres_in_map_units(1.0, values[1], rear)
+
+    if millimetre <= 0:
+        return None
+
+    return rear, along, across, length, millimetre
+
+
+def _follow_point(frame, forward_mm, sideways_mm):
+
+    """A page-millimetre offset from the rear, in map units."""
+
+    rear, along, across, _length, millimetre = frame
+
+    forward = forward_mm * millimetre
+    sideways = sideways_mm * millimetre
+
+    return QgsPointXY(
+        rear.x() + forward * along[0] + sideways * across[0],
+        rear.y() + forward * along[1] + sideways * across[1],
+    )
+
+
+@qgsfunction(
+    'mct_follow_tag',
+    group='Military Cartography Tools'
+)
+def mct_follow_tag(values, feature=None, parent=None):
+
+    """
+    The rear tag of Follow and Assume (341200) and Follow and Support
+    (341300) - a fixed page-sized banner pointing forward, holding
+    Field T in the standard's own template.
+
+    `notched` true cuts the chevron into its back edge that tells
+    Follow and Support from Follow and Assume. Use as
+    mct_follow_tag($geometry, @map_scale, true).
+
+    Drawn as a closed ring, so it reads the same whether the symbol
+    runs left to right or any other way.
+    """
+
+    if len(values) < 2:
+        return "Need a geometry and a map scale"
+
+    frame = _follow_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    notched = len(values) > 2 and bool(values[2])
+
+    half = _FOLLOW_TAG_HEIGHT_MM / 2.0
+
+    shoulder = _FOLLOW_TAG_LENGTH_MM - _FOLLOW_TAG_NOSE_MM
+
+    ring = [
+        (0.0, half),
+        (shoulder, half),
+        (_FOLLOW_TAG_LENGTH_MM, 0.0),
+        (shoulder, -half),
+        (0.0, -half),
+    ]
+
+    if notched:
+        ring.append((_FOLLOW_TAG_NOTCH_MM, 0.0))
+
+    ring.append(ring[0])
+
+    return QgsGeometry.fromPolylineXY(
+        [_follow_point(frame, forward, sideways) for forward, sideways in ring]
+    )
+
+
+@qgsfunction(
+    'mct_follow_connector',
+    group='Military Cartography Tools'
+)
+def mct_follow_connector(values, feature=None, parent=None):
+
+    """
+    The line between the rear tag and the head - the only part of
+    either Follow symbol that stretches, since the standard says both
+    "vary only in length".
+
+    `assume` true runs it to the double chevron's own inner point,
+    which is where the standard's example takes its dashes; false
+    stops it at the solid head's back edge. Empty when the two ends
+    would overlap, so a symbol drawn shorter than its own glyphs
+    simply loses the line rather than drawing it backwards.
+    """
+
+    if len(values) < 2:
+        return "Need a geometry and a map scale"
+
+    frame = _follow_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    assume = len(values) > 2 and bool(values[2])
+
+    _rear, _along, _across, length, millimetre = frame
+
+    tip_mm = length / millimetre
+
+    head_mm = (
+        _FOLLOW_ASSUME_HEAD_BAND_MM
+        if assume
+        else _FOLLOW_SUPPORT_HEAD_DEPTH_MM
+    )
+
+    finish = tip_mm - head_mm
+
+    if finish <= _FOLLOW_TAG_LENGTH_MM:
+        return QgsGeometry()
+
+    return QgsGeometry.fromPolylineXY(
+        [
+            _follow_point(frame, _FOLLOW_TAG_LENGTH_MM, 0.0),
+            _follow_point(frame, finish, 0.0),
+        ]
+    )
+
+
+@qgsfunction(
+    'mct_follow_assume_head',
+    group='Military Cartography Tools'
+)
+def mct_follow_assume_head(values, feature=None, parent=None):
+
+    """
+    Follow and Assume's own head (341200) - an OUTLINED double
+    chevron at PT1, twice the tag's height and open to the rear.
+
+    A closed ring rather than two separate V's: the standard's example
+    draws one band with an outer and an inner edge joined at both
+    ends, and a ring is what makes that one shape rather than two
+    lines that happen to meet.
+    """
+
+    if len(values) < 2:
+        return "Need a geometry and a map scale"
+
+    frame = _follow_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    _rear, _along, _across, length, millimetre = frame
+
+    tip_mm = length / millimetre
+
+    half = _FOLLOW_ASSUME_HEAD_HEIGHT_MM / 2.0
+
+    back = tip_mm - _FOLLOW_ASSUME_HEAD_DEPTH_MM
+
+    band = _FOLLOW_ASSUME_HEAD_BAND_MM
+
+    if back <= 0:
+        return QgsGeometry()
+
+    ring = [
+        (back, half),
+        (tip_mm, 0.0),
+        (back, -half),
+        (back, -half + band),
+        (tip_mm - band, 0.0),
+        (back, half - band),
+    ]
+
+    ring.append(ring[0])
+
+    return QgsGeometry.fromPolylineXY(
+        [_follow_point(frame, forward, sideways) for forward, sideways in ring]
+    )
+
+
+@qgsfunction(
+    'mct_follow_support_head',
+    group='Military Cartography Tools'
+)
+def mct_follow_support_head(values, feature=None, parent=None):
+
+    """
+    Follow and Support's own head (341300) - a SOLID triangle at PT1,
+    about as tall as the rear tag.
+
+    A polygon rather than a ring: this one is filled, which a line
+    symbol layer cannot do.
+    """
+
+    if len(values) < 2:
+        return "Need a geometry and a map scale"
+
+    frame = _follow_frame(values)
+
+    if frame is None:
+        return QgsGeometry()
+
+    _rear, _along, _across, length, millimetre = frame
+
+    tip_mm = length / millimetre
+
+    half = _FOLLOW_SUPPORT_HEAD_HEIGHT_MM / 2.0
+
+    back = tip_mm - _FOLLOW_SUPPORT_HEAD_DEPTH_MM
+
+    if back <= 0:
+        return QgsGeometry()
+
+    corners = [(tip_mm, 0.0), (back, half), (back, -half), (tip_mm, 0.0)]
+
+    return QgsGeometry.fromPolygonXY(
+        [
+            [
+                _follow_point(frame, forward, sideways)
+                for forward, sideways in corners
+            ]
+        ]
+    )
 
 
 # --- Clear (Table H-XXIV, 340500) ---
@@ -7674,6 +7997,10 @@ _FUNCTIONS = [
     mct_obstacle_bypass_rear_midpoint,
     mct_bypass_ticks,
     mct_clear_side_stems,
+    mct_follow_tag,
+    mct_follow_connector,
+    mct_follow_assume_head,
+    mct_follow_support_head,
     mct_security_arms,
     mct_security_letter_point,
     mct_obstacle_bypass_rear_difficult,
