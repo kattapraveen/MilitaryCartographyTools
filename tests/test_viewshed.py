@@ -10,6 +10,8 @@ Military Cartography Tools
 
 import os
 
+from qgis.PyQt.QtCore import Qt
+
 from qgis.core import (
     Qgis,
     QgsCoordinateTransform,
@@ -24,10 +26,14 @@ from qgis.core import (
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
+from MilitaryCartographyTools.terrain.line_of_sight import VISIBLE_COLOR
 from MilitaryCartographyTools.terrain.viewshed import (
+    _apply_polygon_style,
     _observer_extent,
     default_insert_position,
+    DEFAULT_COLOR,
     generate_viewshed,
+    OUTLINE_WIDTH_MM,
     OUTPUT_LAYER_NAME,
     VISIBLE_VALUE,
 )
@@ -247,6 +253,38 @@ class TestGenerateViewshed(QgisTestCase):
         )
 
 
+    def test_colour_and_outline_only_reach_the_output_layer(self):
+
+        observer_lonlat = _lonlat_at_fraction(
+            self.ridge_dem_layer,
+            0.1
+        )
+
+        layer = generate_viewshed(
+            self.ridge_dem_layer,
+            observer_lonlat,
+            2.0,
+            2.0,
+            300.0,
+            color=(10, 20, 200),
+            outline_only=True
+        )
+
+        symbol_layer = layer.renderer().symbol().symbolLayer(0)
+
+        stroke = symbol_layer.strokeColor()
+
+        self.assertEqual(
+            (stroke.red(), stroke.green(), stroke.blue()),
+            (10, 20, 200)
+        )
+
+        self.assertEqual(
+            symbol_layer.brushStyle(),
+            Qt.BrushStyle.NoBrush
+        )
+
+
     def test_output_layer_is_not_added_to_the_project(self):
 
         # generate_viewshed() deliberately doesn't add its result to
@@ -322,6 +360,147 @@ class TestGenerateViewshed(QgisTestCase):
         )
 
         self.assertIsNone(layer)
+
+
+class TestPolygonStyle(QgisTestCase):
+
+    """
+    _apply_polygon_style() on its own, against a throwaway polygon
+    layer - the styling is independent of the (slow) gdal:viewshed
+    pipeline that normally produces the layer, so it's tested
+    directly rather than through a full generate_viewshed() run for
+    every combination. One end-to-end check that the arguments
+    actually reach the output layer lives in TestGenerateViewshed.
+    """
+
+    def _layer(self):
+
+        return QgsVectorLayer(
+            "Polygon?crs=EPSG:4326",
+            "styling_target",
+            "memory"
+        )
+
+
+    def _symbol_layer(self, layer):
+
+        return layer.renderer().symbol().symbolLayer(0)
+
+
+    def test_default_is_a_filled_polygon_with_no_outline(self):
+
+        layer = self._layer()
+
+        _apply_polygon_style(layer, 0.65)
+
+        symbol_layer = self._symbol_layer(layer)
+
+        self.assertEqual(
+            symbol_layer.brushStyle(),
+            Qt.BrushStyle.SolidPattern
+        )
+
+        self.assertEqual(
+            symbol_layer.strokeStyle(),
+            Qt.PenStyle.NoPen
+        )
+
+
+    def test_default_colour_is_line_of_sights_own_visible_green(self):
+
+        # Not a restatement of DEFAULT_COLOR's own definition - this
+        # pins the shared colour language between Viewshed and Line of
+        # Sight, which is the reason that default was chosen.
+        self.assertEqual(DEFAULT_COLOR, VISIBLE_COLOR)
+
+        layer = self._layer()
+
+        _apply_polygon_style(layer, 0.65)
+
+        red, green, blue = VISIBLE_COLOR
+
+        fill = self._symbol_layer(layer).color()
+
+        self.assertEqual(
+            (fill.red(), fill.green(), fill.blue()),
+            (red, green, blue)
+        )
+
+
+    def test_a_picked_colour_reaches_the_fill(self):
+
+        layer = self._layer()
+
+        _apply_polygon_style(layer, 0.65, color=(200, 30, 90))
+
+        fill = self._symbol_layer(layer).color()
+
+        self.assertEqual(
+            (fill.red(), fill.green(), fill.blue()),
+            (200, 30, 90)
+        )
+
+
+    def test_outline_only_drops_the_fill_and_draws_the_boundary(self):
+
+        layer = self._layer()
+
+        _apply_polygon_style(layer, 0.65, outline_only=True)
+
+        symbol_layer = self._symbol_layer(layer)
+
+        self.assertEqual(
+            symbol_layer.brushStyle(),
+            Qt.BrushStyle.NoBrush
+        )
+
+        self.assertEqual(
+            symbol_layer.strokeStyle(),
+            Qt.PenStyle.SolidLine
+        )
+
+        self.assertAlmostEqual(
+            symbol_layer.strokeWidth(),
+            OUTLINE_WIDTH_MM
+        )
+
+
+    def test_outline_only_takes_the_same_picked_colour(self):
+
+        # The colour picker drives whichever of the two the toggle
+        # currently selects - it isn't a fill-only control.
+        layer = self._layer()
+
+        _apply_polygon_style(
+            layer,
+            0.65,
+            color=(200, 30, 90),
+            outline_only=True
+        )
+
+        stroke = self._symbol_layer(layer).strokeColor()
+
+        self.assertEqual(
+            (stroke.red(), stroke.green(), stroke.blue()),
+            (200, 30, 90)
+        )
+
+
+    def test_opacity_applies_in_both_modes(self):
+
+        for outline_only in (False, True):
+
+            with self.subTest(outline_only=outline_only):
+
+                layer = self._layer()
+
+                _apply_polygon_style(
+                    layer,
+                    0.3,
+                    outline_only=outline_only
+                )
+
+                self.assertAlmostEqual(layer.opacity(), 0.3)
 
 
 class TestSeaLevelClamp(QgisTestCase):

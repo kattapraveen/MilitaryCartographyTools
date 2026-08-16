@@ -36,6 +36,21 @@ OUTPUT_LAYER_NAME = "Viewshed"
 DEFAULT_MAX_DISTANCE_M = 5000.0
 DEFAULT_OPACITY = 0.65
 
+# The coverage polygon's own appearance, both user-adjustable from
+# the dialog (see viewshed_dialog.py). The default colour stays
+# line_of_sight.py's own VISIBLE_COLOR so an untouched viewshed still
+# speaks the same green "this is visible" language as a Line of Sight
+# run; a user picking their own colour is departing from that
+# deliberately - most often to tell two sensors' coverage apart, or
+# to stay legible over a base map the default green disappears into.
+DEFAULT_COLOR = VISIBLE_COLOR
+DEFAULT_OUTLINE_ONLY = False
+
+# Matches line_of_sight.py's own visible-segment line width, so an
+# outline-only viewshed and a Line of Sight result drawn together
+# read as the same weight of mark.
+OUTLINE_WIDTH_MM = 0.6
+
 # gdal_viewshed's own output pixel values, chosen explicitly rather
 # than left at its defaults (-vv 255/-iv 0/-ov 0, a plain binary
 # mask). 0 doubles as this raster's own NoData value (see
@@ -237,23 +252,51 @@ def _polygonize_visible_area(raster_layer):
     return filter_result["OUTPUT"]
 
 
-def _apply_polygon_style(layer, opacity):
+def _apply_polygon_style(
+    layer,
+    opacity,
+    color=DEFAULT_COLOR,
+    outline_only=DEFAULT_OUTLINE_ONLY
+):
 
     """
-    A single green fill, reusing line_of_sight.py's own VISIBLE_COLOR
-    for the same colour language across both features. Dead ground has
-    no colour of its own any more - see _polygonize_visible_area()'s
-    own docstring for why.
+    Styles the coverage polygon in `color` (an (r, g, b) tuple),
+    either as a flat fill (the default) or as outline only. Dead
+    ground has no colour of its own any more - see
+    _polygonize_visible_area()'s own docstring for why.
+
+    Outline only exists because a filled coverage polygon, even at
+    65% opacity, still washes out whatever it sits on - and what a
+    viewshed sits on (contours, hillshade, a unit's own symbology) is
+    frequently the very thing being judged against it. Drawing just
+    the boundary keeps the shape of the coverage while leaving the
+    ground underneath fully readable. It also makes overlapping
+    coverage from two observers legible, which stacked translucent
+    fills are not.
     """
 
-    red, green, blue = VISIBLE_COLOR
+    red, green, blue = color
 
-    symbol = QgsFillSymbol.createSimple(
-        {
-            "color": f"{red},{green},{blue}",
-            "outline_style": "no",
-        }
-    )
+    if outline_only:
+
+        symbol = QgsFillSymbol.createSimple(
+            {
+                "style": "no",
+                "outline_style": "solid",
+                "outline_color": f"{red},{green},{blue}",
+                "outline_width": str(OUTLINE_WIDTH_MM),
+                "outline_width_unit": "MM",
+            }
+        )
+
+    else:
+
+        symbol = QgsFillSymbol.createSimple(
+            {
+                "color": f"{red},{green},{blue}",
+                "outline_style": "no",
+            }
+        )
 
     layer.renderer().setSymbol(
         symbol
@@ -290,7 +333,9 @@ def generate_viewshed(
     observer_height,
     target_height,
     max_distance,
-    opacity=DEFAULT_OPACITY
+    opacity=DEFAULT_OPACITY,
+    color=DEFAULT_COLOR,
+    outline_only=DEFAULT_OUTLINE_ONLY
 ):
 
     """
@@ -300,6 +345,11 @@ def generate_viewshed(
     _observer_extent() - deliberately not the DEM's full extent or the
     current map canvas). Deliberately does NOT add the layer to the
     project - see core/_layer_utils.py's module docstring for why.
+
+    color (an (r, g, b) tuple) and outline_only control how the
+    coverage polygon is drawn, not what it contains - see
+    _apply_polygon_style(). Both default to the original appearance,
+    so an existing caller passing neither is unaffected.
 
     Returns None if observer_lonlat falls outside dem_layer's own
     coverage.
@@ -354,7 +404,9 @@ def generate_viewshed(
 
     _apply_polygon_style(
         output_layer,
-        opacity
+        opacity,
+        color,
+        outline_only
     )
 
     return output_layer

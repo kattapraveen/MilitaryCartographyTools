@@ -12,6 +12,9 @@ Military Cartography Tools
 
 import os
 
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtGui import QColor
+
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsPointXY,
@@ -27,7 +30,10 @@ from .qgis_test_case import (
     make_canvas,
 )
 
-from MilitaryCartographyTools.terrain.viewshed import OUTPUT_LAYER_NAME
+from MilitaryCartographyTools.terrain.viewshed import (
+    DEFAULT_COLOR,
+    OUTPUT_LAYER_NAME,
+)
 from MilitaryCartographyTools.terrain.viewshed_dialog import (
     generate_from_dialog_values,
     ViewshedDialog,
@@ -86,6 +92,8 @@ class TestGenerateFromDialogValues(QgisTestCase):
             "target_height": 2.0,
             "max_distance": 300.0,
             "opacity": 0.65,
+            "color": DEFAULT_COLOR,
+            "outline_only": False,
             "add_as_new_layer": add_as_new_layer,
         }
 
@@ -209,6 +217,34 @@ class TestGenerateFromDialogValues(QgisTestCase):
         self.assertAlmostEqual(layer.opacity(), 0.3)
 
 
+    def test_picked_colour_reaches_the_generated_layer(self):
+
+        layer = generate_from_dialog_values(
+            self.iface,
+            self._values() | {"color": (200, 30, 90)}
+        )
+
+        fill = layer.renderer().symbol().symbolLayer(0).color()
+
+        self.assertEqual(
+            (fill.red(), fill.green(), fill.blue()),
+            (200, 30, 90)
+        )
+
+
+    def test_outline_only_reaches_the_generated_layer(self):
+
+        layer = generate_from_dialog_values(
+            self.iface,
+            self._values() | {"outline_only": True}
+        )
+
+        self.assertEqual(
+            layer.renderer().symbol().symbolLayer(0).brushStyle(),
+            Qt.BrushStyle.NoBrush
+        )
+
+
     def test_max_distance_reaches_generate_viewshed(self):
 
         # A short max_distance should produce a visible area with LESS
@@ -313,6 +349,34 @@ class TestViewshedDialog(QgisTestCase):
         self.assertEqual(dialog.observer_label.text(), "-")
 
         dialog.set_observer(self.observer_lonlat)
+
+
+    def test_values_carry_the_colour_button_and_outline_toggle(self):
+
+        dialog = ViewshedDialog(self.iface)
+
+        self.assertEqual(dialog.values()["color"], DEFAULT_COLOR)
+        self.assertFalse(dialog.values()["outline_only"])
+
+        dialog.color_button.setColor(QColor(200, 30, 90))
+        dialog.outline_only_checkbox.setChecked(True)
+
+        self.assertEqual(dialog.values()["color"], (200, 30, 90))
+        self.assertTrue(dialog.values()["outline_only"])
+
+
+    def test_colour_button_carries_no_alpha_of_its_own(self):
+
+        # Opacity is the opacity spin box's job alone - a colour
+        # button with alpha enabled would silently give the same
+        # visual property two controls that multiply together.
+        dialog = ViewshedDialog(self.iface)
+
+        self.assertFalse(dialog.color_button.allowOpacity())
+
+        dialog.color_button.setColor(QColor(200, 30, 90, 12))
+
+        self.assertEqual(dialog.values()["color"], (200, 30, 90))
 
 
     def test_observer_label_shows_mgrs_on_a_second_line(self):

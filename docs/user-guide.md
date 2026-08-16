@@ -407,13 +407,14 @@ window opens showing the observer's coordinates (both latitude/longitude
 and full-precision MGRS), and generates a coverage layer automatically.
 
 Unlike Line of Sight, which checks visibility to one target point, Viewshed
-sweeps every direction out to a chosen range and draws a single **green**
-polygon covering just the area actually visible from the observer. Ground
-that's out of range, or hidden behind terrain, is left blank rather than
-filled in — a full coloured circle covering the whole swept area reads as
-"the whole circle matters," which was more confusing than useful in
-practice. Like Line of Sight, this accounts for both real terrain and
-earth curvature/atmospheric refraction, and treats any elevation below sea
+sweeps every direction out to a chosen range and draws a polygon covering
+just the area actually visible from the observer — green by default, in
+whatever colour you pick. Ground that's out of range, or hidden behind
+terrain, is left blank rather than filled in — a full coloured circle
+covering the whole swept area reads as "the whole circle matters," which
+was more confusing than useful in practice. Like Line of Sight, this
+accounts for both real terrain and earth curvature/atmospheric
+refraction, and treats any elevation below sea
 level (open water on a bathymetric DEM) as sea level (0m) rather than the
 seabed's own depth — an observer or target over water sits on the surface,
 not the seafloor.
@@ -427,11 +428,14 @@ above). The window also lets you set:
 | Observer height | Height above ground (or water surface) at the observer point, in metres (default 1.7 — average eye height) |
 | Target height | Height above ground being checked for visibility, in metres (default 0 — ground level) |
 | Max distance | How far out to sweep, in metres (default 5000) |
-| Opacity | How solid the visible-area fill appears, so terrain underneath still shows through (default 65%) |
+| Opacity | How solid the visible area appears, so terrain underneath still shows through (default 65%) |
+| Colour | The colour the visible area is drawn in (default green, the same green Line of Sight uses for a visible line). Useful for telling several observers' coverage apart, or for staying legible over a base map the default green disappears into |
+| Outline only (no fill) | Off by default. Check it to draw just the boundary of the visible area instead of filling it, leaving whatever's underneath fully readable — worth knowing that a real viewshed breaks into many small fragments, so an outline-only result shows scatter that a solid fill visually merges together |
 | Add as new layer | Off by default — clicking again corrects the existing "Viewshed" layer in place. Check this to keep the previous result and add a new one alongside it instead |
 
-Adjust a field and press **Generate** to re-run without re-clicking, or
-just click a different point on the map — every click is a complete,
+Adjust a field — including colour and outline-only — and press
+**Generate** to re-run without re-clicking, or just click a different
+point on the map — every click is a complete,
 standalone analysis on its own, so there's no observer/target pair to keep
 track of. Like Line of Sight, the DEM is clipped to a box around wherever
 the observer actually is (sized from the max distance you've set), not
