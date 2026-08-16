@@ -8996,6 +8996,34 @@ Unit 4 was deferred for the same reason Contain/Retain were until
 digitized polygon - and was built on 2026-08-14 once the maintainer
 dictated the construction.
 
+**Amplifier fields are deliberately PARTIAL, and that is a standing
+decision** (2026-08-16), not an unfinished job.
+
+Most tables offer more amplifier fields than this plugin exposes -
+Supply Points' own US Class I (321707) carries T, H, W and W1 and only
+T is built; Seize's circle holds a Field A this plugin draws empty; the
+convoys' Field A was dropped outright. The question came up as "could
+we make a shared piece for it", and the maintainer's answer was to stop
+and leave them:
+
+> "we will end up making too many such helpers for catering for all the
+> variables in the manual... Incorporating all these also increases the
+> plugin's complexity manifold - for a user base which as of now at
+> version 0.3.0 is at about 160, and experimental status of the plugin,
+> I think we best leave it. we can always revisit when the number of
+> users increase and we start getting PRs or Issues being flagged."
+
+The cost is real and this project has already paid a version of it:
+Field T1 alone needed a fix across three tables plus the shared point
+builder, because milsymbol's own slot naming does not line up with the
+standard's field naming or with itself between icons. Every further
+field is that same problem again, per icon.
+
+**So: a user who needs an amplifier adds a field to the layer
+themselves.** Do NOT add amplifier fields speculatively, and do not
+treat a missing one as a defect. Revisit when real users ask -
+issues or PRs, not anticipation.
+
 **Closed, not pending** (so they never come back as apparent gaps):
 
 - **H-VII** Occupied Assembly Area with Offset Unit/Units (150301/
