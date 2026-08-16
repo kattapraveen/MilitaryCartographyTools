@@ -6,11 +6,11 @@ Mini-Phase H21. Printed pages 636-655, 29 code rows.
 
 **Two layers: Points and Lines.** Destroy (340900), Interdict (341400)
 and Neutralize (341600) are the table's three POINT symbols - one
-anchor point each, milsymbol-rendered. Fifteen LINE tasks followed on
+anchor point each, milsymbol-rendered. Sixteen LINE tasks followed on
 2026-08-15/16: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize,
 Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass,
-Breach and Canalize. Everything still unbuilt is listed by code in
-TABLE_H_XXIV_REMAINING.
+Breach, Canalize and Clear. Everything still unbuilt is listed by code
+in TABLE_H_XXIV_REMAINING.
 
 **milsymbol has an icon for the three points and for nothing else in
 this table** - verified entry by entry against its own
@@ -143,7 +143,6 @@ POINT_MARKER_SIZE_SCALES = {
 TABLE_H_XXIV_REMAINING = {
     "340000": "Mission Tasks (section parent; TEMPLATE and EXAMPLE "
               "both N/A)",
-    "340500": "Clear",
     "340600": "Counterattack",
     "340700": "Counterattack by Fire",
     "341200": "Follow and Assume",
@@ -228,6 +227,7 @@ LINE_MEASURE_TYPE_LABELS = {
     "bypass": "Bypass",
     "breach": "Breach",
     "canalize": "Canalize",
+    "clear": "Clear",
 }
 
 LINE_MEASURE_TYPE_CODES = {
@@ -246,6 +246,7 @@ LINE_MEASURE_TYPE_CODES = {
     "bypass": "340300",
     "breach": "340200",
     "canalize": "340400",
+    "clear": "340500",
 }
 
 
@@ -270,6 +271,7 @@ LINE_LETTERS = {
     "bypass": "B",
     "breach": "B",
     "canalize": "C",
+    "clear": "C",
 }
 
 # **Four rows, ONE construction** - Delay and the three withdrawal
@@ -409,7 +411,11 @@ def _line_geometry_expression(measure_type):
     # instruction - the same crossbar and perpendicular stem, the same
     # three anchor points, with "P" for "B" and the arrowhead moved to
     # where the stem meets the base.
-    if measure_type in ("block", "penetrate"):
+    # **Clear is Penetrate with two more arrows on it** - the
+    # maintainer's own instruction. The base line, the middle arrow and
+    # its letter gap are this same call a third time; the outer pair is
+    # a symbol layer below.
+    if measure_type in ("block", "penetrate", "clear"):
         return f"mct_block_geometry($geometry, {gap}, @map_scale)"
 
     if measure_type == "disrupt":
@@ -586,10 +592,27 @@ def _mission_task_line_symbol(measure_type):
             )
         )
 
-    if measure_type == "penetrate":
+    if measure_type in ("penetrate", "clear"):
         symbol.appendSymbolLayer(
             _arrowhead_layer(
                 "mct_block_stem_foot($geometry)",
+                Qgis.MarkerLinePlacement.LastVertex,
+                size_expression=_PENETRATE_HEAD_SIZE_EXPRESSION,
+            )
+        )
+
+    if measure_type == "clear":
+
+        symbol.appendSymbolLayer(
+            _task_line_generator_layer("mct_clear_side_stems($geometry)")
+        )
+
+        # The outer two run TIP TO FOOT, so one head each lands on the
+        # base line pointing into it - the same head, at the same size,
+        # as the middle arrow's.
+        symbol.appendSymbolLayer(
+            _arrowhead_layer(
+                "mct_clear_side_stems($geometry)",
                 Qgis.MarkerLinePlacement.LastVertex,
                 size_expression=_PENETRATE_HEAD_SIZE_EXPRESSION,
             )
@@ -970,7 +993,7 @@ def _letter_point_expression(measure_type):
     geometry cut, so the two can never drift apart.
     """
 
-    if measure_type in ("block", "penetrate"):
+    if measure_type in ("block", "penetrate", "clear"):
         return "mct_block_letter_point($geometry)"
 
     if measure_type == "disrupt":

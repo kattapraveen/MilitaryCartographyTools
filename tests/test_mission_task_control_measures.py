@@ -65,11 +65,11 @@ class TestMissionTaskVocabulary(QgisTestCase):
 
     def test_the_unbuilt_rows_are_recorded_not_forgotten(self):
 
-        # 3 points + 15 line tasks + 11 still unbuilt = the table's own
+        # 3 points + 16 line tasks + 10 still unbuilt = the table's own
         # 29 rows. This arithmetic is what keeps a row from going
         # missing between builds - and what caught the remaining list
         # still claiming the seven built lines were unbuilt.
-        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 11)
+        self.assertEqual(len(TABLE_H_XXIV_REMAINING), 10)
 
         self.assertEqual(
             len(POINT_ENTITY_CODES)
@@ -1365,3 +1365,177 @@ class TestBreachAndCanalize(QgisTestCase):
                 )
 
         self.assertEqual(lettered, {"breach": "'B'", "canalize": "'C'"})
+
+
+class TestClear(QgisTestCase):
+
+    """
+    Clear (340500) - Penetrate with two more arrows on it.
+
+    "start with penetrate of mission task, same construction, just add
+    another two arrows of same lengths, distance from the middle arrow
+    - 3/4 of the length between the midpoint of base shaft to the end;
+    on both sides" - the maintainer's own instruction, and the same
+    proportion the standard's own template draws.
+    """
+
+    # Base line PT1-PT2 running north, 20 long, with PT3 due east of
+    # its midpoint at a perpendicular distance of 8.
+    _CLEAR = "LineString(0 0, 0 20, 8 10)"
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _stems(self, wkt=None):
+
+        return QgsExpression(
+            "mct_clear_side_stems(geom_from_wkt('{}'))".format(
+                wkt or self._CLEAR
+            )
+        ).evaluate().asMultiPolyline()
+
+
+    def test_two_arrows_one_either_side_of_the_middle_one(self):
+
+        stems = self._stems()
+
+        self.assertEqual(len(stems), 2)
+
+        # Three quarters of the HALF base - 20/2 * 0.75 - either side
+        # of the midpoint, which sits at y = 10.
+        self.assertEqual(
+            sorted(round(stem[-1].y(), 6) for stem in stems),
+            [2.5, 17.5]
+        )
+
+        for stem in stems:
+
+            self.assertAlmostEqual(stem[-1].x(), 0.0, places=6)
+
+
+    def test_they_are_the_same_length_as_the_middle_arrow(self):
+
+        for stem in self._stems():
+
+            self.assertAlmostEqual(
+                math.hypot(
+                    stem[0].x() - stem[-1].x(), stem[0].y() - stem[-1].y()
+                ),
+                8.0,
+                places=6
+            )
+
+
+    def test_they_run_tip_to_foot_so_the_heads_land_on_the_base(self):
+
+        # A last-vertex marker fires on the last vertex of every part,
+        # so the foot has to BE that vertex - the same arrangement
+        # Penetrate's own head uses.
+        for stem in self._stems():
+
+            self.assertAlmostEqual(stem[0].x(), 8.0, places=6)
+
+            self.assertAlmostEqual(stem[-1].x(), 0.0, places=6)
+
+
+    def test_they_stay_perpendicular_to_the_base_line(self):
+
+        # The standard's own rule - "the arrows will stay perpendicular
+        # to the vertical line, regardless of the rotational
+        # orientation of the symbol as a whole" - and it comes free
+        # from the projection Block already does.
+        stems = self._stems("LineString(0 0, 20 20, 0 20)")
+
+        for stem in stems:
+
+            along = (stem[0].x() - stem[-1].x()) * 20 + \
+                    (stem[0].y() - stem[-1].y()) * 20
+
+            self.assertAlmostEqual(along, 0.0, places=6)
+
+
+    def test_degenerate_input_draws_no_side_arrows(self):
+
+        for wkt in (
+            "LineString(0 0, 0 20, 0 10)",  # PT3 on the base line
+            "LineString(0 0, 0 0, 8 0)",    # no base line
+            "LineString(0 0, 0 20)",        # no PT3
+        ):
+            self.assertTrue(
+                QgsExpression(
+                    "mct_clear_side_stems(geom_from_wkt('{}'))".format(wkt)
+                ).evaluate().isEmpty()
+            )
+
+
+    def test_clear_draws_penetrates_layers_plus_the_outer_pair(self):
+
+        layer = create_mission_task_lines_layer()
+
+        drawn = {}
+
+        for rule in layer.renderer().rootRule().children():
+
+            for measure_type in ("penetrate", "clear"):
+
+                if rule.filterExpression() == (
+                    "\"measure_type\" = '{}'".format(measure_type)
+                ):
+                    symbol = rule.symbol()
+
+                    drawn[measure_type] = [
+                        symbol.symbolLayer(index).geometryExpression()
+                        for index in range(symbol.symbolLayerCount())
+                    ]
+
+        self.assertEqual(len(drawn), 2)
+
+        # Everything Penetrate draws, Clear draws too - bar the letter
+        # itself, which is the one thing inside the gap expression that
+        # differs between the two.
+        for expression in drawn["penetrate"]:
+
+            self.assertIn(
+                expression.replace("'P'", "'C'"), drawn["clear"]
+            )
+
+        # Plus the outer pair, twice - drawn once, headed once.
+        self.assertEqual(
+            drawn["clear"].count("mct_clear_side_stems($geometry)"), 2
+        )
+
+        self.assertEqual(len(drawn["clear"]), len(drawn["penetrate"]) + 2)
+
+
+    def test_clear_carries_c_on_the_middle_arrow(self):
+
+        layer = create_mission_task_lines_layer()
+
+        for rule in layer.labeling().rootRule().children():
+
+            if rule.description() != "clear":
+                continue
+
+            self.assertEqual(rule.settings().fieldName, "'C'")
+
+            self.assertEqual(
+                rule.settings().geometryGenerator,
+                "mct_block_letter_point($geometry)"
+            )
+
+            return
+
+        self.fail("no labelling rule for clear")

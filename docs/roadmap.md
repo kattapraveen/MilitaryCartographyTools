@@ -8598,6 +8598,37 @@ not the letter. Field A is not offered on this build.
 
 ---
 
+### Clear (340500), Penetrate with two more arrows (2026-08-16)
+
+"start with penetrate of mission task, same construction, just add
+another two arrows of same lengths, distance from the middle arrow -
+3/4 of the length between the midpoint of base shaft to the end; on
+both sides" - the maintainer's own instruction. So the base line, the
+middle arrow, its "C" gap and its head are all Block's own calls a
+third time, and `mct_clear_side_stems()` is the only new geometry.
+
+**The maintainer's 3/4 is the standard's own proportion, arrived at
+independently.** Its draw rules only say "the spacing between the
+symbol's arrows will stay proportional to the symbol's height", but
+its template puts the outer arrows about 0.73 of the way from the
+midpoint to each end of the vertical line. Two readings agreeing is
+worth more than either, and it is why this one needed no measurement
+argument.
+
+The outer pair runs TIP TO FOOT, so a last-vertex marker lands each
+head on the base line pointing into it - the arrangement Penetrate's
+own head already uses, and the reason two parts give exactly two heads.
+
+The standard's other rule here came free: "the arrows will stay
+perpendicular to the vertical line, regardless of the rotational
+orientation of the symbol as a whole" is just the projection Block
+already does, so a rotated Clear needed nothing extra. Pinned by a test
+on a diagonal base line all the same.
+
+1232 tests passing on both QGIS versions.
+
+---
+
 ### Breach (340200) and Canalize (340400), Bypass with its heads replaced (2026-08-16)
 
 "same as bypass, replace the arrowheads with slanting lines at the
@@ -9179,13 +9210,13 @@ request for a second look.
 ## Appendix H — what is left to construct (audited 2026-08-15)
 
 Every Appendix H table is now built or explicitly closed. What remains
-is **10 symbols in 1 unit**, all of it construction rather than
+is **9 symbols in 1 unit**, all of it construction rather than
 correction, and **nothing in Appendix H is blocked any more** - the one
 standing blocker, the CBRN contaminated areas' centred triangle, turned
 out not to be a blocker at all (see below). It was 36 in 2 before Table
 H-XXI was closed on 2026-08-15, and 54 in 5 before Maritime's
 Navigational, H-XXIII's eight supply routes and its seven sustainment
-areas were all built on 2026-08-14. Every one of the 10 is
+areas were all built on 2026-08-14. Every one of the 9 is
 a LINE or an AREA - not a coincidence, since milsymbol renders points
 and nothing else, so the whole remainder is hand-built QGIS symbology.
 
@@ -9199,7 +9230,7 @@ Unit 5, H-XXV's own Intelligence Coordination Line, was built
 
 | Unit | Table | Left | What |
 |---|---|---|---|
-| 1 | H-XXIV Mission Tasks | 10 | Clear, Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 10 drawable symbols, plus the section parent row, which draws nothing. **Fifteen built 2026-08-15/16**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize. **Check every remaining row against Table H-XIX before building it** - Bypass turned out to be 270601 whole, after this table had been declared out of reuse, and Breach and Canalize followed from it. |
+| 1 | H-XXIV Mission Tasks | 9 | Counterattack (+by Fire), Follow and Assume, Follow and Support, Relief in Place, Security (+Cover/Guard/Screen) - 9 drawable symbols, plus the section parent row, which draws nothing. **Sixteen built 2026-08-15/16, all cleared**: Block, Disrupt, Fix, Secure, Occupy, Penetrate, Seize, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Bypass, Breach, Canalize, Clear. **Check every remaining row against what is already built before starting it** - this table has been declared out of reuse twice and been wrong both times. |
 | ~~2~~ | ~~H-XXIII Supply~~ | ~~17~~ | **Built 2026-08-14/15** - 8 supply routes, 7 sustainment areas, 2 convoys. Table H-XXIII closed. |
 | ~~2~~ | ~~H-XXI CBRN~~ | ~~9~~ | **Built 2026-08-15** - the 7 contaminated areas, the Minimum Safe Distance Zone and the dose-rate contour. Table H-XXI closed, and with the areas the last blocker in Appendix H. |
 | ~~4~~ | ~~H-XVIII Target Acquisition~~ | ~~2~~ | **Built 2026-08-14** - both codes, one symbol. |

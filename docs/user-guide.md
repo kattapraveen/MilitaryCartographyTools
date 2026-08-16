@@ -1392,7 +1392,7 @@ emptied by these three.
   are the only three of Table H-XXIV's 29 mission tasks drawn as a
   single centred glyph on one anchor point; the other 26 are arrows,
   brackets and outlined regions built from two to fifty anchor points.
-  Fifteen of those are built, on their own **Mission Task Lines** layer
+  Sixteen of those are built, on their own **Mission Task Lines** layer
   described below.
 
 All three render through the same verified milsymbol library as the
@@ -1455,7 +1455,7 @@ apart on the map. And **Convoy** — moving or halted — is on the Supply
 Routes layer rather than a layer of its own: it is a route with a head
 at PT1 and a bar at the far end, so it belongs where the routes are.
 
-**Mission Task Lines** comes with the Mission Tasks menu entry — fifteen
+**Mission Task Lines** comes with the Mission Tasks menu entry — sixteen
 of Table H-XXIV's multi-anchor tasks, drawn with QGIS's own **Add Line
 Feature** tool. Each carries its own letter, set into a real gap cut in
 the shaft or arc it sits on rather than painted over it.
@@ -1471,6 +1471,10 @@ three points, PT1 and PT2 setting the base line and PT3 the depth:
   arrowhead at PT1.
 - **Penetrate** — Block's shape again, letter **P**, and the arrowhead
   where the stem meets the base rather than at its tip.
+- **Clear** — Penetrate with two more arrows, one either side of the
+  middle one and the same length, letter **C**. All three heads sit on
+  the base line pointing into it, and all three stay square to that
+  line however you rotate the symbol.
 - **Bypass** — the Obstacles layer's own **Obstacle Bypass Easy**: PT1
   and PT2 are the two arrow *tips*, PT3 sets how deep the symbol runs,
   and letter **B** sits in the middle of the line joining the two
@@ -1521,7 +1525,7 @@ than at its centre, an arrowhead at PT3 and letter **S** on the curve.
 It is **Turn**'s own curve from the Obstacles layer with the circle
 added.
 
-The remaining 11 rows of Table H-XXIV are not built — see
+The remaining 10 rows of Table H-XXIV are not built — see
 `military_symbology/mission_task_control_measures.py` for the full
 audit of what is left and why.
 

@@ -4091,6 +4091,100 @@ def mct_isolate_teeth(values, feature=None, parent=None):
 
 
 
+
+# --- Clear (Table H-XXIV, 340500) ---
+#
+# **Penetrate's construction with two more arrows on it**, at the
+# maintainer's own instruction: "start with penetrate of mission task,
+# same construction, just add another two arrows of same lengths,
+# distance from the middle arrow - 3/4 of the length between the
+# midpoint of base shaft to the end; on both sides".
+#
+# So the base line, the middle arrow, its letter gap and its head are
+# all Block's own calls, unchanged. Only the outer pair is new.
+#
+# That 3/4 is the standard's own proportion too - "the spacing between
+# the symbol's arrows will stay proportional to the symbol's height",
+# and its template puts the outer arrows about 0.73 of the way from the
+# midpoint to each end of the vertical line. It is a fraction of the
+# HALF base, so the outer arrows sit at three eighths of the whole base
+# either side of the middle one, and they scale with the symbol rather
+# than with the page.
+_CLEAR_SIDE_ARROW_HALF_BASE_FRACTION = 0.75
+
+
+@qgsfunction(
+    'mct_clear_side_stems',
+    group='Military Cartography Tools'
+)
+def mct_clear_side_stems(values, feature=None, parent=None):
+
+    """
+    Clear's own OUTER two arrows (340500) - the middle one is Block's
+    stem and is drawn by mct_block_geometry().
+
+    Each runs TIP TO FOOT, so an arrowhead on a last-vertex placement
+    lands on the base line and points into it, the way Penetrate's
+    does. Two parts, so one head each and no more.
+
+    Empty when PT3 sits on the base line - there is no direction for
+    the arrows then, the same case mct_block_stem_foot() declines.
+    """
+
+    if len(values) < 1:
+        return QgsGeometry()
+
+    geometry = values[0]
+
+    if geometry is None or geometry.isEmpty():
+        return QgsGeometry()
+
+    vertices = geometry.asPolyline()
+
+    if len(vertices) < 3:
+        return QgsGeometry()
+
+    pt1, pt2, pt3 = (QgsPointXY(vertices[index]) for index in range(3))
+
+    projection = _perpendicular_projection(pt1, pt2, pt3)
+
+    if projection is None or projection[2] == 0:
+        return QgsGeometry()
+
+    (ux, uy), (nx, ny), length = projection
+
+    half_base = math.hypot(pt2.x() - pt1.x(), pt2.y() - pt1.y()) / 2.0
+
+    if half_base == 0:
+        return QgsGeometry()
+
+    midpoint = QgsPointXY(
+        (pt1.x() + pt2.x()) / 2.0, (pt1.y() + pt2.y()) / 2.0
+    )
+
+    offset = _CLEAR_SIDE_ARROW_HALF_BASE_FRACTION * half_base
+
+    stems = []
+
+    for side in (1.0, -1.0):
+
+        foot = QgsPointXY(
+            midpoint.x() + side * offset * ux,
+            midpoint.y() + side * offset * uy,
+        )
+
+        stems.append(
+            [
+                QgsPointXY(
+                    foot.x() + length * nx, foot.y() + length * ny
+                ),
+                foot,
+            ]
+        )
+
+    return QgsGeometry.fromMultiPolylineXY(stems)
+
+
 # --- Breach (340200) and Canalize (340400), Table H-XXIV ---
 #
 # Both are Bypass's own construction with the ARROWHEADS REPLACED by a
@@ -7208,6 +7302,7 @@ _FUNCTIONS = [
     mct_obstacle_bypass_rear_easy,
     mct_obstacle_bypass_rear_midpoint,
     mct_bypass_ticks,
+    mct_clear_side_stems,
     mct_obstacle_bypass_rear_difficult,
     mct_obstacle_bypass_rear_impossible,
     mct_roadblock_main_line,
