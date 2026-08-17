@@ -244,12 +244,18 @@ SUPPLY_CLASS_FIELD = {
 }
 
 
-# --- Audited, NOT built. ---
+# --- Audited 2026-08-13, then BUILT 2026-08-14. ---
 #
-# The 19 remaining rows of Table H-XXIII, all areas or lines, none
-# backed by a milsymbol icon. Recorded here so the gap is explicit
-# rather than looking like an oversight, and so whoever builds them
-# starts from the audit rather than re-reading the table.
+# Kept as the record of how the work was scoped, not as an
+# outstanding gap: the 17 drawable rows this audit describes are all
+# built and shipped (7 areas in AREA_MEASURE_TYPE_LABELS, 10 lines in
+# ALL_LINE_MEASURE_TYPE_LABELS, convoys included). Table H-XXIII is
+# closed. The audit itself is worth keeping - it is where the letters,
+# the anchor counts and the traffic variants below were settled - but
+# it stopped describing the present the day the symbols landed.
+#
+# The 19 rows of Table H-XXIII, all areas or lines, none backed by a
+# milsymbol icon.
 #
 # Two of the 19 are not symbols at all: 310000 ("Sustainment Areas")
 # and 330000 ("Sustainment Lines") are the sub-sections' own parent
