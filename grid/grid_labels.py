@@ -485,6 +485,15 @@ class GridLabelManager:
     # square is clutter rather than information. Loosely chosen
     # as roughly an order of magnitude past corner_scale_threshold;
     # worth adjusting once you've seen it live.
+    #
+    # A GLOBAL constant is correct here, unlike the GZD label's own
+    # thresholds, which were moved to per-cell expressions on
+    # 2026-08-17. The difference is real and not an oversight: a 100km
+    # square is 100km on a side everywhere on earth, so one scale
+    # describes every square equally. A GZD cell is not - it ranges
+    # from 3 degrees wide to 12, and a 6-degree cell's ground width
+    # falls tenfold between the equator and band X, so no single scale
+    # can be right for all of them. Do not "fix" this one to match.
     CENTER_LABEL_MAX_SCALE = 3000000
 
 

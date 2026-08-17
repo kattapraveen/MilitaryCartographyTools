@@ -1696,7 +1696,10 @@ tested, not claimed as done here.
         compounds.
       - Sector 1/2 modifiers remain entirely unbuilt for all four Land
         layers (already noted above) - Tables D-VI/D-VII (Land Unit
-        alone) have 50+ codes per sector.
+        alone) have 50+ codes per sector. **Agreed 2026-08-17** as
+        work to do, alongside the three vocabulary expansions above -
+        same four layers and same sources, so one pass rather than
+        two visits. Not started.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no
