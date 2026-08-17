@@ -22,7 +22,7 @@ That script:
 
 - Points `PYTHONHOME`/`PYTHONPATH`/`DYLD_FRAMEWORK_PATH`/`DYLD_LIBRARY_PATH`
   at a QGIS.app bundle's `Contents/Frameworks` (defaults to
-  `/Applications/QGIS-final-4_0_3.app/Contents` — override with `QGIS_APP` if
+  `/Applications/QGIS-final-4_2_1.app/Contents` — override with `QGIS_APP` if
   yours lives elsewhere).
 - Sets `QT_QPA_PLATFORM=offscreen` so Qt widgets (labels, dialogs, print
   layouts, map canvases) can be created and exercised without an actual
@@ -264,6 +264,18 @@ both 3.44.12 and 4.0.3 afterward — 45/45 pass on both, zero
 auto-detection (rather than hardcoding `python3.12`) also confirmed
 necessary and working, since 3.44 and 4.0 lay out `Contents/MacOS`
 slightly differently.
+
+**Toolchain moved to QGIS 4.2.1, 2026-08-17.** The maintainer removed the
+4.2.0 build and installed 4.2.1 in its place, which broke `run_tests.sh`'s
+default `QGIS_APP` outright — it still named the deleted
+`QGIS-final-4_2_0.app`, so a bare `./run_tests.sh` failed at the bundle
+check. Default updated here and in the script. Nothing else needed
+changing: 4.2.1 is a patch release on the same Qt6 line and bundles the
+same `python3.12` as 4.2.0 did, and the QGIS 4 user profile
+(`~/Library/Application Support/QGIS/QGIS4/profiles/default`) is shared
+across 4.x, so the installed 1.0.3 plugin survived the swap without
+reinstalling. **Verified**: the full 1326-test suite passes on 4.2.1 and,
+unchanged, on 3.44.12.
 
 ---
 
