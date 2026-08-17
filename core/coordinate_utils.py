@@ -55,6 +55,96 @@ def project_to_wgs84(point):
 
 
 
+# The UTM grid is not a plain 6-degree lattice everywhere. Two
+# exceptions are part of the standard itself, and both fall in
+# northern Europe:
+#
+#   Band V (56-64N) - zone 31V is narrowed to 3 degrees and 32V
+#   widened to 9, so that south-west Norway sits in one zone rather
+#   than being split down the middle.
+#
+#   Band X (72-84N) - zones 32X, 34X and 36X do not exist at all, and
+#   31X/33X/35X/37X widen to absorb their ground, keeping Svalbard's
+#   islands whole.
+#
+# core/mgrs_engine.py has always applied both when assigning a zone to
+# a coordinate; the drawn grid did not, which is the defect these
+# helpers exist to fix (see docs/roadmap.md, 2026-08-17). Keyed
+# (band, zone) rather than (zone, band) so the band - the thing that
+# decides whether an exception applies at all - reads first.
+UTM_ZONE_WIDTH_DEG = 6.0
+
+UTM_ZONE_BOUNDS_EXCEPTIONS = {
+    ("V", 31): (0.0, 3.0),
+    ("V", 32): (3.0, 12.0),
+    ("X", 31): (0.0, 9.0),
+    ("X", 33): (9.0, 21.0),
+    ("X", 35): (21.0, 33.0),
+    ("X", 37): (33.0, 42.0),
+}
+
+UTM_ZONES_ABSENT_FROM_BAND = {
+    ("X", 32),
+    ("X", 34),
+    ("X", 36),
+}
+
+
+def utm_zone_bounds(zone, band):
+
+    """
+    The (west, east) longitude bounds of one grid zone designator
+    cell, in degrees - or None if that cell does not exist at all
+    (32X, 34X and 36X).
+
+    Returning None rather than raising is deliberate: a caller
+    sweeping a range of zones across a range of bands should skip the
+    absent ones as a normal part of the sweep, not have to know in
+    advance which combinations are real.
+    """
+
+    key = (band, zone)
+
+    if key in UTM_ZONES_ABSENT_FROM_BAND:
+        return None
+
+    if key in UTM_ZONE_BOUNDS_EXCEPTIONS:
+        return UTM_ZONE_BOUNDS_EXCEPTIONS[key]
+
+    west = -180.0 + ((zone - 1) * UTM_ZONE_WIDTH_DEG)
+
+    return (west, west + UTM_ZONE_WIDTH_DEG)
+
+
+def utm_candidate_zones(longitude_minimum, longitude_maximum):
+
+    """
+    The zone numbers that could possibly cover a longitude range,
+    clamped to 1-60. Deliberately ONE ZONE WIDER on each side than
+    plain 6-degree arithmetic gives, because a widened exception cell
+    reaches into its neighbour's nominal ground: 32V covers 3-12E, so
+    a map showing only 4-5E sits in zone 32 even though the naive
+    arithmetic says 31.
+
+    One zone of slack is enough - the widest exception (12 degrees) is
+    exactly two nominal zones, so a cell can never start more than one
+    zone before where the arithmetic puts it. Callers are expected to
+    filter the result against utm_zone_bounds() for the band they are
+    actually drawing, which is what removes the extra candidates
+    again.
+    """
+
+    start = int((longitude_minimum + 180) / UTM_ZONE_WIDTH_DEG) + 1
+    end = int((longitude_maximum + 180) / UTM_ZONE_WIDTH_DEG) + 1
+
+    return list(
+        range(
+            max(1, start - 1),
+            min(60, end + 1) + 1
+        )
+    )
+
+
 def get_utm_zone(longitude):
 
     """

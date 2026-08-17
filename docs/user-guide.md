@@ -131,7 +131,12 @@ you select a different tool.
 ## Military grids
 
 - **UTM Grid** — Grid Zone Designator (GZD) polygons for the current map
-  extent (e.g. `37M`).
+  extent (e.g. `37M`). Cells are 6° × 8° everywhere except the two places
+  the standard itself makes an exception, both of which are drawn correctly:
+  over south-west Norway (band V, 56–64°N) `31V` narrows to 3° and `32V`
+  widens to 9°, and over Svalbard (band X, 72–84°N) `32X`, `34X` and `36X`
+  do not exist at all, with `31X`, `33X`, `35X` and `37X` widened to cover
+  that ground.
 - **MGRS 100km Grid** — the 100km square grid, built from the UTM grid
   (turning this on brings the UTM grid up automatically if it isn't already
   visible).

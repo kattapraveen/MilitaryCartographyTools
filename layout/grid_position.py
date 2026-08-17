@@ -34,7 +34,12 @@ from qgis.core import QgsCoordinateTransform, QgsProject, QgsRectangle
 from qgis.core import QgsPointXY
 
 from ..core import mgrs_square_id, MGRSConverter
-from ..core.coordinate_utils import WGS84, get_utm_crs_from_zone_band
+from ..core.coordinate_utils import (
+    WGS84,
+    get_utm_crs_from_zone_band,
+    utm_candidate_zones,
+    utm_zone_bounds,
+)
 
 
 # Same latitude-band letter sequence grid/utm_grid.py's
@@ -53,17 +58,38 @@ ONE_HUNDRED_KM = 100000.0
 CONTEXT_MARGIN_CELLS = 1
 
 
-def _required_zones(wgs84_extent):
+def _required_zones(wgs84_extent, band):
 
-    start_zone = int((wgs84_extent.xMinimum() + 180) / 6) + 1
-    end_zone = int((wgs84_extent.xMaximum() + 180) / 6) + 1
+    """
+    The zone numbers actually covering wgs84_extent in `band`.
 
-    return list(
-        range(
-            max(1, start_zone),
-            min(60, end_zone) + 1
-        )
-    )
+    Takes the band because the UTM grid is not a plain 6-degree
+    lattice in bands V and X - see core/coordinate_utils.py. Without
+    it, a map over south-west Norway at 4E reports zone 31 when it is
+    really in the widened 32V, and a map over Svalbard can report a
+    zone (32X, 34X, 36X) that does not exist at all.
+    """
+
+    covering = []
+
+    for zone in utm_candidate_zones(
+        wgs84_extent.xMinimum(),
+        wgs84_extent.xMaximum()
+    ):
+
+        bounds = utm_zone_bounds(zone, band)
+
+        if bounds is None:
+            continue
+
+        west, east = bounds
+
+        if east <= wgs84_extent.xMinimum() or west >= wgs84_extent.xMaximum():
+            continue
+
+        covering.append(zone)
+
+    return covering
 
 
 def _required_band_indices(wgs84_extent):
@@ -82,7 +108,21 @@ def _required_band_indices(wgs84_extent):
     )
 
 
-def _zone_lon_bounds(zone):
+def _zone_lon_bounds(zone, band=None):
+
+    """
+    A zone's longitude bounds. With a band, this is the real cell -
+    including the V and X exceptions; without one it is the nominal
+    6-degree column, which is what the mosaic's own outer extent
+    wants since that spans several bands at once.
+    """
+
+    if band is not None:
+
+        bounds = utm_zone_bounds(zone, band)
+
+        if bounds is not None:
+            return bounds
 
     west = -180 + ((zone - 1) * 6)
 
@@ -183,9 +223,17 @@ def _tier1_gzd_mosaic(wgs84_extent, zones, band_indices):
 
         for zone in zone_span:
 
+            band = BAND_LETTERS[band_index]
+
+            # 32X, 34X and 36X do not exist. Drawing the box but
+            # leaving it unlabelled is the honest rendering: that
+            # ground is real, it just belongs to the widened zones
+            # either side rather than to a cell of its own.
+            exists = utm_zone_bounds(zone, band) is not None
+
             row.append(
                 {
-                    "label": f"{zone}{BAND_LETTERS[band_index]}",
+                    "label": f"{zone}{band}" if exists else "",
                 }
             )
 
@@ -314,8 +362,18 @@ def compute_grid_position(map_extent, map_crs):
         map_extent
     )
 
-    zones = _required_zones(wgs84_extent)
+    # Bands first: which zones cover the extent depends on the band,
+    # since 31V/32V and the X-band zones are not 6 degrees wide.
     band_indices = _required_band_indices(wgs84_extent)
+
+    zones = sorted({
+        zone
+        for band_index in band_indices
+        for zone in _required_zones(
+            wgs84_extent,
+            BAND_LETTERS[band_index]
+        )
+    })
 
     if len(zones) * len(band_indices) > 1:
 

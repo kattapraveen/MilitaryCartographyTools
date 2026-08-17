@@ -21,7 +21,11 @@ from qgis.core import (
 
 from qgis.PyQt.QtCore import QMetaType
 
-from ..core.coordinate_utils import WGS84
+from ..core.coordinate_utils import (
+    WGS84,
+    utm_candidate_zones,
+    utm_zone_bounds,
+)
 from ._style_utils import apply_simple_fill_style
 
 
@@ -95,38 +99,22 @@ class UTMGridGenerator:
     def required_zones(self, extent):
 
         """
-        Determine required UTM zones
-        from WGS84 extent.
+        Determine required UTM zones from a WGS84 extent.
+
+        Deliberately ONE ZONE WIDER on each side than the longitude
+        arithmetic alone implies - see utm_candidate_zones(). The
+        extras are filtered back out in generate(), which drops any
+        cell whose real bounds miss the extent, so a widened exception
+        cell (32V reaching down to 3E, 33X down to 9E) is still found
+        without drawing spurious neighbours.
         """
 
-        zones = set()
-
-
-        xmin = extent.xMinimum()
-        xmax = extent.xMaximum()
-
-
-        start_zone = int(
-            (xmin + 180) / 6
-        ) + 1
-
-
-        end_zone = int(
-            (xmax + 180) / 6
-        ) + 1
-
-
-        for zone in range(
-            max(1, start_zone),
-            min(60, end_zone) + 1
-        ):
-
-            zones.add(
-                zone
+        return set(
+            utm_candidate_zones(
+                extent.xMinimum(),
+                extent.xMaximum()
             )
-
-
-        return zones
+        )
 
 
 
@@ -237,19 +225,34 @@ class UTMGridGenerator:
 
 
 
-        for zone in zones:
+        for zone in sorted(zones):
 
 
-            west = -180 + (
-                (zone - 1) * 6
-            )
+            for band in sorted(bands):
 
 
-            east = west + 6
+                bounds = utm_zone_bounds(
+                    zone,
+                    band
+                )
 
 
+                # 32X, 34X and 36X do not exist - their ground belongs
+                # to the widened 31X/33X/35X/37X either side.
+                if bounds is None:
 
-            for band in bands:
+                    continue
+
+
+                west, east = bounds
+
+
+                # required_zones() casts one zone wider than the
+                # arithmetic needs, so a widened cell is never missed;
+                # this is where the extras come back out again.
+                if east <= extent.xMinimum() or west >= extent.xMaximum():
+
+                    continue
 
 
                 index = (
