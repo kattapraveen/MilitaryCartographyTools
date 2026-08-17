@@ -21,6 +21,8 @@ from qgis.core import (
 
 from qgis.PyQt.QtCore import QMetaType
 
+import math
+
 from ..core.coordinate_utils import (
     WGS84,
     utm_candidate_zones,
@@ -28,6 +30,45 @@ from ..core.coordinate_utils import (
 )
 from ._style_utils import apply_simple_fill_style
 
+
+
+# A degree of latitude is very nearly constant; a degree of longitude
+# is not, shrinking with the cosine of latitude to nothing at the pole.
+METERS_PER_DEGREE_LATITUDE = 111320.0
+
+
+def _minimum_half_extent_m(west, east, south, north):
+
+    """
+    The smaller of a GZD cell's two half-dimensions, in metres:
+    half its width and half its height, measured at the latitude
+    where the cell is narrowest.
+
+    This is the distance a label anchored at the centroid can be
+    nudged before it leaves the cell, and it is what grid_labels.py
+    compares a fixed page offset against. Width is measured at the
+    poleward edge rather than at the centroid, deliberately - a cell
+    narrows towards the pole, so the centroid's own width would
+    overstate the room available on the side the label is nudged
+    towards.
+
+    Height is included even though width is the binding constraint
+    almost everywhere, because near the equator a 6-degree cell is
+    wider than an 8-degree band is tall, and the label is nudged up
+    as well as left.
+    """
+
+    poleward = max(abs(south), abs(north))
+
+    cos_latitude = max(
+        math.cos(math.radians(poleward)),
+        0.0
+    )
+
+    width_m = (east - west) * METERS_PER_DEGREE_LATITUDE * cos_latitude
+    height_m = (north - south) * METERS_PER_DEGREE_LATITUDE
+
+    return min(width_m, height_m) / 2.0
 
 
 class UTMGridGenerator:
@@ -83,6 +124,19 @@ class UTMGridGenerator:
                 QgsField(
                     "BAND",
                     QMetaType.Type.QString
+                ),
+
+                # The cell's own smaller half-dimension on the ground,
+                # in metres - see _minimum_half_extent_m(). Carried on
+                # the feature so the label rules can decide per cell
+                # whether a fixed page offset still fits inside it,
+                # instead of one global scale threshold standing in for
+                # cells that range from 3 to 12 degrees wide and vary
+                # tenfold in ground width between the equator and band
+                # X. See grid/grid_labels.py.
+                QgsField(
+                    "HALF_MIN_M",
+                    QMetaType.Type.Double
                 )
 
             ]
@@ -305,7 +359,8 @@ class UTMGridGenerator:
 
                         f"{zone}{band}",
                         zone,
-                        band
+                        band,
+                        _minimum_half_extent_m(west, east, south, north)
 
                     ]
                 )

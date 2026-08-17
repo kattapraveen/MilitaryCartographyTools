@@ -263,7 +263,8 @@ class TestApplyLabelOffset(QgisTestCase):
     mode already fixed for the 100km square label's own corner/
     centred switch (see apply_square_label). apply_label() now uses
     the same scale-gated rule-based approach: offset while zoomed in,
-    centred (no offset) once zoomed out past GZD_OFFSET_MAX_SCALE.
+    centred (no offset) once zoomed out past the room that
+    particular cell has for the offset.
     """
 
     def setUp(self):
@@ -357,7 +358,7 @@ class TestApplyLabelOffset(QgisTestCase):
 
         rules = _rules_by_description(self.layer)
 
-        threshold = self.manager.GZD_OFFSET_MAX_SCALE
+        threshold = self.manager._offset_max_scale_expression()
 
         self.assertEqual(
             rules["Offset up-left (zoomed in)"].filterExpression(),
@@ -367,6 +368,13 @@ class TestApplyLabelOffset(QgisTestCase):
         self.assertEqual(
             rules["Centered, no offset (zoomed out)"].filterExpression(),
             f"@map_scale >= {threshold}"
+        )
+
+        # The threshold is per cell, not one number for the whole
+        # grid - it has to read the feature's own half-extent.
+        self.assertIn(
+            self.manager.HALF_EXTENT_FIELD,
+            threshold
         )
 
 

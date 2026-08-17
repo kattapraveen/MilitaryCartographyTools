@@ -39,27 +39,84 @@ class GridLabelManager:
     # z-order to sort out a collision after the fact. Confirmed live
     # (2026-08-05): combined with SQUARE_LABEL_PRIORITY, this leaves
     # every case checked overlap-free - AT SCALES WHERE THE GZD
-    # POLYGON ITSELF IS STILL LARGE ON SCREEN. See GZD_OFFSET_MAX_SCALE
-    # below for the zoomed-out case, where this stops being true.
+    # POLYGON ITSELF IS STILL LARGE ON SCREEN. See
+    # _offset_max_scale_expression() below for the zoomed-out case,
+    # where this stops being true.
     GZD_LABEL_OFFSET_MM = 12
 
 
-    # Beyond this map-scale denominator, the UTM/GZD label switches
-    # from the up-left nudge above to sitting exactly on its polygon's
-    # centroid instead - same "fixed offset stops being safe once the
-    # polygon is small on screen" fix already applied to the 100km
-    # square label's own corner/centered switch (see
-    # apply_square_label's corner_scale_threshold), just for a much
-    # larger polygon: a GZD zone is roughly 6deg x 8deg (very roughly
-    # 600-900km per side), so the crossover happens at a far more
-    # zoomed-out scale than a 100km square's own 250,000. Loosely
-    # derived (a 12mm offset should stay comfortably inside even the
-    # narrower ~half-width of a GZD zone up to a few million scale)
-    # rather than measured live - worth tuning once seen live, same
-    # as CENTER_LABEL_MAX_SCALE below. Fixes a real reported bug: at
-    # sufficiently zoomed-out scales, the fixed offset pushed this
-    # label out of its own GZD polygon and into the neighbouring one.
-    GZD_OFFSET_MAX_SCALE = 3000000
+    # Past the point where the up-left nudge above would push the
+    # label out of its own polygon, the UTM/GZD label sits exactly on
+    # the centroid instead - same "a fixed page offset stops being safe
+    # once the polygon is small on screen" fix already applied to the
+    # 100km square label's own corner/centered switch. Fixes a real
+    # reported bug: at zoomed-out scales the offset pushed this label
+    # into the NEIGHBOURING zone.
+    #
+    # Where that point falls is decided PER CELL, from the cell's own
+    # HALF_MIN_M (see grid/utm_grid.py) rather than one global scale
+    # for all of them. A single threshold cannot be right here: GZD
+    # cells range from 3 degrees wide (31V) to 12 (33X and 35X), and a
+    # 6-degree cell's ground width falls by a factor of ten between the
+    # equator and band X. Any global value is simultaneously far too
+    # cautious near the equator and marginal near the pole. This was
+    # carried as a known-loose constant from 2026-08-06 until
+    # 2026-08-17.
+    #
+    # The offset stays inside the cell while
+    #
+    #     (GZD_LABEL_OFFSET_MM / 1000) * @map_scale
+    #         <= HALF_MIN_M * GZD_OFFSET_SAFE_FRACTION
+    #
+    # which rearranges to a maximum scale per cell. The fraction is the
+    # deliberate margin: the offset may spend at most half the room the
+    # cell actually has, leaving the rest for the label's own drawn
+    # width, which this comparison does not attempt to model.
+    GZD_OFFSET_SAFE_FRACTION = 0.5
+
+    # Used only when HALF_MIN_M is absent or null - a "UTM Grid" layer
+    # from a project saved before that field existed. The old global
+    # constant, kept as the fallback precisely because it is the
+    # behaviour those layers already had.
+    GZD_OFFSET_FALLBACK_SCALE = 3000000
+
+    HALF_EXTENT_FIELD = "HALF_MIN_M"
+
+
+    def _offset_max_scale_expression(self, layer=None):
+
+        """
+        The largest map scale at which a cell can still carry the
+        up-left nudge - an expression, since the answer differs per
+        feature.
+
+        Takes the layer so the decision is made HERE rather than in
+        the expression. A layer saved before HALF_MIN_M existed has no
+        such column, and referencing a missing column is an evaluation
+        ERROR, not a null - so `coalesce("HALF_MIN_M" * k, fallback)`
+        does not rescue it, it yields null, and `@map_scale < null` is
+        false for BOTH rules. That would leave such a layer with no
+        GZD label at all. Checking the field up front and emitting the
+        plain old constant instead keeps those layers behaving exactly
+        as they already did.
+        """
+
+        if layer is not None and layer.fields().indexOf(
+            self.HALF_EXTENT_FIELD
+        ) < 0:
+
+            return str(self.GZD_OFFSET_FALLBACK_SCALE)
+
+        per_metre = (
+            self.GZD_OFFSET_SAFE_FRACTION
+            * 1000.0
+            / self.GZD_LABEL_OFFSET_MM
+        )
+
+        return (
+            f'coalesce("{self.HALF_EXTENT_FIELD}" * {per_metre}, '
+            f'{self.GZD_OFFSET_FALLBACK_SCALE})'
+        )
 
 
     def _anchor_to_true_centroid(self, settings):
@@ -137,7 +194,7 @@ class GridLabelManager:
         """
         The UTM/GZD label sitting exactly on its polygon's true
         centroid, no offset - used once the polygon is small enough
-        on screen (see GZD_OFFSET_MAX_SCALE) that any fixed offset
+        on screen (see _offset_max_scale_expression()) that any fixed offset
         risks landing outside it, in the neighbouring GZD zone
         instead.
         """
@@ -190,9 +247,10 @@ class GridLabelManager:
         Apply labels to the UTM/GZD grid layer - offset up-left of
         each polygon's centroid while it's still large enough on
         screen for that to stay safely inside it, falling back to
-        sitting exactly on the centroid once zoomed out past
-        GZD_OFFSET_MAX_SCALE (mirrors apply_square_label's own
-        corner/centered switch, for the same reason).
+        sitting exactly on the centroid once zoomed out past the room
+        that particular cell has for it (see
+        _offset_max_scale_expression() - mirrors apply_square_label's
+        own corner/centred switch, for the same reason).
         """
 
         root_rule = QgsRuleBasedLabeling.Rule(
@@ -204,7 +262,7 @@ class GridLabelManager:
         )
 
         offset_rule.setFilterExpression(
-            f"@map_scale < {self.GZD_OFFSET_MAX_SCALE}"
+            f"@map_scale < {self._offset_max_scale_expression(layer)}"
         )
 
         offset_rule.setDescription(
@@ -220,7 +278,7 @@ class GridLabelManager:
         )
 
         centered_rule.setFilterExpression(
-            f"@map_scale >= {self.GZD_OFFSET_MAX_SCALE}"
+            f"@map_scale >= {self._offset_max_scale_expression(layer)}"
         )
 
         centered_rule.setDescription(

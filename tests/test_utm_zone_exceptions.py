@@ -28,7 +28,11 @@ from MilitaryCartographyTools.core.coordinate_utils import (
     utm_candidate_zones,
     utm_zone_bounds,
 )
-from MilitaryCartographyTools.grid.utm_grid import UTMGridGenerator
+from MilitaryCartographyTools.grid.grid_labels import GridLabelManager
+from MilitaryCartographyTools.grid.utm_grid import (
+    _minimum_half_extent_m,
+    UTMGridGenerator,
+)
 from MilitaryCartographyTools.layout.grid_position import _required_zones
 
 
@@ -285,4 +289,144 @@ class TestGridPositionDiagram(QgisTestCase):
         self.assertEqual(
             _required_zones(QgsRectangle(10.0, 74.0, 11.0, 75.0), "X"),
             [33]
+        )
+
+
+class TestPerCellLabelOffsetThreshold(QgisTestCase):
+
+    """
+    The GZD label's offset/centred switch used to fire at one global
+    scale (3,000,000) for every cell in the world. It now reads each
+    cell's own HALF_MIN_M. A single number cannot be right once cells
+    range from 3 degrees wide to 12, and a 6-degree cell's ground
+    width falls tenfold between the equator and band X.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        self.manager = GridLabelManager()
+
+
+    def test_half_extent_is_measured_at_the_narrow_poleward_edge(self):
+
+        # A cell narrows towards the pole, and the label is nudged
+        # towards the pole - so measuring at the centroid would
+        # overstate the room actually available.
+        poleward = _minimum_half_extent_m(0.0, 6.0, 72.0, 84.0)
+        equatorward = _minimum_half_extent_m(0.0, 6.0, 0.0, 8.0)
+
+        self.assertLess(poleward, equatorward)
+
+
+    def test_a_narrow_cell_gets_a_tighter_threshold_than_a_wide_one(self):
+
+        layer = UTMGridGenerator().generate(
+            QgsRectangle(-1.0, 57.0, 13.0, 63.0)
+        )
+
+        half = {
+            feature["GZD"]: feature["HALF_MIN_M"]
+            for feature in layer.getFeatures()
+        }
+
+        # 31V is 3 degrees wide, 32V is 9 - so 31V must switch to a
+        # centred label while still more zoomed in than 32V does.
+        self.assertLess(half["31V"], half["32V"])
+
+
+    def test_the_threshold_expression_evaluates_per_feature(self):
+
+        from qgis.core import QgsExpression, QgsExpressionContext
+        from qgis.core import QgsExpressionContextUtils
+
+        layer = UTMGridGenerator().generate(
+            QgsRectangle(-1.0, 57.0, 13.0, 63.0)
+        )
+
+        expression = QgsExpression(
+            self.manager._offset_max_scale_expression()
+        )
+
+        thresholds = {}
+
+        for feature in layer.getFeatures():
+
+            context = QgsExpressionContext()
+            context.appendScopes(
+                QgsExpressionContextUtils.globalProjectLayerScopes(layer)
+            )
+            context.setFeature(feature)
+
+            value = expression.evaluate(context)
+
+            self.assertFalse(
+                expression.hasEvalError(),
+                expression.evalErrorString()
+            )
+
+            thresholds[feature["GZD"]] = value
+
+        self.assertLess(thresholds["31V"], thresholds["32V"])
+
+        # The offset must still fit: at its own threshold scale, the
+        # 12mm nudge lands inside the cell's half-extent with the
+        # documented margin to spare.
+        for gzd, scale in thresholds.items():
+
+            with self.subTest(cell=gzd):
+
+                offset_ground_m = (
+                    self.manager.GZD_LABEL_OFFSET_MM / 1000.0
+                ) * scale
+
+                half_min = next(
+                    f["HALF_MIN_M"]
+                    for f in layer.getFeatures()
+                    if f["GZD"] == gzd
+                )
+
+                self.assertAlmostEqual(
+                    offset_ground_m,
+                    half_min * self.manager.GZD_OFFSET_SAFE_FRACTION,
+                    places=6
+                )
+
+
+    def test_a_layer_without_the_field_falls_back_to_the_old_constant(self):
+
+        # A "UTM Grid" layer from a project saved before HALF_MIN_M
+        # existed must keep working, with exactly the behaviour it
+        # already had. Referencing a missing column is an evaluation
+        # ERROR rather than a null, so coalesce() cannot rescue it -
+        # get this wrong and such a layer loses its GZD label
+        # entirely, since both rules then filter to false.
+        from qgis.core import QgsVectorLayer
+
+        legacy = QgsVectorLayer(
+            "Polygon?crs=EPSG:4326&field=GZD:string",
+            "UTM Grid",
+            "memory"
+        )
+
+        self.assertEqual(
+            self.manager._offset_max_scale_expression(legacy),
+            str(self.manager.GZD_OFFSET_FALLBACK_SCALE)
+        )
+
+        self.manager.apply_label(legacy, "GZD")
+
+        expressions = [
+            rule.filterExpression()
+            for rule in legacy.labeling().rootRule().children()
+        ]
+
+        self.assertIn(
+            f"@map_scale < {self.manager.GZD_OFFSET_FALLBACK_SCALE}",
+            expressions
         )
