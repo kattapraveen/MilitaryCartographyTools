@@ -71,6 +71,24 @@ def _minimum_half_extent_m(west, east, south, north):
     return min(width_m, height_m) / 2.0
 
 
+def _width_m(west, east, south, north):
+
+    """
+    A GZD cell's ground width in metres, at the latitude where it is
+    narrowest. Carried separately from _minimum_half_extent_m()
+    because a label overflows SIDEWAYS: what decides whether it fits
+    is the cell's width, not whichever of width and height happens to
+    be smaller.
+    """
+
+    cos_latitude = max(
+        math.cos(math.radians(max(abs(south), abs(north)))),
+        0.0
+    )
+
+    return (east - west) * METERS_PER_DEGREE_LATITUDE * cos_latitude
+
+
 class UTMGridGenerator:
     """
     Generates extent-based UTM GZD polygons.
@@ -136,6 +154,15 @@ class UTMGridGenerator:
                 # X. See grid/grid_labels.py.
                 QgsField(
                     "HALF_MIN_M",
+                    QMetaType.Type.Double
+                ),
+
+                # The cell's ground width in metres - what decides
+                # whether a label fits without crossing the cell's own
+                # edge, since a label overflows sideways. See
+                # grid/grid_labels.py's visible-width guard.
+                QgsField(
+                    "WIDTH_M",
                     QMetaType.Type.Double
                 )
 
@@ -360,7 +387,8 @@ class UTMGridGenerator:
                         f"{zone}{band}",
                         zone,
                         band,
-                        _minimum_half_extent_m(west, east, south, north)
+                        _minimum_half_extent_m(west, east, south, north),
+                        _width_m(west, east, south, north)
 
                     ]
                 )

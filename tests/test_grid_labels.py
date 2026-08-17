@@ -386,10 +386,14 @@ class TestApplyLabelOffset(QgisTestCase):
             f"@map_scale < {offset_max} AND {whole}"
         )
 
+        visible_width = self.manager._visible_width_mm_expression()
+
         self.assertEqual(
             rules["Centered, no offset (zoomed out)"].filterExpression(),
             f"NOT (@map_scale < {offset_max} AND {whole})"
             f" AND @map_scale < {hide_min}"
+            f" AND {visible_width}"
+            f" >= {self.manager.GZD_LABEL_MIN_ON_SCREEN_MM}"
         )
 
         # The threshold is per cell, not one number for the whole

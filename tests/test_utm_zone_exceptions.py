@@ -565,6 +565,37 @@ class TestGzdLabelScaleBands(QgisTestCase):
         )
 
 
+    def test_a_sliver_too_narrow_for_its_label_is_not_labelled(self):
+
+        # Reported 2026-08-17: panning east-west, a label centred on a
+        # narrow visible sliver hung one character over its own cell
+        # edge into the neighbour. A label is a fixed page width; the
+        # sliver is not.
+        feature = next(
+            f for f in self.layer.getFeatures() if f["GZD"] == "31V"
+        )
+
+        # 31V spans 0-3E. Show a hair of its eastern edge only.
+        self.assertEqual(
+            self._matching(
+                feature,
+                2_000_000,
+                QgsRectangle(2.97, 57.0, 8.0, 61.0)
+            ),
+            []
+        )
+
+        # Show enough of it and the label comes back.
+        self.assertEqual(
+            self._matching(
+                feature,
+                2_000_000,
+                QgsRectangle(1.0, 57.0, 8.0, 61.0)
+            ),
+            ["Centered, no offset (zoomed out)"]
+        )
+
+
     def test_a_wholly_visible_cell_keeps_its_offset(self):
 
         feature = next(

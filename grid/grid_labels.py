@@ -99,6 +99,8 @@ class GridLabelManager:
 
     HALF_EXTENT_FIELD = "HALF_MIN_M"
 
+    WIDTH_FIELD = "WIDTH_M"
+
 
     def _scale_for_on_screen_mm(self, millimetres):
 
@@ -119,11 +121,43 @@ class GridLabelManager:
         return f'("{self.HALF_EXTENT_FIELD}" * {per_metre})'
 
 
+    def _visible_width_mm_expression(self):
+
+        """
+        How wide the ON-SCREEN part of a cell is, in millimetres.
+
+        The label is centred on the visible portion's midpoint (see
+        _anchor_to_visible_centroid), so when that portion is narrower
+        than the label itself, half the text hangs over the cell's own
+        edge and lands in the neighbouring cell. Reported 2026-08-17
+        as a clean one-character overlap while panning east-west, and
+        that is exactly what it is: the label is a fixed page width,
+        the sliver is not.
+
+        Measured as a fraction of the cell's own width rather than in
+        map units, so this works whatever the project CRS is - the
+        ratio is dimensionless, and WIDTH_M supplies the metres.
+        """
+
+        visible = (
+            "(x_max(intersection($geometry, @map_extent)) "
+            "- x_min(intersection($geometry, @map_extent)))"
+        )
+
+        full = "(x_max($geometry) - x_min($geometry))"
+
+        return (
+            f'("{self.WIDTH_FIELD}" * {visible} / {full} '
+            f'* 1000 / @map_scale)'
+        )
+
+
     def _has_half_extent(self, layer):
 
-        return layer is not None and layer.fields().indexOf(
-            self.HALF_EXTENT_FIELD
-        ) >= 0
+        return layer is not None and all(
+            layer.fields().indexOf(name) >= 0
+            for name in (self.HALF_EXTENT_FIELD, self.WIDTH_FIELD)
+        )
 
 
     def _offset_max_scale_expression(self, layer=None):
@@ -336,10 +370,14 @@ class GridLabelManager:
         - Cell clipped by the view, or small enough that the offset
           would cross its own edge: the same label, centred, no
           offset.
-        - Cell only a few millimetres across: no label at all.
-          displayAll means nothing else will ever suppress these, so
-          without this a world view drew 1,197 of them on top of each
-          other and buried the grid lines underneath.
+        - Cell only a few millimetres across, OR panned until only a
+          sliver of it is on screen: no label at all. displayAll means
+          nothing else will ever suppress these, so without the first
+          case a world view drew 1,197 of them on top of each other
+          and buried the grid lines; without the second, a label
+          centred on a sliver narrower than itself hangs over its own
+          cell edge into the neighbour. The same 16mm minimum settles
+          both - a label you could not read in that space anyway.
 
         apply_square_label reached the same "and an upper cutoff, or
         displayAll buries everything" conclusion for 100km squares
@@ -396,7 +434,12 @@ class GridLabelManager:
 
         centered_rule.setFilterExpression(
             f"NOT (@map_scale < {offset_max} AND {whole_cell_visible})"
-            + (f" AND @map_scale < {hide_min}" if hide_min else "")
+            + (
+                f" AND @map_scale < {hide_min}"
+                f" AND {self._visible_width_mm_expression()}"
+                f" >= {self.GZD_LABEL_MIN_ON_SCREEN_MM}"
+                if hide_min else ""
+            )
         )
 
         centered_rule.setDescription(
