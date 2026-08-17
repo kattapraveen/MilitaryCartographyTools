@@ -2727,21 +2727,35 @@ class MilitaryCartographyTools:
 {PLUGIN_NAME}
 Version {PLUGIN_VERSION}
 
-Military mapping and MGRS tools for QGIS.
+Military cartography, MIL-STD-2525D/APP-6 tactical
+graphics, MGRS and terrain analysis tools for QGIS.
+Runs fully offline - no external services.
 
 Copyright © 2026 Praveen Kumar
-
-
-Includes MGRS conversion engine:
-
-Alex Bruy
-Boundless / Planet Federal / Planet Inc.
-
 
 Licensed under GNU GPL v2 or later.
 
 
-Additional information:
+Third-party components:
+
+MGRS conversion engine
+Alex Bruy - Boundless / Planet Federal / Planet Inc.
+GNU GPL v2 or later
+
+Milsymbol (MIL-STD-2525 / APP-6 symbol rendering)
+Måns Beckman - www.spatialillusions.com
+MIT License
+
+World Magnetic Model (magnetic declination)
+Justin Myers - pyGeoMag
+MIT License
+
+MGRS grid generation workflow reference
+Klas Karlsson - QGIS Model Repository
+Creative Commons Zero (CC0)
+
+
+Full notices and licence texts:
 
 README.md
 THIRD_PARTY_NOTICES.md
