@@ -74,6 +74,23 @@ class GridLabelManager:
     # width, which this comparison does not attempt to model.
     GZD_OFFSET_SAFE_FRACTION = 0.5
 
+    # Below this on-screen width, a GZD cell stops carrying a label at
+    # all. `displayAll` (see _apply_gzd_common_settings) deliberately
+    # switches OFF PAL's collision suppression so the GZD watermark
+    # still shows when it loses a priority fight to the 100km or
+    # sub-grid labels - which means nothing else will ever hide these,
+    # and an upper cutoff has to be supplied here instead. Without one,
+    # a world view drew 1,197 labels on top of each other and the grid
+    # lines vanished underneath them entirely (reported and reproduced
+    # 2026-08-17). apply_square_label already had exactly this pairing
+    # right for the 100km squares - see CENTER_LABEL_MAX_SCALE - and
+    # this is the same lesson applied to the GZD label.
+    #
+    # 16mm is calibrated, not guessed: the maintainer reported a world
+    # view first becoming marginally readable at 1:40,372,844, which
+    # for a 6-degree equatorial cell is 16mm across.
+    GZD_LABEL_MIN_ON_SCREEN_MM = 16.0
+
     # Used only when HALF_MIN_M is absent or null - a "UTM Grid" layer
     # from a project saved before that field existed. The old global
     # constant, kept as the fallback precisely because it is the
@@ -81,6 +98,32 @@ class GridLabelManager:
     GZD_OFFSET_FALLBACK_SCALE = 3000000
 
     HALF_EXTENT_FIELD = "HALF_MIN_M"
+
+
+    def _scale_for_on_screen_mm(self, millimetres):
+
+        """
+        The map scale at which a cell of HALF_MIN_M metres measures
+        `millimetres` across on screen, as an expression.
+
+        A cell's full width is twice its half-extent, and a metre is
+        1000mm, so on-screen mm = 2 * HALF_MIN_M * 1000 / @map_scale;
+        solving for the scale gives the constant below. Returns None
+        for a layer with no HALF_MIN_M field - see
+        _offset_max_scale_expression() for why that case is decided
+        here rather than inside the expression.
+        """
+
+        per_metre = 2000.0 / millimetres
+
+        return f'("{self.HALF_EXTENT_FIELD}" * {per_metre})'
+
+
+    def _has_half_extent(self, layer):
+
+        return layer is not None and layer.fields().indexOf(
+            self.HALF_EXTENT_FIELD
+        ) >= 0
 
 
     def _offset_max_scale_expression(self, layer=None):
@@ -101,9 +144,7 @@ class GridLabelManager:
         as they already did.
         """
 
-        if layer is not None and layer.fields().indexOf(
-            self.HALF_EXTENT_FIELD
-        ) < 0:
+        if not self._has_half_extent(layer):
 
             return str(self.GZD_OFFSET_FALLBACK_SCALE)
 
@@ -122,24 +163,13 @@ class GridLabelManager:
     def _anchor_to_true_centroid(self, settings):
 
         """
-        Force the label onto a point generated from centroid($geometry)
-        rather than letting PAL derive a position from the polygon
-        geometry directly. Real bug, confirmed live: with placement =
-        OverPoint applied straight to a polygon (no geometry
-        generator), PAL doesn't anchor to the feature's true, full
-        centroid - for a large polygon that's only partially on
-        screen (routine for a GZD zone, which regularly spans well
-        beyond a single view, unlike a 100km square), it instead
-        drifts toward whatever portion of the polygon is currently
-        visible, sliding the label toward whichever edge is cut off -
-        confirmed by panning a fresh grid across zone boundaries and
-        watching each zone's label creep toward, and past, its own
-        edge into the neighbour as more of it left the screen.
-        `_corner_settings()` already avoids this (it generates an
-        explicit corner point via make_point(...) before placing), so
-        this mirrors that same fix for the centroid case - centroid()
-        computes the true, full-geometry centroid regardless of what
-        portion of the polygon happens to be on screen.
+        Anchor to the polygon's own full centroid, regardless of what
+        portion is on screen. Used by the 100km square labels, whose
+        squares are small enough that the whole square is essentially
+        always in view when its label matters - so the visible-portion
+        refinement _anchor_to_visible_centroid() makes for GZD cells
+        buys them nothing, and changing their smoke-tested placement
+        for no gain would be the wrong trade.
         """
 
         settings.geometryGeneratorEnabled = True
@@ -149,6 +179,54 @@ class GridLabelManager:
         )
 
         settings.geometryGenerator = "centroid($geometry)"
+
+
+    def _anchor_to_visible_centroid(self, settings):
+
+        """
+        Force the label onto the centroid of the part of the polygon
+        that is actually on screen, via
+        `centroid(intersection($geometry, @map_extent))`.
+
+        Two separate bugs meet here, and the intersection is what
+        satisfies both at once.
+
+        The first: with placement = OverPoint applied straight to a
+        polygon, PAL does not anchor to the feature's true centroid -
+        for a large polygon only partly on screen (routine for a GZD
+        zone) it drifts toward the visible portion and slides the
+        label past the zone's own edge into the neighbour. Confirmed
+        live by panning across zone boundaries.
+
+        The second, found 2026-08-17: anchoring to `centroid($geometry)`
+        fixed that, but left the label with exactly ONE anchor point.
+        Zoom in until a zone is larger than the viewport, pan away from
+        its centre, and there is no label anywhere on screen. Corner
+        labels - the answer apply_square_label reached for 100km
+        squares - do not fix this case either: pan into the deep
+        interior of a cell this large and no corner is on screen
+        either. apply_square_label's own docstring records the same
+        limitation being hit and worked around in 2026-08-03.
+
+        Intersecting with @map_extent answers both. The result is
+        always on screen when any part of the cell is, so the label
+        cannot vanish; and both the cell and the map extent are
+        rectangles, so the intersection is a rectangle and its
+        centroid is strictly inside it - and therefore inside the
+        cell - so the label cannot escape into the neighbour. When
+        the whole cell is visible the intersection IS the cell, and
+        this reduces exactly to the true centroid it replaces.
+        """
+
+        settings.geometryGeneratorEnabled = True
+
+        settings.geometryGeneratorType = (
+            QgsWkbTypes.GeometryType.PointGeometry
+        )
+
+        settings.geometryGenerator = (
+            "centroid(intersection($geometry, @map_extent))"
+        )
 
 
     def _gzd_offset_settings(self, field, size):
@@ -168,7 +246,7 @@ class GridLabelManager:
             Qgis.LabelPlacement.OverPoint
         )
 
-        self._anchor_to_true_centroid(settings)
+        self._anchor_to_visible_centroid(settings)
 
         # Nudged up and left from its anchor point (negative x/y -
         # confirmed live that PAL's offsets are positive-right/
@@ -207,7 +285,7 @@ class GridLabelManager:
             Qgis.LabelPlacement.OverPoint
         )
 
-        self._anchor_to_true_centroid(settings)
+        self._anchor_to_visible_centroid(settings)
 
         self._apply_gzd_common_settings(settings, size)
 
@@ -244,25 +322,64 @@ class GridLabelManager:
     ):
 
         """
-        Apply labels to the UTM/GZD grid layer - offset up-left of
-        each polygon's centroid while it's still large enough on
-        screen for that to stay safely inside it, falling back to
-        sitting exactly on the centroid once zoomed out past the room
-        that particular cell has for it (see
-        _offset_max_scale_expression() - mirrors apply_square_label's
-        own corner/centred switch, for the same reason).
+        Apply labels to the UTM/GZD grid layer, in four scale bands
+        decided per cell from its own HALF_MIN_M - exactly one active
+        at any scale, no overlap and no gap:
+
+        Every label anchors to the centroid of the part of its cell
+        that is actually on screen - see _anchor_to_visible_centroid()
+        for the two bugs that answers. Three bands, exactly one active
+        at any scale:
+
+        - Whole cell on screen and comfortably large: offset up-left
+          of the centroid, to stay clear of the 100km square labels.
+        - Cell clipped by the view, or small enough that the offset
+          would cross its own edge: the same label, centred, no
+          offset.
+        - Cell only a few millimetres across: no label at all.
+          displayAll means nothing else will ever suppress these, so
+          without this a world view drew 1,197 of them on top of each
+          other and buried the grid lines underneath.
+
+        apply_square_label reached the same "and an upper cutoff, or
+        displayAll buries everything" conclusion for 100km squares
+        first - see CENTER_LABEL_MAX_SCALE.
         """
 
         root_rule = QgsRuleBasedLabeling.Rule(
             QgsPalLayerSettings()
         )
 
+        offset_max = self._offset_max_scale_expression(layer)
+
+        if self._has_half_extent(layer):
+
+            hide_min = self._scale_for_on_screen_mm(
+                self.GZD_LABEL_MIN_ON_SCREEN_MM
+            )
+
+        else:
+            # A layer saved before HALF_MIN_M existed keeps exactly the
+            # two-band behaviour it already had. Its cells carry no
+            # size to reason from, and silently changing what an
+            # existing project draws is worse than leaving it be.
+            hide_min = None
+
+        # The offset only applies while the WHOLE cell is on screen.
+        # Once it is clipped, the anchor moves to the centre of the
+        # visible portion (see _anchor_to_visible_centroid), and a
+        # fixed 12mm nudge from there could push the label off a
+        # narrow sliver and into the neighbouring cell - the very
+        # thing the offset threshold exists to prevent, reappearing
+        # by a different route.
+        whole_cell_visible = "contains(@map_extent, $geometry)"
+
         offset_rule = QgsRuleBasedLabeling.Rule(
             self._gzd_offset_settings(field, size)
         )
 
         offset_rule.setFilterExpression(
-            f"@map_scale < {self._offset_max_scale_expression(layer)}"
+            f"@map_scale < {offset_max} AND {whole_cell_visible}"
         )
 
         offset_rule.setDescription(
@@ -278,7 +395,8 @@ class GridLabelManager:
         )
 
         centered_rule.setFilterExpression(
-            f"@map_scale >= {self._offset_max_scale_expression(layer)}"
+            f"NOT (@map_scale < {offset_max} AND {whole_cell_visible})"
+            + (f" AND @map_scale < {hide_min}" if hide_min else "")
         )
 
         centered_rule.setDescription(

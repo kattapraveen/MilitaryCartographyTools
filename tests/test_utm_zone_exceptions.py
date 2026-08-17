@@ -350,7 +350,7 @@ class TestPerCellLabelOffsetThreshold(QgisTestCase):
         )
 
         expression = QgsExpression(
-            self.manager._offset_max_scale_expression()
+            self.manager._offset_max_scale_expression(layer)
         )
 
         thresholds = {}
@@ -426,7 +426,158 @@ class TestPerCellLabelOffsetThreshold(QgisTestCase):
             for rule in legacy.labeling().rootRule().children()
         ]
 
-        self.assertIn(
-            f"@map_scale < {self.manager.GZD_OFFSET_FALLBACK_SCALE}",
-            expressions
+        # The offset band uses the old global constant, and carries
+        # no upper cutoff - a legacy layer has no cell size to derive
+        # one from, and silently changing what an existing project
+        # draws is worse than leaving it be. The whole-cell-visible
+        # guard DOES apply, since the anchor moved for every layer.
+        self.assertEqual(
+            expressions,
+            [
+                f"@map_scale < {self.manager.GZD_OFFSET_FALLBACK_SCALE}"
+                " AND contains(@map_extent, $geometry)",
+                f"NOT (@map_scale < {self.manager.GZD_OFFSET_FALLBACK_SCALE}"
+                " AND contains(@map_extent, $geometry))",
+            ]
+        )
+
+
+class TestGzdLabelScaleBands(QgisTestCase):
+
+    """
+    The bands must partition the scale range exactly - at any scale,
+    for any cell, at most one rule matches. A gap means the label
+    blinks out for a stretch of zoom; an overlap means two labels
+    draw at once. Both were live defects on 2026-08-17.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        self.manager = GridLabelManager()
+
+        # Norway: 31V at 3 degrees and 32V at 9, so the two extremes
+        # of cell width sit side by side in one layer.
+        self.layer = UTMGridGenerator().generate(
+            QgsRectangle(-1.0, 57.0, 13.0, 63.0)
+        )
+
+        self.manager.apply_label(self.layer, "GZD")
+
+
+    def _matching(self, feature, scale, extent):
+
+        from qgis.core import (
+            QgsExpression,
+            QgsExpressionContext,
+            QgsExpressionContextUtils,
+            QgsGeometry,
+        )
+
+        matched = []
+
+        for rule in self.layer.labeling().rootRule().children():
+
+            context = QgsExpressionContext()
+            context.appendScopes(
+                QgsExpressionContextUtils.globalProjectLayerScopes(self.layer)
+            )
+            context.setFeature(feature)
+
+            scope = context.lastScope()
+            scope.setVariable("map_scale", scale)
+            scope.setVariable(
+                "map_extent",
+                QgsGeometry.fromRect(extent)
+            )
+
+            expression = QgsExpression(rule.filterExpression())
+
+            if expression.evaluate(context):
+                matched.append(rule.description())
+
+        return matched
+
+
+    def test_at_most_one_band_is_active_at_every_scale(self):
+
+        whole_world = QgsRectangle(-180, -90, 180, 90)
+
+        for feature in self.layer.getFeatures():
+
+            half = feature["HALF_MIN_M"]
+
+            scale = half * 2.0
+
+            while scale < half * 400.0:
+
+                with self.subTest(cell=feature["GZD"], scale=int(scale)):
+
+                    self.assertLessEqual(
+                        len(self._matching(feature, scale, whole_world)),
+                        1
+                    )
+
+                scale *= 1.15
+
+
+    def test_a_world_scale_leaves_every_cell_unlabelled(self):
+
+        # The reported bug: displayAll forces every label to render,
+        # so without an upper cutoff a world view drew 1,197 of them
+        # on top of each other and buried the grid lines.
+        whole_world = QgsRectangle(-180, -90, 180, 90)
+
+        for feature in self.layer.getFeatures():
+
+            with self.subTest(cell=feature["GZD"]):
+
+                self.assertEqual(
+                    self._matching(feature, 167_000_000, whole_world),
+                    []
+                )
+
+
+    def test_a_clipped_cell_is_labelled_but_not_offset(self):
+
+        # The other reported bug: panned inside a cell larger than the
+        # view, there must still be a label - and it must be the
+        # centred one, since a fixed offset from the visible portion's
+        # centre could cross the cell's own edge.
+        feature = next(
+            f for f in self.layer.getFeatures() if f["GZD"] == "32V"
+        )
+
+        matched = self._matching(
+            feature,
+            270_000,
+            QgsRectangle(10.5, 62.5, 11.9, 63.9)
+        )
+
+        self.assertEqual(
+            matched,
+            ["Centered, no offset (zoomed out)"]
+        )
+
+
+    def test_a_wholly_visible_cell_keeps_its_offset(self):
+
+        feature = next(
+            f for f in self.layer.getFeatures() if f["GZD"] == "32V"
+        )
+
+        matched = self._matching(
+            feature,
+            5_000_000,
+            QgsRectangle(0.0, 54.0, 15.0, 66.0)
+        )
+
+        self.assertEqual(
+            matched,
+            ["Offset up-left (zoomed in)"]
         )

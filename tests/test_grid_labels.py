@@ -282,11 +282,19 @@ class TestApplyLabelOffset(QgisTestCase):
 
     def test_rule_set_has_one_offset_rule_and_one_centered_rule(self):
 
+        # Two rules for three bands - the third, "too small to label
+        # at all", is the absence of any rule matching rather than a
+        # rule of its own.
         self.manager.apply_label(self.layer, "GZD")
 
         root = self.layer.labeling().rootRule()
 
         self.assertEqual(len(root.children()), 2)
+
+        descriptions = {rule.description() for rule in root.children()}
+
+        self.assertIn("Offset up-left (zoomed in)", descriptions)
+        self.assertIn("Centered, no offset (zoomed out)", descriptions)
 
 
     def test_offset_rule_is_offset_up_and_left_of_its_anchor(self):
@@ -336,6 +344,11 @@ class TestApplyLabelOffset(QgisTestCase):
         # of what's currently on screen. Applies to both scale
         # variants (offset and centred both anchor from this same
         # fixed point, the offset rule just nudges from it).
+        # Since 2026-08-17 the anchor is the centroid of the VISIBLE
+        # portion, not of the whole cell - which reduces to the true
+        # centroid whenever the cell is entirely on screen, and keeps
+        # a label on screen when it is not. See
+        # _anchor_to_visible_centroid().
         self.manager.apply_label(self.layer, "GZD")
 
         root = self.layer.labeling().rootRule()
@@ -345,36 +358,45 @@ class TestApplyLabelOffset(QgisTestCase):
             settings = rule.settings()
 
             self.assertTrue(settings.geometryGeneratorEnabled)
-            self.assertEqual(settings.geometryGenerator, "centroid($geometry)")
+
+            self.assertEqual(
+                settings.geometryGenerator,
+                "centroid(intersection($geometry, @map_extent))"
+            )
 
 
     def test_rules_partition_on_offset_max_scale(self):
 
-        # Exactly one style is ever active at a given scale - offset
-        # below the threshold, centred at or above it - mirroring how
-        # apply_square_label's own corner/centred rules partition on
-        # corner_scale_threshold.
+        # Exactly one style is ever active. The offset applies only
+        # while the cell is BOTH large enough and wholly on screen;
+        # the centred rule is its exact negation, further bounded
+        # above by the scale at which labelling stops entirely.
         self.manager.apply_label(self.layer, "GZD")
 
         rules = _rules_by_description(self.layer)
 
-        threshold = self.manager._offset_max_scale_expression()
+        offset_max = self.manager._offset_max_scale_expression(self.layer)
+        hide_min = self.manager._scale_for_on_screen_mm(
+            self.manager.GZD_LABEL_MIN_ON_SCREEN_MM
+        )
+        whole = "contains(@map_extent, $geometry)"
 
         self.assertEqual(
             rules["Offset up-left (zoomed in)"].filterExpression(),
-            f"@map_scale < {threshold}"
+            f"@map_scale < {offset_max} AND {whole}"
         )
 
         self.assertEqual(
             rules["Centered, no offset (zoomed out)"].filterExpression(),
-            f"@map_scale >= {threshold}"
+            f"NOT (@map_scale < {offset_max} AND {whole})"
+            f" AND @map_scale < {hide_min}"
         )
 
         # The threshold is per cell, not one number for the whole
         # grid - it has to read the feature's own half-extent.
         self.assertIn(
             self.manager.HALF_EXTENT_FIELD,
-            threshold
+            offset_max
         )
 
 
