@@ -6,9 +6,28 @@ description=Military cartography, MIL-STD-2525D/APP-6 tactical graphics, MGRS, a
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.0.2
+version=1.0.3
 
-changelog=1.0.2
+changelog=1.0.3
+    - Correctness fix: the drawn UTM/GZD grid now honours the two
+      exceptions the standard itself makes. Over south-west Norway
+      (band V) zone 31V is 3 degrees wide and 32V is 9, not 6 each;
+      over Svalbard (band X) zones 32X, 34X and 36X do not exist at
+      all, with 31X, 33X, 35X and 37X widened to cover that ground.
+      MGRS coordinate conversion already applied both, so the grid
+      layer and the plugin's own MGRS readings had disagreed with
+      each other in those two regions.
+    - Three fixes to the GZD labels: they no longer pile up on top of
+      one another at world scale and bury the grid lines; they no
+      longer disappear when you pan inside a zone larger than the
+      map view; and they no longer overhang into the neighbouring
+      zone when only a narrow strip of a zone is on screen. Where a
+      label switches placement is now decided from each cell's own
+      size rather than one global scale for the whole world.
+    - The user guide's "Getting a DEM" section now covers GMRT for
+      bathymetry, including what to expect from below-sea-level
+      elevations once loaded.
+    1.0.2
     - The Bandit suppression added in 1.0.1 for the mine-scatter random
       number generator was one line too high to take effect, so that
       false positive came back on upload. Moved onto the flagged line
