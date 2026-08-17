@@ -296,6 +296,23 @@ for your area, options include QGIS's own **Data Source Manager** (WCS
 connections), or a dedicated plugin such as **SRTM Downloader** (via
 **Plugins → Manage and Install Plugins**).
 
+**For bathymetry — depth below sea level — SRTM won't help**, since it
+carries land elevation only and leaves water flat. The usual free source
+is **GMRT** (the Global Multi-Resolution Topography synthesis), which
+serves grids over your own bounding box from its **GridServer** web
+service at `https://www.gmrt.org/services/gridserverinfo.php`. There is
+no dedicated QGIS downloader plugin for it, so the practical routes are
+GMRT's own **GMRT MapTool** website (draw an area, download a GeoTIFF,
+then add it as a raster layer), or QGIS's built-in **Download file**
+Processing algorithm with a GridServer URL built by hand.
+
+Two things worth knowing once you have bathymetry loaded. Depths arrive
+as **negative** elevations, and both Line of Sight and Viewshed
+deliberately clamp anything below zero up to sea level — an observer on
+water sits on the surface, not the seabed. And the Hypsometric Tint's
+colour ramp already has its own below-sea-level band, so a bathymetric
+DEM tints correctly without any extra setup.
+
 ---
 
 ## Hypsometric Tint
