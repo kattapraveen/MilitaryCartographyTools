@@ -481,7 +481,10 @@ ENTITIES = {
         "department_of_justice": "112105",
         "federal_bureau_of_investigation": "112106",
         "prison": "112108",
-        "secret_service": "112109",
+        # "secret" here is the US Secret Service, a MIL-STD-2525D entity
+        # name - not a credential. Suppressions are for the scanners' own
+        # keyword heuristics (1.0.0's automated review, 2026-08-17).
+        "secret_service": "112109",  # nosec B105 # pragma: allowlist secret
         "transportation_security_agency": "112110",
         "law_enforcement_vessel": "112111",
         "us_marshals_service": "112112",
@@ -1390,7 +1393,10 @@ ENTITIES = {
         "federal_bureau_of_investigation": "131506",
         "police": "131507",
         "prison": "131508",
-        "united_states_secret_service": "131509",
+        # "secret" here is the US Secret Service, a MIL-STD-2525D entity
+        # name - not a credential. Suppressions are for the scanners' own
+        # keyword heuristics (1.0.0's automated review, 2026-08-17).
+        "united_states_secret_service": "131509",  # nosec B105 # pragma: allowlist secret
         "transportation_security_administration": "131510",
         "law_enforcement_vessel": "131511",
         "us_marshals_service": "131512",

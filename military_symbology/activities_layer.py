@@ -131,7 +131,10 @@ _ENTITY_LABELS = {
     "federal_bureau_of_investigation": "Federal Bureau of Investigation (FBI)",
     "police": "Police",
     "prison": "Prison",
-    "united_states_secret_service": "United States Secret Service (USSS)",
+    # "secret" here is the US Secret Service, a MIL-STD-2525D entity
+    # name - not a credential. Suppressions are for the scanners' own
+    # keyword heuristics (1.0.0's automated review, 2026-08-17).
+    "united_states_secret_service": "United States Secret Service (USSS)",  # nosec B105 # pragma: allowlist secret
     "transportation_security_administration": "Transportation Security Administration (TSA)",
     "law_enforcement_vessel": "Law Enforcement Vessel",
     "us_marshals_service": "US Marshals Service",

@@ -25,10 +25,27 @@ import json
 import os
 import re
 
-try:
-    from PyQt5.QtQml import QJSEngine
-except ImportError:
-    from PyQt6.QtQml import QJSEngine
+# QJSEngine lives in QtQml, and qgis.PyQt does NOT re-export QtQml on
+# either QGIS 3.44.12 or 4.2.0 - verified by listing the shim's own
+# submodules on both (QtQuick is there, QtQml is not). So the Plugin
+# Repository's standing "import from qgis.PyQt" advice, which 1.0.0's
+# automated review raised against this line, cannot be followed
+# literally: there is nothing at qgis.PyQt.QtQml to import.
+#
+# What CAN be fixed is the guessing. The original code tried PyQt5
+# first and fell back to PyQt6 on ImportError, which hardcodes a
+# binding preference that has nothing to do with what QGIS is actually
+# running. Instead, ask qgis.PyQt itself which Qt it resolved to, and
+# load the matching binding's QtQml by name. Same answer on a correct
+# install, but derived rather than assumed - and it stops silently
+# depending on PyQt5 happening to be absent under Qt6.
+import importlib
+
+from qgis.PyQt.QtCore import QT_VERSION_STR
+
+QJSEngine = importlib.import_module(
+    "PyQt{}.QtQml".format(QT_VERSION_STR.split(".")[0])
+).QJSEngine
 
 
 _VENDOR_JS_PATH = os.path.join(

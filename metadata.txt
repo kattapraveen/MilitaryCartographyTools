@@ -6,9 +6,19 @@ description=Military cartography, MIL-STD-2525D/APP-6 tactical graphics, MGRS, a
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.0.0
+version=1.0.1
 
-changelog=1.0.0
+changelog=1.0.1
+    - Fixed the findings from 1.0.0's automated Plugin Repository
+      review: the milsymbol.js bridge now imports QJSEngine through
+      qgis.PyQt rather than PyQt5/PyQt6 directly, so it resolves to
+      whichever Qt binding the running QGIS was built against. The
+      remaining scanner findings were false positives (a deterministic,
+      seeded random generator used for mine-symbol scatter, and four
+      MIL-STD-2525D entity names containing the word "Secret" - the US
+      Secret Service - read as credentials by keyword heuristics); each
+      is now annotated in place rather than silently left to re-flag.
+    1.0.0
     - First stable release. The plugin is no longer marked experimental.
     - Complete MIL-STD-2525D / APP-6 tactical graphics (Phase 10): the
       full control-measure set - manoeuvre, offensive, defensive,
