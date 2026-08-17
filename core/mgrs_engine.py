@@ -459,40 +459,16 @@ def _utmToMgrs(zone, hemisphere, latitude, longitude,
     @param precision - precision level of MGRS string
     @returns - MGRS coordinate string
     """
-    # FIXME: do we really need this?
-    # Special check for rounding to (truncated) eastern edge of zone 31V
-    # if (zone == 31) \
-    #         and (((latitude >= 56.0) and (latitude < 64.0))
-    #              and ((longitude >= 3.0) or (easting >= 500000.0))):
-    #    # Reconvert to UTM zone 32
-    #    override = 32
-    #    lat = int(latitude)
-    #    lon = int(longitude)
-    #    if zone == 1 and override == 60:
-    #        zone = override
-    #    elif zone == 60 and override == 1:
-    #        zone = override
-    #    elif (lat > 71) and (lon > -1) and (lon < 42):
-    #        if (zone - 2 <= override) and (override <= zone + 2):
-    #            zone = override
-    #        else:
-    #            raise MgrsException('Zone outside of valid range (1 to 60) '
-    #                                'and within 1 of "natural" zone')
-    #    elif (zone - 1 <= override) and (override <= zone + 1):
-    #        zone = override
-    #    else:
-    #        raise MgrsException('Zone outside of valid range (1 to 60) and '
-    #                            'within 1 of "natural" zone')
-    #
-    #    epsg = _epsgForUtm(zone, hemisphere)
-    #
-    #    src = osr.SpatialReference()
-    #    src.ImportFromEPSG(4326)
-    #    dst = osr.SpatialReference()
-    #    dst.ImportFromEPSG(epsg)
-    #    ct = osr.CoordinateTransformation(src, dst)
-    #    x, y, z = ct.TransformPoint(longitude, latitude)
-
+    # The upstream MGRS port carried a commented-out special-zone
+    # block here, under a "do we really need this?" marker - a rounding
+    # correction at the truncated eastern edge of zone 31V, plus
+    # zone-1/60 antimeridian and 71N+ branches. Removed 2026-08-17,
+    # after establishing what it was for: the zone-assignment
+    # exceptions it related to are already applied, live and
+    # uncommented, in _latLonToUtm() below, and the drawn grid was
+    # brought into agreement with them the same day (see
+    # docs/roadmap.md, Phase 3). It had been dead since before this
+    # project began and was answering a question nothing asks.
     if latitude <= 0.0 and northing == 1.0e7:
         latitude = 0
         northing = 0
