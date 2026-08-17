@@ -6714,11 +6714,15 @@ def mct_scatter_points(values, feature=None, parent=None):
     # None/int/float/str/bytes, and a tuple raises TypeError, which
     # QgsExpression swallows into a null result (so the mines simply
     # vanished rather than erroring visibly).
-    # nosec B311 - deterministic scatter, not a security primitive. The
-    # seed is the shape's own centroid and count precisely so the same
-    # polygon always gets the same mine placement on every redraw and on
-    # every machine; a cryptographic RNG would defeat that outright.
-    generator = random.Random(  # noqa: S311
+    # Deterministic scatter, not a security primitive. The seed is the
+    # shape's own centroid and count precisely so the same polygon
+    # always gets the same mine placement on every redraw and on every
+    # machine; a cryptographic RNG would defeat that outright. The
+    # suppressions must sit on the flagged line itself - Bandit reads
+    # "# nosec" only from the line it reports, not from a comment block
+    # above it (learned the hard way: 1.0.1 carried this note one line
+    # too high and the finding came straight back).
+    generator = random.Random(  # nosec B311 # noqa: S311
         "{:.6f},{:.6f},{}".format(centroid.x(), centroid.y(), count)
     )
 

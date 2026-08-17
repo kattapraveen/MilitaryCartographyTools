@@ -6,9 +6,15 @@ description=Military cartography, MIL-STD-2525D/APP-6 tactical graphics, MGRS, a
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.0.1
+version=1.0.2
 
-changelog=1.0.1
+changelog=1.0.2
+    - The Bandit suppression added in 1.0.1 for the mine-scatter random
+      number generator was one line too high to take effect, so that
+      false positive came back on upload. Moved onto the flagged line
+      itself, and the whole set verified by running Bandit locally
+      rather than by another upload round-trip.
+    1.0.1
     - Fixed the findings from 1.0.0's automated Plugin Repository
       review: the milsymbol.js bridge now imports QJSEngine through
       qgis.PyQt rather than PyQt5/PyQt6 directly, so it resolves to
