@@ -2,13 +2,31 @@
 name=Military Cartography Tools
 qgisMinimumVersion=3.44.0
 qgisMaximumVersion=4.99.0
-description=Military cartography, MGRS, and terrain analysis tools for QGIS. Runs fully offline - no external services, no data ever leaves your machine.
+description=Military cartography, MIL-STD-2525D/APP-6 tactical graphics, MGRS, and terrain analysis tools for QGIS. Runs fully offline - no external services, no data ever leaves your machine.
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=0.3.0
+version=1.0.0
 
-changelog=0.3.0
+changelog=1.0.0
+    - First stable release. The plugin is no longer marked experimental.
+    - Complete MIL-STD-2525D / APP-6 tactical graphics (Phase 10): the
+      full control-measure set - manoeuvre, offensive, defensive,
+      obstacle, fire support, target acquisition, airspace, maritime,
+      CBRN defence, deception, intelligence, sustainment, command and
+      control, field fortification, and mission tasks - plus entity
+      symbols across the land, air, sea surface, subsurface, space,
+      cyberspace, SIGINT and activities layers, all keyed to their own
+      SIDC. Drawn as real QGIS symbology (geometry generators, data-
+      defined properties, rule-based labelling), not stamped images, so
+      every symbol scales, rotates and prints correctly at any map
+      scale.
+    - Viewshed gained a coverage colour picker and an outline-only
+      rendering option, so several observers' coverage can be told
+      apart and laid over terrain without hiding it.
+    - Tanaka Contours now carries a caution about generation time,
+      which can be long on a large DEM at a fine contour interval.
+    0.3.0
     - New navigation and production tools (Phase 9): a Bearing/Range tool,
       GPX/KML waypoint import/export, and Map Sheet Series - batch-generate
       a numbered series of print sheets tiling a large area, each sheet
@@ -51,7 +69,7 @@ changelog=0.3.0
       print-layout production, grid convergence and magnetic declination
       (WMM2025) expression functions.
 
-about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, cartographic utilities, terrain analysis (illuminated contours, hypsometric tint, line of sight, combined hillshade, and viewshed/dead-ground analysis), and navigation/production tools (bearing/range, GPX/KML waypoint import/export, and batch print-sheet generation tiling a large area). Every tool runs entirely offline against local data - GDAL/QGIS Processing, a bundled World Magnetic Model, and your own DEM - with no external services, API calls, or telemetry of any kind, making it suitable for use with sensitive or classified data.
+about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MIL-STD-2525D/APP-6 tactical graphics (control measures and entity symbols, drawn as real QGIS symbology rather than stamped images, so they scale and print correctly at any map scale), MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, cartographic utilities, terrain analysis (illuminated contours, hypsometric tint, line of sight, combined hillshade, and viewshed/dead-ground analysis), and navigation/production tools (bearing/range, GPX/KML waypoint import/export, and batch print-sheet generation tiling a large area). Every tool runs entirely offline against local data - GDAL/QGIS Processing, a bundled World Magnetic Model, and your own DEM - with no external services, API calls, or telemetry of any kind, making it suitable for use with sensitive or classified data.
 
 tracker=https://github.com/kattapraveen/MilitaryCartographyTools/issues
 repository=https://github.com/kattapraveen/MilitaryCartographyTools
@@ -60,9 +78,9 @@ homepage=https://github.com/kattapraveen/MilitaryCartographyTools
 category=Cartography
 icon=icons/icon.svg
 
-experimental=True
+experimental=False
 deprecated=False
 
 hasProcessingProvider=False
 
-tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline,GPX,KML,waypoints,bearing,range,print layout
+tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline,GPX,KML,waypoints,bearing,range,print layout,MIL-STD-2525,APP-6,NATO,tactical graphics,control measures,symbology
