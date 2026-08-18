@@ -384,21 +384,42 @@ _MASKED_AREA_SYMBOL_LAYER_IDS = [
 # "the text PAA should be in all four directions - top, bottom, right
 # and left along the perimeter of the area made".
 #
-# Each anchor is the midpoint of one bounding-box edge. That is EXACT
-# for both shapes the standard actually allows here - PAA is Rectangle
-# or Circular only, with no Irregular variant in its own table - so
-# there is no need for the boundary-clipping machinery
-# mct_area_label_anchor() needs for the freeform zones in H7. The
-# bounding box is used rather than centroid(), which would wander off
+# Each anchor targets the midpoint of one bounding-box edge, then
+# snaps to the CLOSEST point on the polygon's own boundary to it -
+# exact for both shapes the standard actually allows here (PAA is
+# Rectangle or Circular only, with no Irregular variant in its own
+# table: for either, the bounding-box edge midpoint already sits
+# exactly on the boundary, so the snap is a no-op) and still correct
+# for whatever a real user actually digitizes. 2026-08-18, the
+# maintainer's own smoke test: "the text is not always on the
+# perimeter line, sometimes it goes out of the area also especially
+# in irregular polygons" - the standard's own restriction to two
+# shapes does not stop QGIS's own digitizing tools from drawing a
+# third, and a raw bounding-box point (the original version here) can
+# fall outside a concave or otherwise irregular boundary entirely.
+# closest_point(boundary($geometry), ...) is exactly
+# mct_area_label_anchor()'s own reason for existing (H7's freeform
+# zones), applied here as a targeted point snap instead of that
+# function's own top-left-corner clip, since PAA's four anchors need
+# to land ON the perimeter, not inside the shape. The bounding box is
+# used for the TARGET rather than centroid(), which would wander off
 # the two axes on a rotated rectangle.
 _PAA_MID_X = "(x_min($geometry) + x_max($geometry)) / 2"
 _PAA_MID_Y = "(y_min($geometry) + y_max($geometry)) / 2"
 
+
+def _paa_anchor(target_point_expression):
+
+    return (
+        f"closest_point(boundary($geometry), {target_point_expression})"
+    )
+
+
 _PAA_PERIMETER_ANCHORS = (
-    f"make_point({_PAA_MID_X}, y_max($geometry))",
-    f"make_point({_PAA_MID_X}, y_min($geometry))",
-    f"make_point(x_min($geometry), {_PAA_MID_Y})",
-    f"make_point(x_max($geometry), {_PAA_MID_Y})",
+    _paa_anchor(f"make_point({_PAA_MID_X}, y_max($geometry))"),
+    _paa_anchor(f"make_point({_PAA_MID_X}, y_min($geometry))"),
+    _paa_anchor(f"make_point(x_min($geometry), {_PAA_MID_Y})"),
+    _paa_anchor(f"make_point(x_max($geometry), {_PAA_MID_Y})"),
 )
 
 

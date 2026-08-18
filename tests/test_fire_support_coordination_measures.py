@@ -580,10 +580,16 @@ class TestCreateFireSupportCoordinationMeasuresAreasLayer(QgisTestCase):
         # area here labels once in the middle, so this is a genuinely
         # different PLACEMENT and needs its own rules.
         #
-        # Each anchor is a bounding-box edge midpoint, which is EXACT
+        # Each anchor targets a bounding-box edge midpoint, then snaps
+        # to the closest point on the polygon's OWN boundary - exact
         # for both shapes the standard allows here (PAA is Rectangle or
-        # Circular only, no Irregular variant) - so none of the
-        # boundary-clipping machinery H7's freeform zones need applies.
+        # Circular only, no Irregular variant - the snap is a no-op for
+        # either) and still correct for whatever a user actually
+        # digitizes. 2026-08-18: a raw bounding-box point (no snap) can
+        # fall outside a concave/irregular boundary entirely - "the
+        # text is not always on the perimeter line, sometimes it goes
+        # out of the area also especially in irregular polygons", the
+        # maintainer's own smoke-test finding.
         layer = create_fire_support_coordination_measures_areas_layer()
 
         centred_rule, *paa_rules = self._area_label_rules(layer)
@@ -591,11 +597,14 @@ class TestCreateFireSupportCoordinationMeasuresAreasLayer(QgisTestCase):
         mid_x = "(x_min($geometry) + x_max($geometry)) / 2"
         mid_y = "(y_min($geometry) + y_max($geometry)) / 2"
 
+        def snapped(target):
+            return f"closest_point(boundary($geometry), {target})"
+
         expected = [
-            f"make_point({mid_x}, y_max($geometry))",
-            f"make_point({mid_x}, y_min($geometry))",
-            f"make_point(x_min($geometry), {mid_y})",
-            f"make_point(x_max($geometry), {mid_y})",
+            snapped(f"make_point({mid_x}, y_max($geometry))"),
+            snapped(f"make_point({mid_x}, y_min($geometry))"),
+            snapped(f"make_point(x_min($geometry), {mid_y})"),
+            snapped(f"make_point(x_max($geometry), {mid_y})"),
         ]
 
         self.assertEqual(len(paa_rules), 4)
@@ -801,6 +810,110 @@ class TestCreateFireSupportCoordinationMeasuresAreasLayer(QgisTestCase):
         finally:
 
             military_symbology_functions.unregister()
+
+
+class TestPaaAnchorsStayOnAnIrregularPolygonsBoundary(QgisTestCase):
+
+    """
+    2026-08-18: "the text is not always on the perimeter line, sometimes
+    it goes out of the area also especially in irregular polygons" - the
+    standard restricts PAA to Rectangle/Circular, but nothing stops a
+    user digitizing something else, and the raw bounding-box point
+    _PAA_PERIMETER_ANCHORS used before this fix can fall outside a
+    concave boundary entirely.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+
+    def _evaluate_anchor(self, anchor_expression, geometry):
+
+        expression = QgsExpression(
+            anchor_expression.replace(
+                "$geometry", "geom_from_wkt('{}')".format(geometry.asWkt())
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_every_anchor_lies_on_a_concave_polygons_boundary(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        from MilitaryCartographyTools.military_symbology.fire_support_coordination_measures import (
+            _PAA_PERIMETER_ANCHORS,
+        )
+
+        # A notch bitten out of the top edge - the bounding box's own
+        # top-mid point (50, 20) falls inside that notch, well outside
+        # this polygon.
+        corners = [
+            QgsPointXY(0, 0), QgsPointXY(0, 20), QgsPointXY(40, 20),
+            QgsPointXY(50, 10), QgsPointXY(60, 20), QgsPointXY(100, 20),
+            QgsPointXY(100, 0),
+        ]
+
+        polygon = QgsGeometry.fromPolygonXY([corners + [corners[0]]])
+
+        boundary = polygon.convertToType(
+            Qgis.GeometryType.Line, True
+        )
+
+        for anchor_expression in _PAA_PERIMETER_ANCHORS:
+
+            with self.subTest(anchor=anchor_expression):
+
+                point = self._evaluate_anchor(anchor_expression, polygon)
+
+                self.assertIsInstance(point, QgsGeometry)
+
+                self.assertAlmostEqual(
+                    boundary.distance(point), 0.0, places=6
+                )
+
+
+    def test_a_true_rectangles_anchors_are_unchanged(self):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        from MilitaryCartographyTools.military_symbology.fire_support_coordination_measures import (
+            _PAA_PERIMETER_ANCHORS,
+        )
+
+        corners = [
+            QgsPointXY(0, 0), QgsPointXY(0, 20),
+            QgsPointXY(100, 20), QgsPointXY(100, 0),
+        ]
+
+        polygon = QgsGeometry.fromPolygonXY([corners + [corners[0]]])
+
+        expected = [(50, 20), (50, 0), (0, 10), (100, 10)]
+
+        for anchor_expression, (x, y) in zip(
+            _PAA_PERIMETER_ANCHORS, expected
+        ):
+
+            with self.subTest(anchor=anchor_expression):
+
+                point = self._evaluate_anchor(anchor_expression, polygon)
+
+                self.assertIsInstance(point, QgsGeometry)
+
+                as_point = point.asPoint()
+
+                self.assertAlmostEqual(as_point.x(), x, places=6)
+                self.assertAlmostEqual(as_point.y(), y, places=6)
 
 
 class TestAddFireSupportCoordinationMeasuresLayers(QgisTestCase):

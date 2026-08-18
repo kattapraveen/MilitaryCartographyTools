@@ -11,6 +11,9 @@ Military Cartography Tools
 from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
+from MilitaryCartographyTools.military_symbology._control_measure_shared import (
+    LABEL_FONT_SIZE,
+)
 from MilitaryCartographyTools.military_symbology.cbrn_defense import (
     AREAS_LAYER_NAME,
     _area_glyph_sidc_expression,
@@ -1380,6 +1383,66 @@ class TestMinimumSafeDistanceZone(QgisTestCase):
             [f"ring{ring}" for ring in range(1, SAFE_DISTANCE_MAX_RINGS + 1)]
         )
 
+
+    def test_every_ring_keeps_all_its_labels(self):
+
+        # 2026-08-18: "due to the overlapping labels - some of the
+        # labels are hidden" - close-together ranges place their
+        # labels close together too, all due east of the same centre,
+        # and PAL's default collision handling silently drops
+        # whichever it judges to overlap. Same fix, same reasoning, as
+        # _configure_dose_rate_labeling()'s own displayAll.
+        labeling = self.layer.labeling()
+
+        root_rule = labeling.rootRule()
+
+        for rule in root_rule.children():
+
+            with self.subTest(ring=rule.description()):
+
+                settings = rule.settings()
+
+                self.assertTrue(settings.displayAll)
+
+
+    def test_the_break_is_the_tightened_padding_not_the_old_wider_one(self):
+
+        # 2026-08-18: "the mask is too much" - the gap either side of
+        # the label was 1.4mm (2.8mm of break beyond the label's own
+        # width); tightened to 0.7mm (1.4mm total), roughly this
+        # codebase's own established "just enough" buffer size
+        # (mask_size_mm's 1.2mm default elsewhere in this module).
+        from MilitaryCartographyTools.military_symbology.cbrn_defense import (
+            _SAFE_DISTANCE_LABEL_PADDING_MM,
+            _safe_distance_gap_expression,
+            _safe_distance_label_expression,
+        )
+
+        self.assertLess(_SAFE_DISTANCE_LABEL_PADDING_MM, 1.0)
+
+        context = self._context([1500])
+
+        gap_mm = QgsExpression(
+            _safe_distance_gap_expression(1)
+        ).evaluate(context)
+
+        label = QgsExpression(
+            _safe_distance_label_expression(1)
+        ).evaluate(context)
+
+        text_width_mm = QgsExpression(
+            "mct_text_width_mm('{}', {})".format(
+                label,
+                LABEL_FONT_SIZE * 25.4 / 72.0
+            )
+        ).evaluate(context)
+
+        self.assertAlmostEqual(
+            gap_mm - text_width_mm,
+            2.0 * _SAFE_DISTANCE_LABEL_PADDING_MM,
+            places=4
+        )
+
     def test_adding_the_layer_inserts_exactly_one(self):
 
         iface = FakeIface()
@@ -1461,6 +1524,51 @@ class TestRadiationDoseRateContours(QgisTestCase):
             ],
             ["dose_rate_contour_outline"]
         )
+
+    def _evaluated_label(self, unique_designation):
+
+        feature = QgsVectorLayerUtils.createFeature(
+            self.layer,
+            QgsGeometry.fromWkt(
+                "POLYGON((77.0 28.0, 77.1 28.0, 77.1 28.1, 77.0 28.1,"
+                " 77.0 28.0))"
+            )
+        )
+
+        feature.setAttribute("unique_designation", unique_designation)
+
+        context = QgsExpressionContext()
+        context.appendScopes(
+            QgsExpressionContextUtils.globalProjectLayerScopes(self.layer)
+        )
+        context.setFeature(feature)
+
+        labeling = self.layer.labeling()
+
+        settings = labeling.settings()
+
+        return QgsExpression(settings.fieldName).evaluate(context)
+
+
+    def test_a_bare_number_gets_the_unit_suffixed_automatically(self):
+
+        # 2026-08-18: "can we suffix cGy to the unique designation
+        # rather than expecting the user to type it in, usually the
+        # user will enter only the number" - the maintainer's own
+        # smoke-test finding.
+        self.assertEqual(self._evaluated_label("300"), "300cGy")
+
+
+    def test_an_already_suffixed_value_is_not_doubled(self):
+
+        self.assertEqual(self._evaluated_label("300cGy"), "300cGy")
+
+
+    def test_an_empty_value_draws_no_bare_unit(self):
+
+        self.assertEqual(self._evaluated_label(""), "")
+        self.assertEqual(self._evaluated_label(None), "")
+
 
     def test_the_dose_rate_is_not_upper_cased(self):
 

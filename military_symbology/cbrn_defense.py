@@ -750,8 +750,14 @@ SAFE_DISTANCE_RANGE_UNIT = "m"
 _SAFE_DISTANCE_LINE_WIDTH_MM = 0.4
 
 # Breathing room either side of the label inside the gap it cuts, so
-# the circle does not end hard against the first and last glyph.
-_SAFE_DISTANCE_LABEL_PADDING_MM = 1.4
+# the circle does not end hard against the first and last glyph. Was
+# 1.4 (2.8mm of gap beyond the label's own width) - "the mask is too
+# much" (the maintainer's own smoke-test finding, 2026-08-18): nearly
+# half the ~3.2mm label height per side read as an oversized break in
+# the circle. Tightened to roughly this codebase's own established
+# "just enough" buffer (mask_size_mm's own 1.2mm default for QGIS's
+# native Selective Masking elsewhere in this module).
+_SAFE_DISTANCE_LABEL_PADDING_MM = 0.7
 
 # The label font in millimetres. LABEL_FONT_SIZE is in POINTS, which is
 # what QgsTextFormat defaults to, and the gap has to be measured in the
@@ -909,6 +915,18 @@ def _configure_safe_distance_labeling(layer):
             quadrant=Qgis.LabelQuadrantPosition.Over,
         )
 
+        # displayAll, same reasoning and same fix as
+        # _configure_dose_rate_labeling()'s own comment: close-together
+        # rings (e.g. 500/600/700m) place their labels close together
+        # too, all due east of the same centre, and PAL's default
+        # collision handling silently drops whichever it judges to
+        # overlap - "due to the overlapping labels - some of the labels
+        # are hidden" (the maintainer's own smoke-test finding,
+        # 2026-08-18). A crowded label is a real cost the standard's
+        # own construction accepts here; a missing range reading is
+        # worse.
+        settings.displayAll = True
+
         rule = QgsRuleBasedLabeling.Rule(settings)
 
         rule.setFilterExpression(
@@ -988,8 +1006,10 @@ def add_safe_distance_zones_layer(iface):
 # here tries to model a set of them.
 #
 # The dose rate goes in the SAME unique_designation field every other
-# control measure uses for Field T. It is a free-text field, so
-# "300cGy" is typed as it reads.
+# control measure uses for Field T. It is a free-text field storing
+# just the number ("300") - the "cGy" unit is appended automatically
+# by the label expression rather than typed, see
+# _DOSE_RATE_DESIGNATION_LABEL_EXPRESSION below.
 DOSE_RATE_CONTOURS_LAYER_NAME = "Radiation Dose Rate Contours"
 
 DOSE_RATE_CONTOUR_CODE = "272200"
@@ -1078,6 +1098,23 @@ def create_dose_rate_contours_layer(name=DOSE_RATE_CONTOURS_LAYER_NAME):
     return layer
 
 
+# "usually the user will enter only the number" (the maintainer's own
+# smoke-test finding, 2026-08-18) - the field itself stores whatever is
+# typed (still free text, so "300cGy" typed in full keeps working, and
+# with nothing entered yet the label draws nothing rather than a bare
+# "cGy"), but the LABEL appends the unit automatically unless it is
+# already there, so typing "300" alone is enough.
+_DOSE_RATE_DESIGNATION_LABEL_EXPRESSION = (
+    "CASE"
+    " WHEN \"unique_designation\" IS NULL OR \"unique_designation\" = ''"
+    " THEN ''"
+    " WHEN right(\"unique_designation\", 3) = 'cGy'"
+    " THEN \"unique_designation\""
+    " ELSE \"unique_designation\" || 'cGy'"
+    " END"
+)
+
+
 def _configure_dose_rate_labeling(layer):
 
     """
@@ -1101,7 +1138,7 @@ def _configure_dose_rate_labeling(layer):
     settings = _build_pal_layer_settings(
         layer,
         Qgis.LabelPlacement.OverPoint,
-        "coalesce(\"unique_designation\",'')",
+        _DOSE_RATE_DESIGNATION_LABEL_EXPRESSION,
         masked_symbol_layer_ids=[_DOSE_RATE_OUTLINE_LAYER_ID],
         label_geometry_expression=_DOSE_RATE_LABEL_POINT_EXPRESSION,
         quadrant=Qgis.LabelQuadrantPosition.Over,

@@ -714,6 +714,67 @@ class TestCreateManeuverControlMeasuresAreasLayer(QgisTestCase):
         )
 
 
+    def test_limited_access_areas_designation_label_masks_its_own_hatch(self):
+
+        # 2026-08-18: "the text is not masked; for all other areas the
+        # unique designator [is]" - Limited Access Area is the one area
+        # on this layer with an actual fill pattern, so it is the one
+        # that needs its label to cut a hole in it.
+        #
+        # NOTE settings()/format() return BY VALUE - hold each one
+        # before use rather than chaining, or the temporary can be
+        # collected mid-expression and segfault the interpreter (see
+        # test_c2_measures.py's own comment on this same trap).
+        layer = create_maneuver_control_measures_areas_layer()
+
+        settings = layer.labeling().settings()
+
+        text_format = settings.format()
+
+        mask = text_format.mask()
+
+        self.assertTrue(mask.enabled())
+
+        self.assertEqual(
+            sorted(
+                reference.symbolLayerIdV2()
+                for reference in mask.maskedSymbolLayers()
+            ),
+            ["laa_hatch"]
+        )
+
+        symbol = _rule_symbol_for(layer, "limited_access_area")
+
+        self.assertEqual(symbol.symbolLayer(1).id(), "laa_hatch")
+
+
+    def test_limited_access_areas_hatch_colour_is_on_the_sub_symbol(self):
+
+        # A QgsLinePatternFillSymbolLayer paints its hatch through a
+        # sub-symbol - a data-defined colour on the fill layer itself
+        # is silently ignored (the same latent bug found and fixed on
+        # sight in the Weapons Free Zone/No Fire Area hatches, both
+        # built the identical way).
+        layer = create_maneuver_control_measures_areas_layer()
+
+        symbol = _rule_symbol_for(layer, "limited_access_area")
+
+        hatch_layer = symbol.symbolLayer(1)
+
+        self.assertFalse(
+            hatch_layer.dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.StrokeColor
+            )
+        )
+
+        self.assertTrue(
+            hatch_layer.subSymbol().symbolLayer(0)
+            .dataDefinedProperties().isActive(
+                QgsSymbolLayer.Property.StrokeColor
+            )
+        )
+
+
     def test_area_and_perimeter_default_values_recalculate_on_update(self):
 
         military_symbology_functions.register()

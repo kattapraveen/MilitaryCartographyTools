@@ -10375,6 +10375,74 @@ QGIS versions; Bandit and detect-secrets both clean.
 
 ---
 
+## IDX smoke-testing round: A01-08, L01-15 (2026-08-18)
+
+A01-03 and L01-08 all clear. Four real findings among A04-08, each
+investigated against the actual construction rather than patched on
+the label alone.
+
+**A08, Limited Access Area (`maneuver_control_measures.py`): its
+designation label was never masked.** "The text is not masked; for
+all other areas the unique designator [is]." Every other area on this
+layer has a plain or no fill, so an unmasked label just sits on open
+map background and reads fine; Limited Access Area is the only one
+with an actual hatch PATTERN, and the layer's own
+`_configure_designation_labeling()` call had no `masked_symbol_layer_ids`
+at all - not a Limited-Access-specific bug, but the one area type it
+was ever going to be visible on. Gave the hatch layer a stable id
+(`laa_hatch`) and wired it into the mask. Found and fixed the same
+latent bug alongside it while in the code: the hatch's own affiliation
+colour was set on the fill layer itself rather than its sub-symbol -
+`QgsLinePatternFillSymbolLayer` paints through a sub-symbol, so a
+data-defined colour on the fill layer is silently ignored, the
+identical latent bug already found and fixed in Weapons Free Zone and
+No Fire Area's own hatches. 3 new tests.
+
+**A07, Position Area For Artillery (`fire_support_coordination_
+measures.py`): its four perimeter labels could land outside the
+shape.** "The text is not always on the perimeter line, sometimes it
+goes out of the area also especially in irregular polygons." Each
+anchor was a raw bounding-box edge midpoint - exact for the standard's
+own two prescribed shapes (Rectangle, Circular), but nothing stops a
+user digitizing a third, and a bounding-box point can fall outside a
+concave boundary entirely. Each anchor now wraps that same target
+point in `closest_point(boundary($geometry), ...)`, snapping it onto
+the actual boundary - a no-op for the two prescribed shapes (confirmed
+by test: anchors land at the exact same coordinates on a true
+rectangle) and correct for whatever a user actually draws (confirmed
+on a concave polygon: every anchor lies exactly on its boundary). 2
+new tests, one existing test's pinned expression updated.
+
+**A05, Radiation Dose Rate Contours (`cbrn_defense.py`): the "cGy"
+unit is now suffixed automatically.** "Can we suffix cGy to the
+unique designation rather than expecting the user to type it in,
+usually the user will enter only the number." The field itself still
+stores whatever is typed (typing the full "300cGy" still works,
+unchanged), but the LABEL expression now appends "cGy" unless it is
+already there, so typing "300" alone is enough. 3 new tests.
+
+**A04, Minimum Safe Distance Zones (`cbrn_defense.py`): the ring
+breaks were too wide, and close-together ranges could drop a label
+entirely.** "The mask is too much, and due to the overlapping labels -
+some of the labels are hidden." Two distinct causes, both fixed:
+(1) `_SAFE_DISTANCE_LABEL_PADDING_MM` (breathing room either side of
+the label inside its own ring's break) was 1.4mm - nearly half the
+~3.2mm label height per side - tightened to 0.7mm, roughly this
+codebase's own established "just enough" buffer size (`mask_size_mm`'s
+1.2mm default elsewhere). (2) Each ring's own label rule had no
+`displayAll`, so PAL's default collision handling could silently drop
+a label when two rings' ranges sit close together (all five labels sit
+due east of the same centre, at different radii) - the identical
+symptom the maintainer had already found and fixed for Radiation Dose
+Rate Contours' own nested-contour case, never applied here even though
+this feature is explicitly built as "the same construction as the
+Weapon/Sensor Range Fan." 2 new tests.
+
+9 new tests, 1420 -> 1429 on both QGIS versions; Bandit and
+detect-secrets both clean.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

@@ -755,6 +755,16 @@ def _fortified_area_symbol():
     return symbol
 
 
+# Limited Access Area is the only measure type on this layer with an
+# actual fill PATTERN (a diagonal hatch) rather than a plain or no
+# fill - every other area's label sits on open map background and
+# reads fine unmasked, which is why this layer's own designation
+# labelling went unmasked until now with nobody noticing. 2026-08-18,
+# the maintainer's own smoke test: "the text is not masked; for all
+# other areas the unique designator [is]."
+_LAA_HATCH_SYMBOL_LAYER_ID = "laa_hatch"
+
+
 def _limited_access_area_symbol():
 
     """
@@ -781,6 +791,10 @@ def _limited_access_area_symbol():
 
     hatch_layer = QgsLinePatternFillSymbolLayer()
 
+    hatch_layer.setId(
+        _LAA_HATCH_SYMBOL_LAYER_ID
+    )
+
     hatch_layer.setLineAngle(
         45
     )
@@ -797,8 +811,16 @@ def _limited_access_area_symbol():
         QColor(0, 0, 0)
     )
 
+    # A QgsLinePatternFillSymbolLayer paints its hatch through a SUB-
+    # SYMBOL (a QgsLineSymbol), so a data-defined StrokeColor set on the
+    # fill layer itself is silently ignored - the same latent bug found
+    # and fixed on sight in airspace_control_measures.py's own Weapons
+    # Free Zone and fire_support_coordination_measures.py's own No Fire
+    # Area, both hatched the identical way. Applied to the sub-symbol's
+    # own layer here rather than waiting for it to be reported a third
+    # time.
     _apply_affiliation_color(
-        hatch_layer,
+        hatch_layer.subSymbol().symbolLayer(0),
         [QgsSymbolLayer.Property.StrokeColor]
     )
 
@@ -1011,7 +1033,8 @@ def create_maneuver_control_measures_areas_layer(name=AREAS_LAYER_NAME):
     _configure_designation_labeling(
         layer,
         Qgis.LabelPlacement.OverPoint,
-        _AREA_DESIGNATION_LABEL_EXPRESSION
+        _AREA_DESIGNATION_LABEL_EXPRESSION,
+        masked_symbol_layer_ids=[_LAA_HATCH_SYMBOL_LAYER_ID]
     )
 
     return layer
