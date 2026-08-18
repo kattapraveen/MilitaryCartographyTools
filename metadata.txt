@@ -176,13 +176,6 @@ icon=icons/icon.svg
 experimental=False
 deprecated=False
 
-# Declared on the strength of real evidence, not intent: the full test
-# suite runs against QGIS 4.2.1 (Qt6) on every change, alongside 3.44.12
-# (Qt5), and both have to pass before anything ships. Without this flag
-# the Plugin Repository cannot tell a Qt6-ready plugin from one that has
-# simply never been tried, and presents it accordingly.
-supportsQt6=True
-
 hasProcessingProvider=False
 
 tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline,GPX,KML,waypoints,bearing,range,print layout,MIL-STD-2525,MIL-STD-2525E,APP-6,APP-6E,NATO,tactical graphics,control measures,symbology
