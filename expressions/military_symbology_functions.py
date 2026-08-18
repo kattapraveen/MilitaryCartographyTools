@@ -21,7 +21,7 @@ from qgis.core import (
     qgsfunction,
 )
 
-from ..military_symbology.sidc import build_sidc
+from ..military_symbology.sidc import DEFAULT_EDITION, build_sidc
 from ..military_symbology.symbol_engine import (
     render_symbol_base64_path,
     render_symbol_svg,
@@ -277,6 +277,12 @@ def mct_build_sidc(values, feature=None, parent=None):
     6-argument call still works, e.g. mine_warfare's own expression,
     which has no sector modifier fields at all) - omitted or empty/falsy
     means "no modifier", matching build_sidc()'s own default.
+
+    An optional NINTH argument selects the standard edition - "2525D"
+    (the default, and what every pre-edition expression resolves to) or
+    "2525E". It changes both the vocabulary the entity is looked up in
+    and the SIDC's own version digits, which is what tells a renderer
+    which edition it is reading.
     """
 
     if len(values) < 6:
@@ -289,6 +295,16 @@ def mct_build_sidc(values, feature=None, parent=None):
     sector1_modifier = values[6] if len(values) > 6 else None
     sector2_modifier = values[7] if len(values) > 7 else None
 
+    # Optional NINTH argument: the standard edition ("2525D"/"2525E").
+    # Omitted or empty means 2525D, so every expression written before
+    # editions existed - including those stored in users' saved projects -
+    # keeps producing exactly the SIDC it produced before.
+    edition = (
+        str(values[8])
+        if len(values) > 8 and values[8]
+        else DEFAULT_EDITION
+    )
+
     try:
 
         return build_sidc(
@@ -300,6 +316,7 @@ def mct_build_sidc(values, feature=None, parent=None):
             headquarters=bool(headquarters),
             sector1_modifier=str(sector1_modifier) if sector1_modifier else None,
             sector2_modifier=str(sector2_modifier) if sector2_modifier else None,
+            edition=edition,
         )
 
     except KeyError as error:

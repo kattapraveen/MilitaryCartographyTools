@@ -194,3 +194,128 @@ class TestDeltaAgainst2525D(QgisTestCase):
         self.assertEqual(len(d_codes), 50)
         self.assertGreater(len(e_codes), 150)
         self.assertGreater(len(e_codes - d_codes), 100)
+
+
+class TestEditionSwitch(QgisTestCase):
+
+    """
+    build_sidc()'s `edition` parameter - the switch that selects which
+    vocabulary an entity is looked up in and which version digits the SIDC
+    carries. Added 2026-08-18.
+    """
+
+    def test_default_is_2525d_and_unchanged(self):
+
+        from MilitaryCartographyTools.military_symbology.sidc import (
+            DEFAULT_EDITION,
+            build_sidc,
+        )
+
+        self.assertEqual(DEFAULT_EDITION, "2525D")
+
+        # The exact string this call produced before editions existed.
+        # Every saved project's renderer expression resolves to this path.
+        self.assertEqual(
+            build_sidc("friend", "tank", symbol_set="land_equipment"),
+            build_sidc(
+                "friend", "tank", symbol_set="land_equipment",
+                edition="2525D",
+            ),
+        )
+
+
+    def test_edition_changes_only_the_version_digits(self):
+
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        d = build_sidc("friend", "tank", symbol_set="land_equipment")
+        e = build_sidc(
+            "friend", "tank", symbol_set="land_equipment", edition="2525E"
+        )
+
+        self.assertEqual(d[:2], "10")
+        self.assertEqual(e[:2], "13")
+        self.assertEqual(d[2:], e[2:])
+        self.assertEqual(len(d), len(e))
+
+
+    def test_an_entity_only_2525e_has_is_rejected_under_2525d(self):
+
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        # Land Installation's ATF exists in both; pick something the E
+        # vocabulary has and the curated D one does not.
+        e_only = sorted(
+            set(ENTITIES_2525E["ground_unit"].values())
+            - set(ENTITIES["ground_unit"].values())
+        )
+
+        self.assertTrue(e_only)
+
+        key = next(
+            k for k, c in ENTITIES_2525E["ground_unit"].items()
+            if c == e_only[0]
+        )
+
+        built = build_sidc(
+            "friend", key, symbol_set="ground_unit", edition="2525E"
+        )
+
+        self.assertTrue(built.startswith("13"))
+
+        with self.assertRaises(KeyError):
+            build_sidc("friend", key, symbol_set="ground_unit")
+
+
+    def test_unknown_edition_raises(self):
+
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        with self.assertRaises(KeyError):
+            build_sidc(
+                "friend", "tank", symbol_set="land_equipment", edition="2525C"
+            )
+
+
+    def test_modifiers_resolve_per_edition(self):
+
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        # Land Installation sector 1 code 02 (Chemical) is live in 2525D
+        # and {Disused} in 2525E - so the same call must succeed under one
+        # edition and fail under the other.
+        built = build_sidc(
+            "friend", "military", symbol_set="land_installation",
+            sector1_modifier="chemical",
+        )
+
+        self.assertEqual(built[16:18], "02")
+
+        with self.assertRaises(KeyError):
+            build_sidc(
+                "friend", "military", symbol_set="land_installation",
+                sector1_modifier="chemical", edition="2525E",
+            )
+
+
+    def test_the_expression_function_takes_an_edition_argument(self):
+
+        from MilitaryCartographyTools.expressions.military_symbology_functions \
+            import mct_build_sidc
+
+        base = ["friend", "tank", "land_equipment", "unspecified",
+                "present", False, None, None]
+
+        self.assertTrue(mct_build_sidc.func(base, None, None, None)
+                        .startswith("10"))
+
+        self.assertTrue(
+            mct_build_sidc.func(base + ["2525E"], None, None, None)
+                          .startswith("13")
+        )
+
+        # Empty ninth argument means "not specified", not "invalid".
+        self.assertTrue(
+            mct_build_sidc.func(base + [""], None, None, None)
+                          .startswith("10")
+        )

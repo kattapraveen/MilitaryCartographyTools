@@ -2002,8 +2002,29 @@ tested, not claimed as done here.
       modifier keys was backwards, and the generated file looked
       perfectly plausible.
       10 new tests, 1349 -> 1359 on QGIS 4.2.1 and 3.44.12.
-      **Still open**: APP-6E's modifier tables (no source), APP-6E names
-      with NATO spelling, and wiring any of this into a layer.
+      **Edition switch built 2026-08-18, engine level.**
+      `build_sidc()` takes `edition=` ("2525D" default, "2525E"), which
+      selects both the vocabulary the entity is looked up in and the
+      SIDC's own version digits ("10" vs "13"). `mct_build_sidc()` takes
+      it as an optional NINTH argument, so every renderer expression
+      written before editions existed - including those saved in users'
+      project files - resolves to exactly the SIDC it produced before.
+      `entities_for_edition()` / `modifiers_for_edition()` hide the fact
+      that 2525D nests its two modifier sectors per symbol set while
+      2525E keeps them in separate module-level dicts.
+      **APP-6E is deliberately not a third vocabulary** (maintainer,
+      2026-08-18): it shares 2525E's symbology closely enough that a
+      separate set is impractical, and no source for its modifier tables
+      exists anyway.
+      6 new tests, 1359 -> 1365. The one that matters most asserts a
+      2525D call is byte-identical with and without the new parameter.
+      **Still open**: APP-6E's modifier tables (no source) and NATO
+      spelling; and the LAYER-level switch, which is blocked on a UI
+      decision rather than on code. QGIS's ValueMap editor widget is
+      static per field, so an entity dropdown cannot re-populate itself
+      from a per-feature edition value. Edition therefore has to be
+      fixed per LAYER - the same way symbol_set already is - and the
+      open question is only how the user picks it when adding one.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no

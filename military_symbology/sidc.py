@@ -32,6 +32,13 @@ intend, rather than trusting a possibly-misremembered field layout.
 Military Cartography Tools
 """
 
+from .sidc_2525e import (
+    ENTITIES_2525E,
+    MODIFIERS_SECTOR1_2525E,
+    MODIFIERS_SECTOR2_2525E,
+)
+
+
 
 AFFILIATIONS = {
     "unknown": "1",
@@ -2117,6 +2124,76 @@ MODIFIERS = {
 }
 
 
+# ============================================================
+# Editions
+# ============================================================
+
+# SIDC positions 1-2. milsymbol maps "10"/"11"/"12" to edition D and
+# "13"/"14" to E (src/numbersidc/metadata.js), so this is the one digit
+# pair that decides which edition a rendered symbol is read as.
+EDITION_VERSION_DIGITS = {
+    "2525D": "10",
+    "2525E": "13",
+}
+
+# Which vocabulary each edition's entities and modifiers come from.
+# 2525D's live in this module; 2525E's are generated into sidc_2525e.py
+# from the standard's own tables - see tools/extract_2525e_vocabulary.py.
+#
+# Deliberately NOT merged into one table. The editions disagree on more
+# than spelling: 2525E retires codes outright, and renames others in
+# place (121301 is Airport/Air Base in D and Aerial Port of Debarkation/
+# Embarkation in E, same code). A merged table would have to pick one
+# meaning per code and would be wrong for the other edition.
+#
+# APP-6E is not a third vocabulary: the maintainer's call, 2026-08-18,
+# is that it shares 2525E's symbology closely enough that a separate set
+# is not worth building - and no source for its modifier tables exists
+# anyway. Where the two differ it is mostly spelling and a handful of
+# terms (APP-6D says "Psychological Operations (PSYOPS)" where 2525D
+# says "Military Information Support Operations (MISO)", same code).
+DEFAULT_EDITION = "2525D"
+
+EDITIONS = tuple(EDITION_VERSION_DIGITS)
+
+
+def entities_for_edition(edition):
+
+    """ENTITIES for `edition` - the whole {symbol_set: {key: code}} map."""
+
+    if edition == "2525E":
+        return ENTITIES_2525E
+
+    return ENTITIES
+
+
+def modifiers_for_edition(edition, symbol_set):
+
+    """
+    {"sector1": {...}, "sector2": {...}} for one symbol set under
+    `edition`, in the shape MODIFIERS already uses - so callers do not
+    have to know that 2525E stores its two sectors in separate module
+    -level dicts while 2525D nests them per set.
+    """
+
+    if edition != "2525E":
+        return MODIFIERS.get(symbol_set, {})
+
+    sectors = {}
+
+    for name, table in (
+        ("sector1", MODIFIERS_SECTOR1_2525E),
+        ("sector2", MODIFIERS_SECTOR2_2525E),
+    ):
+
+        codes = table.get(symbol_set)
+
+        if codes:
+            sectors[name] = codes
+
+    return sectors
+
+
 def build_sidc(
     affiliation,
     entity,
@@ -2126,6 +2203,7 @@ def build_sidc(
     headquarters=False,
     sector1_modifier=None,
     sector2_modifier=None,
+    edition=DEFAULT_EDITION,
 ):
 
     """
@@ -2159,13 +2237,29 @@ def build_sidc(
             f"{sorted(SYMBOL_SETS)}"
         )
 
-    entities_for_set = ENTITIES[symbol_set]
+    if edition not in EDITION_VERSION_DIGITS:
+
+        raise KeyError(
+            f"Unknown edition {edition!r} - expected one of "
+            f"{sorted(EDITION_VERSION_DIGITS)}"
+        )
+
+    all_entities = entities_for_edition(edition)
+
+    if symbol_set not in all_entities:
+
+        raise KeyError(
+            f"symbol_set {symbol_set!r} has no vocabulary in edition "
+            f"{edition!r} - expected one of {sorted(all_entities)}"
+        )
+
+    entities_for_set = all_entities[symbol_set]
 
     if entity not in entities_for_set:
 
         raise KeyError(
-            f"Unknown entity {entity!r} for symbol_set {symbol_set!r} - "
-            f"expected one of {sorted(entities_for_set)}"
+            f"Unknown entity {entity!r} for symbol_set {symbol_set!r} in "
+            f"edition {edition!r} - expected one of {sorted(entities_for_set)}"
         )
 
     if echelon not in ECHELONS:
@@ -2181,7 +2275,7 @@ def build_sidc(
             f"Unknown status {status!r} - expected one of {sorted(STATUS)}"
         )
 
-    modifiers_for_set = MODIFIERS.get(symbol_set, {})
+    modifiers_for_set = modifiers_for_edition(edition, symbol_set)
 
     sector1_code = _modifier_code(
         sector1_modifier,
@@ -2197,7 +2291,7 @@ def build_sidc(
         symbol_set,
     )
 
-    version = "10"
+    version = EDITION_VERSION_DIGITS[edition]
     context = "0"
     affiliation_code = AFFILIATIONS[affiliation]
     symbol_set_code = SYMBOL_SETS[symbol_set]
