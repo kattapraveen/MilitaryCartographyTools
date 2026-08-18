@@ -2796,7 +2796,7 @@ class MilitaryCartographyTools:
 
         picture.setPicturePath(
             render_symbol_base64_path(dialog.sidc()),
-            QgsLayoutItemPicture.FormatSVG
+            QgsLayoutItemPicture.Format.FormatSVG
         )
 
         picture.setResizeMode(

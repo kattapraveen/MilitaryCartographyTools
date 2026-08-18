@@ -6,9 +6,9 @@ description=Military cartography, MIL-STD-2525D/E and APP-6D/E tactical graphics
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.0.3
+version=1.1.0
 
-changelog=1.0.4
+changelog=1.1.0
     - Renamed in two Entity dropdowns: what the Land Installation and
       Activities layers called "Law Enforcement Vessel" is Coast Guard,
       which is what the standard prints for that code and what the

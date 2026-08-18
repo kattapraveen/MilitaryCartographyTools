@@ -14,6 +14,7 @@ Military Cartography Tools
 """
 
 import re
+import unittest
 
 from .qgis_test_case import QgisTestCase
 
@@ -26,6 +27,17 @@ from MilitaryCartographyTools.military_symbology.sidc_2525e import (
     MODIFIERS_SECTOR1_2525E,
     MODIFIERS_SECTOR2_2525E,
 )
+
+# tools/ is dev-only - deliberately excluded from the packaged plugin
+# (see package_plugin.sh's INCLUDE array) - so any test cross-checking
+# generated data against the generator's own source list can only run
+# in a dev checkout. Guarded here rather than left to fail with an
+# opaque ModuleNotFoundError when the packaged zip's own tree is
+# tested directly, which every release does (see docs/developer-guide.md).
+try:
+    from tools.extract_2525e_vocabulary import BLANK_GENERIC_CODES
+except ImportError:
+    BLANK_GENERIC_CODES = None
 
 
 class TestGeneratedShape(QgisTestCase):
@@ -739,9 +751,11 @@ class TestBlankGenericEntitiesAreRemoved(QgisTestCase):
                 self.assertNotIn(key, ENTITIES_2525E[symbol_set])
 
 
+    @unittest.skipUnless(
+        BLANK_GENERIC_CODES,
+        "tools/ is dev-only, not shipped in the packaged plugin"
+    )
     def test_the_removed_codes_do_not_reappear_under_another_key(self):
-
-        from tools.extract_2525e_vocabulary import BLANK_GENERIC_CODES
 
         for symbol_set, code in BLANK_GENERIC_CODES:
 
@@ -752,9 +766,11 @@ class TestBlankGenericEntitiesAreRemoved(QgisTestCase):
                 )
 
 
+    @unittest.skipUnless(
+        BLANK_GENERIC_CODES,
+        "tools/ is dev-only, not shipped in the packaged plugin"
+    )
     def test_no_symbol_set_was_emptied_by_the_removal(self):
-
-        from tools.extract_2525e_vocabulary import BLANK_GENERIC_CODES
 
         affected = {sset for sset, _ in BLANK_GENERIC_CODES}
 
@@ -776,14 +792,16 @@ class TestBlankGenericEntitiesAreRemoved(QgisTestCase):
                 )
 
 
+    @unittest.skipUnless(
+        BLANK_GENERIC_CODES,
+        "tools/ is dev-only, not shipped in the packaged plugin"
+    )
     def test_no_default_entity_was_orphaned_by_the_removal(self):
 
         # Every layer's DEFAULT_*_ENTITY is a 2525D key; if the same key
         # also names a 2525E entity, that entity must not have been one
         # of the 31 removed, or the edition switch's default-repointing
         # would silently swap it for an arbitrary substitute.
-        from tools.extract_2525e_vocabulary import BLANK_GENERIC_CODES
-
         removed_keys_by_set = {}
 
         for symbol_set, code in BLANK_GENERIC_CODES:
