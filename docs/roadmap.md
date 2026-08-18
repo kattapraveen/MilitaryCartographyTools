@@ -10367,7 +10367,8 @@ session's tools can inspect - reported back to the maintainer rather
 than "fixed" against a guess, since chasing a phantom bug with no
 reproduction is worse than asking where the 33 came from (a hand
 count while scrolling a long dropdown is an easy place for this kind
-of small miscount, but that is a guess, not a finding).
+of small miscount, but that is a guess, not a finding). **Confirmed
+the same day**: a hand-count miscount, no bug.
 
 3 new tests (`TestDummyMinefieldChevronGap`), 1417 -> 1420 on both
 QGIS versions; Bandit and detect-secrets both clean.
