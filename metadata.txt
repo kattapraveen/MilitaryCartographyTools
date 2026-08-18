@@ -8,7 +8,26 @@ license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
 version=1.0.3
 
-changelog=1.0.3
+changelog=1.0.4
+    - Renamed in two Entity dropdowns: what the Land Installation and
+      Activities layers called "Law Enforcement Vessel" is Coast Guard,
+      which is what the standard prints for that code and what the
+      plugin has always drawn. If you picked that entry before, your
+      symbol is unchanged and was always correct - only the name in the
+      list was wrong. The genuine Law Enforcement Vessel, on the Sea
+      Surface layer, is untouched.
+    - Land Equipment's law-enforcement entities were missing eight of
+      their twelve: ATF, Department of Justice, FBI, Police, Secret
+      Service, TSA, Coast Guard and US Marshals Service have been
+      added alongside the Border Patrol, Customs and DEA entries that
+      were already there.
+    - Land Installation gained the two it was missing, ATF and Police,
+      completing that layer's law-enforcement list as well.
+    - Corrected two names that read "Agency" where the standard reads
+      "Administration" - Drug Enforcement Administration (DEA) and
+      Transportation Security Administration (TSA). Symbols unchanged.
+    - The test suite now runs against QGIS 4.2.1 alongside 3.44.12.
+    1.0.3
     - Correctness fix: the drawn UTM/GZD grid now honours the two
       exceptions the standard itself makes. Over south-west Norway
       (band V) zone 31V is 3 degrees wide and 32V is 9, not 6 each;
