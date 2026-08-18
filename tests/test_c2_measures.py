@@ -1152,6 +1152,26 @@ class TestAddC2MeasuresLayers(QgisTestCase):
         self.assertEqual(names[0], LINES_LAYER_NAME)
 
 
+    def test_default_insert_position_inserts_collapsed(self):
+
+        # 2026-08-18, UI request: a rule-based renderer (one rule per
+        # placement, see this module's own docstring) shows every rule
+        # as its own legend row when expanded - and one Control
+        # Measures click routinely adds two or three of these layers
+        # at once, so left expanded they stack up fast in a real
+        # project. Shared by every _control_measure_shared.py-backed
+        # layer, checked here as the representative case.
+        add_c2_measures_lines_layer(self.iface)
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        node = root.findLayer(
+            QgsProject.instance().mapLayersByName(LINES_LAYER_NAME)[0].id()
+        )
+
+        self.assertFalse(node.isExpanded())
+
+
 class TestAffiliationLabelsMatchSidc(QgisTestCase):
 
     # A weaker guard than unit_layer.py's own TestVocabularyLabelsMatchSidc

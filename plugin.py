@@ -1074,9 +1074,6 @@ class MilitaryCartographyTools:
             self.create_c2_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.c2_measures_action
-        )
 
         self.maneuver_control_measures_action = QAction(
             "Maneuver Control Measures",
@@ -1095,9 +1092,6 @@ class MilitaryCartographyTools:
             self.create_maneuver_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.maneuver_control_measures_action
-        )
 
         self.defensive_control_measures_action = QAction(
             "Defensive Control Measures",
@@ -1115,9 +1109,6 @@ class MilitaryCartographyTools:
             self.create_defensive_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.defensive_control_measures_action
-        )
 
         self.offensive_control_measures_action = QAction(
             "Offensive Control Measures",
@@ -1136,9 +1127,6 @@ class MilitaryCartographyTools:
             self.create_offensive_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.offensive_control_measures_action
-        )
 
         self.maneuver_control_measures_2_action = QAction(
             "Maneuver Control Measures II",
@@ -1157,9 +1145,6 @@ class MilitaryCartographyTools:
             self.create_maneuver_control_measures_2
         )
 
-        self.control_measures_menu.addAction(
-            self.maneuver_control_measures_2_action
-        )
 
         self.airspace_control_measures_action = QAction(
             "Airspace Control Measures",
@@ -1180,9 +1165,6 @@ class MilitaryCartographyTools:
             self.create_airspace_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.airspace_control_measures_action
-        )
 
         self.maritime_control_measures_action = QAction(
             "Maritime Control Measures",
@@ -1203,9 +1185,6 @@ class MilitaryCartographyTools:
             self.create_maritime_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.maritime_control_measures_action
-        )
 
         self.deception_control_measures_action = QAction(
             "Deception Control Measures",
@@ -1221,9 +1200,6 @@ class MilitaryCartographyTools:
             self.create_deception_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.deception_control_measures_action
-        )
 
         self.fire_support_coordination_measures_action = QAction(
             "Fire Support Coordination Measures",
@@ -1241,9 +1217,6 @@ class MilitaryCartographyTools:
             self.create_fire_support_coordination_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.fire_support_coordination_measures_action
-        )
 
         self.target_control_measures_action = QAction(
             "Target Control Measures",
@@ -1261,9 +1234,6 @@ class MilitaryCartographyTools:
             self.create_target_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.target_control_measures_action
-        )
 
         self.obstacle_control_measures_action = QAction(
             "Obstacle Control Measures",
@@ -1289,9 +1259,6 @@ class MilitaryCartographyTools:
             self.create_obstacle_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.obstacle_control_measures_action
-        )
 
         self.field_fortification_action = QAction(
             "Field Fortification Control Measures",
@@ -1314,9 +1281,6 @@ class MilitaryCartographyTools:
             self.create_field_fortification
         )
 
-        self.control_measures_menu.addAction(
-            self.field_fortification_action
-        )
 
         self.cbrn_defense_action = QAction(
             "CBRN Defense Control Measures",
@@ -1338,9 +1302,6 @@ class MilitaryCartographyTools:
             self.create_cbrn_defense
         )
 
-        self.control_measures_menu.addAction(
-            self.cbrn_defense_action
-        )
 
         self.target_acquisition_control_measures_action = QAction(
             "Target Acquisition Control Measures",
@@ -1362,9 +1323,6 @@ class MilitaryCartographyTools:
             self.create_target_acquisition_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.target_acquisition_control_measures_action
-        )
 
         self.sustainment_points_action = QAction(
             "Sustainment Points",
@@ -1381,30 +1339,32 @@ class MilitaryCartographyTools:
             self.create_sustainment_points
         )
 
-        self.control_measures_menu.addAction(
-            self.sustainment_points_action
-        )
 
+        # Named "...Control Measures" rather than "Supply Points"
+        # (2026-08-18, UI request) - the one click adds three layers
+        # (Points/Lines/Areas, see create_supply_points()), and every
+        # other multi-geometry entry in this menu uses that suffix;
+        # "Supply Points" specifically read as promising only points,
+        # which is exactly what the maintainer found confusing.
+        # "Sustainment Points" (Table H-XXII, its own action above)
+        # keeps its own name unrenamed - it genuinely is points-only.
         self.supply_points_action = QAction(
-            "Supply Points",
+            "Supply Control Measures",
             self.control_measures_menu
         )
 
         self.supply_points_action.setToolTip(
             "Add the Table H-XXIII layers: Supply Points (general and "
             "medical supply points plus the NATO and US supply "
-            "classes) and Supply Routes (Lines) (Main and Alternate "
+            "classes), Supply Routes (Lines) (Main and Alternate "
             "Supply Routes, each plain or with one-way, two-way or "
-            "alternating traffic arrows)"
+            "alternating traffic arrows), and Sustainment Areas"
         )
 
         self.supply_points_action.triggered.connect(
             self.create_supply_points
         )
 
-        self.control_measures_menu.addAction(
-            self.supply_points_action
-        )
 
         self.mission_task_points_action = QAction(
             "Mission Tasks",
@@ -1422,9 +1382,6 @@ class MilitaryCartographyTools:
             self.create_mission_task_points
         )
 
-        self.control_measures_menu.addAction(
-            self.mission_task_points_action
-        )
 
         self.intelligence_control_measures_action = QAction(
             "Intelligence Control Measures",
@@ -1443,9 +1400,32 @@ class MilitaryCartographyTools:
             self.create_intelligence_control_measures
         )
 
-        self.control_measures_menu.addAction(
-            self.intelligence_control_measures_action
-        )
+        # Alphabetical by label (2026-08-18, UI request) - a plain
+        # "pick one of many" flyout, not a table that has to mirror
+        # the standard's own H.5.x section order. Batched here rather
+        # than interleaved after each action's own construction above,
+        # so this order can be read and changed in one place.
+        for action in (
+            self.airspace_control_measures_action,
+            self.c2_measures_action,
+            self.cbrn_defense_action,
+            self.deception_control_measures_action,
+            self.defensive_control_measures_action,
+            self.field_fortification_action,
+            self.fire_support_coordination_measures_action,
+            self.intelligence_control_measures_action,
+            self.maneuver_control_measures_action,
+            self.maneuver_control_measures_2_action,
+            self.maritime_control_measures_action,
+            self.mission_task_points_action,
+            self.obstacle_control_measures_action,
+            self.offensive_control_measures_action,
+            self.supply_points_action,
+            self.sustainment_points_action,
+            self.target_acquisition_control_measures_action,
+            self.target_control_measures_action,
+        ):
+            self.control_measures_menu.addAction(action)
 
 
     def _setup_toolbar_groups(self):
@@ -1521,16 +1501,19 @@ class MilitaryCartographyTools:
                     "Activities/SIGINT/Cyberspace) and Control Measures - "
                     "see the Symbology Edition menu for which standard"
                 ),
+                # Alphabetical by label (2026-08-18, UI request) - a
+                # plain "pick one of many" dropdown, not a table that
+                # has to mirror the standard's own appendix order.
                 [
-                    self.tactical_graphics_space_action,
+                    self.tactical_graphics_activities_action,
                     self.tactical_graphics_air_action,
+                    self.control_measures_menu,
+                    self.tactical_graphics_cyberspace_action,
                     self.tactical_graphics_land_action,
                     self.tactical_graphics_sea_surface_action,
-                    self.tactical_graphics_subsurface_action,
-                    self.tactical_graphics_activities_action,
                     self.tactical_graphics_sigint_action,
-                    self.tactical_graphics_cyberspace_action,
-                    self.control_measures_menu,
+                    self.tactical_graphics_space_action,
+                    self.tactical_graphics_subsurface_action,
                 ],
             ),
             # Print Production stays last, always (2026-08-09, at the
@@ -2544,13 +2527,13 @@ class MilitaryCartographyTools:
 
     def create_supply_points(self):
         """
-        Add Table H-XXIII's own two layers (MIL-STD-2525D Appendix
+        Add Table H-XXIII's own three layers (MIL-STD-2525D Appendix
         H.5.25): "Supply Points", its eighteen point symbols - general
-        and medical supply points plus the NATO and US supply classes -
-        and "Supply Routes (Lines)", the Main and Alternate Supply
-        Routes with their traffic variants. That table's own seven
-        sustainment AREAS and its two convoy lines are not built; see
-        supply_points.py's own docstring.
+        and medical supply points plus the NATO and US supply classes;
+        "Supply Routes (Lines)", the Main and Alternate Supply Routes
+        with their traffic variants; and "Sustainment Areas", the
+        table's own seven area symbols. Only that table's two convoy
+        lines are not built; see supply_points.py's own docstring.
         """
 
         add_supply_points_layer(

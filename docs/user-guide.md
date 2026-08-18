@@ -703,11 +703,13 @@ H gets built):
 
 - **C2 Measures** — adds a "Lines" layer, an "Areas" layer, and a
   "Points" layer (H.5.5/H.5.9/H.5.10, described below).
-- **Sustainment Points**, **Supply Points**, **Mission Tasks** —
-  one menu entry per table (H.5.24/H.5.25/H.5.26, described further
-  down this section). Each adds its own point layer; Supply Points also
-  adds a lines layer and an areas layer, and Mission Tasks also adds a
-  lines layer.
+- **Sustainment Points**, **Supply Control Measures**, **Mission
+  Tasks** — one menu entry per table (H.5.24/H.5.25/H.5.26, described
+  further down this section). Sustainment Points adds only its own
+  point layer; Supply Control Measures adds a "Supply Points" layer
+  plus a lines layer and an areas layer (named for what it adds, not
+  "Supply Points", since that name would promise only the one); Mission
+  Tasks also adds a lines layer alongside its own points.
 
 Each layer is created empty and ready to use immediately; there's no
 dialog, and clicking an entry again never replaces a layer that already

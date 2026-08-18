@@ -792,14 +792,22 @@ def build_single_domain_point_layer(
 
 def default_insert_position(project, layer):
 
-    """Top of the layer tree - matches unit_layer.py's own convention."""
+    """
+    Top of the layer tree - matches unit_layer.py's own convention.
+    Inserted collapsed (2026-08-18, UI request): a project with several
+    of these added at once (a common case - one click on a domain like
+    Land adds four at a time) previously left every one of them
+    expanded in the Layers panel by default, which stacks up fast.
+    """
 
     root = project.layerTreeRoot()
 
-    root.insertLayer(
+    node = root.insertLayer(
         0,
         layer
     )
+
+    node.setExpanded(False)
 
 
 def add_single_domain_point_layer(

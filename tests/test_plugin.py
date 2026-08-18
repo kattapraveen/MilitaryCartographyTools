@@ -108,16 +108,18 @@ class TestPluginLifecycle(QgisTestCase):
                     "New Military Layout",
                     "Map Sheet Series",
                 ],
+                # Alphabetical (2026-08-18, UI request) - see
+                # plugin.py's _setup_toolbar_groups() comment.
                 "nato_symbols": [
-                    "Space",
+                    "Activities",
                     "Air",
+                    "Control Measures",
+                    "Cyberspace",
                     "Land",
                     "Sea Surface",
-                    "Subsurface",
-                    "Activities",
                     "SIGINT",
-                    "Cyberspace",
-                    "Control Measures",
+                    "Space",
+                    "Subsurface",
                 ],
             }
 
@@ -154,20 +156,29 @@ class TestPluginLifecycle(QgisTestCase):
                 for action in plugin.control_measures_menu.actions()
             ]
 
+            # Alphabetical (2026-08-18, UI request) - see plugin.py's
+            # _setup_control_measures_menu() comment.
             self.assertEqual(
                 control_measures_option_texts,
                 [
-                    "C2 Measures", "Maneuver Control Measures",
-                    "Defensive Control Measures", "Offensive Control Measures",
-                    "Maneuver Control Measures II", "Airspace Control Measures",
-                    "Maritime Control Measures", "Deception Control Measures",
-                    "Fire Support Coordination Measures", "Target Control Measures",
-                    "Obstacle Control Measures",
-                    "Field Fortification Control Measures",
+                    "Airspace Control Measures",
+                    "C2 Measures",
                     "CBRN Defense Control Measures",
+                    "Deception Control Measures",
+                    "Defensive Control Measures",
+                    "Field Fortification Control Measures",
+                    "Fire Support Coordination Measures",
+                    "Intelligence Control Measures",
+                    "Maneuver Control Measures",
+                    "Maneuver Control Measures II",
+                    "Maritime Control Measures",
+                    "Mission Tasks",
+                    "Obstacle Control Measures",
+                    "Offensive Control Measures",
+                    "Supply Control Measures",
+                    "Sustainment Points",
                     "Target Acquisition Control Measures",
-                    "Sustainment Points", "Supply Points",
-                    "Mission Tasks", "Intelligence Control Measures",
+                    "Target Control Measures",
                 ]
             )
 

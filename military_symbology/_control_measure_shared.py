@@ -863,15 +863,22 @@ def default_insert_position(project, layer):
     """
     Top of the layer tree - matches unit_layer.py's own convention for
     an operational overlay meant to sit above whatever base terrain
-    rendering is underneath.
+    rendering is underneath. Inserted collapsed (2026-08-18, UI
+    request): most of these layers render via QgsRuleBasedRenderer,
+    one rule per placement, so an expanded node can show many legend
+    rows - and a single Control Measures click routinely adds two or
+    three layers (Lines/Areas/Points) at once, which stacks up fast in
+    a project with several groups added.
     """
 
     root = project.layerTreeRoot()
 
-    root.insertLayer(
+    node = root.insertLayer(
         0,
         layer
     )
+
+    node.setExpanded(False)
 
 
 def add_layer_if_absent(iface, name, create_layer):

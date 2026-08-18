@@ -20,6 +20,7 @@ from qgis.core import (
     QgsProject,
     QgsRenderContext,
     QgsSymbolLayer,
+    QgsVectorLayer,
 )
 
 from .qgis_test_case import QgisTestCase
@@ -27,6 +28,7 @@ from .qgis_test_case import QgisTestCase
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology._point_symbol_layer import (
     build_single_domain_point_layer,
+    default_insert_position,
     _value_map_with_none,
 )
 
@@ -340,3 +342,43 @@ class TestValueMapWithNone(QgisTestCase):
 
         self.assertEqual(result["(None)"], "")
         self.assertEqual(result["Low Earth Orbit (LEO)"], "low_earth_orbit")
+
+
+class TestDefaultInsertPosition(QgisTestCase):
+
+    def test_lands_at_top_of_tree(self):
+
+        QgsProject.instance().setCrs(WGS84)
+
+        dummy = QgsVectorLayer("Point?crs=EPSG:4326", "dummy_below", "memory")
+        QgsProject.instance().addMapLayer(dummy)
+
+        layer = build_single_domain_point_layer(
+            "Test Layer", "ground_unit", _ENTITY_LABELS, "infantry"
+        )
+
+        default_insert_position(QgsProject.instance(), layer)
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        self.assertEqual(root.children()[0].name(), "Test Layer")
+
+
+    def test_inserts_collapsed(self):
+
+        # 2026-08-18, UI request: adding a whole domain (Land, one
+        # click) inserts several of these layers at once, and each
+        # was previously left expanded in the Layers panel by default.
+        QgsProject.instance().setCrs(WGS84)
+
+        layer = build_single_domain_point_layer(
+            "Test Layer", "ground_unit", _ENTITY_LABELS, "infantry"
+        )
+
+        default_insert_position(QgsProject.instance(), layer)
+
+        root = QgsProject.instance().layerTreeRoot()
+
+        node = root.findLayer(layer.id())
+
+        self.assertFalse(node.isExpanded())

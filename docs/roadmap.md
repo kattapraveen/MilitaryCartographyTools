@@ -10240,6 +10240,75 @@ own SMOKE unit has been removed as a result, per the maintainer's own
 
 ---
 
+## Menu polish (2026-08-18)
+
+Three small, related UI fixes raised directly by the maintainer, not
+tracked on the build tracker - not urgent enough to hold up 1.1.0, but
+folded into it since they were quick.
+
+**NATO Symbols and Control Measures menus alphabetised.** Both had
+been ordered by the standard's own layout (appendix order for NATO
+Symbols; H.5.x section order for Control Measures) rather than by
+label - reasonable for a table that mirrors a printed manual, but this
+is a plain "pick one of many" dropdown with no standards-table reason
+to keep that order. `plugin.py`'s `_setup_toolbar_groups()` NATO
+Symbols item list reordered in place; `_setup_control_measures_menu()`
+kept every action's own construction (and its tooltip, sourced from
+the standard) exactly where it was, but decoupled insertion from
+construction - the 18 interleaved `addAction()` calls became one
+batched, alphabetically-ordered loop at the end of the function, so
+the order lives in one place rather than being implied by construction
+order. Two existing tests had pinned the old order and needed
+updating, not just extending.
+
+**"Supply Points" renamed "Supply Control Measures" in the Control
+Measures menu.** Raised by the maintainer noticing that clicking
+"Supply Points" adds three layers (Points/Lines/Areas), while the
+separate "Sustainment Points" entry genuinely adds only one - asked
+whether Sustainment Areas belonged under Sustainment Points instead,
+and whether both labels should read "...Measures". Checked against
+the module docstrings rather than assumed: `supply_points.py` and
+`sustainment_control_measures.py` build from two genuinely different
+standard tables (H-XXIII "Supply point control measure symbols" and
+H-XXII "Sustainment point control measure symbols" respectively) -
+Sustainment Areas is Table H-XXIII's own area geometry, not H-XXII's,
+so the DATA grouping is correct as built and moving it would
+misrepresent which table it belongs to. The LABEL was the real
+problem: "Supply Points" promised only points while building three
+geometry types, unlike every other multi-type entry in the same menu,
+which all use "...Control Measures" - renamed to match that
+convention rather than the maintainer's own suggested "...Measures"
+(without "Control"), to stay consistent with its 15 siblings.
+Along the way, found `create_supply_points()`'s own docstring flatly
+contradicted its function body - it claimed the seven sustainment
+areas "are not built", three lines above a call to
+`add_sustainment_areas_layer()` that builds them. Fixed to describe
+all three layers; the action's tooltip was similarly incomplete
+(named only two of the three) and is now complete too.
+`docs/user-guide.md`'s own Control Measures overview updated to
+match.
+
+**Newly-added symbology layers now insert collapsed, not expanded.**
+Raised by the maintainer building a real map: several layers added at
+once (one domain click on Land adds four; one Control Measures click
+routinely adds two or three) previously all landed expanded in the
+Layers panel, and control-measure layers in particular render via
+`QgsRuleBasedRenderer` - one rule per placement - so an expanded node
+can show many legend rows each. Both of the module's own
+`default_insert_position()` implementations
+(`military_symbology/_point_symbol_layer.py`,
+`military_symbology/_control_measure_shared.py` - the two functions
+every symbology layer's insertion routes through, confirmed by
+grepping for any other definition) now call `.setExpanded(False)` on
+the `QgsLayerTreeLayer` node `QgsLayerTreeGroup.insertLayer()`
+returns, rather than leaving the newly-created node's default
+(expanded) state untouched.
+
+3 new tests, 1414 -> 1417 on both QGIS versions; Bandit and
+detect-secrets both clean.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
