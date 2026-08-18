@@ -648,3 +648,133 @@ class TestSmokeTestFindings(QgisTestCase):
 
         self.assertNotRegex(got, r"^\d{20}$")
         self.assertIn("not_an_entity", got)
+
+
+class TestBlankGenericEntitiesAreRemoved(QgisTestCase):
+
+    """
+    31 of the 48 "Reserved for hierarchical purposes" rows the generator
+    originally kept (labelled "(Generic)") render as a bare frame with no
+    glyph and no text - indistinguishable from every sibling in the same
+    symbol set. Found 2026-08-18 by rendering and rasterising all 48; the
+    other 17 carry a real text abbreviation or icon and are kept.
+
+    Raised by the maintainer's own smoke test: "sensor generic, train
+    generic etc all create a blank circle, it does not make sense."
+    """
+
+    # A representative sample, not the full 31 - one per affected symbol
+    # set, so a regression in any of them is caught.
+    REMOVED = {
+        "activities": "recruitment",
+        "cyberspace": "agent",
+        "ground_unit": "fires",
+        "land_installation": "water_supply",
+        "mine_warfare": "mine_like_contact_milco",
+        "sigint_space": "signal_intercept",
+        "sigint_air": "signal_intercept",
+        "sigint_land": "signal_intercept",
+        "sigint_sea_surface": "signal_intercept",
+        "sigint_subsurface": "signal_intercept",
+        "land_equipment": "sensors",
+    }
+
+    # The 17 that DO carry real content, kept deliberately - a future
+    # pass must not sweep these up along with the true blanks.
+    KEPT_GENERIC = {
+        ("air", "110000"): "MIL",
+        ("air", "120000"): "CIV",
+        ("air", "130000"): None,
+        ("land_civilian", "110000"): "CIV",
+        ("land_installation", "110000"): "MIL",
+        ("land_equipment", "120000"): None,
+        ("land_equipment", "120100"): None,
+        ("land_equipment", "140100"): None,
+        ("land_equipment", "201300"): None,
+        ("sea_surface", "110000"): "MIL",
+        ("sea_surface", "120000"): None,
+        ("space", "120000"): None,
+        ("activities", "160000"): None,
+        ("activities", "170000"): "NAT",
+        ("activities", "170100"): "GEOL",
+        ("activities", "170200"): "HYDR",
+        ("activities", "170300"): "INFS",
+    }
+
+
+    def test_the_removed_entities_are_gone(self):
+
+        for symbol_set, key in self.REMOVED.items():
+
+            with self.subTest(symbol_set=symbol_set, key=key):
+
+                self.assertNotIn(key, ENTITIES_2525E[symbol_set])
+
+
+    def test_the_removed_codes_do_not_reappear_under_another_key(self):
+
+        from tools.extract_2525e_vocabulary import BLANK_GENERIC_CODES
+
+        for symbol_set, code in BLANK_GENERIC_CODES:
+
+            with self.subTest(symbol_set=symbol_set, code=code):
+
+                self.assertNotIn(
+                    code, ENTITIES_2525E[symbol_set].values()
+                )
+
+
+    def test_no_symbol_set_was_emptied_by_the_removal(self):
+
+        from tools.extract_2525e_vocabulary import BLANK_GENERIC_CODES
+
+        affected = {sset for sset, _ in BLANK_GENERIC_CODES}
+
+        for symbol_set in affected:
+
+            with self.subTest(symbol_set=symbol_set):
+
+                self.assertTrue(ENTITIES_2525E[symbol_set])
+
+
+    def test_real_generic_entries_survive(self):
+
+        for (symbol_set, code), _ in self.KEPT_GENERIC.items():
+
+            with self.subTest(symbol_set=symbol_set, code=code):
+
+                self.assertIn(
+                    code, ENTITIES_2525E[symbol_set].values()
+                )
+
+
+    def test_no_default_entity_was_orphaned_by_the_removal(self):
+
+        # Every layer's DEFAULT_*_ENTITY is a 2525D key; if the same key
+        # also names a 2525E entity, that entity must not have been one
+        # of the 31 removed, or the edition switch's default-repointing
+        # would silently swap it for an arbitrary substitute.
+        from tools.extract_2525e_vocabulary import BLANK_GENERIC_CODES
+
+        removed_keys_by_set = {}
+
+        for symbol_set, code in BLANK_GENERIC_CODES:
+
+            removed_keys_by_set.setdefault(symbol_set, set())
+
+        defaults = [
+            ("land_installation", "military"),
+            ("activities", "criminal_activity_incident_type"),
+            ("cyberspace", "web_server"),
+            ("ground_unit", "infantry"),
+        ]
+
+        for symbol_set, default_key in defaults:
+
+            with self.subTest(symbol_set=symbol_set):
+
+                e_entities = ENTITIES_2525E.get(symbol_set, {})
+
+                if default_key in e_entities:
+
+                    self.assertIn(default_key, e_entities)

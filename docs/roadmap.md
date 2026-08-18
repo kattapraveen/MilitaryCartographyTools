@@ -2143,6 +2143,41 @@ tested, not claimed as done here.
       Also this round: Activities 131500 relabelled "Law Enforcement
       Operation", the standard's own wording, spotted by comparing 2525D
       against 2525E side by side. 1377 -> 1380 tests.
+      🐞 **Third smoke round, same day - 31 of the "(Generic)" entities
+      the S-11 fix labelled turned out to render as a blank frame.**
+      Maintainer: "sensor generic, train generic etc all create a blank
+      circle, it does not make sense, so remove all these symbols."
+      S-11 had appended "(Generic)" to every 2525E row the standard marks
+      "Reserved for hierarchical purposes" without checking what each one
+      actually draws - the label fix was correct, but it assumed the
+      underlying symbol was meaningful, and for most of them it is not.
+      **Verified by rendering, not by re-reading the source text**: all
+      48 candidates were rendered via `symbol_engine`, rasterised with
+      Qt's own `QSvgRenderer` (the renderer QGIS itself uses), and
+      screened for non-background, non-frame pixels. **31 produced a
+      bare frame with no glyph and no text** - visually confirmed via
+      screenshots, since a raw pixel count alone missed that some
+      "blank" entries actually carry a distinguishing FRAME shape
+      (Cyberspace, SIGINT) while genuinely drawing nothing inside it.
+      **17 carry real content and are kept** - a text abbreviation
+      ("MIL", "CIV", "NAT", "GEOL", "HYDR", "INFS") or an actual icon
+      (Tent, Armored, Military Combatant's crossed swords). Land
+      Equipment's own generic entries split cleanly on this line: Vehicle
+      and Armored (120000/120100) draw a real vehicle glyph and stay;
+      Utility Vehicle, Train, Civilian Vehicle, Other Equipment, Land
+      Mines and Sensors (140000/150000/160000/200000/210000/220000) are
+      every one of them a bare circle and go - exactly the maintainer's
+      own examples.
+      Removed as a hardcoded, comment-justified exclusion list
+      (`BLANK_GENERIC_CODES` in the generator) rather than a rendering
+      heuristic run at generation time - the generator has no access to
+      milsymbol, and "Reserved for hierarchical purposes" does not
+      predict this either way (land_installation 110000 carries that
+      same remark AND a real "MIL" glyph). 989 -> 978 entities. No
+      symbol set was emptied, and no layer's `DEFAULT_*_ENTITY` collided
+      with a removed key - both checked explicitly, since either would
+      have broken the edition switch's default-repointing silently.
+      5 new tests, 1380 -> 1385.
       **Still open**: APP-6E's modifier tables (no source) and its NATO
       spelling; and nothing outside the shared point-layer factory is
       edition-aware - Appendix H's hand-drawn control measures are built

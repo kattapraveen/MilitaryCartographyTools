@@ -12,6 +12,13 @@ outright ({Disused} in the source tables, dropped here), and
 renames others in place - 121301 is Airport/Air Base in 2525D and
 Aerial Port of Debarkation/Embarkation in 2525E, same code.
 
+989 entities became 978 2026-08-18: 31 "Reserved for hierarchical
+purposes" rows rendered as a bare frame with no glyph and no text -
+indistinguishable from every sibling in the same symbol set (see
+BLANK_GENERIC_CODES above, verified by rendering and rasterising all
+48 candidates). The other 17 carry a real abbreviation or icon and
+are kept.
+
 COMMON modifiers are a parallel namespace, not a fallback: SIDC
 digit 21 selects the common sector-1 table over the symbol set's
 own, and digit 22 does the same for sector 2. That is why the
@@ -25,7 +32,6 @@ Military Cartography Tools
 
 ENTITIES_2525E = {
     "activities": {
-        "incident": "110000",  # Reserved for hierarchical purposes.
         "criminal_activity_incident": "110100",
         "arrest_apprehend_detain": "110101",
         "arson": "110102",
@@ -70,12 +76,10 @@ ENTITIES_2525E = {
         "home_house": "110700",
         "civil_disturbance": "120000",
         "demonstration": "120100",
-        "operation": "130000",  # Reserved for hierarchical purposes.
         "patrolling": "130100",
         "military_information_support_operation": "130200",
         "tv_and_radio_propaganda": "130201",
         "foraging_searching": "130300",
-        "recruitment": "130400",  # Reserved for hierarchical purposes.
         "willing": "130401",
         "unwilling_coerced": "130402",
         "mine_laying": "130500",
@@ -128,7 +132,6 @@ ENTITIES_2525E = {
         "school_fire": "140600",
         "special_needs_fire": "140700",
         "wildfire": "140800",
-        "hazardous_materials": "150000",  # Reserved for hierarchical purposes.
         "hazardous_materials_incident": "150100",
         "chemical_agent": "150101",
         "corrosive_material": "150102",
@@ -171,7 +174,6 @@ ENTITIES_2525E = {
         "microbial": "170303",
         "reptile": "170304",
         "rodent": "170305",
-        "individual": "180000",  # Reserved for hierarchical purposes.
         "religious_leader": "180100",
         "speaker": "180200",
     },
@@ -233,7 +235,6 @@ ENTITIES_2525E = {
         "missile": "110000",
     },
     "cyberspace": {
-        "cyberspace_unit_cyberspace_unit": "110000",  # Reserved for hierarchical purposes.
         "combat_mission_team": "110100",
         "national_mission_team": "110200",
         "cyber_protection_team": "110300",
@@ -244,13 +245,11 @@ ENTITIES_2525E = {
         "operations_active_cyber_operations": "111000",
         "threat_actors": "120000",
         "insider": "120200",
-        "agent": "130000",  # Reserved for hierarchical purposes.
         "firewall": "130100",
         "firmware": "130200",
         "application": "140000",
         "search_engine": "140300",
         "social_media": "140400",
-        "threat": "150000",  # Reserved for hierarchical purposes.
         "malware": "150100",
         "phishing": "150200",
         "spear_phishing": "150300",
@@ -258,10 +257,8 @@ ENTITIES_2525E = {
         "data": "160000",
         "digital_currency": "160100",
         "persona": "160200",
-        "endpoint": "170000",  # Reserved for hierarchical purposes.
         "server": "170100",
         "workstation": "170200",
-        "portable_electronic_device": "170300",  # Reserved for hierarchical purposes.
         "smartphone_mobile": "170301",
         "tablet_mobile_personal_device": "170302",
         "laptop": "170303",
@@ -297,7 +294,6 @@ ENTITIES_2525E = {
         "space": "111300",
         "special_troops": "111400",
         "multi_domain_operations": "111500",
-        "movement_and_maneuver": "120000",  # Reserved for hierarchical purposes.
         "air_assault_with_organic_lift": "120100",
         "air_traffic_services_airfield_operations": "120200",
         "antitank_antiarmor": "120400",
@@ -335,7 +331,6 @@ ENTITIES_2525E = {
         "underwater_demolition": "121805",
         "unmanned_aerial_systems": "121900",
         "ranger": "122000",
-        "fires": "130000",  # Reserved for hierarchical purposes.
         "air_defense": "130100",
         "main_gun_system_130101": "130101",
         "missile": "130102",
@@ -349,7 +344,6 @@ ENTITIES_2525E = {
         "mortar": "130800",
         "self_propelled_wheeled": "130802",
         "survey": "130900",
-        "protection": "140000",  # Reserved for hierarchical purposes.
         "chemical_biological_radiological_nuclear_defense": "140100",
         "motorized_140102": "140102",
         "reconnaissance_140103": "140103",
@@ -380,7 +374,6 @@ ENTITIES_2525E = {
         "shore_patrol_security_police": "142000",
         "topographic_geospatial": "142100",
         "missile_defense": "142200",
-        "intelligence": "150000",  # Reserved for hierarchical purposes.
         "analysis": "150100",
         "counterintelligence": "150200",
         "direction_finding": "150300",
@@ -446,9 +439,7 @@ ENTITIES_2525E = {
         "contracting_services": "165400",
         "parachute_rigger": "165500",
         "human_resources": "165600",
-        "naval": "170000",  # Reserved for hierarchical purposes.
-        "naval_170100": "170100",
-        "named_headquarters": "180000",  # Reserved for hierarchical purposes.
+        "naval": "170100",
         "allied_command_europe_rapid_reaction_corps": "180100",
         "allied_command_operations": "180200",
         "international_security_assistance_force": "180300",
@@ -599,7 +590,6 @@ ENTITIES_2525E = {
         "backhoe": "131400",
         "construction_vehicle": "131500",
         "ferry_transporter": "131600",
-        "utility_vehicle": "140000",  # Reserved for hierarchical purposes.
         "vehicle_140100": "140100",
         "medical": "140200",
         "mobile_emergency_physician": "140400",
@@ -616,13 +606,11 @@ ENTITIES_2525E = {
         "tow_truck": "141200",
         "light_141201": "141201",
         "heavy_141202": "141202",
-        "train": "150000",  # Reserved for hierarchical purposes.
         "locomotive": "150100",
-        "civilian_vehicle": "160000",  # Reserved for hierarchical purposes.
         "automobile": "160100",
         "open_bed_truck": "160200",
         "multiple_passenger_vehicle": "160300",
-        "utility_vehicle_160400": "160400",
+        "utility_vehicle": "160400",
         "jeep_type_vehicle": "160500",
         "tractor_trailer_truck_with_box": "160600",
         "tractor_trailer_truck_with_flatbed_trailer": "160700",
@@ -647,7 +635,6 @@ ENTITIES_2525E = {
         "crane_loading_device": "190300",
         "propellant_transporter": "190400",
         "warhead_transporter": "190500",
-        "other_equipment": "200000",  # Reserved for hierarchical purposes.
         "antennae": "200100",
         "bomb": "200200",
         "booby_trap": "200300",
@@ -665,13 +652,11 @@ ENTITIES_2525E = {
         "military": "201302",
         "unit_deployment_shipments": "201400",
         "emergency_medical_operation": "201500",
-        "land_mines": "210000",  # Reserved for hierarchical purposes.
         "land_mine": "210100",
         "antipersonnel_land_mine": "210200",
         "antitank_mine": "210300",
         "improvised_explosives_device": "210400",
         "less_than_lethal": "210500",
-        "sensors": "220000",  # Reserved for hierarchical purposes.
         "sensor": "220100",
         "sensor_emplaced": "220200",
         "radar": "220300",
@@ -723,7 +708,6 @@ ENTITIES_2525E = {
         "fire_station": "112201",
         "emergency_medical_operation": "112202",
         "home_house": "112300",
-        "infrastructure": "120000",  # Reserved for hierarchical purposes.
         "agriculture_and_food": "120100",
         "agriculture_laboratory": "120101",
         "animal_feedlot": "120102",
@@ -762,8 +746,7 @@ ENTITIES_2525E = {
         "petroleum_gas_oil": "120505",
         "propane_facility": "120506",
         "government_site": "120600",
-        "medical": "120700",  # Reserved for hierarchical purposes.
-        "medical_120701": "120701",
+        "medical": "120701",
         "medical_treatment_facility": "120702",
         "military": "120800",
         "military_armory": "120801",
@@ -799,7 +782,6 @@ ENTITIES_2525E = {
         "toll_facility": "121311",
         "traffic_inspection_facility": "121312",
         "tunnel": "121313",
-        "water_supply": "121400",  # Reserved for hierarchical purposes.
         "control_valve": "121401",
         "dam": "121402",
         "discharge_outfall": "121403",
@@ -836,7 +818,6 @@ ENTITIES_2525E = {
         "sea_mine_decoy": "130000",
         "sea_mine_decoy_bottom": "130100",
         "sea_mine_decoy_moored": "130200",
-        "mine_like_contact": "140000",  # Reserved for hierarchical purposes.
         "milco_general": "140100",
         "milco_general_confidence_level_1": "140101",
         "milco_general_confidence_level_2": "140102",
@@ -975,31 +956,26 @@ ENTITIES_2525E = {
         "manual_track": "170000",
     },
     "sigint_air": {
-        "signal_intercept": "110000",  # Reserved for hierarchical purposes.
         "communications": "110100",
         "jammer": "110200",
         "radar": "110300",
     },
     "sigint_land": {
-        "signal_intercept": "110000",  # Reserved for hierarchical purposes.
         "communications": "110100",
         "jammer": "110200",
         "radar": "110300",
     },
     "sigint_sea_surface": {
-        "signal_intercept": "110000",  # Reserved for hierarchical purposes.
         "communications": "110100",
         "jammer": "110200",
         "radar": "110300",
     },
     "sigint_space": {
-        "signal_intercept": "110000",  # Reserved for hierarchical purposes.
         "communications": "110100",
         "jammer": "110200",
         "radar": "110300",
     },
     "sigint_subsurface": {
-        "signal_intercept": "110000",  # Reserved for hierarchical purposes.
         "communications": "110100",
         "jammer": "110200",
         "radar": "110300",
@@ -1892,7 +1868,6 @@ MODIFIERS_SECTOR2_2525E = {
 
 ENTITY_LABELS_2525E = {
     "activities": {
-        "incident": "Incident (Generic)",
         "criminal_activity_incident": "Criminal Activity Incident",
         "arrest_apprehend_detain": "Arrest/Apprehend/Detain",
         "arson": "Arson",
@@ -1937,12 +1912,10 @@ ENTITY_LABELS_2525E = {
         "home_house": "Home/House",
         "civil_disturbance": "Civil Disturbance",
         "demonstration": "Demonstration",
-        "operation": "Operation (Generic)",
         "patrolling": "Patrolling",
         "military_information_support_operation": "Military Information Support Operation (MISO)",
         "tv_and_radio_propaganda": "TV and Radio Propaganda",
         "foraging_searching": "Foraging/Searching",
-        "recruitment": "Recruitment (Generic)",
         "willing": "Willing",
         "unwilling_coerced": "Unwilling/Coerced",
         "mine_laying": "Mine Laying",
@@ -1995,7 +1968,6 @@ ENTITY_LABELS_2525E = {
         "school_fire": "School Fire",
         "special_needs_fire": "Special Needs Fire",
         "wildfire": "WildFire",
-        "hazardous_materials": "Hazardous Materials (Generic)",
         "hazardous_materials_incident": "Hazardous Materials Incident",
         "chemical_agent": "Chemical Agent",
         "corrosive_material": "Corrosive Material",
@@ -2038,7 +2010,6 @@ ENTITY_LABELS_2525E = {
         "microbial": "Microbial",
         "reptile": "Reptile",
         "rodent": "Rodent",
-        "individual": "Individual (Generic)",
         "religious_leader": "Religious Leader",
         "speaker": "Speaker",
     },
@@ -2100,7 +2071,6 @@ ENTITY_LABELS_2525E = {
         "missile": "Missile",
     },
     "cyberspace": {
-        "cyberspace_unit_cyberspace_unit": "Cyberspace Unit/Cyberspace Unit (non specified) (Generic)",
         "combat_mission_team": "Combat Mission Team",
         "national_mission_team": "National Mission Team",
         "cyber_protection_team": "Cyber Protection Team",
@@ -2111,13 +2081,11 @@ ENTITY_LABELS_2525E = {
         "operations_active_cyber_operations": "Operations/Active Cyber Operations",
         "threat_actors": "Threat Actors",
         "insider": "Insider",
-        "agent": "Agent (Generic)",
         "firewall": "Firewall",
         "firmware": "Firmware",
         "application": "Application",
         "search_engine": "Search Engine",
         "social_media": "Social Media",
-        "threat": "Threat (Generic)",
         "malware": "Malware",
         "phishing": "Phishing",
         "spear_phishing": "Spear Phishing",
@@ -2125,10 +2093,8 @@ ENTITY_LABELS_2525E = {
         "data": "Data",
         "digital_currency": "Digital Currency",
         "persona": "Persona",
-        "endpoint": "Endpoint (Generic)",
         "server": "Server",
         "workstation": "Workstation",
-        "portable_electronic_device": "Portable Electronic Device (PED) (Generic)",
         "smartphone_mobile": "Smartphone/Mobile",
         "tablet_mobile_personal_device": "Tablet/Mobile Personal Device",
         "laptop": "Laptop",
@@ -2164,7 +2130,6 @@ ENTITY_LABELS_2525E = {
         "space": "Space",
         "special_troops": "Special Troops",
         "multi_domain_operations": "Multi-Domain Operations",
-        "movement_and_maneuver": "Movement and Maneuver (Generic)",
         "air_assault_with_organic_lift": "Air Assault with Organic Lift",
         "air_traffic_services_airfield_operations": "Air Traffic Services/Airfield Operations",
         "antitank_antiarmor": "Antitank/Antiarmor",
@@ -2202,7 +2167,6 @@ ENTITY_LABELS_2525E = {
         "underwater_demolition": "Underwater Demolition",
         "unmanned_aerial_systems": "Unmanned Aerial Systems",
         "ranger": "Ranger",
-        "fires": "Fires (Generic)",
         "air_defense": "Air Defense",
         "main_gun_system_130101": "Main Gun System",
         "missile": "Missile",
@@ -2216,7 +2180,6 @@ ENTITY_LABELS_2525E = {
         "mortar": "Mortar",
         "self_propelled_wheeled": "Self-Propelled Wheeled",
         "survey": "Survey",
-        "protection": "Protection (Generic)",
         "chemical_biological_radiological_nuclear_defense": "Chemical Biological Radiological Nuclear Defense",
         "motorized_140102": "Motorized",
         "reconnaissance_140103": "Reconnaissance",
@@ -2247,7 +2210,6 @@ ENTITY_LABELS_2525E = {
         "shore_patrol_security_police": "Shore Patrol/Security Police",
         "topographic_geospatial": "Topographic/Geospatial",
         "missile_defense": "Missile Defense",
-        "intelligence": "Intelligence (Generic)",
         "analysis": "Analysis",
         "counterintelligence": "Counterintelligence",
         "direction_finding": "Direction Finding",
@@ -2313,9 +2275,7 @@ ENTITY_LABELS_2525E = {
         "contracting_services": "Contracting Services",
         "parachute_rigger": "Parachute Rigger",
         "human_resources": "Human Resources",
-        "naval": "Naval (Generic)",
-        "naval_170100": "Naval",
-        "named_headquarters": "Named Headquarters (Generic)",
+        "naval": "Naval",
         "allied_command_europe_rapid_reaction_corps": "Allied Command Europe Rapid Reaction Corps (ARRC)",
         "allied_command_operations": "Allied Command Operations",
         "international_security_assistance_force": "International Security Assistance Force (ISAF)",
@@ -2466,7 +2426,6 @@ ENTITY_LABELS_2525E = {
         "backhoe": "Backhoe",
         "construction_vehicle": "Construction Vehicle",
         "ferry_transporter": "Ferry Transporter",
-        "utility_vehicle": "Utility Vehicle (Generic)",
         "vehicle_140100": "Vehicle (Generic)",
         "medical": "Medical",
         "mobile_emergency_physician": "Mobile Emergency Physician",
@@ -2483,13 +2442,11 @@ ENTITY_LABELS_2525E = {
         "tow_truck": "Tow Truck",
         "light_141201": "Light",
         "heavy_141202": "Heavy",
-        "train": "Train (Generic)",
         "locomotive": "Locomotive",
-        "civilian_vehicle": "Civilian Vehicle (Generic)",
         "automobile": "Automobile",
         "open_bed_truck": "Open-Bed Truck",
         "multiple_passenger_vehicle": "Multiple Passenger Vehicle",
-        "utility_vehicle_160400": "Utility Vehicle",
+        "utility_vehicle": "Utility Vehicle",
         "jeep_type_vehicle": "Jeep Type Vehicle",
         "tractor_trailer_truck_with_box": "Tractor Trailer Truck with Box",
         "tractor_trailer_truck_with_flatbed_trailer": "Tractor Trailer Truck with Flatbed Trailer",
@@ -2514,7 +2471,6 @@ ENTITY_LABELS_2525E = {
         "crane_loading_device": "Crane/Loading Device",
         "propellant_transporter": "Propellant Transporter",
         "warhead_transporter": "Warhead Transporter",
-        "other_equipment": "Other Equipment (Generic)",
         "antennae": "Antennae",
         "bomb": "Bomb",
         "booby_trap": "Booby Trap",
@@ -2532,13 +2488,11 @@ ENTITY_LABELS_2525E = {
         "military": "Military",
         "unit_deployment_shipments": "Unit Deployment Shipments",
         "emergency_medical_operation": "Emergency Medical Operation",
-        "land_mines": "Land Mines (Generic)",
         "land_mine": "Land Mine",
         "antipersonnel_land_mine": "Antipersonnel Land mine (APL)",
         "antitank_mine": "Antitank Mine",
         "improvised_explosives_device": "Improvised Explosives Device (IED)",
         "less_than_lethal": "Less Than Lethal",
-        "sensors": "Sensors (Generic)",
         "sensor": "Sensor",
         "sensor_emplaced": "Sensor Emplaced",
         "radar": "Radar",
@@ -2590,7 +2544,6 @@ ENTITY_LABELS_2525E = {
         "fire_station": "Fire Station",
         "emergency_medical_operation": "Emergency Medical Operation",
         "home_house": "Home/House",
-        "infrastructure": "Infrastructure (Generic)",
         "agriculture_and_food": "Agriculture and Food",
         "agriculture_laboratory": "Agriculture Laboratory",
         "animal_feedlot": "Animal Feedlot",
@@ -2629,8 +2582,7 @@ ENTITY_LABELS_2525E = {
         "petroleum_gas_oil": "Petroleum/Gas/Oil",
         "propane_facility": "Propane Facility",
         "government_site": "Government Site",
-        "medical": "Medical (Generic)",
-        "medical_120701": "Medical",
+        "medical": "Medical",
         "medical_treatment_facility": "Medical Treatment Facility (Hospital)",
         "military": "Military",
         "military_armory": "Military Armory",
@@ -2666,7 +2618,6 @@ ENTITY_LABELS_2525E = {
         "toll_facility": "Toll Facility",
         "traffic_inspection_facility": "Traffic Inspection Facility",
         "tunnel": "Tunnel",
-        "water_supply": "Water Supply (Generic)",
         "control_valve": "Control Valve",
         "dam": "Dam",
         "discharge_outfall": "Discharge Outfall",
@@ -2703,7 +2654,6 @@ ENTITY_LABELS_2525E = {
         "sea_mine_decoy": "Sea Mine Decoy",
         "sea_mine_decoy_bottom": "Sea Mine Decoy, Bottom",
         "sea_mine_decoy_moored": "Sea Mine Decoy, Moored",
-        "mine_like_contact": "Mine–Like Contact (MILCO) (Generic)",
         "milco_general": "MILCO - General",
         "milco_general_confidence_level_1": "MILCO - General, Confidence Level 1",
         "milco_general_confidence_level_2": "MILCO - General, Confidence Level 2",
@@ -2842,31 +2792,26 @@ ENTITY_LABELS_2525E = {
         "manual_track": "Manual Track",
     },
     "sigint_air": {
-        "signal_intercept": "Signal Intercept (Generic)",
         "communications": "Communications",
         "jammer": "Jammer",
         "radar": "Radar",
     },
     "sigint_land": {
-        "signal_intercept": "Signal Intercept (Generic)",
         "communications": "Communications",
         "jammer": "Jammer",
         "radar": "Radar",
     },
     "sigint_sea_surface": {
-        "signal_intercept": "Signal Intercept (Generic)",
         "communications": "Communications",
         "jammer": "Jammer",
         "radar": "Radar",
     },
     "sigint_space": {
-        "signal_intercept": "Signal Intercept (Generic)",
         "communications": "Communications",
         "jammer": "Jammer",
         "radar": "Radar",
     },
     "sigint_subsurface": {
-        "signal_intercept": "Signal Intercept (Generic)",
         "communications": "Communications",
         "jammer": "Jammer",
         "radar": "Radar",

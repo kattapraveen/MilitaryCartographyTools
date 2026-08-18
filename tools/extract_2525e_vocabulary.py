@@ -75,6 +75,44 @@ SHARED_TABLES = {
 # which is the whole reason this generator reads Remarks at all.
 PLACEHOLDER = re.compile(r"\{\s*(disused|reserved)", re.I)
 
+# Codes that render as a bare frame + fill with NO glyph and NO text -
+# indistinguishable from every sibling in the same symbol set. Found
+# 2026-08-18 by rendering all 48 "Reserved for hierarchical purposes"
+# rows this generator kept (labelled "(Generic)") and rasterising each
+# one: 31 of the 48 produced fewer than 90 non-background pixels at
+# 128x128 - visually confirmed as an empty frame - while the other 17
+# carry a real text abbreviation ("MIL", "CIV", "NAT", "GEOL"...) or an
+# actual icon (Tent, Armored, Military Combatant's crossed swords) and
+# are kept. Not detectable from the TSV alone - "Reserved for
+# hierarchical purposes" does not predict this either way, e.g.
+# land_installation 110000 carries that remark AND a real "MIL" glyph.
+# So this is a verified-by-rendering exclusion list, the same standing
+# as every other hand-checked gap in this project - not a heuristic
+# applied at generation time.
+#
+# Raised by the maintainer's 1.0.4 smoke test: "sensor generic, train
+# generic etc all create a blank circle, it does not make sense."
+BLANK_GENERIC_CODES = {
+    ("activities", "110000"), ("activities", "130000"),
+    ("activities", "130400"), ("activities", "150000"),
+    ("activities", "180000"),
+    ("cyberspace", "110000"), ("cyberspace", "130000"),
+    ("cyberspace", "150000"), ("cyberspace", "170000"),
+    ("cyberspace", "170300"),
+    ("ground_unit", "120000"), ("ground_unit", "130000"),
+    ("ground_unit", "140000"), ("ground_unit", "150000"),
+    ("ground_unit", "170000"), ("ground_unit", "180000"),
+    ("land_installation", "120000"), ("land_installation", "120700"),
+    ("land_installation", "121400"),
+    ("mine_warfare", "140000"),
+    ("sigint_space", "110000"), ("sigint_air", "110000"),
+    ("sigint_land", "110000"), ("sigint_sea_surface", "110000"),
+    ("sigint_subsurface", "110000"),
+    ("land_equipment", "140000"), ("land_equipment", "150000"),
+    ("land_equipment", "160000"), ("land_equipment", "200000"),
+    ("land_equipment", "210000"), ("land_equipment", "220000"),
+}
+
 
 def slug(text):
 
@@ -304,6 +342,18 @@ def main():
 
         bucket[key] = read_table(path)
 
+    # Drop the verified-blank generic codes now, after every table
+    # (including the shared SIGINT one) has been assigned - so filtering
+    # is per FINAL key, not per source table, and a code shared across
+    # several keys is dropped independently from each rather than via a
+    # single mutated list several keys point at.
+    for symbol_set, entries in entities.items():
+
+        entities[symbol_set] = [
+            (parts, code, remarks) for parts, code, remarks in entries
+            if (symbol_set, code) not in BLANK_GENERIC_CODES
+        ]
+
     print("# -*- coding: utf-8 -*-")
     print()
     print('"""')
@@ -317,6 +367,13 @@ def main():
     print("outright ({Disused} in the source tables, dropped here), and")
     print("renames others in place - 121301 is Airport/Air Base in 2525D and")
     print("Aerial Port of Debarkation/Embarkation in 2525E, same code.")
+    print()
+    print("989 entities became 978 2026-08-18: 31 \"Reserved for hierarchical")
+    print('purposes\" rows rendered as a bare frame with no glyph and no text -')
+    print("indistinguishable from every sibling in the same symbol set (see")
+    print("BLANK_GENERIC_CODES above, verified by rendering and rasterising all")
+    print("48 candidates). The other 17 carry a real abbreviation or icon and")
+    print("are kept.")
     print()
     print("COMMON modifiers are a parallel namespace, not a fallback: SIDC")
     print("digit 21 selects the common sector-1 table over the symbol set's")
