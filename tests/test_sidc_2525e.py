@@ -319,3 +319,121 @@ class TestEditionSwitch(QgisTestCase):
             mct_build_sidc.func(base + [""], None, None, None)
                           .startswith("10")
         )
+
+
+class TestLayerEditionWiring(QgisTestCase):
+
+    """
+    The per-layer half of the edition switch: a layer built under 2525E
+    must offer that edition's vocabulary in its dropdowns AND name it in
+    its own renderer expression, or the two halves disagree silently.
+    """
+
+    def _layer(self, edition):
+
+        from qgis.core import QgsProject, QgsCoordinateReferenceSystem
+
+        from MilitaryCartographyTools.military_symbology import land_layer
+        from MilitaryCartographyTools.military_symbology._point_symbol_layer \
+            import build_single_domain_point_layer
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        return build_single_domain_point_layer(
+            "Edition test",
+            "land_installation",
+            land_layer._INSTALLATION_ENTITY_LABELS,
+            land_layer.DEFAULT_INSTALLATION_ENTITY,
+            include_echelon=False,
+            include_headquarters=True,
+            sector1_labels=land_layer._INSTALLATION_SECTOR1_LABELS,
+            sector2_labels=land_layer._INSTALLATION_SECTOR2_LABELS,
+            edition=edition,
+        )
+
+
+    def _sidc_expression(self, layer):
+
+        properties = (
+            layer.renderer().symbol().symbolLayer(0).dataDefinedProperties()
+        )
+
+        for key in properties.propertyKeys():
+
+            expression = properties.property(key).expressionString()
+
+            if "mct_build_sidc" in expression:
+                return expression
+
+        self.fail("no mct_build_sidc expression on the layer")
+
+
+    def test_each_edition_names_itself_in_the_expression(self):
+
+        for edition in ("2525D", "2525E"):
+
+            with self.subTest(edition=edition):
+
+                self.assertIn(
+                    "'%s'" % edition,
+                    self._sidc_expression(self._layer(edition))
+                )
+
+
+    def test_2525e_layer_drops_the_disused_sector1_modifiers(self):
+
+        # The seven live codes, not 2525D's thirteen. This is the check
+        # that a user opening the dropdown cannot pick a retired modifier.
+        layer = self._layer("2525E")
+
+        index = layer.fields().indexOf("sector1_modifier")
+
+        self.assertNotEqual(index, -1)
+
+        entries = layer.editorWidgetSetup(index).config()["map"]
+        offered = set()
+
+        for entry in entries if isinstance(entries, list) else [entries]:
+            offered.update(entry.values())
+
+        # "(None)" carries an empty value alongside the seven real codes.
+        self.assertEqual(
+            {value for value in offered if value},
+            set(MODIFIERS_SECTOR1_2525E["land_installation"])
+        )
+
+
+    def test_the_default_entity_exists_in_the_chosen_edition(self):
+
+        for edition in ("2525D", "2525E"):
+
+            with self.subTest(edition=edition):
+
+                layer = self._layer(edition)
+
+                index = layer.fields().indexOf("entity")
+
+                default = layer.defaultValueDefinition(index).expression()
+                default = default.strip("'")
+
+                entries = layer.editorWidgetSetup(index).config()["map"]
+                offered = set()
+
+                for entry in entries if isinstance(entries, list) else [entries]:
+                    offered.update(entry.values())
+
+                self.assertIn(default, offered)
+
+
+    def test_the_setting_defaults_to_2525d(self):
+
+        from MilitaryCartographyTools.military_symbology.edition import (
+            current_edition,
+        )
+
+        # Whatever is stored, an unset or unrecognised value must land on
+        # 2525D - a settings file from a later version naming an edition
+        # this build does not have should degrade, not raise.
+        self.assertIn(current_edition(), ("2525D", "2525E"))

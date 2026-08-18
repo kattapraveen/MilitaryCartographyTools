@@ -55,6 +55,13 @@ from qgis.core import (
 from qgis.PyQt.QtCore import QMetaType
 
 from ..core._layer_utils import add_layer_at_default_position
+from .edition import current_edition
+from .sidc import DEFAULT_EDITION
+from .sidc_2525e import (
+    ENTITY_LABELS_2525E,
+    SECTOR1_LABELS_2525E,
+    SECTOR2_LABELS_2525E,
+)
 
 from ._control_measure_shared import stabilised_point_size_expression
 
@@ -380,6 +387,7 @@ def _build_renderer(
     entity_marker_size_scales=None,
     entity_designation_slots=None,
     extra_text_field=None,
+    edition=DEFAULT_EDITION,
 ):
 
     """
@@ -433,7 +441,8 @@ def _build_renderer(
         'mct_build_sidc('
         f'"affiliation","entity",{symbol_set_expr},'
         f'{echelon_expr},"status",{headquarters_expr},'
-        f'{sector1_expr},{sector2_expr}'
+        f'{sector1_expr},{sector2_expr},'
+        f"'{edition}'"
         ')'
     )
 
@@ -557,6 +566,7 @@ def build_single_domain_point_layer(
     entity_marker_size_scales=None,
     entity_designation_slots=None,
     extra_text_field=None,
+    edition=None,
 ):
 
     """
@@ -614,8 +624,38 @@ def build_single_domain_point_layer(
     changes WHERE the unique designation lands on the named entities -
     see _designation_slot_expression(). `extra_text_field` (optional)
     adds ONE more dropdown-backed amplifier field, drawn only on the
-    entities that name it - see _EXTRA_TEXT_FIELD_KEYS.
+    entities that name it - see _EXTRA_TEXT_FIELD_KEYS. `edition`
+    (optional) picks the MIL-STD edition this layer is built against;
+    None means "whatever the plugin setting says", which is what every
+    add_*_layer() passes.
     """
+
+    # Edition is fixed per LAYER, never per feature: the entity dropdown
+    # is a ValueMap, whose map is frozen when the field is configured, so
+    # it cannot follow a per-feature edition value. See
+    # military_symbology/edition.py for the full reasoning.
+    if edition is None:
+        edition = current_edition()
+
+    # 2525E's vocabularies are GENERATED (989 entities), not hand-written
+    # per module the way the 2525D ones are - so a caller passes only its
+    # own 2525D labels and this swaps them, rather than every layer module
+    # having to carry a second set of dicts.
+    if edition == "2525E":
+
+        entity_labels = ENTITY_LABELS_2525E.get(symbol_set, entity_labels)
+
+        if sector1_labels is not None:
+            sector1_labels = SECTOR1_LABELS_2525E.get(symbol_set) or None
+
+        if sector2_labels is not None:
+            sector2_labels = SECTOR2_LABELS_2525E.get(symbol_set) or None
+
+        # A default that does not exist in this edition would write an
+        # unresolvable key into every new feature. The two editions do not
+        # share every entity key, so this is a real case.
+        if default_entity not in entity_labels:
+            default_entity = next(iter(entity_labels))
 
     crs = QgsProject.instance().crs()
 
@@ -685,6 +725,7 @@ def build_single_domain_point_layer(
             entity_marker_size_scales,
             entity_designation_slots,
             extra_text_field,
+            edition,
         )
     )
 

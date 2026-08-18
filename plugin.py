@@ -29,6 +29,12 @@ from .grid.grid_settings import GridSettings
 from .layout import show_new_layout_dialog, LayoutOptionsPanel, show_map_sheet_series_dialog
 from .military_symbology.space_layer import add_space_layer
 from .military_symbology.air_layer import add_air_layer
+from .military_symbology.edition import (
+    current_edition,
+    edition_label,
+    set_current_edition,
+)
+from .military_symbology.sidc import EDITIONS
 from .military_symbology.land_layer import add_land_layers
 from .military_symbology.sea_surface_layer import add_sea_surface_layer
 from .military_symbology.subsurface_layer import add_subsurface_layers
@@ -537,6 +543,74 @@ class MilitaryCartographyTools:
             )
 
 
+    def _setup_edition_menu(self):
+
+        """
+        Which MIL-STD edition NEW symbology layers are built against.
+
+        A setting rather than a per-layer prompt: the entity dropdown on
+        each layer is a ValueMap, frozen when the field is configured, so
+        edition has to be decided before a layer exists. Changing it never
+        touches layers already in the project - those keep the edition
+        they were built with, which is what their own renderer expression
+        already says.
+        """
+
+        self.edition_menu = QMenu(
+            "Symbology Edition",
+            self.toolbar
+        )
+
+        self.edition_menu.setToolTipsVisible(True)
+
+        self.edition_menu.menuAction().setToolTip(
+            "Which MIL-STD edition newly added symbology layers use. "
+            "Layers already in the project are not changed."
+        )
+
+        self.edition_group = QActionGroup(self.edition_menu)
+
+        active = current_edition()
+
+        for value in EDITIONS:
+
+            option_action = QAction(
+                edition_label(value),
+                self.edition_menu
+            )
+
+            option_action.setCheckable(True)
+            option_action.setChecked(value == active)
+
+            option_action.setToolTip(
+                "New symbology layers use %s. Existing layers keep "
+                "whichever edition they were created with."
+                % edition_label(value)
+            )
+
+            option_action.triggered.connect(
+                lambda checked, v=value: self.set_symbology_edition(v)
+            )
+
+            self.edition_group.addAction(option_action)
+            self.edition_menu.addAction(option_action)
+
+        self.toolbar.addAction(self.edition_menu.menuAction())
+
+
+    def set_symbology_edition(self, value):
+
+        """Store `value` as the edition newly added layers are built with."""
+
+        set_current_edition(value)
+
+        self.iface.messageBar().pushInfo(
+            "Military Cartography Tools",
+            "New symbology layers will use %s. Layers already in this "
+            "project are unchanged." % edition_label(value)
+        )
+
+
     def _setup_clear_action(self):
 
         # Removes every grid layer and turns every toggle off.
@@ -945,6 +1019,8 @@ class MilitaryCartographyTools:
         # no table module yet; H19/H20/H21 moved its last 21 entries
         # out to Sustainment/Supply/Mission Task Points and it was
         # retired (2026-08-14).
+        self._setup_edition_menu()
+
         self.control_measures_menu = QMenu(
             "Control Measures",
             self.toolbar

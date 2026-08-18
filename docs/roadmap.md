@@ -2018,13 +2018,39 @@ tested, not claimed as done here.
       exists anyway.
       6 new tests, 1359 -> 1365. The one that matters most asserts a
       2525D call is byte-identical with and without the new parameter.
-      **Still open**: APP-6E's modifier tables (no source) and NATO
-      spelling; and the LAYER-level switch, which is blocked on a UI
-      decision rather than on code. QGIS's ValueMap editor widget is
-      static per field, so an entity dropdown cannot re-populate itself
-      from a per-feature edition value. Edition therefore has to be
-      fixed per LAYER - the same way symbol_set already is - and the
-      open question is only how the user picks it when adding one.
+      **LAYER-level switch built 2026-08-18.** Edition is fixed per
+      LAYER, not per feature, and that is a QGIS constraint rather than
+      a preference: the entity dropdown is a `ValueMap` editor widget
+      whose map is frozen when the field is configured, so it cannot
+      re-populate itself from a per-feature edition value - a per-feature
+      column would leave the dropdown listing one edition's vocabulary
+      while the SIDC was built from another's.
+      So a single plugin-wide setting decides what NEW layers get
+      (`military_symbology/edition.py`, stored in `QgsSettings`), exposed
+      as a checkable "Symbology Edition" toolbar menu. **Layers already
+      in a project are never touched**: each one names its own edition in
+      its renderer expression, and a layer built before this existed
+      names none, which `mct_build_sidc()` reads as 2525D - exactly what
+      it was built as. An unrecognised stored value degrades to 2525D
+      rather than raising out of a layer-creation call.
+      `build_single_domain_point_layer()` takes `edition=`, and swaps in
+      the generated 2525E labels centrally rather than making all eight
+      layer modules carry a second set of dicts. It also re-points the
+      default entity when the caller's 2525D default has no equivalent in
+      E - a default that does not exist in the chosen edition would write
+      an unresolvable key into every new feature.
+      **Labels are generated too**, not transcribed: 989 entities is far
+      past what is sensible to hand-write, and the source tables already
+      carry the standard's own wording.
+      Verified live rather than only in tests - a 2525E Land Installation
+      layer offers 7 sector-1 modifiers where the 2525D one offers 13
+      (the six `{Disused}` codes are gone) and its expression carries
+      `'2525E'`. 1365 -> 1369 tests.
+      **Still open**: APP-6E's modifier tables (no source) and its NATO
+      spelling; and nothing outside the shared point-layer factory is
+      edition-aware yet - Appendix H's hand-drawn control measures are
+      built from geometry, not vocabulary, so they are unaffected, but
+      any layer NOT going through that factory still builds 2525D only.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no

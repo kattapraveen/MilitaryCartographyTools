@@ -139,6 +139,57 @@ def unique_keys(entries, specific_first=False):
     return keys
 
 
+def label_for(parts, specific_first):
+
+    """
+    The text a user reads in a dropdown. Entity tables run general to
+    specific, so the last column is the name and any earlier ones are its
+    group; modifier tables run the other way. Either way the NAME is what
+    is shown, with its group appended in parentheses only when the name
+    alone would be ambiguous out of context ("Light", "Other").
+    """
+
+    name = parts[0] if specific_first else parts[-1]
+    rest = parts[1:] if specific_first else parts[:-1]
+
+    if len(name) > 3 or not rest:
+        return name
+
+    return "%s (%s)" % (name, rest[0])
+
+
+def emit_labels(title, tables, specific_first=False):
+
+    print("%s = {" % title)
+
+    for label in sorted(tables):
+
+        entries = tables[label]
+
+        if not entries:
+            continue
+
+        print('    "%s": {' % label)
+
+        keys = unique_keys(entries, specific_first)
+
+        for parts, code, _ in entries:
+
+            key = keys[code]
+            text = label_for(parts, specific_first).replace('"', "'")
+            suppress = (
+                "  # nosec B105 # pragma: allowlist secret"
+                if "secret" in key else ""
+            )
+
+            print('        "%s": "%s",%s' % (key, text, suppress))
+
+        print("    },")
+
+    print("}")
+    print()
+
+
 def emit(title, tables, specific_first=False):
 
     print("%s = {" % title)
@@ -235,6 +286,14 @@ def main():
     emit("ENTITIES_2525E", entities)
     emit("MODIFIERS_SECTOR1_2525E", sector1, specific_first=True)
     emit("MODIFIERS_SECTOR2_2525E", sector2, specific_first=True)
+
+    # Labels are generated alongside the codes rather than hand-written
+    # per layer the way the 2525D ones are: 989 entities is well past
+    # what is sensible to transcribe, and the source tables already hold
+    # the standard's own wording.
+    emit_labels("ENTITY_LABELS_2525E", entities)
+    emit_labels("SECTOR1_LABELS_2525E", sector1, specific_first=True)
+    emit_labels("SECTOR2_LABELS_2525E", sector2, specific_first=True)
 
 
 if __name__ == "__main__":
