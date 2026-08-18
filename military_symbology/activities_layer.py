@@ -122,7 +122,10 @@ _ENTITY_LABELS = {
     "fire_hydrant": "Fire Hydrant",
     "fire_station": "Fire Station",
     "other_water_supply_location": "Other Water Supply Location",
-    "law_enforcement": "Law Enforcement",
+    # Table A-XXXVIII prints 131500 as "Law Enforcement Operation";
+    # the shorter form was ours. Corrected 2026-08-18 after 2525E
+    # showed the standard's own wording side by side with it.
+    "law_enforcement": "Law Enforcement Operation",
     "bureau_of_alcohol_tobacco_firearms_and_explosives": "Bureau of Alcohol, Tobacco, Firearms and Explosives (ATF)",
     "border_patrol": "Border Patrol",
     "customs_service": "Customs Service",

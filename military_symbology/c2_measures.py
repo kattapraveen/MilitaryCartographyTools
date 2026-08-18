@@ -579,13 +579,51 @@ _AREA_SYMBOL_BUILDERS = {
 # expression for every other measure type (which has no reason to ever
 # populate echelon/far_designation), so nothing here changes their own
 # rendering.
+# **2026-08-18 fix, from the maintainer's own smoke test.** Two faults,
+# both in the expression below, and both invisible until someone selected
+# an echelon WITHOUT also typing designations:
+#
+# 1. **An echelon on its own rendered nothing at all.** The expression
+#    opened with a bare `upper("unique_designation")`, and QGIS collapses
+#    the whole `||` chain to NULL the moment any operand is NULL - the
+#    same trap this project has hit before (see grid_labels.py). With no
+#    near designation typed, the label was NULL and the echelon glyph
+#    the user had explicitly chosen simply never drew. Every part is now
+#    coalesce()-wrapped.
+#
+# 2. **The glyph landed in the wrong place unless all three were set.**
+#    Table H-III stacks THREE rows - near designation, echelon glyph in
+#    the line gap, far designation - and the mask cuts the line around
+#    the label's MIDDLE. Building the label from only the populated rows
+#    meant that with two rows the echelon was the bottom one, so it sat
+#    below the line instead of in it; with three it happened to be right.
+#    The maintainer's own report: "if I select an echelon and unique
+#    modifier then it shows unique designation on top of the line and
+#    echelon on the bottom... if I select all three then it renders
+#    fine."
+#
+# So when an echelon IS chosen the label is always three rows, padding
+# absent designations with a single space to hold the glyph in the middle
+# - the maintainer's own suggested fix. When no echelon is chosen nothing
+# needs holding in place, so the label stays compact and a boundary with
+# no amplifiers at all still renders no label rather than three blank
+# rows with a gap cut through the line for them.
+_BOUNDARY_NEAR = 'coalesce(upper("unique_designation"), \' \')'
+_BOUNDARY_FAR = 'coalesce(upper("far_designation"), \' \')'
+
+_BOUNDARY_HAS_ECHELON = '"echelon" IS NOT NULL AND "echelon" != \'\''
+
 _BOUNDARY_DESIGNATION_LABEL_EXPRESSION = (
     "CASE WHEN \"measure_type\" = 'boundary' THEN "
-    "upper(\"unique_designation\")"
-    " || CASE WHEN \"echelon\" IS NOT NULL AND \"echelon\" != ''"
-    " THEN '\\n' || (" + _ECHELON_CHARACTER_EXPRESSION + ") ELSE '' END"
+    f"CASE WHEN {_BOUNDARY_HAS_ECHELON} THEN "
+    f"{_BOUNDARY_NEAR} || '\\n' || ("
+    + _ECHELON_CHARACTER_EXPRESSION
+    + f") || '\\n' || {_BOUNDARY_FAR}"
+    " ELSE "
+    f"{_BOUNDARY_NEAR}"
     " || CASE WHEN \"far_designation\" IS NOT NULL AND \"far_designation\" != ''"
-    " THEN '\\n' || upper(\"far_designation\") ELSE '' END"
+    f" THEN '\\n' || upper(\"far_designation\") ELSE '' END"
+    " END"
     f" ELSE {_PLAIN_DESIGNATION_LABEL_EXPRESSION} END"
 )
 

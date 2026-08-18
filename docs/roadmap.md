@@ -2114,6 +2114,35 @@ tested, not claimed as done here.
       exactly those - the same convention the hand-written 2525D labels
       already use. 48 labels affected across all sets.
       1372 -> 1377 tests.
+      🐞 **Second smoke round, same day - the Boundary echelon amplifier.**
+      Maintainer: "if I select only echelon, it is not rendered; if I
+      select an echelon and unique modifier then it shows unique
+      designation on top of the line and echelon on the bottom; if I
+      select all three then it renders fine." Two faults in one
+      expression, both invisible unless an echelon was chosen WITHOUT
+      designations:
+      (1) the label opened with a bare `upper("unique_designation")`, and
+      QGIS collapses a whole `||` chain to NULL on any NULL operand - the
+      same trap `grid_labels.py` hit over the GZD fields - so an echelon
+      on its own produced no label at all and the glyph never drew;
+      (2) Table H-III stacks THREE rows and the mask cuts the line around
+      the label's MIDDLE, but the label was assembled from only the
+      POPULATED rows - so with two rows the glyph was the bottom one and
+      sat below the line instead of in it. Three rows happened to work,
+      which is why it looked fine in earlier testing.
+      Fixed as the maintainer suggested: when an echelon is chosen the
+      label is always three rows, absent designations padded with a
+      single space to hold the glyph in the middle. With no echelon
+      nothing needs holding, so the compact form stays and an unamplified
+      boundary still draws no label rather than three blank rows with a
+      gap cut for them. A far designation alone also renders now - the
+      same NULL collapse by another route.
+      **An existing test asserted the buggy output** (`"2ID (USA)\n++"`,
+      two rows) and had to be rewritten - worth noting, because it means
+      the behaviour was pinned wrong rather than untested.
+      Also this round: Activities 131500 relabelled "Law Enforcement
+      Operation", the standard's own wording, spotted by comparing 2525D
+      against 2525E side by side. 1377 -> 1380 tests.
       **Still open**: APP-6E's modifier tables (no source) and its NATO
       spelling; and nothing outside the shared point-layer factory is
       edition-aware - Appendix H's hand-drawn control measures are built

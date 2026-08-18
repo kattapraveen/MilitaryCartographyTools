@@ -354,22 +354,88 @@ class TestCreateC2MeasuresLinesLayer(QgisTestCase):
         self.assertEqual(result, "2ID (USA)")
 
 
-    def test_boundary_label_includes_echelon_line_without_far_designation(self):
+    def _boundary_label(self, **attributes):
 
         layer = create_c2_measures_lines_layer()
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("measure_type", "boundary")
-        feature.setAttribute("unique_designation", "2id (usa)")
-        feature.setAttribute("echelon", "command")
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
 
         expression = QgsExpression(layer.labeling().settings().fieldName)
         context = layer.createExpressionContext()
         context.setFeature(feature)
 
         result = expression.evaluate(context)
+
         self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
-        self.assertEqual(result, "2ID (USA)\n++")
+
+        return result
+
+
+    def test_an_echelon_always_sits_on_the_middle_line(self):
+
+        # Table H-III stacks three rows - near designation, echelon glyph
+        # in the line gap, far designation - and the mask cuts the line
+        # around the label's MIDDLE. Building the label from only the
+        # populated rows put the glyph on the BOTTOM row whenever the far
+        # designation was blank, so it drew below the line instead of in
+        # it. Absent designations are padded with a space to hold the
+        # glyph in place. Maintainer's smoke test, 2026-08-18.
+        for attributes, expected in (
+            ({"unique_designation": "2id (usa)", "echelon": "command"},
+             "2ID (USA)\n++\n "),
+            ({"echelon": "command"},
+             " \n++\n "),
+            ({"far_designation": "3id", "echelon": "command"},
+             " \n++\n3ID"),
+            ({"unique_designation": "2id (usa)", "far_designation": "3id",
+              "echelon": "command"},
+             "2ID (USA)\n++\n3ID"),
+        ):
+
+            with self.subTest(**attributes):
+
+                result = self._boundary_label(**attributes)
+
+                self.assertEqual(result, expected)
+
+                # Whatever else is blank, the glyph is row 2 of 3.
+                self.assertEqual(result.split("\n")[1], "++")
+
+
+    def test_an_echelon_alone_still_renders(self):
+
+        # It did not: the expression opened with a bare
+        # upper("unique_designation"), and QGIS collapses the whole ||
+        # chain to NULL on any NULL operand - so choosing an echelon and
+        # typing no designation produced no label at all, and the glyph
+        # the user had explicitly picked never drew.
+        result = self._boundary_label(echelon="brigade")
+
+        self.assertIsNotNone(result)
+        self.assertIn("X", result)
+
+
+    def test_a_far_designation_alone_still_renders(self):
+
+        # The same NULL-collapse, reached by a different route: with no
+        # echelon and no near designation, the far designation was lost.
+        result = self._boundary_label(far_designation="3id")
+
+        self.assertIsNotNone(result)
+        self.assertIn("3ID", result)
+
+
+    def test_a_boundary_with_no_amplifiers_draws_no_label(self):
+
+        # The padding must not turn an unamplified boundary into three
+        # blank rows with a gap cut through the line for them.
+        result = self._boundary_label()
+
+        self.assertIn(result, (None, "", " "))
 
 
     def test_boundary_line_is_solid_when_present_and_dashed_when_planned(self):
