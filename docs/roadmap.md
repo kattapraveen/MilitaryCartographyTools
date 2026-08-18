@@ -10211,6 +10211,33 @@ both QGIS versions; Bandit and detect-secrets both clean.
 
 ---
 
+## Smoke testing — the unreleased 1.0.4 (closed 2026-08-18)
+
+Every defect found across three live smoke-testing rounds this session
+(see the dated entries throughout Phase 10/12 above) was fixed and
+re-confirmed in QGIS. **S-3, the last item on the tracker, closed
+2026-08-18: an OLD project - built and saved under the published
+1.0.3 plugin, before the edition switch existed at all - still opens
+and renders correctly against the current dev checkout.** Verified by
+the maintainer directly: installed 1.0.3 from plugins.qgis.org into a
+real QGIS 4.2.1 profile, built and saved a project with several
+symbology layers and points, then swapped that profile's plugin
+directory back to a symlink onto the dev checkout (matching how the
+3.44.12 profile was already set up) and reopened the same project -
+no errors, every layer still rendered. This was the one genuine
+backward-compatibility question the edition-switch work raised (a
+layer created before editions existed has no edition recorded on it
+anywhere) and it holds: `edition.py`'s `current_edition()` default and
+`layer_name_for()`'s un-suffixed-name fallback mean an old layer is
+read as 2525D, which is what it always was, with nothing retroactive
+about switching the toolbar setting afterwards.
+
+Every S-series smoke-test item is now cleared; the build tracker's
+own SMOKE unit has been removed as a result, per the maintainer's own
+"remove cleared items" instruction.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
