@@ -37,8 +37,8 @@ entity subset (of 219 total) already in sidc.py's ENTITIES["ground_unit"]
 - re-verified entity-by-entity against that source directly this session
 (every code confirmed correct, no bugs found). Land Civilian is
 landcivilian.js's FULL 11-entity vocabulary (small enough that no
-curation is needed). Land Equipment (145 entities, of 229 total in
-landequipment.js) and Land Installation (97 entities, of 131 total in
+curation is needed). Land Equipment (153 entities, of 229 total in
+landequipment.js) and Land Installation (99 entities, of 131 total in
 landinstallation.js) are curated subsets - see sidc.py's own
 ENTITIES["land_equipment"]/["land_installation"] comments for the
 categories covered and for two follow-up fixes, both caught by the user,
@@ -55,7 +55,24 @@ printed text, which actually reads Light/Medium/Heavy for every weapon
 category except Rifle (Single Shot/Semiautomatic/Automatic, confirmed
 directly against Table D-XI, printed page 229) - fixed by renaming the
 entity keys/labels to match the standard's own wording, not milsymbol's
-internal naming.
+internal naming. (3) Land Equipment's law-enforcement family
+(Table A-XXV, codes 1700xx-1711xx) shipped with only four of its twelve
+entries through 1.0.3 - generic, Border Patrol, Customs, DEA - stopping
+mid-family rather than at a category boundary, so it read as complete
+when it was not; the eight missing entries were added 2026-08-18 after
+confirming milsymbol draws every one of them. Note the family's tail is
+NOT shared with the Activities or Land Installation law-enforcement
+lists: 171000 is Coast Guard here, and there is no Prison or Law
+Enforcement Vessel in Land Equipment at all.
+(4) Land Installation's own law-enforcement family had the same shape of
+problem plus a worse one, both fixed 2026-08-18 after the maintainer read
+the live dropdown: ATF (112101) and Police (112107) were simply absent,
+and 112111 - printed **Coast Guard** in Table A-XXVII - was offered to
+users as "Law Enforcement Vessel", a row that does not exist in that
+table at all (the standard's real one is Sea Surface 140300). Two labels
+also read "Agency" where the standard reads "Administration" (DEA, TSA).
+Every fix here changed labels and added entries; no shipped entity KEY
+was renamed, because keys are written into saved features.
 
 Sector 1/2 modifiers deliberately NOT built for any of these four layers
 in this pass - Land Unit alone has ~50+ sector 1 and ~50+ sector 2
@@ -290,9 +307,22 @@ _EQUIPMENT_ENTITY_LABELS = {
     "jeep_type_vehicle_heavy": "Jeep-Type Vehicle (Heavy)",
     "known_insurgent_vehicle": "Known Insurgent Vehicle",
     "law_enforcement": "Law Enforcement",
+    "bureau_of_alcohol_tobacco_firearms_and_explosives":
+        "Bureau of Alcohol, Tobacco, Firearms and Explosives (ATF)",
     "border_patrol": "Border Patrol",
     "customs_service": "Customs Service",
-    "drug_enforcement_agency": "Drug Enforcement Agency (DEA)",
+    "drug_enforcement_agency": "Drug Enforcement Administration (DEA)",
+    "department_of_justice": "Department of Justice (DOJ)",
+    "federal_bureau_of_investigation": "Federal Bureau of Investigation (FBI)",
+    "police": "Police",
+    # "secret" here is the US Secret Service, a MIL-STD-2525D entity
+    # name - not a credential. Suppressions are for the scanners' own
+    # keyword heuristics (1.0.0's automated review, 2026-08-17).
+    "united_states_secret_service": "United States Secret Service (USSS)",  # nosec B105 # pragma: allowlist secret
+    "transportation_security_administration":
+        "Transportation Security Administration (TSA)",
+    "coast_guard": "Coast Guard",
+    "us_marshals_service": "US Marshals Service",
     "missile_support": "Missile Support (Generic)",
     "missile_transloader": "Missile Transloader",
     "missile_transporter": "Missile Transporter",
@@ -326,18 +356,29 @@ _INSTALLATION_ENTITY_LABELS = {
     "printed_media": "Printed Media",
     "safe_house": "Safe House",
     "law_enforcement": "Law Enforcement (Generic)",
+    "bureau_of_alcohol_tobacco_firearms_and_explosives":
+        "Bureau of Alcohol, Tobacco, Firearms and Explosives (ATF)",
     "border_patrol": "Border Patrol",
     "customs_service": "Customs Service",
-    "drug_enforcement_agency": "Drug Enforcement Agency (DEA)",
+    # Table A-XXVII reads "Drug Enforcement Administration (DEA)" and
+    # "Transportation Security Administration (TSA)". Both labels said
+    # "Agency" until 2026-08-18. Keys keep their shipped spellings -
+    # they are written into saved features' "entity" field - so only the
+    # text a user reads in the dropdown changed.
+    "drug_enforcement_agency": "Drug Enforcement Administration (DEA)",
     "department_of_justice": "Department of Justice (DOJ)",
     "federal_bureau_of_investigation": "Federal Bureau of Investigation (FBI)",
+    "police": "Police",
     "prison": "Prison",
     # "secret" here is the US Secret Service, a MIL-STD-2525D entity
     # name - not a credential. Suppressions are for the scanners' own
     # keyword heuristics (1.0.0's automated review, 2026-08-17).
     "secret_service": "United States Secret Service (USSS)",  # nosec B105 # pragma: allowlist secret
-    "transportation_security_agency": "Transportation Security Agency (TSA)",
-    "law_enforcement_vessel": "Law Enforcement Vessel",
+    "transportation_security_agency": "Transportation Security Administration (TSA)",
+    # Table A-XXVII prints 112111 as Coast Guard; there is no "Law
+    # Enforcement Vessel" row in this table. The key is left alone (it
+    # is in users' saved features); this is the text they read.
+    "law_enforcement_vessel": "Coast Guard",
     "us_marshals_service": "US Marshals Service",
     "emergency_operation": "Emergency Operation",
     "fire_protection": "Fire Protection",

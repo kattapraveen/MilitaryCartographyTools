@@ -418,11 +418,38 @@ ENTITIES = {
         "jeep_type_vehicle_medium": "160502",
         "jeep_type_vehicle_heavy": "160503",
         "known_insurgent_vehicle": "160800",
-        # Law enforcement
+        # Law enforcement - Table A-XXV's full 12-entity family, in the
+        # standard's own code order. 170100 and 170500-171100 added
+        # 2026-08-18: the first curation stopped after DEA, which left a
+        # family that LOOKED complete (generic + three agencies) while
+        # omitting eight entries milsymbol draws perfectly well. All
+        # twelve confirmed renderable by hashing each SVG against a
+        # known-bogus code's bare frame.
+        #
+        # This set's tail does NOT match the other two law-enforcement
+        # families: 171000 is Coast Guard here, where Activities (1315xx)
+        # and Land Installation (1121xx) have Prison / Law Enforcement
+        # Vessel and no Coast Guard at all. Read Table A-XXV, never
+        # another set's list.
         "law_enforcement": "170000",
+        "bureau_of_alcohol_tobacco_firearms_and_explosives": "170100",
         "border_patrol": "170200",
         "customs_service": "170300",
+        # Table A-XXV reads "Drug Enforcement Administration (DEA)". The
+        # key keeps its shipped "..._agency" spelling so features already
+        # saved by 1.0.3 and earlier still resolve; only the label is
+        # corrected to the standard's wording.
         "drug_enforcement_agency": "170400",
+        "department_of_justice": "170500",
+        "federal_bureau_of_investigation": "170600",
+        "police": "170700",
+        # "secret" here is the US Secret Service, a MIL-STD-2525D entity
+        # name - not a credential. Suppressions are for the scanners' own
+        # keyword heuristics (1.0.0's automated review, 2026-08-17).
+        "united_states_secret_service": "170800",  # nosec B105 # pragma: allowlist secret
+        "transportation_security_administration": "170900",
+        "coast_guard": "171000",
+        "us_marshals_service": "171100",
         # Missile support
         "missile_support": "190000",
         "missile_transloader": "190100",
@@ -474,18 +501,38 @@ ENTITIES = {
         "mine": "111300",
         "printed_media": "111600",
         "safe_house": "111700",
+        # Law enforcement - Table A-XXVII's full 13-entity family. ATF
+        # (112101) and Police (112107) added 2026-08-18; both were
+        # simply absent, which left two holes in an otherwise contiguous
+        # run of codes.
+        #
+        # 112111 is **Coast Guard** in the standard, not "Law
+        # Enforcement Vessel" - that row does not exist in this table at
+        # all. The key below keeps its shipped (wrong) spelling because
+        # it is written into the "entity" field of features users have
+        # already saved; the label a user actually reads was corrected
+        # 2026-08-18. The standard's real Law Enforcement Vessel is Sea
+        # Surface 140300, which ENTITIES["sea_surface"] has right. Do not
+        # "align" these two by changing the sea surface one.
         "law_enforcement": "112100",
+        "bureau_of_alcohol_tobacco_firearms_and_explosives": "112101",
         "border_patrol": "112102",
         "customs_service": "112103",
+        # Table A-XXVII reads "Drug Enforcement Administration (DEA)";
+        # key keeps its shipped spelling, label corrected 2026-08-18.
         "drug_enforcement_agency": "112104",
         "department_of_justice": "112105",
         "federal_bureau_of_investigation": "112106",
+        "police": "112107",
         "prison": "112108",
         # "secret" here is the US Secret Service, a MIL-STD-2525D entity
         # name - not a credential. Suppressions are for the scanners' own
         # keyword heuristics (1.0.0's automated review, 2026-08-17).
         "secret_service": "112109",  # nosec B105 # pragma: allowlist secret
+        # Table A-XXVII reads "Transportation Security Administration";
+        # key keeps its shipped spelling, label corrected 2026-08-18.
         "transportation_security_agency": "112110",
+        # Coast Guard - see the note above on this key's name.
         "law_enforcement_vessel": "112111",
         "us_marshals_service": "112112",
         "emergency_operation": "112200",

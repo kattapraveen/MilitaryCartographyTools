@@ -136,7 +136,10 @@ _ENTITY_LABELS = {
     # keyword heuristics (1.0.0's automated review, 2026-08-17).
     "united_states_secret_service": "United States Secret Service (USSS)",  # nosec B105 # pragma: allowlist secret
     "transportation_security_administration": "Transportation Security Administration (TSA)",
-    "law_enforcement_vessel": "Law Enforcement Vessel",
+    # Table A-XXXVIII prints 131511 as Coast Guard; there is no "Law
+    # Enforcement Vessel" row in this table. Key left alone (saved
+    # features carry it); the label is what a user reads.
+    "law_enforcement_vessel": "Coast Guard",
     "us_marshals_service": "US Marshals Service",
     "internal_security_force": "Internal Security Force",
     "fire_event": "Fire Event",

@@ -1681,17 +1681,19 @@ tested, not claimed as done here.
         transloader/transporter/crane, stopped short of these two); tent
         civilian/military variants, psychological operations equipment,
         unit deployment shipments, medevac helicopter, antipersonnel mine
-        (less-than-lethal), sensor (emplaced). **One real inconsistency,
-        not a deliberate boundary**: the law-enforcement family here is
-        only half-included - `law_enforcement`/`border_patrol`/
-        `customs_service`/`drug_enforcement_agency` (170000-400) are
-        present but DOJ/FBI/Secret Service/TSA/law-enforcement-vessel/US
-        Marshals (170500-171100) aren't, even though the identical full
-        family WAS added for Land Installation in this same session -
-        should be fixed for consistency when this is revisited.
-      - **Land Installation - 29 of 126 real `landinstallation.js`
-        entities excluded** (we have 97, after this session's fix
-        above). Main groups: intelligence-marking installations
+        (less-than-lethal), sensor (emplaced). **The one real
+        inconsistency here - the half-included law-enforcement family -
+        was FIXED 2026-08-18, see the dated entry below.** The "145" and
+        "74 excluded" counts above are pre-fix; Land Equipment now has
+        153 entities, 66 of 219 excluded. Note also that this catalogue
+        entry named the missing codes wrongly: it listed "law-enforcement
+        -vessel" among them, which Land Equipment does not have at all,
+        and omitted ATF (170100), which it does. Reading one symbol
+        set's family and assuming another matches is exactly the trap
+        the fix below documents.
+      - **Land Installation - 27 of 126 real `landinstallation.js`
+        entities excluded** (we have 99, after this session's fix above
+        plus ATF/Police added 2026-08-18). Main groups: intelligence-marking installations
         (black-list/gray-list/white-list location, mass grave location);
         radioactive material; tent+evacuee/training-camp compounds;
         industrial site+warehouse; Class III/V supply-facility compounds;
@@ -1704,6 +1706,113 @@ tested, not claimed as done here.
         work to do, alongside the three vocabulary expansions above -
         same four layers and same sources, so one pass rather than
         two visits. Not started.
+    - **D-2 CLOSED, 2026-08-18: Land Equipment's law-enforcement family
+      completed (Table A-XXV, codes 170000-171100).** The one item on
+      the post-1.0 list that was arguably *wrong* rather than merely
+      unfinished, and the failure mode is worth naming: the family
+      shipped through 1.0.3 with four of its twelve entries - generic,
+      Border Patrol, Customs Service, DEA - which is a truncation
+      *inside* a category rather than at a category boundary. A user
+      opening the Entity dropdown saw a plausible-looking law-enforcement
+      group and had no way to tell eight entries were missing. Every
+      other documented Land gap is a whole category left out on purpose;
+      this one looked finished and was not.
+      **What the family actually is**, read off the printed table rather
+      than inferred: 170000 Law Enforcement, 170100 ATF, 170200 Border
+      Patrol, 170300 Customs Service, 170400 DEA, 170500 DOJ, 170600
+      FBI, 170700 Police, 170800 USSS, 170900 TSA, 171000 **Coast
+      Guard**, 171100 US Marshals Service.
+      **The trap, which nearly caught this fix**: the same family exists
+      in Activities (1315xx) and Land Installation (1121xx), and the
+      obvious move is to copy one of those lists across. It is wrong.
+      Both of those sets carry **Prison**; Land Equipment does not, so
+      its tail runs one position earlier from Police onward - 170800 is
+      USSS here where 131508/112108 are Prison. Predicting the tail from
+      a sibling set produced four wrong labels before Table A-XXV was
+      opened. The old catalogue entry above had the same error baked in:
+      it listed "law-enforcement-vessel" as missing and never noticed
+      ATF (170100) was.
+      **That phrase turned out to expose a second, larger defect** - see
+      the separate entry below; "Law Enforcement Vessel" is not a member
+      of any land law-enforcement family in the standard at all.
+      **Verified renderable, not assumed**: milsymbol falls back to an
+      identical bare frame for any code it does not know, so each of the
+      twelve was rendered and its SVG compared against a deliberately
+      bogus code's frame. All twelve draw real icons; 171200 and beyond
+      return the bare frame, confirming the family genuinely ends at
+      171100 rather than our list ending early again.
+      **One label corrected without touching its key**: Table A-XXV reads
+      "Drug Enforcement Administration (DEA)" where the plugin said
+      "Agency". The label is now the standard's, but the entity key stays
+      `drug_enforcement_agency` - it shipped in 1.0.3 and is written into
+      the `entity` field of saved features, so renaming it would silently
+      break any project a user has already saved. Precedent cuts the
+      other way here (the Light/Medium/Heavy weapon keys WERE renamed in
+      2026-08-08) but that rename happened pre-release, with no user data
+      to invalidate.
+      `ENTITIES["land_equipment"]` 145 -> 153 entities; `_EQUIPMENT_
+      ENTITY_LABELS` matched (the existing key-set equality test enforces
+      this). Five new tests in `tests/test_land_layer.py`, with the
+      twelve codes transcribed longhand from the printed table so they
+      disagree with the source when the source is wrong, plus explicit
+      negative assertions that Prison and Law Enforcement Vessel are
+      NOT in this set. 1326 -> 1331 tests on both QGIS 4.2.1 and
+      3.44.12. Bandit clean (7 suppressions registering, up from 5 - the
+      new USSS entity name needs the same B105/detect-secrets markers as
+      the other four); detect-secrets clean on all three changed files.
+      **Not yet released** at time of writing - wants a version bump
+      whenever the next upload happens.
+    - **Two label corrections in Land Installation, 2026-08-18, raised
+      by the maintainer**: the Entity dropdown offered "Drug Enforcement
+      **Agency** (DEA)" and "Transportation Security **Agency** (TSA)".
+      Table A-XXVII prints **Administration** for both. Labels
+      corrected; the keys (`drug_enforcement_agency`,
+      `transportation_security_agency`) are unchanged, for the same
+      saved-feature reason as Land Equipment's own DEA key above. Worth
+      noting how this was found: it was NOT found by the Land Equipment
+      fix, which corrected the identical wording one dict higher up in
+      the same file and stopped there. The maintainer read the actual
+      dropdown. A label is only wrong where a user reads it, and a fix
+      scoped to one symbol set leaves the identical error standing in
+      the next one.
+    - 🐞 **Coast Guard was being offered to users as "Law Enforcement
+      Vessel" in two symbol sets - found while checking the label fix
+      above, fixed 2026-08-18 at the maintainer's instruction.**
+      `sidc.py` maps `law_enforcement_vessel` to `land_installation`
+      112111 and `activities` 131511. Both codes are printed **Coast
+      Guard** in the standard (Table A-XXVII and Table A-XXXVIII), and
+      neither table has a "Law Enforcement Vessel" row at all. The
+      standard's real Law Enforcement Vessel is **Sea Surface 140300**,
+      which was already correct and is deliberately left alone - the
+      wrong move here would have been "aligning" the three.
+      This is the worst of the law-enforcement defects found in this
+      round, because it is not an omission or a wording slip: the
+      dropdown named one thing and drew another, and a user picking
+      "Law Enforcement Vessel" on a land installation layer got a Coast
+      Guard icon with no indication anything was off.
+      **Fixed as a label change only.** The key stays
+      `law_enforcement_vessel` in both sets, for the same reason the DEA
+      key stayed: keys are written into the `entity` field of features
+      users have already saved, and the code behind the key (112111 /
+      131511) was always right, so every existing feature already draws
+      the correct icon. Renaming would break saved projects to fix
+      nothing a user can see. The wrongness is quarantined in comments
+      at all four sites plus a test that pins the label.
+      **ATF (112101) and Police (112107) added to Land Installation** in
+      the same pass - both printed in Table A-XXVII, both drawable,
+      both simply absent, leaving two holes in an otherwise contiguous
+      run. `ENTITIES["land_installation"]` 97 -> 99 entities; the family
+      is now the standard's full 13.
+      **And two more "Agency" labels corrected there**: DEA (112104) and
+      TSA (112110), both of which the standard prints as
+      *Administration*. Keys unchanged.
+      Verified the same way as Land Equipment: all thirteen 1121xx codes
+      rendered and compared against a bogus code's bare frame - all
+      thirteen draw, 112113 onward do not, confirming the family ends at
+      112112. Nine new tests, including one that asserts the string
+      "Drug Enforcement Agency" appears in **neither** Land label dict -
+      written specifically because the first fix corrected that wording
+      in one dict and left it standing thirty lines below in the other.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no
