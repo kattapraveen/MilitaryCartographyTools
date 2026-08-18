@@ -1754,7 +1754,170 @@ MODIFIERS = {
     # sIdm2 codes for symbol set 15 are mobility indicators, which 2525D
     # encodes elsewhere entirely. So "land_equipment" below has a
     # sector1 key and no sector2 key - build_sidc() already treats a
-    # missing sector as "no modifier support yet" rather than an error.
+    # D-4b, 2026-08-18. MIL-STD-2525D Tables D-VI (sector 1, 76 codes)
+    # and D-VII (sector 2, 57 codes), transcribed directly from the
+    # printed standard, code by code - NOT from milsymbol or any
+    # third-party TSV, both of which turned out to be unsafe here. See
+    # docs/roadmap.md for the two failures found doing this: milsymbol's
+    # own landunit.js has an `_STD2525 ? X : Y` ternary on 8 sector-1
+    # codes (01, 47, 56, 58, 71, 72, 73, 74) whose TRUE branch does not
+    # match what MIL-STD-2525D actually prints at that code - the FALSE
+    # branch (labelled "APP6" in milsymbol's own source) does, confirmed
+    # against the PDF for all 8. And the most commonly available "2525d"
+    # TSV source silently extends past where the real table ends: Table
+    # D-VI stops at code 78 (not milsymbol's 99), Table D-VII stops at
+    # 57 (not 78) - codes 79-98 sector 1 and 58-78 sector 2 are
+    # 2525E-only capabilities (Tilt-Rotor, Command Post Node, Joint
+    # Network Node among them) that do not exist in 2525D's own tables
+    # at all. Both editions happen to number-align on the shared
+    # portion, which is exactly what made the contamination easy to
+    # miss - the extra codes look native, they are simply absent from
+    # the printed 2525D pages.
+    "ground_unit": {
+        "sector1": {
+            "airmobile_air_assault": "01",
+            "area": "02",
+            "attack": "03",
+            "biological": "04",
+            "border": "05",
+            "bridging": "06",
+            "chemical": "07",
+            "close_protection": "08",
+            "combat": "09",
+            "command_and_control": "10",
+            "communications_contingency_package": "11",
+            "construction": "12",
+            "cross_cultural_communication": "13",
+            "crowd_and_riot_control": "14",
+            "decontamination": "15",
+            "detention": "16",
+            "direct_communications": "17",
+            "diving": "18",
+            "division": "19",
+            "dog": "20",
+            "drilling": "21",
+            "electro_optical": "22",
+            "enhanced": "23",
+            "explosive_ordnance_disposal": "24",
+            "fire_direction_center": "25",
+            "force": "26",
+            "forward": "27",
+            "ground_station_module": "28",
+            "landing_support": "29",
+            "maintenance": "31",
+            "meteorological": "32",
+            "mine_countermeasure": "33",
+            "missile": "34",
+            "mobile_advisor_and_support": "35",
+            "mobile_subscriber_equipment": "36",
+            "mobility_support": "37",
+            "multinational": "39",
+            "multinational_specialized_unit": "40",
+            "multiple_rocket_launcher": "41",
+            "nato_medical_role_1": "42",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "nato_medical_role_2": "43",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "nato_medical_role_3": "44",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "nato_medical_role_4": "45",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "naval": "46",
+            "node_center": "47",
+            "nuclear": "48",
+            "operations": "49",
+            "radar": "50",
+            "radio_frequency_identification_interrogator_sensor": "51",
+            "radiological": "52",
+            "search_and_rescue": "53",
+            "security": "54",
+            "sensor": "55",
+            "sensor_control_module": "56",
+            "signals_intelligence": "57",
+            "single_shelter_switch": "58",
+            "single_rocket_launcher": "59",
+            "smoke": "60",
+            "sniper": "61",
+            "sound_ranging": "62",
+            "special_operations_forces": "63",
+            "special_weapons_and_tactics": "64",
+            "survey": "65",
+            "tactical_exploitation": "66",
+            "target_acquisition": "67",
+            "topographic_geospatial": "68",
+            "utility": "69",
+            "video_imagery": "70",
+            "accident": "71",
+            "other": "72",
+            "civilian": "73",
+            "antisubmarine_warfare": "74",
+            "medevac": "75",
+            "ranger": "76",
+            "support": "77",
+            "aviation": "78",
+        },
+        "sector2": {
+            "airborne": "01",
+            "arctic": "02",
+            "battle_damage_repair": "03",
+            "bicycle_equipped": "04",
+            "casualty_staging": "05",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "clearing": "06",
+            "close_range": "07",
+            "control": "08",
+            "decontamination": "09",
+            "demolition": "10",
+            "dental": "11",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "digital": "12",
+            "enhanced_position_location_reporting_system": "13",
+            "equipment": "14",  # APP6
+            "heavy": "15",
+            "high_altitude": "16",
+            "intermodal": "17",
+            "intensive_care": "18",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "light": "19",
+            "laboratory": "20",
+            "launcher": "21",
+            "long_range": "22",
+            "low_altitude": "23",
+            "medium": "24",
+            "medium_altitude": "25",
+            "medium_range": "26",
+            "mountain": "27",
+            "high_to_medium_altitude": "28",
+            "multi_channel": "29",
+            "optical": "30",
+            "pack_animal": "31",
+            "patient_evacuation_coordination": "32",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "preventive_maintenance": "33",
+            "psychological": "34",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "radio_relay_line_of_sight": "35",
+            "railroad": "36",
+            # Two distinct sibling entries, not a duplicate - the standard
+            # gives each its own qualifier ("(Unmanned Systems)" /
+            # "(Maintenance)"), which the auto-slugified key below drops
+            # along with every other parenthetical; named explicitly here
+            # rather than left as the generator's generic "recovery_38"
+            # fallback.
+            "recovery_unmanned_systems": "37",
+            "recovery_maintenance": "38",
+            "rescue_coordination_center": "39",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "riverine": "40",
+            "single_channel": "41",
+            "ski": "42",
+            "short_range": "43",
+            "strategic": "44",
+            "support": "45",
+            "tactical": "46",
+            "towed": "47",
+            "troop": "48",
+            "vertical_or_short_take_off_and_landing": "49",
+            "veterinary": "50",  # Modifier is offset so that the modifier is not compromised by the main sector icon.
+            "wheeled": "51",
+            "high_to_low_altitude": "52",
+            "medium_to_low_altitude": "53",
+            "attack": "54",
+            "refuel": "55",
+            "utility": "56",
+            "combat_search_and_rescue": "57",
+        },
+    },
     "land_civilian": {
         "sector1": {
             "assassination": "01",

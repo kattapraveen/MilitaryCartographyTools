@@ -291,5 +291,14 @@ unchanged, on 3.44.12.
   pyGeoMag (MIT license). WMM2025 coefficients are valid 2025.0–2030.0; the
   coefficient data (`core/geomag/wmm_2025.py`) will need updating to the next
   WMM release around 2029–2030.
+- `military_symbology/vendor/milsymbol.js` — MIT license. 8 icon
+  assignments swapped 2026-08-18 (Land Unit sector-1 modifier codes 01,
+  47, 56, 58, 71, 72, 73, 74): milsymbol's own `_STD2525` ternary at
+  these 8 codes selects an icon, under its default flag value, that
+  does not match what MIL-STD-2525D's own Table D-VI prints there —
+  verified against the printed standard for all 8, and confirmed each
+  affected icon key is referenced nowhere else in milsymbol's source, so
+  the swap cannot affect any other symbol. See `THIRD_PARTY_NOTICES.md`
+  and `docs/roadmap.md`'s D-4b entry for the full evidence.
 
 See `THIRD_PARTY_NOTICES.md` for full attribution.

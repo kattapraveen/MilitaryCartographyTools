@@ -749,3 +749,252 @@ class TestLandSectorModifiers(QgisTestCase):
                     self.assertIn("sector2_modifier", names)
                 else:
                     self.assertNotIn("sector2_modifier", names)
+
+
+class TestLandUnitSectorModifiers(QgisTestCase):
+
+    """
+    D-4b, 2026-08-18: Land Unit's own sector 1/2 modifiers (MIL-STD-2525D
+    Tables D-VI/D-VII) - the fourth and largest of the Land layers'
+    modifier passes, and the one that took real verification.
+
+    Both milsymbol's landunit.js and the most easily available "2525d"
+    TSV source turned out to be unsafe to use directly here - see
+    sidc.py's own MODIFIERS["ground_unit"] comment for the two distinct
+    failures found. Every code below is transcribed from the printed
+    standard, longhand, for exactly that reason.
+    """
+
+    # Table D-VI, printed pages 206-214. 76 codes: 01-78 with 30 and 38
+    # reserved. The 8 marked below are where milsymbol's own _STD2525
+    # ternary picks the wrong branch relative to what 2525D prints -
+    # see the vendored-file patch in military_symbology/vendor/
+    # milsymbol.js and THIRD_PARTY_NOTICES.md.
+    SECTOR1 = {
+        "airmobile_air_assault": "01",   # corrected - was Tactical Satellite Communications
+        "area": "02", "attack": "03", "biological": "04", "border": "05",
+        "bridging": "06", "chemical": "07", "close_protection": "08",
+        "combat": "09", "command_and_control": "10",
+        "communications_contingency_package": "11", "construction": "12",
+        "cross_cultural_communication": "13", "crowd_and_riot_control": "14",
+        "decontamination": "15", "detention": "16",
+        "direct_communications": "17", "diving": "18", "division": "19",
+        "dog": "20", "drilling": "21", "electro_optical": "22",
+        "enhanced": "23", "explosive_ordnance_disposal": "24",
+        "fire_direction_center": "25", "force": "26", "forward": "27",
+        "ground_station_module": "28", "landing_support": "29",
+        "maintenance": "31", "meteorological": "32",
+        "mine_countermeasure": "33", "missile": "34",
+        "mobile_advisor_and_support": "35",
+        "mobile_subscriber_equipment": "36", "mobility_support": "37",
+        "multinational": "39", "multinational_specialized_unit": "40",
+        "multiple_rocket_launcher": "41", "nato_medical_role_1": "42",
+        "nato_medical_role_2": "43", "nato_medical_role_3": "44",
+        "nato_medical_role_4": "45", "naval": "46",
+        "node_center": "47",             # corrected - was Unmanned Aerial Vehicle
+        "nuclear": "48", "operations": "49", "radar": "50",
+        "radio_frequency_identification_interrogator_sensor": "51",
+        "radiological": "52", "search_and_rescue": "53", "security": "54",
+        "sensor": "55",
+        "sensor_control_module": "56",   # corrected - was Weapon
+        "signals_intelligence": "57",
+        "single_shelter_switch": "58",   # corrected - was Armored
+        "single_rocket_launcher": "59", "smoke": "60", "sniper": "61",
+        "sound_ranging": "62", "special_operations_forces": "63",
+        "special_weapons_and_tactics": "64", "survey": "65",
+        "tactical_exploitation": "66", "target_acquisition": "67",
+        "topographic_geospatial": "68", "utility": "69",
+        "video_imagery": "70",
+        "accident": "71",                # corrected - was Mobility Assault
+        "other": "72",                   # corrected - was Amphibious Warfare Ship
+        "civilian": "73",                # corrected - was Load Handling System
+        "antisubmarine_warfare": "74",   # corrected - was Palletized Load System
+        "medevac": "75", "ranger": "76", "support": "77", "aviation": "78",
+    }
+
+    # Table D-VII, printed pages 216-222. 57 codes: 01-57, contiguous.
+    SECTOR2 = {
+        "airborne": "01", "arctic": "02", "battle_damage_repair": "03",
+        "bicycle_equipped": "04", "casualty_staging": "05",
+        "clearing": "06", "close_range": "07", "control": "08",
+        "decontamination": "09", "demolition": "10", "dental": "11",
+        "digital": "12",
+        "enhanced_position_location_reporting_system": "13",
+        "equipment": "14", "heavy": "15", "high_altitude": "16",
+        "intermodal": "17", "intensive_care": "18", "light": "19",
+        "laboratory": "20", "launcher": "21", "long_range": "22",
+        "low_altitude": "23", "medium": "24", "medium_altitude": "25",
+        "medium_range": "26", "mountain": "27",
+        "high_to_medium_altitude": "28", "multi_channel": "29",
+        "optical": "30", "pack_animal": "31",
+        "patient_evacuation_coordination": "32",
+        "preventive_maintenance": "33", "psychological": "34",
+        "radio_relay_line_of_sight": "35", "railroad": "36",
+        "recovery_unmanned_systems": "37", "recovery_maintenance": "38",
+        "rescue_coordination_center": "39", "riverine": "40",
+        "single_channel": "41", "ski": "42", "short_range": "43",
+        "strategic": "44", "support": "45", "tactical": "46",
+        "towed": "47", "troop": "48",
+        "vertical_or_short_take_off_and_landing": "49", "veterinary": "50",
+        "wheeled": "51", "high_to_low_altitude": "52",
+        "medium_to_low_altitude": "53", "attack": "54", "refuel": "55",
+        "utility": "56", "combat_search_and_rescue": "57",
+    }
+
+
+    def test_sector1_matches_table_d_vi_exactly(self):
+
+        self.assertEqual(MODIFIERS["ground_unit"]["sector1"], self.SECTOR1)
+
+
+    def test_sector2_matches_table_d_vii_exactly(self):
+
+        self.assertEqual(MODIFIERS["ground_unit"]["sector2"], self.SECTOR2)
+
+
+    def test_table_d_vi_does_not_extend_to_milsymbols_full_range(self):
+
+        # milsymbol's own landunit.js defines sIdm1 codes up to 99;
+        # the printed standard's Table D-VI stops at 78. Codes 79-98
+        # (Tilt-Rotor, Command Post Node, Joint Network Node among them)
+        # are 2525E-only and must not appear here.
+        codes = set(MODIFIERS["ground_unit"]["sector1"].values())
+
+        for code in ("79", "80", "81", "82", "98", "99"):
+            self.assertNotIn(code, codes)
+
+
+    def test_table_d_vii_does_not_extend_past_its_real_57_codes(self):
+
+        # The standard's own Table D-VII prints "Reserved for future
+        # use" for 79-99, but the commonly available TSV source (and
+        # milsymbol) both carry entries up to 78 - 21 more 2525E-only
+        # codes that do not exist in 2525D's own table at all.
+        codes = set(MODIFIERS["ground_unit"]["sector2"].values())
+
+        for code in ("58", "60", "70", "78"):
+            self.assertNotIn(code, codes)
+
+
+    def test_reserved_sector1_codes_are_absent(self):
+
+        codes = set(MODIFIERS["ground_unit"]["sector1"].values())
+
+        self.assertNotIn("30", codes)
+        self.assertNotIn("38", codes)
+
+
+    def test_labels_match_the_modifier_keys(self):
+
+        self.assertEqual(
+            set(land_layer._UNIT_SECTOR1_LABELS),
+            set(MODIFIERS["ground_unit"]["sector1"])
+        )
+
+        self.assertEqual(
+            set(land_layer._UNIT_SECTOR2_LABELS),
+            set(MODIFIERS["ground_unit"]["sector2"])
+        )
+
+
+    def test_every_modifier_renders_and_changes_the_symbol(self):
+
+        from MilitaryCartographyTools.military_symbology import symbol_engine
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        plain = symbol_engine.render_symbol_svg(
+            build_sidc("friend", "infantry", symbol_set="ground_unit")
+        )
+
+        for sector in ("sector1", "sector2"):
+
+            for key in MODIFIERS["ground_unit"][sector]:
+
+                with self.subTest(sector=sector, modifier=key):
+
+                    svg = symbol_engine.render_symbol_svg(
+                        build_sidc(
+                            "friend", "infantry", symbol_set="ground_unit",
+                            **{sector + "_modifier": key}
+                        )
+                    )
+
+                    self.assertNotEqual(svg, plain)
+
+
+    def test_the_layer_offers_both_sector_dropdowns(self):
+
+        layer = add_land_unit_layer(FakeIface())
+
+        names = [f.name() for f in layer.fields()]
+
+        self.assertIn("sector1_modifier", names)
+        self.assertIn("sector2_modifier", names)
+
+
+class TestVendoredMilsymbolPatch(QgisTestCase):
+
+    """
+    The 8 Land Unit sector-1 codes where milsymbol's own _STD2525
+    ternary was found to select the wrong icon for MIL-STD-2525D - fixed
+    by patching military_symbology/vendor/milsymbol.js directly, since
+    ms.setStandard() is a single global flag and could not be flipped
+    for just these 8 codes without affecting every other symbol that
+    also branches on it. See THIRD_PARTY_NOTICES.md for the full
+    reasoning and evidence.
+
+    These pin the RENDERED glyph, not just the label - the whole point
+    of patching rather than just relabelling was to make the two agree.
+    """
+
+    # (code, a fragment unique to the correct (post-patch) glyph)
+    PATCHED = [
+        ("01", "M85,55 L100,75 115,55"),  # Airmobile/Air Assault arrow
+        ("47", ">NC<"),                    # Node Center
+        ("56", ">SCM<"),                   # Sensor Control Module
+        ("58", ">SSS<"),                   # Single Shelter Switch
+        ("71", ">ACC<"),                   # Accident
+        ("72", ">OTH<"),                   # Other
+        ("73", ">CIV<"),                   # Civilian
+        ("74", ">P<"),                     # Antisubmarine Warfare
+    ]
+
+
+    def test_the_patched_codes_render_the_2525d_glyph(self):
+
+        from MilitaryCartographyTools.military_symbology import symbol_engine
+
+        for code, fragment in self.PATCHED:
+
+            with self.subTest(code=code):
+
+                svg = symbol_engine.render_symbol_svg(
+                    "1003100000121100%s00" % code
+                )
+
+                self.assertIn(fragment, svg)
+
+
+    def test_the_wrong_pre_patch_glyphs_are_gone(self):
+
+        # The exact glyph fragments that used to render before the
+        # patch - milsymbol's default (_STD2525=true) branch, which did
+        # not match Table D-VI.
+        from MilitaryCartographyTools.military_symbology import symbol_engine
+
+        wrong = {
+            "01": "m 105,65 10,0",  # Tactical Satellite Communications
+            "47": "m 80,65 20,13 20,-13 0,-5 -20,10 -20,-10 z",  # UAV path
+            "56": ">WPN<",
+            "71": ">MA<",
+        }
+
+        for code, fragment in wrong.items():
+
+            with self.subTest(code=code):
+
+                svg = symbol_engine.render_symbol_svg(
+                    "1003100000121100%s00" % code
+                )
+
+                self.assertNotIn(fragment, svg)

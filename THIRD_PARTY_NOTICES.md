@@ -146,10 +146,37 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Vendored unmodified. Milsymbol runs entirely offline, in-process,
-via Qt's own QJSEngine (no Node.js, no browser, no network access of
-any kind) - Military Cartography Tools adds the QJSEngine bridge
+Milsymbol runs entirely offline, in-process, via Qt's own
+QJSEngine (no Node.js, no browser, no network access of any kind) -
+Military Cartography Tools adds the QJSEngine bridge
 (military_symbology/symbol_engine.py), the SIDC data model
 (military_symbology/sidc.py), and the QGIS expression function
 (mct_sidc_svg) that connects a feature's own attributes to a
 rendered symbol at render time.
+
+**Modified, 2026-08-18 - 8 icon assignments swapped, otherwise
+unmodified.** Land Unit's own sector-1 modifier table (in the
+vendored file, the minified equivalent of upstream's
+src/numbersidc/sidc/landunit.js) branches on milsymbol's own
+`_STD2525` flag at 8 of its 99 code assignments (codes 01, 47, 56,
+58, 71, 72, 73, 74) - drawing one icon when the flag is true (its
+default, and this plugin never calls `ms.setStandard()` to change
+it) and a different one when false. Verified directly against
+`reference/MIL-STD-2525D.pdf` Table D-VI (gitignored, so not in this
+repo - see docs/roadmap.md's D-4b entry for the transcription): at
+every one of these 8 codes, the printed standard matches milsymbol's
+FALSE branch, not the TRUE branch its own default selects - e.g.
+code 01 renders as "Tactical Satellite Communications" under the
+unmodified default, but MIL-STD-2525D Table D-VI prints "Airmobile/
+Air Assault" at that code. Confirmed by checking every one of the 8
+icon keys involved is referenced exactly once anywhere in milsymbol's
+own numbersidc/sidc tables - i.e., only at this single ternary site
+each - so swapping which branch `_STD2525=true` selects, at these 8
+assignments only, cannot affect any other symbol this library draws.
+The 8 swaps are the only change; every other byte of the vendored
+file, including its own icon and geometry definitions, is untouched
+(confirmed: the patched file is byte-identical in size to the
+original). Applying `ms.setStandard("APP6")` instead was considered
+and rejected - that flag is a single global mutable property on the
+shared `ms` module instance, so flipping it would change every OTHER
+symbol in the library that also branches on it, not just these 8.
