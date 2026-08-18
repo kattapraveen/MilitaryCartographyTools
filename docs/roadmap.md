@@ -2200,6 +2200,73 @@ tested, not claimed as done here.
       - Appendix H's hand-drawn control measures are built from geometry,
       not vocabulary, so they are unaffected, but any layer NOT going
       through that factory still builds 2525D only.
+    - **D-4b CLOSED, 2026-08-18: Land Unit's own sector 1/2 modifiers
+      (Tables D-VI/D-VII) - the largest of the four Land layers by far,
+      and the one that could not be trusted to either milsymbol or the
+      easiest-available TSV source. Both were checked directly against
+      `reference/MIL-STD-2525D.pdf` rather than assumed, and both had
+      real defects.**
+      **Failure 1 - a systematic over-extension, same shape as the D-4a
+      finding.** The "2525d"-labelled TSV (and milsymbol's own
+      landunit.js) define sector-1 codes up to 99 and sector-2 up to 78.
+      The printed standard's Table D-VI stops at **78**, Table D-VII at
+      **57** - confirmed by reading the PDF directly to the last code
+      present before each table transitions to the next section (D-VII
+      ends immediately before D.7 Land Civilian begins). Codes 79-98
+      (sector 1) and 58-78 (sector 2) - 41 codes combined, more than
+      D-4a's entire built vocabulary - are 2525E-only: Tilt-Rotor,
+      Command Post Node, Joint Network Node among them. Both editions
+      number-align on the shared portion, which is exactly what made
+      this easy to miss - the extra codes look native.
+      **Failure 2 - new, and worse: milsymbol draws the wrong ICON, not
+      just a wrong label.** landunit.js's own sIdm1 table branches on
+      milsymbol's `_STD2525` flag at 8 codes (01, 47, 56, 58, 71, 72, 73,
+      74) - `_STD2525 ? iconA : iconB`. The flag defaults `true` and this
+      plugin never calls `ms.setStandard()`, so our engine has always
+      drawn `iconA` at these codes. **All 8, checked individually against
+      the PDF, print `iconB`'s name at that code** - e.g. code 01 renders
+      "Tactical Satellite Communications" under the untouched default,
+      but Table D-VI prints "Airmobile/Air Assault" there, "US only"
+      remark and all. Milsymbol's own naming (`_STD2525`, its
+      `setStandard("2525"/"APP6")` entry point) implies this branches on
+      MIL-STD-2525-vs-STANAG-APP-6, but empirically the printed
+      MIL-STD-2525D document agrees with the "APP6"-labelled branch at
+      every one of these 8 codes - a mislabelling or genuine bug inside
+      milsymbol itself, not a standards question. This is a strictly
+      worse defect than a wrong label: a user picking a correctly-named
+      modifier would have gotten a **confidently wrong glyph**, the same
+      class of bug as the Coast Guard/Law Enforcement Vessel mix-up two
+      days ago, just one level deeper (in the vendor's icon selection
+      rather than in this project's own labelling).
+      **Fixed by patching the vendored file** - `military_symbology/
+      vendor/milsymbol.js`, 8 icon references swapped, first-ever edit
+      to vendored milsymbol in this project (there is a precedent for
+      patching vendored code, `core/mgrs_engine.py`'s UPS validation
+      fix, just not in this file before). `ms.setStandard("APP6")` was
+      considered and rejected: that flag is a single mutable property on
+      the shared `ms` module singleton, so flipping it globally would
+      change every OTHER symbol anywhere in the library that also
+      branches on it, not just these 8 codes. Confirmed each of the 16
+      icon keys involved (8 codes x 2 branches) is referenced **exactly
+      once** anywhere in milsymbol's own numbersidc/sidc tables, so the
+      swap cannot reach any other rendering path. Patched file is
+      byte-identical in size to the original - only the 8 assignments
+      changed. `THIRD_PARTY_NOTICES.md` and `docs/developer-guide.md`'s
+      vendored-code list both updated with the full evidence; "vendored
+      unmodified" no longer describes this file.
+      `MODIFIERS["ground_unit"]` built as **76 sector-1 + 57 sector-2 =
+      133 codes**, transcribed longhand from the PDF rather than copied
+      from either unsafe source, `_UNIT_SECTOR1_LABELS`/
+      `_UNIT_SECTOR2_LABELS` matched to it, both wired into
+      `add_land_unit_layer()`. Two sibling codes (37/38, both named
+      "Recovery" with a different parenthetical qualifier the standard
+      slugifier drops) given explicit, self-explanatory keys rather than
+      the generator's generic disambiguation fallback.
+      All 133 modifiers verified to render without error and to change
+      the symbol from its bare form; the 8 patched codes additionally
+      pinned by their exact post-patch glyph fragment, with the
+      pre-patch (wrong) fragments asserted absent. 1385 -> 1395 tests on
+      QGIS 4.2.1 and 3.44.12; Bandit clean.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no
