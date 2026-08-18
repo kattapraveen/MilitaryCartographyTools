@@ -2159,12 +2159,27 @@ EDITIONS = tuple(EDITION_VERSION_DIGITS)
 
 def entities_for_edition(edition):
 
-    """ENTITIES for `edition` - the whole {symbol_set: {key: code}} map."""
+    """
+    ENTITIES for `edition` - the whole {symbol_set: {key: code}} map.
 
-    if edition == "2525E":
-        return ENTITIES_2525E
+    Symbol sets the edition has no vocabulary for FALL BACK to 2525D
+    rather than being absent. `control_measure` is the standing case:
+    Appendix H is hand-drawn geometry in this plugin, so its 561 rows are
+    deliberately not extracted, and a control-measure layer must go on
+    working whatever the edition setting says.
 
-    return ENTITIES
+    This is a fallback, not a merge - a set present in both editions
+    always uses its own edition's table, including where the two
+    disagree on what a code means.
+    """
+
+    if edition != "2525E":
+        return ENTITIES
+
+    merged = dict(ENTITIES)
+    merged.update(ENTITIES_2525E)
+
+    return merged
 
 
 def modifiers_for_edition(edition, symbol_set):
@@ -2177,6 +2192,11 @@ def modifiers_for_edition(edition, symbol_set):
     """
 
     if edition != "2525E":
+        return MODIFIERS.get(symbol_set, {})
+
+    if symbol_set not in ENTITIES_2525E:
+        # Same fallback as entities_for_edition(): a set with no 2525E
+        # vocabulary keeps its 2525D modifiers rather than losing them.
         return MODIFIERS.get(symbol_set, {})
 
     sectors = {}

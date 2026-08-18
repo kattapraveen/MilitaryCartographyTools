@@ -48,6 +48,28 @@ SYMBOL_SETS = {
     "Space missile": "space_missile",
 }
 
+# SIGINT is one vocabulary shared across five symbol sets - the standard
+# gives the same entity/modifier tables to Space/Air/Land/Sea Surface/
+# Subsurface SIGINT, and sidc.py already models that with five keys
+# pointing at one dict. The source has a single "Signals intelligence"
+# table, so it is fanned out here the same way.
+#
+# Leaving these out is what broke every SIGINT symbol under 2525E: the
+# layer fell back to 2525D labels for its dropdowns, but build_sidc()
+# looked the chosen entity up in a 2525E vocabulary that had no SIGINT
+# entry at all, raised KeyError, and mct_build_sidc() returned the error
+# text as a string - which milsymbol then drew as garbage rather than
+# failing visibly. Found by the maintainer's smoke test, 2026-08-18.
+SHARED_TABLES = {
+    "Signals intelligence": (
+        "sigint_space",
+        "sigint_air",
+        "sigint_land",
+        "sigint_sea_surface",
+        "sigint_subsurface",
+    ),
+}
+
 # Rows the standard prints as placeholders rather than symbols. {Disused}
 # marks a code 2525E retired from 2525D - it must NOT be offered to a user,
 # which is the whole reason this generator reads Remarks at all.
@@ -139,7 +161,7 @@ def unique_keys(entries, specific_first=False):
     return keys
 
 
-def label_for(parts, specific_first):
+def label_for(parts, specific_first, hierarchical=False):
 
     """
     The text a user reads in a dropdown. Entity tables run general to
@@ -151,6 +173,17 @@ def label_for(parts, specific_first):
 
     name = parts[0] if specific_first else parts[-1]
     rest = parts[1:] if specific_first else parts[:-1]
+
+    # A row the standard marks "Reserved for hierarchical purposes" is a
+    # GROUP HEADER, and its printed name is often the bare noun its own
+    # children qualify - Land Installation prints 121400 "Water Supply"
+    # above 121410 "Water" and 121411 "Water Treatment". Faithful, but
+    # three near-identical rows in one dropdown. "(Generic)" is the
+    # convention the hand-written 2525D labels already use for exactly
+    # this, so the two editions read the same way.
+    # Raised by the maintainer on the 1.0.4 smoke test, 2026-08-18.
+    if hierarchical:
+        return "%s (Generic)" % name
 
     if len(name) > 3 or not rest:
         return name
@@ -173,10 +206,13 @@ def emit_labels(title, tables, specific_first=False):
 
         keys = unique_keys(entries, specific_first)
 
-        for parts, code, _ in entries:
+        for parts, code, remarks in entries:
 
             key = keys[code]
-            text = label_for(parts, specific_first).replace('"', "'")
+            hierarchical = "hierarchical" in remarks.lower()
+            text = label_for(
+                parts, specific_first, hierarchical
+            ).replace('"', "'")
             suppress = (
                 "  # nosec B105 # pragma: allowlist secret"
                 if "secret" in key else ""
@@ -248,6 +284,17 @@ def main():
 
         if base == "Common Modifiers":
             bucket["common"] = read_table(path)
+            continue
+
+        shared = SHARED_TABLES.get(base)
+
+        if shared is not None:
+
+            entries = read_table(path)
+
+            for key in shared:
+                bucket[key] = entries
+
             continue
 
         key = SYMBOL_SETS.get(base)

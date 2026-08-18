@@ -2076,6 +2076,44 @@ tested, not claimed as done here.
       change for anyone with an existing project.
       3 new tests, including the maintainer's exact sequence: add Air
       under 2525D, add Air under 2525E, expect TWO layers. 1369 -> 1372.
+      🐞 **Three defects from the maintainer's 1.0.4 smoke test,
+      2026-08-18 - the first round of real hands-on use of any of this.**
+      1. **"SIGINT - 6D is fine, 6E all symbols break."** Correct, and
+      the cause was in the generator's own scope list: SIGINT's five
+      symbol sets (`sigint_space`/`_air`/`_land`/`_sea_surface`/
+      `_subsurface`) share ONE vocabulary in the standard and one table
+      in the source, and that table was never mapped - so
+      `ENTITIES_2525E` had no SIGINT at all. The layer then fell back to
+      its 2525D labels for the dropdown while `build_sidc()` looked those
+      keys up in 2525E, raised `KeyError`, and `mct_build_sidc()` handed
+      the **error text to milsymbol as a SIDC** - which it drew as an
+      arbitrary symbol rather than failing visibly. Fixed by fanning the
+      one source table across all five keys, and by making
+      `entities_for_edition()` FALL BACK to 2525D for any set an edition
+      has no vocabulary for - `control_measure` is the standing case,
+      since Appendix H is deliberately not extracted.
+      2. **"In space, for 6D only - if a modifier is added, the symbol
+      breaks, renders ok without any modifier."** This one is NOT new
+      and not edition-related: `_point_symbol_layer.py`'s own docstring
+      has warned about it since the merged layers were built. A layer
+      that merges symbol sets (Space + Space Missile, SIGINT's five
+      dimensions) offers the UNION of their modifier vocabularies in one
+      dropdown, because a QGIS ValueMap cannot filter itself by another
+      field's value - so a reasonable-looking pick can be invalid for the
+      entity beside it. Measured: **703 of the Space layer's
+      entity/modifier pairs were invalid under 2525D**. Fixed at the
+      failure mode rather than the cause, which is not fixable while the
+      dropdown is a ValueMap: `mct_build_sidc()` now retries WITHOUT the
+      modifiers and returns the bare symbol, so the right icon draws
+      unmodified instead of a wrong icon drawing confidently. A genuinely
+      bad entity still reports, so this does not swallow real errors.
+      3. **Three near-identical water entries under 2525E** - "Water
+      Supply", "Water", "Water Treatment". Faithful to the printed table,
+      unusable in a dropdown. 2525E marks group headers "Reserved for
+      hierarchical purposes", so the generator now appends "(Generic)" to
+      exactly those - the same convention the hand-written 2525D labels
+      already use. 48 labels affected across all sets.
+      1372 -> 1377 tests.
       **Still open**: APP-6E's modifier tables (no source) and its NATO
       spelling; and nothing outside the shared point-layer factory is
       edition-aware - Appendix H's hand-drawn control measures are built

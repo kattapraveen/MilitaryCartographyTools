@@ -319,8 +319,41 @@ def mct_build_sidc(values, feature=None, parent=None):
             edition=edition,
         )
 
+    except KeyError:
+
+        pass
+
+    # A modifier that is not valid for the symbol set this feature's own
+    # entity resolved to. That is not necessarily user error: a layer
+    # that merges several symbol sets (space + space_missile, SIGINT's
+    # five dimensions) offers the UNION of their modifier vocabularies in
+    # one dropdown, because a QGIS ValueMap cannot filter itself by
+    # another field's value - so a perfectly reasonable pick can be
+    # invalid for the entity beside it.
+    #
+    # Falling back to the unmodified symbol draws the RIGHT icon without
+    # its modifier. Returning the error text instead - which is what this
+    # did until 2026-08-18 - hands milsymbol an unparseable SIDC, and it
+    # renders that as some arbitrary symbol rather than failing visibly.
+    # The maintainer found exactly that on the Space layer: "if a
+    # modifier is added, the symbol breaks, renders ok without any
+    # modifier".
+    try:
+
+        return build_sidc(
+            affiliation=str(affiliation),
+            entity=str(entity),
+            symbol_set=str(symbol_set),
+            echelon=str(echelon),
+            status=str(status),
+            headquarters=bool(headquarters),
+            edition=edition,
+        )
+
     except KeyError as error:
 
+        # Entity, affiliation, echelon or status is wrong - a real error,
+        # not a modifier that does not apply here.
         return str(error)
 
 

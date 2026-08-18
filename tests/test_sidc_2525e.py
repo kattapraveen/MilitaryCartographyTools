@@ -535,3 +535,116 @@ class TestBothEditionsCanCoexist(QgisTestCase):
         # vocabulary and the layer belongs to neither alone.
         self.assertEqual(layer_name_for("Air", "2525D"), "Air (2525D/6D)")
         self.assertEqual(layer_name_for("Air", "2525E"), "Air (2525E/6E)")
+
+
+class TestSmokeTestFindings(QgisTestCase):
+
+    """
+    Two defects from the maintainer's 1.0.4 smoke test, 2026-08-18.
+    """
+
+    def test_every_symbol_set_resolves_under_both_editions(self):
+
+        # "SIGINT - 6D is fine, 6E all symbols break." The five sigint_*
+        # sets had no 2525E vocabulary, so the layer kept its 2525D
+        # dropdown while build_sidc() looked those keys up in 2525E and
+        # raised - and the error text was handed to milsymbol as a SIDC.
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        for symbol_set, entities in ENTITIES.items():
+
+            entity = sorted(entities)[0]
+
+            for edition in ("2525D", "2525E"):
+
+                with self.subTest(symbol_set=symbol_set, edition=edition):
+
+                    sidc = build_sidc(
+                        "friend",
+                        entity if edition == "2525D" else self._an_entity(
+                            symbol_set, edition, entity
+                        ),
+                        symbol_set=symbol_set,
+                        edition=edition,
+                    )
+
+                    self.assertRegex(sidc, r"^\d{20}$")
+
+
+    def _an_entity(self, symbol_set, edition, fallback):
+
+        from MilitaryCartographyTools.military_symbology.sidc import (
+            entities_for_edition,
+        )
+
+        entities = entities_for_edition(edition)[symbol_set]
+
+        return fallback if fallback in entities else sorted(entities)[0]
+
+
+    def test_sigint_has_a_2525e_vocabulary_on_all_five_dimensions(self):
+
+        for dimension in (
+            "sigint_space", "sigint_air", "sigint_land",
+            "sigint_sea_surface", "sigint_subsurface",
+        ):
+
+            with self.subTest(dimension=dimension):
+
+                self.assertIn(dimension, ENTITIES_2525E)
+                self.assertTrue(ENTITIES_2525E[dimension])
+
+
+    def test_control_measures_fall_back_rather_than_vanish(self):
+
+        # Appendix H is hand-drawn geometry here, so its 561 rows are
+        # deliberately not extracted - but a control-measure layer has to
+        # keep working whatever the edition setting says.
+        from MilitaryCartographyTools.military_symbology.sidc import (
+            entities_for_edition,
+        )
+
+        self.assertNotIn("control_measure", ENTITIES_2525E)
+
+        self.assertIn(
+            "control_measure", entities_for_edition("2525E")
+        )
+
+
+    def test_an_inapplicable_modifier_falls_back_to_the_bare_symbol(self):
+
+        # "In space, for 6D only - if a modifier is added, the symbol
+        # breaks." The Space layer merges space + space_missile and
+        # offers the UNION of their modifiers, so a valid-looking pick
+        # can be invalid for the entity beside it. It must draw the right
+        # icon unmodified rather than handing milsymbol the error text.
+        from MilitaryCartographyTools.expressions.military_symbology_functions \
+            import mct_build_sidc
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        bare = build_sidc("friend", "military", symbol_set="space")
+
+        # "ballistic" is a space_missile sector 1 modifier, not a space one.
+        got = mct_build_sidc.func(
+            ["friend", "military", "space", "unspecified", "present",
+             False, "ballistic", None],
+            None, None, None,
+        )
+
+        self.assertEqual(got, bare)
+
+
+    def test_a_genuinely_bad_entity_still_reports(self):
+
+        # The fallback must not swallow real errors.
+        from MilitaryCartographyTools.expressions.military_symbology_functions \
+            import mct_build_sidc
+
+        got = mct_build_sidc.func(
+            ["friend", "not_an_entity", "space", "unspecified", "present",
+             False, None, None],
+            None, None, None,
+        )
+
+        self.assertNotRegex(got, r"^\d{20}$")
+        self.assertIn("not_an_entity", got)

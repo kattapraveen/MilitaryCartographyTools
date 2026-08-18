@@ -641,9 +641,14 @@ def build_single_domain_point_layer(
     # per module the way the 2525D ones are - so a caller passes only its
     # own 2525D labels and this swaps them, rather than every layer module
     # having to carry a second set of dicts.
-    if edition == "2525E":
+    if edition == "2525E" and symbol_set in ENTITY_LABELS_2525E:
 
-        entity_labels = ENTITY_LABELS_2525E.get(symbol_set, entity_labels)
+        # Guarded on the symbol set having a 2525E vocabulary at all.
+        # Swapping only the labels for a set that does NOT - control
+        # measures, before SIGINT was added - left the dropdown offering
+        # 2525D keys while build_sidc() looked them up in 2525E, so every
+        # symbol on the layer rendered as garbage.
+        entity_labels = ENTITY_LABELS_2525E[symbol_set]
 
         if sector1_labels is not None:
             sector1_labels = SECTOR1_LABELS_2525E.get(symbol_set) or None
