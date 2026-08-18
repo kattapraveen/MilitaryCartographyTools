@@ -1,6 +1,6 @@
 # Military Cartography Tools
 
-A QGIS plugin for military mapping: MIL-STD-2525D/APP-6 tactical graphics,
+A QGIS plugin for military mapping: MIL-STD-2525D/E and APP-6D/E tactical graphics,
 MGRS coordinate conversion, military grid generation, terrain analysis, and
 automated print-layout production. Runs fully offline — no external services,
 no data leaves your machine.

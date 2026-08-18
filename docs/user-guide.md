@@ -57,12 +57,13 @@ Left to right:
 | Icon | Button | Opens |
 |---|---|---|
 | Grid with a highlighted square + crosshair | *(standalone)* | About / plugin info |
+| Toggle switch | *(standalone)* | **Symbology Edition** — MIL-STD-2525D/APP-6D or MIL-STD-2525E/APP-6E; picks which standard newly added symbology layers use, see [below](#tactical-graphics---point-symbol-layers) |
 | 3×3 grid | **Grid** | UTM Grid, MGRS 100km Grid, Sub Grid (10km/5km/1km spacing, itself a nested flyout), Clear Grid |
 | Compass rose | **Navigation** | Coordinate Probe, Bearing / Range |
 | Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed |
 | Location pin | **Waypoints** | Import Waypoints, Export Waypoints |
 | Printed sheet with a folded corner | **Print Production** | New Military Layout, Map Sheet Series |
-| Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/APP-6 point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |
+| Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/E and APP-6D/E point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |
 
 Each individual tool keeps its own icon and behaviour exactly as
 described in its own section below (checkable tools still show as
@@ -558,9 +559,11 @@ larger scale denominator instead.
 Eight actions inside the toolbar's **NATO Symbols** dropdown (see [The
 toolbar, at a glance](#the-toolbar-at-a-glance)), each adding one or
 more point layers where every feature automatically renders as the
-correct MIL-STD-2525D/APP-6 military symbol, drawn from its own
-attributes. There's no dialog and no separate symbol picker: each layer
-is created empty and ready to use immediately.
+correct military symbol under whichever edition the layer was built
+against (MIL-STD-2525D/APP-6D by default, or MIL-STD-2525E/APP-6E - see
+[Symbology edition](#tactical-graphics---point-symbol-layers) below),
+drawn from its own attributes. There's no dialog and no separate symbol
+picker: each layer is created empty and ready to use immediately.
 
 **Placing a symbol**: use QGIS's own native point editing tools (toggle
 editing, **Add Point Feature**) to click a location — the same tools
@@ -582,8 +585,9 @@ Echelon; a single ship or aircraft doesn't):
 
 | Layer(s) | Echelon | Headquarters | Sector 1 / 2 Modifier | Dimension |
 |---|---|---|---|---|
-| Land Unit | ✅ | ✅ | — | — |
-| Land Civilian / Equipment / Installation | — | ✅ | — | — |
+| Land Unit | ✅ | ✅ | ✅ / ✅ | — |
+| Land Civilian / Installation | — | ✅ | ✅ / ✅ | — |
+| Land Equipment | — | ✅ | ✅ / — (no sector 2 in this appendix) | — |
 | Space, Air, Sea Surface, Subsurface | — | — | ✅ / ✅ | — |
 | Activities | — | — | ✅ / — (no sector 2 in this appendix) | — |
 | Mine Warfare | — | — | — | — |
@@ -619,7 +623,7 @@ dropdown/menu action labels dropped the same prefix, for consistency.
 |---|---|---|---|
 | Space | "Space" | Appendix B (symbol sets 05, 06 merged) | Full vocabulary — every space platform/equipment entity, plus Space Missile folded in |
 | Air | "Air" | Appendix C (symbol sets 01, 02 merged) | Full vocabulary — every air platform entity, plus Air Missile folded in |
-| Land | "Land Unit", "Land Civilian", "Land Equipment", "Land Installation" (four layers, one click) | Appendix D (symbol sets 10, 11, 15, 20) | Curated common-vocabulary subset for each — Land Unit organised by functional area (maneuver, fires, air defense, combat support, intelligence, combat service support); Equipment/Installation cover the common platform and facility types. Not the full spec — the rendering engine supports the complete standard, so growing any of these is a vocabulary-only change |
+| Land | "Land Unit", "Land Civilian", "Land Equipment", "Land Installation" (four layers, one click) | Appendix D (symbol sets 10, 11, 15, 20) | Land Civilian: full vocabulary. Land Equipment and Land Installation: essentially the full standard, including complete law-enforcement families. Land Unit: still a curated common-vocabulary subset organised by functional area (maneuver, fires, air defense, combat support, intelligence, combat service support) — every other layer above it was widened first. Not the full spec on Land Unit yet — the rendering engine already supports the complete standard, so widening it further is a vocabulary-only change |
 | Sea Surface | "Sea Surface" | Appendix E (symbol set 30) | Full vocabulary — every surface vessel entity, including "Own Ship" and "Fused Track" |
 | Subsurface | "Subsurface", "Mine Warfare" (two layers, one click) | Appendix F (symbol sets 35, 36) | Full vocabulary for both, including Mine Warfare's confidence-level (1-5) sub-variants for each mine position |
 | Activities | "Activities" | Appendix G (symbol set 40) | Full vocabulary — incidents, civil disturbance, operations, fire/hazmat events, transportation incidents, natural events, and personalities |
@@ -649,6 +653,33 @@ be custom hand-drawn graphics rather than a lookup into an existing
 renderer — a scope decided not worth building without a concrete need.
 If you need METOC symbology, open an issue or a pull request and we can
 scope it together.
+
+**Symbology edition (MIL-STD-2525D/E, APP-6D/E)**: a **Symbology
+Edition** menu on the toolbar picks which standard NEWLY ADDED point
+symbol layers (and Control Measures layers, below) are built against —
+either "MIL-STD-2525D / APP-6D" (the default) or "MIL-STD-2525E /
+APP-6E". It's a plugin-wide setting, remembered between sessions, not a
+per-feature choice — an individual symbol can't mix editions, because
+the standard itself defines the Entity and Sector 1/2 Modifier
+vocabularies differently per edition.
+
+Switching the setting **never changes a layer already in your
+project** — each layer's own symbol rendering is fixed at the moment
+it's created, and a layer added before this setting existed keeps
+working exactly as it always has (read as MIL-STD-2525D). Both editions
+of the same layer type can exist side by side in one project: adding
+"Air" once under each edition gives you two distinct layers, named "Air
+(2525D/6D)" and "Air (2525E/6E)" so they're never confused with each
+other in the Layers panel — adding the identical layer a third time
+under an edition you've already used is still refused, same
+data-safety guard as every other layer here.
+
+MIL-STD-2525E's own vocabulary is substantially larger than 2525D's for
+some domains (Land Unit in particular) and drops a handful of 2525D
+codes it retired outright. APP-6E is not built as a fully separate
+vocabulary — it shares MIL-STD-2525E's symbology closely enough that
+the "2525E/6E" edition serves both; if you specifically need APP-6E's
+own wording or modifier tables and hit a gap, open an issue.
 
 ---
 

@@ -2,7 +2,7 @@
 name=Military Cartography Tools
 qgisMinimumVersion=3.44.0
 qgisMaximumVersion=4.99.0
-description=Military cartography, MIL-STD-2525D/APP-6 tactical graphics, MGRS, and terrain analysis tools for QGIS. Runs fully offline - no external services, no data ever leaves your machine.
+description=Military cartography, MIL-STD-2525D/E and APP-6D/E tactical graphics, MGRS, and terrain analysis tools for QGIS. Runs fully offline - no external services, no data ever leaves your machine.
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
@@ -27,6 +27,36 @@ changelog=1.0.4
       "Administration" - Drug Enforcement Administration (DEA) and
       Transportation Security Administration (TSA). Symbols unchanged.
     - The test suite now runs against QGIS 4.2.1 alongside 3.44.12.
+    - Added MIL-STD-2525E and APP-6E tactical graphics support, alongside
+      the existing MIL-STD-2525D/APP-6D symbology, via a new "Symbology
+      Edition" toolbar menu. This picks which standard NEWLY added
+      symbology layers are built against; a layer already in a project
+      is never changed by switching it, and a layer created before this
+      existed keeps working exactly as before (it is read as 2525D,
+      which is what it always was). Adding the same layer type under
+      both editions now works side by side in one project - they get
+      distinct names, e.g. "Air (2525D/6D)" and "Air (2525E/6E)".
+    - Land Unit's own Sector 1/Sector 2 modifier dropdowns are now
+      available on the Land Unit layer (133 codes), matching the
+      existing modifier dropdowns already on Land Civilian, Equipment
+      and Installation.
+    - Fixed a real, if narrow, correctness bug in a third-party library
+      this plugin bundles: 8 of Land Unit's own Sector 1 modifiers
+      (Airmobile/Air Assault, Node Center, Sensor Control Module, Single
+      Shelter Switch, Accident, Other, Civilian, Antisubmarine Warfare)
+      were drawing the wrong icon under MIL-STD-2525D. Picking one of
+      these from the dropdown now draws the icon its own name describes.
+    - Fixed the Boundary line's echelon marker (C2 Measures): choosing
+      an echelon without also typing a unit designation used to leave
+      it undrawn entirely, and choosing it alongside only one
+      designation could draw it on the wrong side of the line. It now
+      always appears where the standard's own template puts it.
+    - Two label corrections: the Activities layer's "Law Enforcement"
+      entity now reads "Law Enforcement Operation", matching the
+      standard's own wording; several MIL-STD-2525E "(Generic)" entries
+      that rendered as an unhelpful blank circle with nothing to
+      distinguish them have been removed from the Entity dropdowns they
+      appeared in.
     1.0.3
     - Correctness fix: the drawn UTM/GZD grid now honours the two
       exceptions the standard itself makes. Over south-west Norway
@@ -123,7 +153,7 @@ changelog=1.0.4
       print-layout production, grid convergence and magnetic declination
       (WMM2025) expression functions.
 
-about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MIL-STD-2525D/APP-6 tactical graphics (control measures and entity symbols, drawn as real QGIS symbology rather than stamped images, so they scale and print correctly at any map scale), MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, cartographic utilities, terrain analysis (illuminated contours, hypsometric tint, line of sight, combined hillshade, and viewshed/dead-ground analysis), and navigation/production tools (bearing/range, GPX/KML waypoint import/export, and batch print-sheet generation tiling a large area). Every tool runs entirely offline against local data - GDAL/QGIS Processing, a bundled World Magnetic Model, and your own DEM - with no external services, API calls, or telemetry of any kind, making it suitable for use with sensitive or classified data.
+about=Military Cartography Tools (MCT) is a QGIS plugin providing tools for military mapping, including MIL-STD-2525D/E and APP-6D/E tactical graphics (control measures and entity symbols, drawn as real QGIS symbology rather than stamped images, so they scale and print correctly at any map scale, with a per-layer edition switch to choose which standard a symbology layer is built against), MGRS coordinate handling, military grid generation, layout automation, coordinate conversion, cartographic utilities, terrain analysis (illuminated contours, hypsometric tint, line of sight, combined hillshade, and viewshed/dead-ground analysis), and navigation/production tools (bearing/range, GPX/KML waypoint import/export, and batch print-sheet generation tiling a large area). Every tool runs entirely offline against local data - GDAL/QGIS Processing, a bundled World Magnetic Model, and your own DEM - with no external services, API calls, or telemetry of any kind, making it suitable for use with sensitive or classified data.
 
 tracker=https://github.com/kattapraveen/MilitaryCartographyTools/issues
 repository=https://github.com/kattapraveen/MilitaryCartographyTools
@@ -144,4 +174,4 @@ supportsQt6=True
 
 hasProcessingProvider=False
 
-tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline,GPX,KML,waypoints,bearing,range,print layout,MIL-STD-2525,APP-6,NATO,tactical graphics,control measures,symbology
+tags=MGRS,military,cartography,grid,UTM,coordinates,layout,mapping,terrain,DEM,hillshade,viewshed,line of sight,offline,GPX,KML,waypoints,bearing,range,print layout,MIL-STD-2525,MIL-STD-2525E,APP-6,APP-6E,NATO,tactical graphics,control measures,symbology

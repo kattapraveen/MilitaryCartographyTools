@@ -561,6 +561,14 @@ class MilitaryCartographyTools:
             self.toolbar
         )
 
+        self.edition_menu.setIcon(
+            QIcon(
+                str(
+                    self.plugin_dir / "icons" / "symbology_edition.svg"
+                )
+            )
+        )
+
         self.edition_menu.setToolTipsVisible(True)
 
         self.edition_menu.menuAction().setToolTip(
@@ -1498,9 +1506,10 @@ class MilitaryCartographyTools:
                 "group_nato_symbols.svg",
                 "NATO Symbols",
                 (
-                    "MIL-STD-2525D/APP-6 tactical graphics: point symbol "
-                    "layers (Space/Air/Land/Sea Surface/Subsurface/"
-                    "Activities/SIGINT/Cyberspace) and Control Measures"
+                    "MIL-STD-2525D/E and APP-6D/E tactical graphics: point "
+                    "symbol layers (Space/Air/Land/Sea Surface/Subsurface/"
+                    "Activities/SIGINT/Cyberspace) and Control Measures - "
+                    "see the Symbology Edition menu for which standard"
                 ),
                 [
                     self.tactical_graphics_space_action,
@@ -2803,8 +2812,8 @@ class MilitaryCartographyTools:
 {PLUGIN_NAME}
 Version {PLUGIN_VERSION}
 
-Military cartography, MIL-STD-2525D/APP-6 tactical
-graphics, MGRS and terrain analysis tools for QGIS.
+Military cartography, MIL-STD-2525D/E and APP-6D/E
+tactical graphics, MGRS and terrain analysis tools for QGIS.
 Runs fully offline - no external services.
 
 Copyright © 2026 Praveen Kumar
