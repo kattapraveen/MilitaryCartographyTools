@@ -2178,11 +2178,28 @@ tested, not claimed as done here.
       with a removed key - both checked explicitly, since either would
       have broken the edition switch's default-repointing silently.
       5 new tests, 1380 -> 1385.
-      **Still open**: APP-6E's modifier tables (no source) and its NATO
-      spelling; and nothing outside the shared point-layer factory is
-      edition-aware - Appendix H's hand-drawn control measures are built
-      from geometry, not vocabulary, so they are unaffected, but any
-      layer NOT going through that factory still builds 2525D only.
+      **E-6/E-7 (APP-6E's own modifier tables and NATO spelling) PARKED
+      FOR GOOD, 2026-08-18** - maintainer's decision, revisit only if a
+      user actually asks. Before parking it the claim that 2525E and
+      APP-6E are "identical, mathematically and visually" was checked
+      directly rather than assumed (the maintainer's own research had
+      suggested this): a full key-level diff of the two Esri dictionary
+      files (`reference/mil2525e.stylx` vs `reference/app6e.stylx`) found
+      925 keys only in 2525E, 405 only in APP-6E, and 649 of the 3364
+      shared keys carrying a different name - 340 of those not
+      explainable by US/UK spelling alone. Some are real renamings on the
+      identical code (2525E's "Military Information Support Operation
+      (MISO)" is APP-6E's "Psychological Operations (PSYOPS)", same
+      pattern as the 2525D/APP-6D pair found earlier); two are
+      unrelated concepts sharing a code by coincidence (`60081`:
+      "Continuity of Operations" vs "Radio Frequency RF"; `60130200`:
+      "Firmware" vs "Insider"). So the editions converged a great deal
+      relative to D/APP-6D, but are not identical - the parked status is
+      correct, not merely cautious.
+      **Nothing outside the shared point-layer factory is edition-aware**
+      - Appendix H's hand-drawn control measures are built from geometry,
+      not vocabulary, so they are unaffected, but any layer NOT going
+      through that factory still builds 2525D only.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no
