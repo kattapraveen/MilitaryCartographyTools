@@ -1545,6 +1545,58 @@ def _page_gap_in_map_units(values, first_index, reference_point):
     return ground_metres / metres_per_unit
 
 
+def _fix_effective_tooth_length(total_length, tooth_length, letter_gap):
+
+    """
+    Shared by mct_fix_geometry() and mct_fix_letter_point() - both
+    have to shrink the SAME way, or the letter drifts off whatever
+    gap the teeth actually cut.
+
+    Fix's own construction needs room for two flat runs
+    (tooth_length each) plus at least one tooth (tooth_length) plus
+    the letter's own reserved space (2 * letter_gap) before any of it
+    draws - a fixed threshold of 3 * tooth_length + 2 * letter_gap.
+    Rather than dropping the teeth (and, since both used that same
+    threshold, the letter with them) the moment a short PT1-PT2 falls
+    under that, this shrinks tooth_length down to whatever fits
+    exactly one tooth alongside the letter - "shrink the teeth to
+    fit", the maintainer's own call, 2026-08-18, after "if the line is
+    short, the kinks dont form and even the letter F goes missing".
+
+    Returns (effective_tooth_length, effective_letter_gap): the
+    nominal (PT3-derived) tooth_length and the passed-in letter_gap,
+    unshrunk, whenever they already fit; a smaller tooth_length,
+    keeping the letter, whenever total_length allows; letter_gap
+    dropped to 0 only as a last resort, when total_length is too
+    short even for the letter's own reservation alone - in that case
+    a single (possibly small) tooth still forms, letterless, rather
+    than the straight line the old all-or-nothing threshold drew.
+
+    Shrunk very slightly under the exact "one tooth fits" boundary
+    (a 0.1% margin) rather than to it - solving for the size that
+    makes `usable == tooth_length` exactly leaves the later
+    `usable // tooth_length` floor division sitting right on a knife
+    edge, where ordinary floating-point rounding can tip it to 0
+    teeth instead of 1. Found by testing this function's own output
+    at a range of lengths, not assumed.
+    """
+
+    if tooth_length <= 0 or total_length <= 0:
+        return tooth_length, letter_gap
+
+    lead_extra = 2.0 * letter_gap
+
+    if total_length >= 3.0 * tooth_length + lead_extra:
+        return tooth_length, letter_gap
+
+    shrunk = (total_length - lead_extra) / 3.0 * 0.999
+
+    if shrunk > 0:
+        return shrunk, letter_gap
+
+    return max(total_length / 3.0 * 0.999, 0.0), 0.0
+
+
 def _millimetres_in_map_units(millimetres, map_scale, reference_point):
 
     """
@@ -1677,6 +1729,13 @@ def mct_fix_letter_point(values, feature=None, parent=None):
     mct_fix_letter_point($geometry, <gap in mm>, @map_scale) - the same
     arguments mct_fix_geometry() gets, so the letter and the gap it
     sits in are computed from one set of numbers.
+
+    Shrinks tooth_length the same way mct_fix_geometry() does (via
+    _fix_effective_tooth_length()) on a short PT1-PT2, so the letter's
+    own position always matches whatever gap the teeth actually cut -
+    empty only when total_length is too short even for the letter's
+    own reservation alone, the same last-resort case that function
+    drops the letter (but not the teeth) for.
     """
 
     points = _three_anchor_points(values)
@@ -1704,10 +1763,14 @@ def mct_fix_letter_point(values, feature=None, parent=None):
 
     letter_gap = _page_gap_in_map_units(values, 1, pt2)
 
-    lead_extra = 2.0 * letter_gap
+    tooth_length, letter_gap = _fix_effective_tooth_length(
+        total_length, tooth_length, letter_gap
+    )
 
-    if lead_extra >= total_length - 2.0 * tooth_length:
+    if letter_gap <= 0:
         return QgsGeometry()
+
+    lead_extra = 2.0 * letter_gap
 
     usable = total_length - 2.0 * tooth_length - lead_extra
 
@@ -2081,6 +2144,19 @@ def mct_fix_geometry(values, feature=None, parent=None):
 
     No arrowhead - the maintainer's own construction doesn't have one,
     unlike the standard's own template.
+
+    **A short PT1-PT2 shrinks L rather than dropping the teeth.**
+    2026-08-18, the maintainer's own smoke-test finding: "if the line
+    is short, the kinks dont form and even the letter F goes missing" -
+    the old all-or-nothing threshold needed room for two full-size flat
+    runs, one full-size tooth AND the letter before drawing any of it.
+    _fix_effective_tooth_length() (asked for by name, "shrink the
+    teeth to fit") now shrinks L down to whatever fits exactly one
+    tooth alongside the letter, and only drops the letter - never the
+    tooth - as a last resort on a PT1-PT2 too short even for the
+    letter's own reservation alone. mct_fix_letter_point() shrinks the
+    same way, so the letter's own position always matches whichever
+    gap the teeth actually cut.
     """
 
     if len(values) < 1:
@@ -2112,20 +2188,20 @@ def mct_fix_geometry(values, feature=None, parent=None):
     if tooth_length == 0 or total_length <= 0:
         return QgsGeometry.fromPolylineXY([pt1, pt2])
 
-    half_span = tooth_length / 2.0
-    height = tooth_length * math.sqrt(3.0) / 2.0
-
     # An optional run of extra flat line at the PT2 end, for a letter
     # set into it - Table H-XXIV's own Fix carries an "F" there. Twice
     # the gap, so a length of line still shows either side of it.
     # Table H-XIX's own Fix passes nothing and is unchanged.
     letter_gap = _page_gap_in_map_units(values, 1, pt2)
 
-    lead_extra = 2.0 * letter_gap
+    tooth_length, letter_gap = _fix_effective_tooth_length(
+        total_length, tooth_length, letter_gap
+    )
 
-    if lead_extra >= total_length - 2.0 * tooth_length:
-        lead_extra = 0.0
-        letter_gap = 0.0
+    half_span = tooth_length / 2.0
+    height = tooth_length * math.sqrt(3.0) / 2.0
+
+    lead_extra = 2.0 * letter_gap
 
     usable = total_length - 2.0 * tooth_length - lead_extra
 

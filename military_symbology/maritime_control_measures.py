@@ -483,6 +483,22 @@ def _configure_lines_labeling(layer):
     QGIS log "Different sets of symbol layers are masked by different
     sources! Only one (arbitrary) set will be retained!" and silently
     keep just one of them - so they have to agree.
+
+    **`mask_size_mm=1.7`, not the shared 1.2mm default.** 2026-08-18,
+    the maintainer's own smoke test: "the O label has a dot in it -
+    maybe the line leaking through." Confirmed by rendering: Electro-
+    Optical Intercept's own "O" is the one abbreviation here with a
+    genuine enclosed counter, and at the default mask size the buffer
+    doesn't reliably close it, leaving the line visible as a small dot
+    inside the letter. Checked empirically rather than reasoned about
+    in the abstract - GEOS buffer size vs. glyph outline is not a
+    simple bigger-is-better relationship: 1.2/1.4mm leaked, 1.6-1.8mm
+    rendered a clean "O", 2.0mm leaked again, tested across three
+    render resolutions (150/300/600 DPI) to rule out a DPI-specific
+    fluke. 1.7mm sits in the middle of the confirmed-clean band. Also
+    confirmed clean on every other abbreviation here, including the
+    other two with their own enclosed counters (B, RDF) - none show
+    the artifact at this size.
     """
 
     abbreviation_rule = QgsRuleBasedLabeling.Rule(
@@ -490,7 +506,8 @@ def _configure_lines_labeling(layer):
             layer,
             Qgis.LabelPlacement.Horizontal,
             _LINE_DESIGNATION_LABEL_EXPRESSION,
-            masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS
+            masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS,
+            mask_size_mm=1.7
         )
     )
 
@@ -500,6 +517,7 @@ def _configure_lines_labeling(layer):
             Qgis.LabelPlacement.OverPoint,
             _LINE_UNIQUE_DESIGNATION_LABEL_EXPRESSION,
             masked_symbol_layer_ids=_MASKED_LINE_SYMBOL_LAYER_IDS,
+            mask_size_mm=1.7,
             label_geometry_expression="end_point($geometry)",
             quadrant=Qgis.LabelQuadrantPosition.BelowRight
         )

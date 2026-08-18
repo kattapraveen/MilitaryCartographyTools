@@ -381,6 +381,31 @@ class TestCreateMaritimeControlMeasuresLinesLayer(QgisTestCase):
         self.assertEqual(declared[0], declared[1])
 
 
+    def test_bearing_line_masks_use_the_widened_size(self):
+
+        # 2026-08-18: "the O label has a dot in it - maybe the line
+        # leaking through" - Electro-Optical Intercept's own "O" is the
+        # one abbreviation here with a genuine enclosed counter, and at
+        # the shared 1.2mm default the mask doesn't reliably close it.
+        # Confirmed by rendering (not just reasoned about): 1.2/1.4mm
+        # leaked a visible dot, 1.6-1.8mm rendered clean, 2.0mm leaked
+        # again, checked across three render resolutions - 1.7mm is the
+        # middle of the confirmed-clean band, and renders clean on
+        # every other abbreviation here too, including the other two
+        # with their own enclosed counters (B, RDF).
+        layer = create_maritime_control_measures_lines_layer()
+
+        for rule in self._label_rules(layer):
+
+            settings = rule.settings()
+
+            text_format = settings.format()
+
+            mask = text_format.mask()
+
+            self.assertAlmostEqual(mask.size(), 1.7, places=6)
+
+
     def test_unique_designation_labels_the_lines_end_below_right(self):
 
         # The maintainer's own third point: "there should be an option

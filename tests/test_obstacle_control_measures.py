@@ -4084,6 +4084,196 @@ class TestFixObstacleEffect(QgisTestCase):
         )
 
 
+class TestFixShrinksToFitAShortLine(QgisTestCase):
+
+    """
+    2026-08-18, the maintainer's own smoke-test finding on Mission Task
+    Lines' own Fix (Table H-XXIV, which reuses this same geometry with
+    a letter gap - see mission_task_control_measures.py): "if the line
+    is short, the kinks dont form and even the letter F goes missing."
+    "Shrink the teeth to fit" was the maintainer's own chosen fix,
+    over dropping the teeth or leaving it as a hard minimum length.
+
+    A literal map_scale argument is used throughout rather than a real
+    QgsMapSettings context - mct_fix_geometry()/mct_fix_letter_point()
+    only ever read it as a plain number (see _page_gap_in_map_units()),
+    so there is nothing scale-context-specific to set up here.
+
+    A PROJECTED crs, not the module's own WGS84 - _page_gap_in_map_
+    units() converts the letter's own page-mm size into ground metres
+    via metres-per-unit at the reference point, and every coordinate
+    below is small on purpose (to sit near the shrink threshold). In a
+    geographic CRS those coordinates are DEGREES, worth ~111km each
+    near the equator, so the gap comes out negligible against them and
+    the shrink logic never actually engages - exactly the "a gap of
+    '600 metres' cut as 600 degrees is off by five orders of
+    magnitude" trap that function's own docstring warns about, caught
+    here by a first version of this test failing for the wrong reason.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        from qgis.core import QgsCoordinateReferenceSystem
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:3857")
+        )
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _evaluate(self, function, pt1, pt2, pt3, gap_mm, map_scale):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        wkt = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(*pt1), QgsPointXY(*pt2), QgsPointXY(*pt3)]
+        ).asWkt()
+
+        expression = QgsExpression(
+            "{}(geom_from_wkt('{}'), {}, {})".format(
+                function, wkt, gap_mm, map_scale
+            )
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def _has_a_tooth(self, path):
+
+        vertices = (
+            path.asMultiPolyline()[0]
+            if path.isMultipart()
+            else path.asPolyline()
+        )
+
+        return any(abs(v.y()) > 1e-6 for v in vertices)
+
+
+    def test_every_positive_length_produces_a_tooth(self):
+
+        # The old all-or-nothing threshold needed room for two full
+        # flat runs, one full tooth AND the letter before drawing any
+        # of it - a PT1-PT2 anywhere under that threshold showed a
+        # bare straight line. Every one of these is well under it
+        # (tooth_length is 10, from PT3's own perpendicular distance).
+        for length in (0.5, 1, 2, 5, 8):
+
+            with self.subTest(length=length):
+
+                path = self._evaluate(
+                    "mct_fix_geometry",
+                    (0, 0), (length, 0), (length / 2.0, 10),
+                    gap_mm=5.575, map_scale=2706.69
+                )
+
+                self.assertTrue(self._has_a_tooth(path))
+
+
+    def test_the_tooth_never_exceeds_the_nominal_size(self):
+
+        # Shrinking is a ceiling, not a target - a line long enough for
+        # the full-size (PT3-derived) tooth must draw it at that size,
+        # unshrunk, exactly as it always has.
+        path = self._evaluate(
+            "mct_fix_geometry",
+            (0, 0), (100, 0), (50, 10),
+            gap_mm=5.575, map_scale=2706.69
+        )
+
+        vertices = path.asMultiPolyline()[0]
+
+        apex_heights = [abs(v.y()) for v in vertices if abs(v.y()) > 1e-6]
+
+        expected_height = 10 * math.sqrt(3.0) / 2.0
+
+        for height in apex_heights:
+
+            with self.subTest(height=height):
+
+                self.assertAlmostEqual(height, expected_height, places=6)
+
+
+    def test_the_letter_appears_once_there_is_room_for_it(self):
+
+        letter_point = self._evaluate(
+            "mct_fix_letter_point",
+            (0, 0), (100, 0), (50, 10),
+            gap_mm=5.575, map_scale=2706.69
+        )
+
+        self.assertFalse(letter_point.isEmpty())
+
+
+    def test_the_letter_drops_before_the_tooth_does_on_a_very_short_line(self):
+
+        # Last resort: too short even for the letter's own reservation
+        # alone. The tooth must still form - only the letter drops.
+        pt1, pt2, pt3 = (0, 0), (1, 0), (0.5, 10)
+
+        geometry_path = self._evaluate(
+            "mct_fix_geometry", pt1, pt2, pt3,
+            gap_mm=5.575, map_scale=2706.69
+        )
+
+        letter_point = self._evaluate(
+            "mct_fix_letter_point", pt1, pt2, pt3,
+            gap_mm=5.575, map_scale=2706.69
+        )
+
+        self.assertTrue(self._has_a_tooth(geometry_path))
+        self.assertTrue(letter_point.isEmpty())
+
+
+    def test_the_letter_sits_inside_the_gap_the_geometry_actually_cut(self):
+
+        # The two functions must shrink identically, or the letter
+        # drifts off whatever gap the teeth cut for it - checked at a
+        # length short enough to force the shrink (but long enough to
+        # still keep the letter, unlike the very-short case above),
+        # not just the unshrunk nominal case.
+        pt1, pt2, pt3 = (0, 0), (45, 0), (22.5, 10)
+
+        geometry_path = self._evaluate(
+            "mct_fix_geometry", pt1, pt2, pt3,
+            gap_mm=5.575, map_scale=2706.69
+        )
+
+        letter_point = self._evaluate(
+            "mct_fix_letter_point", pt1, pt2, pt3,
+            gap_mm=5.575, map_scale=2706.69
+        )
+
+        self.assertTrue(geometry_path.isMultipart())
+
+        parts = geometry_path.asMultiPolyline()
+
+        self.assertEqual(len(parts), 2)
+
+        gap_start_x = parts[0][-1].x()
+        gap_end_x = parts[1][0].x()
+
+        letter_x = letter_point.asPoint().x()
+
+        self.assertGreater(letter_x, gap_start_x)
+        self.assertLess(letter_x, gap_end_x)
+
+
 class TestObstacleBypassFamily(QgisTestCase):
 
     """

@@ -10443,6 +10443,61 @@ detect-secrets both clean.
 
 ---
 
+## IDX smoke-testing round: L10, L11 (2026-08-18)
+
+Both investigated empirically - rendered the actual symbol and
+inspected the pixels, rather than reasoning about GEOS/font behaviour
+in the abstract, since both turned out to be exactly the kind of
+thing that abstract reasoning gets wrong.
+
+**L10, Electro-Optical Intercept's "O" had a dot leaking through it
+(`maritime_control_measures.py`).** "The O label has a dot in it -
+maybe the line leaking through." Confirmed by rendering the actual
+symbol: the abbreviation's own Selective Masking uses the shared
+1.2mm `mask_size_mm` default, and for the one bearing-line
+abbreviation with a genuine enclosed counter ("O"), that default
+doesn't reliably close it, leaving the underlying line visible as a
+small dot in the middle of the letter. The fix was found by rendering,
+not derived: GEOS buffer size vs. a glyph's own outline is not simply
+"bigger is better" - 1.2/1.4mm leaked, 1.6-1.8mm rendered a clean "O",
+2.0mm leaked again, checked across three render resolutions (150/300/
+600 DPI) to rule out a DPI-specific fluke. `mask_size_mm=1.7` (the
+middle of the confirmed-clean band) applied to both of this layer's
+label rules; also confirmed clean on every other abbreviation here,
+including the other two with their own enclosed counters (B, RDF). 1
+new test.
+
+**L11, Mission Task Lines' Fix lost both its zigzag and its own
+letter on a short PT1-PT2 (`expressions/military_symbology_
+functions.py`).** "If the line is short, the kinks dont form and even
+the letter F goes missing." Confirmed by direct expression evaluation
+(not just reading the code): `mct_fix_geometry()`/`mct_fix_letter_
+point()` shared a single all-or-nothing threshold - two full-size flat
+runs, one full-size tooth, AND the letter's own reservation all had to
+fit before either function drew anything, so a PT1-PT2 under that
+threshold showed a bare straight line with no letter. Presented to the
+maintainer as a design question, not a one-line bug fix, since several
+genuinely different ways to degrade were all defensible (drop teeth
+first, shrink teeth to fit, or just report the real minimum length) -
+**"shrink the teeth to fit" was the maintainer's own call.** New
+shared helper `_fix_effective_tooth_length()` shrinks the tooth size
+(never beyond its own PT3-derived nominal size) down to whatever fits
+exactly one tooth alongside the letter, called identically from both
+functions so the letter's own position always matches whatever gap
+the teeth actually cut; the letter drops - never the tooth - only as a
+true last resort, when PT1-PT2 is too short even for the letter's own
+reservation alone. One real bug caught verifying this empirically
+rather than trusting the algebra: solving for the exact "one tooth
+fits" boundary left the later `usable // tooth_length` floor division
+sitting on a floating-point knife edge, occasionally rounding down to
+zero teeth right at that boundary - fixed with a 0.1% margin, found by
+testing across a range of lengths, not assumed safe. 5 new tests.
+
+6 new tests, 1429 -> 1435 on both QGIS versions; Bandit and
+detect-secrets both clean.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
