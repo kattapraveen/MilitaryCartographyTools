@@ -2178,24 +2178,34 @@ tested, not claimed as done here.
       with a removed key - both checked explicitly, since either would
       have broken the edition switch's default-repointing silently.
       5 new tests, 1380 -> 1385.
-      **E-6/E-7 (APP-6E's own modifier tables and NATO spelling) PARKED
-      FOR GOOD, 2026-08-18** - maintainer's decision, revisit only if a
-      user actually asks. Before parking it the claim that 2525E and
-      APP-6E are "identical, mathematically and visually" was checked
-      directly rather than assumed (the maintainer's own research had
-      suggested this): a full key-level diff of the two Esri dictionary
-      files (`reference/mil2525e.stylx` vs `reference/app6e.stylx`) found
-      925 keys only in 2525E, 405 only in APP-6E, and 649 of the 3364
-      shared keys carrying a different name - 340 of those not
-      explainable by US/UK spelling alone. Some are real renamings on the
-      identical code (2525E's "Military Information Support Operation
-      (MISO)" is APP-6E's "Psychological Operations (PSYOPS)", same
-      pattern as the 2525D/APP-6D pair found earlier); two are
-      unrelated concepts sharing a code by coincidence (`60081`:
-      "Continuity of Operations" vs "Radio Frequency RF"; `60130200`:
-      "Firmware" vs "Insider"). So the editions converged a great deal
-      relative to D/APP-6D, but are not identical - the parked status is
-      correct, not merely cautious.
+      **E-6/E-7 (APP-6E's own modifier tables and NATO spelling) CLOSED,
+      2026-08-18 - cannot be done, not merely deferred.** No source for
+      the official MIL-STD-2525E or APP-6E documents themselves was
+      obtainable (access restrictions, the same blocker that shaped the
+      whole of Phase 12 - see the "sources found" update above), and
+      unlike 2525E, no third-party repo carries APP-6E's own modifier
+      tables either: `stanag-app6` covers B and D only and points at
+      `milstandard-e`, which exports a single `ms2525e` table set while
+      its README claims to cover both editions. Building E-6/E-7 from
+      2525E's own tables was considered and rejected rather than
+      substituted quietly: the maintainer's own research had suggested
+      2525E and APP-6E are "identical, mathematically and visually", so
+      that assumption was checked directly rather than trusted - a full
+      key-level diff of the two Esri dictionary files
+      (`reference/mil2525e.stylx` vs `reference/app6e.stylx`) found 925
+      keys only in 2525E, 405 only in APP-6E, and 649 of the 3364 shared
+      keys carrying a different name - 340 of those not explainable by
+      US/UK spelling alone. Some are real renamings on the identical
+      code (2525E's "Military Information Support Operation (MISO)" is
+      APP-6E's "Psychological Operations (PSYOPS)", same pattern as the
+      2525D/APP-6D pair found earlier); two are unrelated concepts
+      sharing a code by coincidence (`60081`: "Continuity of Operations"
+      vs "Radio Frequency RF"; `60130200`: "Firmware" vs "Insider"). So
+      the editions converged a great deal relative to D/APP-6D, but are
+      not identical enough to build E-6/E-7 from 2525E's own data
+      without misrepresenting APP-6E - there is no safe substitute for
+      an actual source. Closed for good; revisit only if a user actually
+      asks and can point to one.
       **Nothing outside the shared point-layer factory is edition-aware**
       - Appendix H's hand-drawn control measures are built from geometry,
       not vocabulary, so they are unaffected, but any layer NOT going
@@ -10159,19 +10169,26 @@ request for a second look.
 10. ✅ ~~Phase 8 — terrain analysis~~ — complete 2026-08-06 (see Phase 8 above).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
 12. ✅ ~~Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology)~~ — **complete 2026-08-17**; the appendix work itself finished 2026-08-16 when Appendix H closed, and shipped in 1.0.0. Every appendix built or explicitly triaged out (I/METOC decided not needed). What is left inside this phase is expansion, not completion - the Land entity vocabularies and the Land sector 1/2 modifiers - tracked separately rather than holding the phase open. The history below is kept because the reasoning still matters. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix. **Update 2026-08-09/10**: H0-H14 built and tested headlessly; live hands-on QGIS smoke-testing by the project maintainer (started 2026-08-09, table-by-table henceforth via a dedicated tracker artifact) found and fixed real construction defects in H3 (FLOT/Line of Contact/Phase Line/FEBA/Principal Direction of Fire/Fortified Area, plus building the previously-skipped Limited Access Area) and H4 (echelon placement, Strong Point tick direction/masking, Battle Position's "prepared" line style) - see both dated entries above for the full list. Also, at the maintainer's own request, Table H-VI and Table H-IX's point-type entries moved out of the shared `control_measure_points.py` layer into their own dedicated Points layers (C2 Measures/Defensive Control Measures respectively), matching every other H.5.x group's own "own layer(s)" convention - the remaining groups' own points (Airspace/Maritime control points; everything under the not-yet-built H15-H22) are scoped to move the same way once each group's own mini-phase is built, not preemptively. H15-H22 remain pending. 696 tests passing on both QGIS versions as of 2026-08-10. **Update 2026-08-16: APPENDIX H IS COMPLETE.** H15-H22 are all built, smoke-tested and cleared - the last of them Table H-XXIV's own 24 mission-task lines, finished 2026-08-16. Every drawable row of every Appendix H table now has a symbol; the only rows still recorded as unbuilt anywhere are two group parents the standard gives no template for, kept so each module's row arithmetic still reconciles. See the "Appendix H — complete" section at the end of this file for the authoritative ledger. 1289 tests passing on both QGIS versions.
-13. 🟡 **Phase 12 — MIL-STD-2525E / APP-6E symbology (2026-08-18)** — the
-    vocabulary and edition-switching engine are done: 978 entities and
-    226 sector modifiers across every symbol set, an edition setting on
-    the toolbar, and every Land layer's own modifiers now cover both
-    editions. Land Unit's D-4b pass also caught and fixed a genuine
-    milsymbol rendering bug (8 codes drawing the wrong icon under
-    MIL-STD-2525D - see that entry under Phase 10 above for the full
-    story, including the vendored-file patch). E-8 (the 93 common
-    sector 1/2 modifiers, SIDC digits 21/22) is now wired into every
-    layer that already has a per-set 2525E modifier dropdown - see that
-    entry under Phase 10 above. Left open: APP-6E's own modifier
-    tables/spelling, parked for good pending a source. 1403 tests
-    passing on both QGIS versions.
+13. ✅ ~~Phase 12 — MIL-STD-2525E / APP-6E symbology~~ — **complete
+    2026-08-18**: 978 entities and 226 sector modifiers across every
+    symbol set, an edition setting on the toolbar, every Land layer's
+    own modifiers covering both editions, and E-8 (the 93 common
+    sector 1/2 modifiers, SIDC digits 21/22) wired into every layer
+    that already has a per-set 2525E modifier dropdown - see those
+    entries under Phase 10 above, including the genuine milsymbol
+    rendering bug D-4b caught and fixed (8 codes drawing the wrong icon
+    under MIL-STD-2525D, including the vendored-file patch). E-6/E-7
+    (APP-6E's own modifier tables and NATO spelling) are CLOSED, not
+    built - no source for the official MIL-STD-2525E or APP-6E
+    documents was obtainable, and no third-party repo carries APP-6E's
+    own modifier tables either, so there is nothing to build them from
+    without misrepresenting the standard - see that entry under Phase
+    10 above for the full evidence (the two editions were confirmed
+    genuinely divergent, not a safe substitute for each other).
+    "Complete" here means every item is resolved, built or explicitly
+    closed for lack of a source - not that APP-6E has full coverage;
+    revisit E-6/E-7 only if a user asks and can point to a source.
+    1403 tests passing on both QGIS versions.
 
 ---
 
