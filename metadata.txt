@@ -57,6 +57,12 @@ changelog=1.0.4
       that rendered as an unhelpful blank circle with nothing to
       distinguish them have been removed from the Entity dropdowns they
       appeared in.
+    - Under MIL-STD-2525E, every Sector 1/Sector 2 Modifier dropdown
+      that already existed now also offers that standard's 93 "common"
+      modifiers (things like Robotic, Cargo or Command Post Node, which
+      apply across many symbol types rather than one) alongside the
+      symbol's own list. A symbol set with no MIL-STD-2525E modifiers of
+      its own still has no dropdown, same as before.
     1.0.3
     - Correctness fix: the drawn UTM/GZD grid now honours the two
       exceptions the standard itself makes. Over south-west Norway

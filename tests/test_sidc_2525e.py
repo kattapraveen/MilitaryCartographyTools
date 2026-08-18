@@ -281,21 +281,45 @@ class TestEditionSwitch(QgisTestCase):
 
         from MilitaryCartographyTools.military_symbology.sidc import build_sidc
 
-        # Land Installation sector 1 code 02 (Chemical) is live in 2525D
-        # and {Disused} in 2525E - so the same call must succeed under one
-        # edition and fail under the other.
+        # Land Installation sector 1 code 10 (Petroleum) is live in 2525D
+        # and {Disused} in 2525E, with no common-table modifier of the
+        # same name either (unlike "chemical", see below) - so the same
+        # call must succeed under one edition and fail under the other.
         built = build_sidc(
             "friend", "military", symbol_set="land_installation",
-            sector1_modifier="chemical",
+            sector1_modifier="petroleum",
         )
 
-        self.assertEqual(built[16:18], "02")
+        self.assertEqual(built[16:18], "10")
 
         with self.assertRaises(KeyError):
             build_sidc(
                 "friend", "military", symbol_set="land_installation",
-                sector1_modifier="chemical", edition="2525E",
+                sector1_modifier="petroleum", edition="2525E",
             )
+
+
+    def test_a_disused_per_set_modifier_can_still_resolve_via_common(self):
+
+        # Land Installation's own 2525E sector1 table drops "chemical"
+        # (Disused, see test_disused_codes_are_not_offered) - but E-8's
+        # common-modifier fallback means the KEY still resolves, through
+        # the common table's own "Chemical" entry (code 138), a
+        # different and legitimate code rather than a retired one. Not
+        # a bug: this is exactly what the common namespace is for. Found
+        # while updating test_modifiers_resolve_per_edition, which had
+        # been asserting "chemical" fails under 2525E - true before E-8,
+        # false after.
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        built = build_sidc(
+            "friend", "military", symbol_set="land_installation",
+            sector1_modifier="chemical", edition="2525E",
+        )
+
+        self.assertEqual(len(built), 22)
+        self.assertEqual(built[16:18], "38")
+        self.assertEqual(built[20], "1")
 
 
     def test_the_expression_function_takes_an_edition_argument(self):
@@ -384,8 +408,11 @@ class TestLayerEditionWiring(QgisTestCase):
 
     def test_2525e_layer_drops_the_disused_sector1_modifiers(self):
 
-        # The seven live codes, not 2525D's thirteen. This is the check
-        # that a user opening the dropdown cannot pick a retired modifier.
+        # The seven live own-set codes, not 2525D's thirteen, PLUS the
+        # common table merged in by E-8 (see _point_symbol_layer.py's
+        # _merge_common_labels()) - this is the check that a user
+        # opening the dropdown cannot pick a retired modifier, and does
+        # see the common ones alongside land_installation's own.
         layer = self._layer("2525E")
 
         index = layer.fields().indexOf("sector1_modifier")
@@ -398,10 +425,11 @@ class TestLayerEditionWiring(QgisTestCase):
         for entry in entries if isinstance(entries, list) else [entries]:
             offered.update(entry.values())
 
-        # "(None)" carries an empty value alongside the seven real codes.
+        # "(None)" carries an empty value alongside the real codes.
         self.assertEqual(
             {value for value in offered if value},
             set(MODIFIERS_SECTOR1_2525E["land_installation"])
+            | set(MODIFIERS_SECTOR1_2525E["common"])
         )
 
 

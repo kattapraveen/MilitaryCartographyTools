@@ -16,6 +16,9 @@ from MilitaryCartographyTools.military_symbology.sidc import (
     ENTITIES,
     MODIFIERS,
 )
+from MilitaryCartographyTools.military_symbology.sidc_2525e import (
+    MODIFIERS_SECTOR1_2525E,
+)
 
 
 class TestBuildSidc(QgisTestCase):
@@ -320,6 +323,130 @@ class TestBuildSidc(QgisTestCase):
                     len(codes),
                     f"duplicate code in {symbol_set}/{sector}"
                 )
+
+
+class TestCommonModifiers(QgisTestCase):
+
+    """
+    E-8: 2525E's COMMON sector 1/2 modifier tables, selected by SIDC
+    digits 21/22 rather than scoped to one symbol_set - see
+    sidc.py's common_modifiers_for_edition()/_resolve_modifier() and
+    sidc_2525e.py's own header comment on the mechanism. Confirmed by
+    hand against a rendered symbol before this was wired up (see
+    docs/roadmap.md's Phase 12 entry); these pin that finding down.
+    """
+
+    def test_common_sector1_modifier_sets_the_digit_21_flag(self):
+
+        # Command Post Node (code 116 in the common table) on Land
+        # Equipment - the exact case confirmed by hand-rendering before
+        # this was wired into build_sidc().
+        sidc = build_sidc(
+            affiliation="friend",
+            entity="rifle",
+            symbol_set="land_equipment",
+            sector1_modifier="command_post_node",
+            edition="2525E",
+        )
+
+        self.assertEqual(len(sidc), 22)
+        self.assertEqual(sidc[16:18], "16")
+        self.assertEqual(sidc[20], "1")
+        self.assertEqual(sidc[21], "0")
+
+
+    def test_common_sector2_modifier_sets_the_digit_22_flag(self):
+
+        sidc = build_sidc(
+            affiliation="friend",
+            entity="rifle",
+            symbol_set="land_equipment",
+            sector2_modifier="airborne",
+            edition="2525E",
+        )
+
+        self.assertEqual(len(sidc), 22)
+        self.assertEqual(sidc[20], "0")
+        self.assertEqual(sidc[21], "1")
+
+
+    def test_both_sectors_common_sets_both_flags(self):
+
+        sidc = build_sidc(
+            affiliation="friend",
+            entity="rifle",
+            symbol_set="land_equipment",
+            sector1_modifier="command_post_node",
+            sector2_modifier="airborne",
+            edition="2525E",
+        )
+
+        self.assertEqual(len(sidc), 22)
+        self.assertEqual(sidc[20:22], "11")
+
+
+    def test_no_common_modifier_keeps_the_plain_20_character_sidc(self):
+
+        # Every pre-existing call site, and every 2525E call that
+        # never resolves a common modifier, must keep producing the
+        # SIDC length it always has - this is additive, not a format
+        # change.
+        sidc = build_sidc(
+            affiliation="friend",
+            entity="rifle",
+            symbol_set="land_equipment",
+            edition="2525E",
+        )
+
+        self.assertEqual(len(sidc), 20)
+
+
+    def test_own_set_modifier_wins_on_a_name_collision(self):
+
+        # "biological" exists in both land_equipment's own sector1
+        # table and the common one, same label, different code - the
+        # own-set entry must win, matching what the merged dropdown
+        # offers (see _point_symbol_layer.py's _merge_common_labels()).
+        sidc = build_sidc(
+            affiliation="friend",
+            entity="rifle",
+            symbol_set="land_equipment",
+            sector1_modifier="biological",
+            edition="2525E",
+        )
+
+        self.assertEqual(len(sidc), 20)
+        self.assertEqual(
+            sidc[16:18],
+            MODIFIERS_SECTOR1_2525E["land_equipment"]["biological"],
+        )
+
+
+    def test_unknown_modifier_still_raises_with_common_available(self):
+
+        with self.assertRaises(KeyError):
+
+            build_sidc(
+                affiliation="friend",
+                entity="rifle",
+                symbol_set="land_equipment",
+                sector1_modifier="warp_drive",
+                edition="2525E",
+            )
+
+
+    def test_2525d_has_no_common_modifiers(self):
+
+        # common_modifiers_for_edition() is 2525E-only; a 2525D call
+        # must not resolve a common-table key even if it happens to
+        # exist in 2525E's common table.
+        with self.assertRaises(KeyError):
+
+            build_sidc(
+                affiliation="friend",
+                entity="infantry",
+                sector1_modifier="command_post_node",
+            )
 
 
 class TestNoAegisOnlySymbols(QgisTestCase):

@@ -2377,6 +2377,25 @@ def modifiers_for_edition(edition, symbol_set):
     return sectors
 
 
+def common_modifiers_for_edition(edition):
+
+    """
+    {"sector1": {...}, "sector2": {...}} for `edition`'s COMMON modifier
+    tables - a namespace selected by SIDC digits 21/22 rather than
+    scoped to one symbol_set (see sidc_2525e.py's own header comment).
+    2525D has no common table, so this is {} for both sectors unless
+    `edition` is "2525E".
+    """
+
+    if edition != "2525E":
+        return {}
+
+    return {
+        "sector1": MODIFIERS_SECTOR1_2525E.get("common", {}),
+        "sector2": MODIFIERS_SECTOR2_2525E.get("common", {}),
+    }
+
+
 def build_sidc(
     affiliation,
     entity,
@@ -2459,17 +2478,20 @@ def build_sidc(
         )
 
     modifiers_for_set = modifiers_for_edition(edition, symbol_set)
+    common_modifiers = common_modifiers_for_edition(edition)
 
-    sector1_code = _modifier_code(
+    sector1_code, sector1_is_common = _resolve_modifier(
         sector1_modifier,
         modifiers_for_set.get("sector1", {}),
+        common_modifiers.get("sector1", {}),
         "sector1_modifier",
         symbol_set,
     )
 
-    sector2_code = _modifier_code(
+    sector2_code, sector2_is_common = _resolve_modifier(
         sector2_modifier,
         modifiers_for_set.get("sector2", {}),
+        common_modifiers.get("sector2", {}),
         "sector2_modifier",
         symbol_set,
     )
@@ -2483,7 +2505,7 @@ def build_sidc(
     echelon_code = ECHELONS[echelon]
     function_id = entities_for_set[entity] + sector1_code + sector2_code
 
-    return (
+    sidc = (
         version
         + context
         + affiliation_code
@@ -2494,25 +2516,65 @@ def build_sidc(
         + function_id
     )
 
+    # SIDC digits 21/22 (0-indexed positions 20/21) flag that a sector's
+    # modifier came from the COMMON table rather than the symbol set's
+    # own - milsymbol reads them at exactly those positions (confirmed
+    # against its own frameshape reader, digit 23, same mechanism - see
+    # sidc_2525e.py's header comment). Only appended when at least one
+    # sector actually needs it, so every pre-existing call - which never
+    # resolves a common modifier - keeps producing the plain 20-character
+    # string it always has.
+    if sector1_is_common or sector2_is_common:
 
-def _modifier_code(modifier, modifiers_for_sector, field_name, symbol_set):
+        sidc += (
+            ("1" if sector1_is_common else "0")
+            + ("1" if sector2_is_common else "0")
+        )
+
+    return sidc
+
+
+def _resolve_modifier(
+    modifier,
+    modifiers_for_sector,
+    common_modifiers_for_sector,
+    field_name,
+    symbol_set,
+):
 
     """
-    "00" (no modifier) if `modifier` is None/falsy; otherwise the real
-    2-digit code for `modifier` in `modifiers_for_sector` (a symbol
-    set's own MODIFIERS[...]["sector1"/"sector2"] dict), raising
-    KeyError if it's not a valid key there.
+    (code, is_common) for `modifier` - ("00", False) if it's None/falsy
+    ("no modifier"); otherwise looked up in `modifiers_for_sector` (a
+    symbol set's own MODIFIERS[...]["sector1"/"sector2"] dict) first,
+    then in `common_modifiers_for_sector` (2525E's parallel common-
+    modifier namespace, {} for 2525D) if not found there - raising
+    KeyError if it is not a valid key in either.
+
+    The own-set table always wins on a name collision (a handful of
+    keys, e.g. "biological", genuinely exist in both tables as the same
+    modifier under a different code): this is not a fallback, it is
+    "which table this key resolves through", and the two never both
+    contribute to one symbol at once. `is_common` selects the code's own
+    2 digits (a common code is 3 digits, "1XX" - the leading "1" is the
+    digit-21/22 flag itself, stripped here and re-added by build_sidc()
+    at the right position) and tells the caller whether the flag digit
+    needs setting.
     """
 
     if not modifier:
-        return "00"
+        return "00", False
 
-    if modifier not in modifiers_for_sector:
+    if modifier in modifiers_for_sector:
+        return modifiers_for_sector[modifier], False
 
-        raise KeyError(
-            f"Unknown {field_name} {modifier!r} for symbol_set "
-            f"{symbol_set!r} - expected one of "
-            f"{sorted(modifiers_for_sector)}"
-        )
+    if modifier in common_modifiers_for_sector:
+        return common_modifiers_for_sector[modifier][1:], True
 
-    return modifiers_for_sector[modifier]
+    expected = sorted(
+        set(modifiers_for_sector) | set(common_modifiers_for_sector)
+    )
+
+    raise KeyError(
+        f"Unknown {field_name} {modifier!r} for symbol_set "
+        f"{symbol_set!r} - expected one of {expected}"
+    )

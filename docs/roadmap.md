@@ -2267,6 +2267,54 @@ tested, not claimed as done here.
       pinned by their exact post-patch glyph fragment, with the
       pre-patch (wrong) fragments asserted absent. 1385 -> 1395 tests on
       QGIS 4.2.1 and 3.44.12; Bandit clean.
+    - **E-8 CLOSED, 2026-08-18: the 93 common sector 1/2 modifiers wired
+      into the shared point-layer factory.** Left open after D-4b as a
+      confirmed-by-hand mechanism, not yet built in - this is the build.
+      `sidc.py` gained `common_modifiers_for_edition(edition)` (the
+      2525E-only `{"sector1": ..., "sector2": ...}` common tables, {}
+      under 2525D) and `_resolve_modifier()`, which checks a symbol
+      set's own table first and the common one second, returning both
+      the 2-digit code and whether it came from common.
+      `build_sidc()` now appends digits 21/22 (0-indexed positions
+      20/21) - "1" per sector that resolved via common, "0" otherwise -
+      but ONLY when at least one sector needs it, so every existing
+      call, including every 2525D one, keeps producing the exact
+      20-character string it always has. Confirmed against milsymbol's
+      own `frameshape = sidc.substr(22,1)` reader, the same positional
+      mechanism one digit further along.
+      `_point_symbol_layer.py`'s `build_single_domain_point_layer()`
+      merges the common labels into a symbol set's OWN sector1/2 label
+      dict (new `_merge_common_labels()`) - additive to a dropdown that
+      already exists, never used to create one where 2525E has no
+      per-set vocabulary at all, matching how the per-set 2525E swap
+      already behaved.
+      **One real defect found doing this, not assumed away**: a handful
+      of keys - "biological" (Ground Unit/Land Equipment/Land
+      Installation sector 1), "long_range"/"medium_range"/"short_range"
+      (Air Missile/Space Missile sector 2), "close_range" (Space Missile
+      sector 2) - exist in BOTH a symbol set's own table and the common
+      one, same label, different code. `_resolve_modifier()` and
+      `_merge_common_labels()` both give the own-set entry precedence on
+      a collision, so the dropdown never offers two identical-looking
+      choices that silently resolve differently, and `build_sidc()`
+      agrees with what the dropdown actually offers.
+      A second, separate finding surfaced while re-pointing an existing
+      test at the new behaviour: Land Installation's own 2525E sector1
+      table drops "chemical" ({Disused}, per D-3), but the KEY still
+      resolves under 2525E now - through the common table's own
+      "Chemical" (code 138), a different and legitimate code rather than
+      the retired one. Not a bug; exactly what the common namespace is
+      for. `test_modifiers_resolve_per_edition` had been asserting
+      "chemical" fails under 2525E - true before E-8, false after -
+      moved to "petroleum" (genuinely disused with no common-table
+      counterpart) for the fails-under-2525E case, with the "chemical"
+      finding pinned as its own test.
+      `test_2525e_layer_drops_the_disused_sector1_modifiers` (Land
+      Installation) updated the same way - it had asserted the dropdown
+      offers exactly the seven live own-set codes; it now offers those
+      seven plus the common table's, which is the point of this work.
+      1403 tests (1395 -> 1403) on both QGIS 4.2.1 and 3.44.12; Bandit
+      and detect-secrets both clean.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no
@@ -10118,11 +10166,12 @@ request for a second look.
     editions. Land Unit's D-4b pass also caught and fixed a genuine
     milsymbol rendering bug (8 codes drawing the wrong icon under
     MIL-STD-2525D - see that entry under Phase 10 above for the full
-    story, including the vendored-file patch). Left open: E-8 (wiring
-    the 93 common modifiers into each layer's own dropdown - confirmed
-    working end to end by hand, not yet built into the shared point-
-    layer factory), and APP-6E's own modifier tables/spelling, parked
-    for good pending a source. 1395 tests passing on both QGIS versions.
+    story, including the vendored-file patch). E-8 (the 93 common
+    sector 1/2 modifiers, SIDC digits 21/22) is now wired into every
+    layer that already has a per-set 2525E modifier dropdown - see that
+    entry under Phase 10 above. Left open: APP-6E's own modifier
+    tables/spelling, parked for good pending a source. 1403 tests
+    passing on both QGIS versions.
 
 ---
 

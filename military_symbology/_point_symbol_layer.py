@@ -115,6 +115,26 @@ def _value_map(labels):
     return {label: value for value, label in labels.items()}
 
 
+def _merge_common_labels(own_labels, common_labels):
+
+    """
+    `own_labels` plus every entry of `common_labels` whose key is not
+    already in `own_labels` - see sidc.py's _resolve_modifier(). A
+    handful of keys (e.g. "biological") genuinely exist in both tables
+    as the same modifier under a different code; the own-set entry wins
+    so the dropdown never offers two identically-labelled choices that
+    quietly resolve differently, matching _resolve_modifier()'s own
+    same-key precedence.
+    """
+
+    merged = dict(own_labels)
+
+    for key, label in common_labels.items():
+        merged.setdefault(key, label)
+
+    return merged
+
+
 def _value_map_with_none(labels, none_label="(None)"):
 
     """
@@ -587,7 +607,13 @@ def build_single_domain_point_layer(
     add the corresponding "Sector 1/2 Modifier" field, each with an
     explicit "(None)" option (see _value_map_with_none()) for "no
     modifier" - omit either to leave that field off entirely, the same
-    opt-in pattern as include_echelon/include_headquarters. If this
+    opt-in pattern as include_echelon/include_headquarters. Under
+    edition 2525E, a field that already exists this way also offers
+    that symbol_set's own COMMON modifiers (SIDC digits 21/22) merged
+    in - see _merge_common_labels() and sidc.py's
+    common_modifiers_for_edition(); a symbol_set with no per-set 2525E
+    vocabulary of its own still gets no field, common modifiers are
+    merged into an existing dropdown, never used to create one. If this
     layer's entity_symbol_set_overrides spans more than one symbol_set
     (e.g. space_layer.py's "missile"), pass the UNION of every relevant
     symbol_set's own sector1/sector2 vocabulary here - the field stores
@@ -650,11 +676,38 @@ def build_single_domain_point_layer(
         # symbol on the layer rendered as garbage.
         entity_labels = ENTITY_LABELS_2525E[symbol_set]
 
+        # Common modifiers (E-8) are merged into an EXISTING per-set
+        # dropdown, never used to create a field that would not
+        # otherwise exist - a symbol_set with no 2525E sector1/2
+        # vocabulary of its own still gets no field at all, same as
+        # before this merge existed. See sidc.py's
+        # common_modifiers_for_edition()/_resolve_modifier() for the
+        # matching build_sidc() side of this.
         if sector1_labels is not None:
-            sector1_labels = SECTOR1_LABELS_2525E.get(symbol_set) or None
+
+            own_sector1_labels = SECTOR1_LABELS_2525E.get(symbol_set)
+
+            sector1_labels = (
+                _merge_common_labels(
+                    own_sector1_labels,
+                    SECTOR1_LABELS_2525E.get("common", {}),
+                )
+                if own_sector1_labels
+                else None
+            )
 
         if sector2_labels is not None:
-            sector2_labels = SECTOR2_LABELS_2525E.get(symbol_set) or None
+
+            own_sector2_labels = SECTOR2_LABELS_2525E.get(symbol_set)
+
+            sector2_labels = (
+                _merge_common_labels(
+                    own_sector2_labels,
+                    SECTOR2_LABELS_2525E.get("common", {}),
+                )
+                if own_sector2_labels
+                else None
+            )
 
         # A default that does not exist in this edition would write an
         # unresolvable key into every new feature. The two editions do not
