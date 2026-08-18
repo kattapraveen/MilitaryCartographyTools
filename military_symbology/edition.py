@@ -65,6 +65,32 @@ def set_current_edition(edition):
     QgsSettings().setValue(SETTINGS_KEY, edition)
 
 
+# What gets appended to a layer's name. Short on purpose - these sit in
+# the Layers panel next to everything else, so "Air (2525D/6D)" reads at
+# a glance where the full "MIL-STD-2525D / APP-6D" would not.
+EDITION_SUFFIXES = {
+    "2525D": "2525D/6D",
+    "2525E": "2525E/6E",
+}
+
+
+def layer_name_for(name, edition):
+
+    """
+    `name` with its edition appended, e.g. "Air (2525D/6D)".
+
+    Both editions are suffixed, not just 2525E. The name is what the
+    duplicate guard matches on, so an un-suffixed 2525D layer would keep
+    blocking its 2525E counterpart - which is the bug this fixes, raised
+    by the maintainer 2026-08-18: inserting Air under APP-6D, switching
+    the setting to 6E and adding again just reported "already exists".
+    Suffixing both also means a layer says which edition it is without
+    anyone opening its renderer.
+    """
+
+    return "%s (%s)" % (name, EDITION_SUFFIXES.get(edition, edition))
+
+
 def edition_label(edition):
 
     """A user-facing name for `edition`, for menus and layer names."""

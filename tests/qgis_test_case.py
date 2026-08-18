@@ -416,3 +416,23 @@ class QgisTestCase(unittest.TestCase):
     def setUp(self):
 
         QgsProject.instance().clear()
+
+
+def edition_layer_name(name):
+
+    """
+    The name an add_*_layer() actually gives a layer: `name` with the
+    current edition appended ("Air" -> "Air (2525D/6D)"). Computed at
+    call time rather than import time, so a test that changes the
+    edition setting still sees the right name.
+
+    Exists because the suffix is what lets both editions of one domain
+    coexist in a project - see military_symbology/edition.py.
+    """
+
+    from MilitaryCartographyTools.military_symbology.edition import (
+        current_edition,
+        layer_name_for,
+    )
+
+    return layer_name_for(name, current_edition())

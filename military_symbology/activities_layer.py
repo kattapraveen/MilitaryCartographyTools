@@ -222,7 +222,7 @@ _SECTOR1_LABELS = {
 }
 
 
-def add_activities_layer(iface):
+def add_activities_layer(iface, edition=None):
 
     """
     Add the "Activities" layer - warns and does
@@ -239,4 +239,5 @@ def add_activities_layer(iface):
         include_echelon=False,
         include_headquarters=False,
         sector1_labels=_SECTOR1_LABELS,
+        edition=edition,
     )

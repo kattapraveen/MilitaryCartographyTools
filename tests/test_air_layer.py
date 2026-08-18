@@ -24,7 +24,7 @@ from qgis.core import (
     QgsSymbolLayer,
 )
 
-from .qgis_test_case import FakeIface, QgisTestCase
+from .qgis_test_case import FakeIface, QgisTestCase, edition_layer_name
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology import air_layer
@@ -278,7 +278,7 @@ class TestAddAirLayer(QgisTestCase):
 
         self.assertIsNotNone(layer)
 
-        matching = QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME)
+        matching = QgsProject.instance().mapLayersByName(edition_layer_name(OUTPUT_LAYER_NAME))
 
         self.assertEqual(len(matching), 1)
 
@@ -291,7 +291,7 @@ class TestAddAirLayer(QgisTestCase):
 
         self.assertIsNone(result)
 
-        matching = QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME)
+        matching = QgsProject.instance().mapLayersByName(edition_layer_name(OUTPUT_LAYER_NAME))
 
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0].id(), first.id())
@@ -315,4 +315,4 @@ class TestAddAirLayer(QgisTestCase):
 
         names = [child.name() for child in root.children()]
 
-        self.assertEqual(names[0], OUTPUT_LAYER_NAME)
+        self.assertEqual(names[0], edition_layer_name(OUTPUT_LAYER_NAME))

@@ -201,7 +201,7 @@ _MINE_WARFARE_ENTITY_LABELS = {
 }
 
 
-def add_subsurface_layer(iface):
+def add_subsurface_layer(iface, edition=None):
 
     """
     Add the "Subsurface" layer - warns and does
@@ -219,10 +219,11 @@ def add_subsurface_layer(iface):
         include_headquarters=False,
         sector1_labels=_SUBSURFACE_SECTOR1_LABELS,
         sector2_labels=_SUBSURFACE_SECTOR2_LABELS,
+        edition=edition,
     )
 
 
-def add_mine_warfare_layer(iface):
+def add_mine_warfare_layer(iface, edition=None):
 
     """Add the "Mine Warfare" layer - same guard."""
 
@@ -234,6 +235,7 @@ def add_mine_warfare_layer(iface):
         DEFAULT_MINE_WARFARE_ENTITY,
         include_echelon=False,
         include_headquarters=False,
+        edition=edition,
     )
 
 

@@ -102,7 +102,7 @@ _ENTITY_LABELS = {
 }
 
 
-def add_cyberspace_layer(iface):
+def add_cyberspace_layer(iface, edition=None):
 
     """
     Add the "Cyberspace" layer - warns and does
@@ -118,4 +118,5 @@ def add_cyberspace_layer(iface):
         DEFAULT_ENTITY,
         include_echelon=False,
         include_headquarters=False,
+        edition=edition,
     )

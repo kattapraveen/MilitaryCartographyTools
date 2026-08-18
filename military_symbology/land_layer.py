@@ -613,7 +613,7 @@ _INSTALLATION_SECTOR2_LABELS = {
 }
 
 
-def add_land_unit_layer(iface):
+def add_land_unit_layer(iface, edition=None):
 
     """Add "Land Unit" (D.6) - echelon and headquarters both apply (Table VII's "U" column)."""
 
@@ -625,10 +625,11 @@ def add_land_unit_layer(iface):
         DEFAULT_UNIT_ENTITY,
         include_echelon=True,
         include_headquarters=True,
+        edition=edition,
     )
 
 
-def add_land_civilian_layer(iface):
+def add_land_civilian_layer(iface, edition=None):
 
     """Add "Land Civilian" (D.7) - no echelon, headquarters applies."""
 
@@ -642,10 +643,11 @@ def add_land_civilian_layer(iface):
         include_headquarters=True,
         sector1_labels=_CIVILIAN_SECTOR1_LABELS,
         sector2_labels=_CIVILIAN_SECTOR2_LABELS,
+        edition=edition,
     )
 
 
-def add_land_equipment_layer(iface):
+def add_land_equipment_layer(iface, edition=None):
 
     """Add "Land Equipment" (D.8) - no echelon, headquarters applies."""
 
@@ -658,10 +660,11 @@ def add_land_equipment_layer(iface):
         include_echelon=False,
         include_headquarters=True,
         sector1_labels=_EQUIPMENT_SECTOR1_LABELS,
+        edition=edition,
     )
 
 
-def add_land_installation_layer(iface):
+def add_land_installation_layer(iface, edition=None):
 
     """Add "Land Installation" (D.9) - no echelon, headquarters applies."""
 
@@ -675,22 +678,24 @@ def add_land_installation_layer(iface):
         include_headquarters=True,
         sector1_labels=_INSTALLATION_SECTOR1_LABELS,
         sector2_labels=_INSTALLATION_SECTOR2_LABELS,
+        edition=edition,
     )
 
 
-def add_land_layers(iface):
+def add_land_layers(iface, edition=None):
 
     """
     Add all four Land layers (Unit/Civilian/Equipment/Installation) in
     one call - the toolbar action's own callback. Each has its own
     already-exists guard (add_single_domain_point_layer()), so calling
     this again only adds whichever of the four are still missing.
-    Returns a dict of {layer_name: layer_or_None}.
+    Returns a dict of {layer_name: layer_or_None}, keyed by the BASE
+    name - the layers themselves carry the edition suffix.
     """
 
     return {
-        UNIT_LAYER_NAME: add_land_unit_layer(iface),
-        CIVILIAN_LAYER_NAME: add_land_civilian_layer(iface),
-        EQUIPMENT_LAYER_NAME: add_land_equipment_layer(iface),
-        INSTALLATION_LAYER_NAME: add_land_installation_layer(iface),
+        UNIT_LAYER_NAME: add_land_unit_layer(iface, edition),
+        CIVILIAN_LAYER_NAME: add_land_civilian_layer(iface, edition),
+        EQUIPMENT_LAYER_NAME: add_land_equipment_layer(iface, edition),
+        INSTALLATION_LAYER_NAME: add_land_installation_layer(iface, edition),
     }

@@ -24,7 +24,7 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
-from .qgis_test_case import FakeIface, QgisTestCase
+from .qgis_test_case import FakeIface, QgisTestCase, edition_layer_name
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology import land_layer
@@ -198,7 +198,7 @@ class TestAddLandLayers(QgisTestCase):
 
             self.assertIsNotNone(result[name])
 
-            matching = QgsProject.instance().mapLayersByName(name)
+            matching = QgsProject.instance().mapLayersByName(edition_layer_name(name))
 
             self.assertEqual(len(matching), 1)
 
@@ -220,7 +220,7 @@ class TestAddLandLayers(QgisTestCase):
 
                 self.assertIsNone(result)
 
-                matching = QgsProject.instance().mapLayersByName(name)
+                matching = QgsProject.instance().mapLayersByName(edition_layer_name(name))
 
                 self.assertEqual(len(matching), 1)
                 self.assertEqual(matching[0].id(), first.id())
@@ -246,7 +246,7 @@ class TestAddLandLayers(QgisTestCase):
         ):
 
             self.assertEqual(
-                len(QgsProject.instance().mapLayersByName(name)),
+                len(QgsProject.instance().mapLayersByName(edition_layer_name(name))),
                 1
             )
 
@@ -262,7 +262,7 @@ class TestAddLandLayers(QgisTestCase):
 
         names = [child.name() for child in root.children()]
 
-        self.assertEqual(names[0], UNIT_LAYER_NAME)
+        self.assertEqual(names[0], edition_layer_name(UNIT_LAYER_NAME))
 
 
 class TestLandEquipmentLawEnforcementFamily(QgisTestCase):

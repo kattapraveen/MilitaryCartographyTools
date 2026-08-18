@@ -55,7 +55,7 @@ from qgis.core import (
 from qgis.PyQt.QtCore import QMetaType
 
 from ..core._layer_utils import add_layer_at_default_position
-from .edition import current_edition
+from .edition import current_edition, layer_name_for
 from .sidc import DEFAULT_EDITION
 from .sidc_2525e import (
     ENTITY_LABELS_2525E,
@@ -762,6 +762,7 @@ def add_single_domain_point_layer(
     entity_marker_size_scales=None,
     entity_designation_slots=None,
     extra_text_field=None,
+    edition=None,
 ):
 
     """
@@ -771,7 +772,22 @@ def add_single_domain_point_layer(
     why silently replacing it would be a data-loss bug); otherwise
     builds and inserts a fresh one. Returns the new layer, or None if
     one already existed.
+
+    `name` gains the edition as a suffix - "Air" becomes "Air
+    (2525D/6D)" - so the two editions of one domain can coexist in a
+    project. Without it the guard below, which matches on name alone,
+    reports "already exists" when a user switches the setting and adds
+    the same domain again.
+
+    The edition is resolved HERE and passed down rather than being read
+    again inside build_single_domain_point_layer(), so the suffix and
+    the layer's own renderer expression cannot disagree.
     """
+
+    if edition is None:
+        edition = current_edition()
+
+    name = layer_name_for(name, edition)
 
     project = QgsProject.instance()
 
@@ -803,6 +819,7 @@ def add_single_domain_point_layer(
         entity_marker_size_scales,
         entity_designation_slots,
         extra_text_field,
+        edition,
     )
 
     return add_layer_at_default_position(

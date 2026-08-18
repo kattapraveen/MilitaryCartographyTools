@@ -141,7 +141,7 @@ _SECTOR1_LABELS = {
 }
 
 
-def add_sigint_layer(iface):
+def add_sigint_layer(iface, edition=None):
 
     """
     Add the "SIGINT" layer - warns and does nothing
@@ -164,4 +164,5 @@ def add_sigint_layer(iface):
         dimension_labels=_DIMENSION_LABELS,
         dimension_symbol_sets=_DIMENSION_SYMBOL_SETS,
         default_dimension=DEFAULT_DIMENSION,
+        edition=edition,
     )

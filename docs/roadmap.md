@@ -2046,11 +2046,41 @@ tested, not claimed as done here.
       layer offers 7 sector-1 modifiers where the 2525D one offers 13
       (the six `{Disused}` codes are gone) and its expression carries
       `'2525E'`. 1365 -> 1369 tests.
+      🐞 **Edition in the layer NAME, 2026-08-18 - a real bug the
+      maintainer hit within minutes of the switch shipping.** "I inserted
+      Air symbols using App6D symbology, now when I change the symbology
+      layer to 6E and try to insert the same layer I get an error."
+      Exactly right: `add_single_domain_point_layer()`'s duplicate guard
+      matches on layer NAME, and the name carried no edition - so one
+      project could hold only ONE edition of a given domain, and the
+      second attempt reported "already exists" as though the user had
+      done something wrong. The edition was also invisible in the Layers
+      panel; nothing short of opening the renderer said which one a
+      layer was.
+      Fixed by suffixing the name, in the maintainer's own wording:
+      "Air (2525D/6D)" / "Air (2525E/6E)". **Both** editions are
+      suffixed, not just E - an un-suffixed 2525D layer would go on
+      blocking its E counterpart, which is the bug. The suffix names
+      both standards because the plugin serves both from one vocabulary
+      and the layer belongs to neither alone.
+      The edition is now resolved ONCE, in the add helper, and passed
+      down - so the suffix and the layer's own renderer expression
+      cannot disagree, which they could have if the setting changed
+      between the two reads. Every `add_*_layer()` gained an optional
+      `edition=` so a caller (and a test) can be explicit rather than
+      going through the setting.
+      **Consequence worth knowing**: a layer added before today has no
+      suffix, so adding that domain again will now produce a suffixed
+      layer alongside it rather than being blocked. That is arguably
+      right - the old layer genuinely IS 2525D - but it is a visible
+      change for anyone with an existing project.
+      3 new tests, including the maintainer's exact sequence: add Air
+      under 2525D, add Air under 2525E, expect TWO layers. 1369 -> 1372.
       **Still open**: APP-6E's modifier tables (no source) and its NATO
       spelling; and nothing outside the shared point-layer factory is
-      edition-aware yet - Appendix H's hand-drawn control measures are
-      built from geometry, not vocabulary, so they are unaffected, but
-      any layer NOT going through that factory still builds 2525D only.
+      edition-aware - Appendix H's hand-drawn control measures are built
+      from geometry, not vocabulary, so they are unaffected, but any
+      layer NOT going through that factory still builds 2525D only.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no

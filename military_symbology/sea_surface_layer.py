@@ -187,7 +187,7 @@ _SECTOR2_LABELS = {
 }
 
 
-def add_sea_surface_layer(iface):
+def add_sea_surface_layer(iface, edition=None):
 
     """
     Add the "Sea Surface" layer - warns and does
@@ -205,4 +205,5 @@ def add_sea_surface_layer(iface):
         include_headquarters=False,
         sector1_labels=_SECTOR1_LABELS,
         sector2_labels=_SECTOR2_LABELS,
+        edition=edition,
     )

@@ -22,7 +22,7 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
-from .qgis_test_case import FakeIface, QgisTestCase
+from .qgis_test_case import FakeIface, QgisTestCase, edition_layer_name
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology import activities_layer
@@ -213,7 +213,7 @@ class TestAddActivitiesLayer(QgisTestCase):
 
         self.assertIsNotNone(layer)
 
-        matching = QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME)
+        matching = QgsProject.instance().mapLayersByName(edition_layer_name(OUTPUT_LAYER_NAME))
 
         self.assertEqual(len(matching), 1)
 
@@ -226,7 +226,7 @@ class TestAddActivitiesLayer(QgisTestCase):
 
         self.assertIsNone(result)
 
-        matching = QgsProject.instance().mapLayersByName(OUTPUT_LAYER_NAME)
+        matching = QgsProject.instance().mapLayersByName(edition_layer_name(OUTPUT_LAYER_NAME))
 
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0].id(), first.id())
@@ -248,4 +248,4 @@ class TestAddActivitiesLayer(QgisTestCase):
 
         names = [child.name() for child in root.children()]
 
-        self.assertEqual(names[0], OUTPUT_LAYER_NAME)
+        self.assertEqual(names[0], edition_layer_name(OUTPUT_LAYER_NAME))

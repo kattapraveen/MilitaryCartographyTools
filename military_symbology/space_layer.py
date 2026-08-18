@@ -141,7 +141,7 @@ _SECTOR2_LABELS = {
 }
 
 
-def add_space_layer(iface):
+def add_space_layer(iface, edition=None):
 
     """
     Add the "Space" layer (Space Equipment/Platform
@@ -161,4 +161,5 @@ def add_space_layer(iface):
         include_headquarters=False,
         sector1_labels=_SECTOR1_LABELS,
         sector2_labels=_SECTOR2_LABELS,
+        edition=edition,
     )

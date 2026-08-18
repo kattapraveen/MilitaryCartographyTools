@@ -437,3 +437,101 @@ class TestLayerEditionWiring(QgisTestCase):
         # 2525D - a settings file from a later version naming an edition
         # this build does not have should degrade, not raise.
         self.assertIn(current_edition(), ("2525D", "2525E"))
+
+
+class TestBothEditionsCanCoexist(QgisTestCase):
+
+    """
+    The maintainer's own report, 2026-08-18: insert Air under APP-6D,
+    switch the setting to 6E, add Air again - and the plugin just said
+    "already exists". The duplicate guard matches on layer NAME, and the
+    name carried no edition, so one project could hold only one edition
+    of a given domain.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        from qgis.core import QgsProject, QgsCoordinateReferenceSystem
+
+        from MilitaryCartographyTools.expressions import (
+            military_symbology_functions,
+        )
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        from MilitaryCartographyTools.expressions import (
+            military_symbology_functions,
+        )
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_adding_the_same_domain_under_both_editions_gives_two_layers(self):
+
+        from qgis.core import QgsProject
+
+        from MilitaryCartographyTools.military_symbology.air_layer import (
+            OUTPUT_LAYER_NAME,
+            add_air_layer,
+        )
+        from MilitaryCartographyTools.military_symbology.edition import (
+            layer_name_for,
+        )
+
+        from .qgis_test_case import FakeIface
+
+        iface = FakeIface()
+
+        first = add_air_layer(iface, edition="2525D")
+        second = add_air_layer(iface, edition="2525E")
+
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second, "2525E was blocked by the 2525D layer")
+
+        self.assertEqual(
+            first.name(), layer_name_for(OUTPUT_LAYER_NAME, "2525D")
+        )
+
+        self.assertEqual(
+            second.name(), layer_name_for(OUTPUT_LAYER_NAME, "2525E")
+        )
+
+        self.assertEqual(len(QgsProject.instance().mapLayers()), 2)
+
+
+    def test_the_guard_still_blocks_a_true_duplicate(self):
+
+        from MilitaryCartographyTools.military_symbology.air_layer import (
+            add_air_layer,
+        )
+
+        from .qgis_test_case import FakeIface
+
+        iface = FakeIface()
+
+        self.assertIsNotNone(add_air_layer(iface, edition="2525E"))
+        self.assertIsNone(add_air_layer(iface, edition="2525E"))
+
+
+    def test_the_suffix_names_both_standards(self):
+
+        from MilitaryCartographyTools.military_symbology.edition import (
+            layer_name_for,
+        )
+
+        # The maintainer's own wording: a layer should say 2525D/6D or
+        # 2525E/6E, since the plugin serves both standards from one
+        # vocabulary and the layer belongs to neither alone.
+        self.assertEqual(layer_name_for("Air", "2525D"), "Air (2525D/6D)")
+        self.assertEqual(layer_name_for("Air", "2525E"), "Air (2525E/6E)")

@@ -194,7 +194,7 @@ _SECTOR2_LABELS = {
 }
 
 
-def add_air_layer(iface):
+def add_air_layer(iface, edition=None):
 
     """
     Add the "Air" layer (Air Equipment/Platform plus
@@ -214,4 +214,5 @@ def add_air_layer(iface):
         include_headquarters=False,
         sector1_labels=_SECTOR1_LABELS,
         sector2_labels=_SECTOR2_LABELS,
+        edition=edition,
     )
