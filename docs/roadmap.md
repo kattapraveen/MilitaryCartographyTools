@@ -1930,6 +1930,80 @@ tested, not claimed as done here.
       class with no way to detect it. **Maintainer's decision
       2026-08-18: source the MIL-STD-2525E and APP-6E documents first,
       then do it properly.** Do not start this from milsymbol.
+      **UPDATE, same day - sources found, and the 2525E vocabulary is
+      BUILT.** The maintainer could not obtain the official PDFs (access
+      restrictions) but supplied four sources between them sufficient for
+      everything except APP-6E's modifiers:
+      - **Esri ArcGIS Pro dictionary styles** (`reference/mil2525e.stylx`,
+        `app6e.stylx` - SQLite, gitignored): 4289 and 3769 items, keyed
+        `SS`+6-digit entity, with the standard's own names. Good for
+        cross-checking; NOT authoritative on absence, since a code with no
+        distinct graphic simply is not in the file.
+      - **github.com/spatialillusions/milstandard-e** (MIT): the 2525E
+        tables themselves as 48 TSVs - entities AND per-symbol-set sector
+        1/2 modifiers AND the common-modifier tables, with the standard's
+        own Remarks column. Copied to `reference/milstandard-e/`. This is
+        the authority the work now rests on.
+      - **github.com/spatialillusions/mil-std-2525** and
+        **/stanag-app6**: 2525B/C/D and APP-6B/D. Not needed for E, but
+        used for the D-vs-APP6D comparison below.
+      - **github.com/nwroyer/Python-Military-Symbols** (MIT): its
+        `symbol.py` documents the **SIDC layout**, which nothing else did.
+      **The SIDC answer, since it was the blocker**: E's extension is
+      THREE significant digits, not ten. Digits 0-19 are as 2525D; digit
+      20 flags that the sector 1 modifier comes from the COMMON table
+      rather than the symbol set's own, digit 21 does the same for sector
+      2, and digit 22 is a frame-shape override. The 30-character form is
+      padding - neither implementation reads past digit 22. Confirmed
+      independently: milsymbol reads `frameshape = sidc.substr(22, 1)`,
+      the same position, in a different language.
+      That also explains three loose ends at once: milstandard-e's
+      separate `Common Modifiers sector 1/2.tsv`, Esri's `CMOD1_*` keys,
+      and why per-set modifier lists looked short. **Common modifiers are
+      a parallel namespace selected by a flag digit, not a fallback** -
+      and their codes are printed as THREE digits (100-166), the flag
+      included. An earlier caveat in this session, that the Esri modifier
+      lists were incomplete, was WRONG for the right-sounding reason: the
+      codes missing from Land Installation sector 1 are `{Disused}` in
+      2525E, not missing data. The two sources agree exactly.
+      **Are 2525E and APP-6E actually different?** No APP-6E table set
+      exists in any of these repos - `stanag-app6` carries B and D and
+      points to `milstandard-e`, which exports a single `ms2525e` while
+      its README claims both. Rather than assume, all 30 shared
+      **2525D vs APP-6D** tables were diffed: they genuinely diverge -
+      Control Measures 603 vs 619, Land unit 213 vs 202, Land equipment
+      230 vs 223 - plus systematic US/UK spelling and real terminology
+      swaps on identical codes (110600 is "Military Information Support
+      Operations (MISO)" in 2525D and "Psychological Operations
+      (PSYOPS)" in APP-6D; 214000 is reserved in 2525D and "Forward
+      Observer / Spotter Position" in APP-6D). So **separate
+      vocabularies, per the maintainer's decision** - one merged table
+      would be wrong. Note Land installation is the exception, identical
+      129/129 at D, which is why the Esri styles' apparent 51-entity gap
+      for APP-6E is an Esri dictionary artifact rather than a standards
+      difference; an earlier note in this session read it the other way.
+      **BUILT 2026-08-18**: `tools/extract_2525e_vocabulary.py` (a dev
+      script, not shipped, not imported) generates
+      `military_symbology/sidc_2525e.py` - **989 entities across 13
+      symbol sets, plus 610 sector modifiers including the 93 common
+      ones**. `{Disused}` rows are dropped, which is the entire reason
+      the generator reads Remarks: 2525E retires six of the thirteen Land
+      Installation sector-1 modifiers that D-4 built for 2525D one hour
+      earlier. Control Measures' 561 rows are deliberately NOT extracted -
+      Appendix H is hand-drawn geometry here, not a vocabulary.
+      `sidc.py`'s 2525D dicts are **untouched** and nothing is wired into
+      a layer yet; this is data only, so the shipped plugin is unchanged.
+      **One generator bug worth recording**, caught by a test rather than
+      by reading the output: entity tables run general-to-specific across
+      their columns (Entity, Entity Type, Entity Subtype) but modifier
+      tables run the opposite way (First Modifier, Category). Reading both
+      the same direction produced keys like `mobility` and
+      `robotic_mobility` where `robotic` was meant - every one of the 610
+      modifier keys was backwards, and the generated file looked
+      perfectly plausible.
+      10 new tests, 1349 -> 1359 on QGIS 4.2.1 and 3.44.12.
+      **Still open**: APP-6E's modifier tables (no source), APP-6E names
+      with NATO spelling, and wiring any of this into a layer.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no
