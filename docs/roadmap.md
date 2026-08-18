@@ -1691,21 +1691,23 @@ tested, not claimed as done here.
         and omitted ATF (170100), which it does. Reading one symbol
         set's family and assuming another matches is exactly the trap
         the fix below documents.
-      - **Land Installation - 27 of 126 real `landinstallation.js`
-        entities excluded** (we have 99, after this session's fix above
-        plus ATF/Police added 2026-08-18). Main groups: intelligence-marking installations
+      - ~~**Land Installation - entities excluded**~~ **D-3 CLOSED
+        2026-08-18: 130 of milsymbol's 131, which is every code Table
+        A-XXVII prints. See the dated entry below.** The list that
+        followed here is kept only as the record of what was missing: Main groups: intelligence-marking installations
         (black-list/gray-list/white-list location, mass grave location);
         radioactive material; tent+evacuee/training-camp compounds;
         industrial site+warehouse; Class III/V supply-facility compounds;
         electric-power-generation-station duplicate icon; base+armory
         compound; naval-yard/airport-of-debarkation transportation
         compounds.
-      - Sector 1/2 modifiers remain entirely unbuilt for all four Land
-        layers (already noted above) - Tables D-VI/D-VII (Land Unit
-        alone) have 50+ codes per sector. **Agreed 2026-08-17** as
-        work to do, alongside the three vocabulary expansions above -
-        same four layers and same sources, so one pass rather than
-        two visits. Not started.
+      - ~~Sector 1/2 modifiers remain entirely unbuilt for all four
+        Land layers~~ **D-4 part one done 2026-08-18: Civilian,
+        Equipment and Installation built (55 codes). Land Unit's own
+        (Tables D-VI/D-VII) is the remaining half** - the maintainer's
+        call was to prove the dropdown pattern on the three small sets
+        before committing to Land Unit's 184 milsymbol codes. See the
+        dated entry below.
     - **D-2 CLOSED, 2026-08-18: Land Equipment's law-enforcement family
       completed (Table A-XXV, codes 170000-171100).** The one item on
       the post-1.0 list that was arguably *wrong* rather than merely
@@ -1813,6 +1815,121 @@ tested, not claimed as done here.
       "Drug Enforcement Agency" appears in **neither** Land label dict -
       written specifically because the first fix corrected that wording
       in one dict and left it standing thirty lines below in the other.
+    - **D-3 CLOSED, 2026-08-18: Land Installation's vocabulary completed,
+      99 -> 130 entities.** Every code MIL-STD-2525D Table A-XXVII prints
+      is now present. All 130 verified to draw a real icon (each rendered
+      and compared against a bogus code's bare frame), and the dict is
+      now maintained in ascending code order with a test pinning it -
+      a code out of order is the visible symptom of an entry filed under
+      the wrong group.
+      **Three codes in `landinstallation.js` appear NOWHERE in the
+      standard's text**: 112001 (a grenade icon in a gap the table skips),
+      112300 "Home", and 120803 "Airport". We already shipped the latter
+      two. At the maintainer's decision, after rendering all three for
+      review, they are **kept but marked** - their labels now end
+      "(non-standard)", so a user cannot mistake them for MIL-STD-2525D
+      entities, and no saved feature breaks. 112001 was never shipped and
+      stays out. Worth recording that 120803 is not just non-standard but
+      redundant: the standard's own airport is **121301 Airport/Air
+      Base**, which was among the 31 codes missing until today.
+      **The label audit was the unplanned half of this item.** Comparing
+      all 99 existing labels against Table A-XXVII found twelve genuine
+      mismatches, and two were the Coast Guard defect a third time - a
+      GROUP HEADER wearing its own child's name:
+      120500 was labelled "Electric Power" (it is Energy Facility
+      Infrastructure; the real Electric Power is its child 120501) and
+      121400 was "Water (Generic)" (it is Water Supply Infrastructure;
+      the real Water is 121410). Both children were among the 31 being
+      added, so leaving the parents alone would have produced a dropdown
+      offering identical text on two different rows. There is now a test
+      asserting no label is used twice in the layer.
+      The children take the keys `electric_power_facility` and
+      `water_facility` rather than the obvious names, because the legacy
+      keys already hold those and **no shipped key is ever renamed here**
+      - they are written into the `entity` field of saved features. The
+      other ten corrections: Government -> Government Leadership, Fire
+      Protection -> Fire Station, Food Distribution (Production)/(Retail)
+      -> Food Production Center/Food Retail, Base -> Military Base,
+      Ferry -> Ferry Terminal, Maintenance -> Maintenance Facility,
+      Railhead -> Railhead/Railroad Station, Water Purification -> Water
+      Treatment. An eleventh was proposed and **rejected by the
+      maintainer**: 110000 is printed "Military/Civilian" but keeps the
+      shorter "Military (Generic)" a user already recognises - the
+      standard's wording wins on identity, not on every last word of
+      phrasing.
+      1339 -> 1344 tests on QGIS 4.2.1 and 3.44.12.
+    - **D-4 part one, 2026-08-18: sector 1/2 modifiers for Land
+      Civilian, Equipment and Installation - 55 codes, three layers.**
+      Split at the maintainer's decision: prove the pattern on the small
+      sets first, then do Land Unit's own tables as a second pass. Each
+      of the three layers now offers a Sector 1 (and where the standard
+      has one, Sector 2) dropdown alongside Entity.
+      **The counts came out far smaller than milsymbol suggested, and
+      that is the finding.** milsymbol's three source files carry 26+2,
+      24+9 and 16+10 modifier codes; MIL-STD-2525D's own tables print
+      24+1 (A-XXIII/A-XXIV), 9+0 (A-XXVI) and 13+8 (A-XXVIII/A-XXIX).
+      The surplus is **2525E/APP-6E**, which milsymbol also implements:
+      Cyberspace in every set, Robotic, Joint Network Node and Command
+      Post Node on Installation, and an entire aviation-mission axis on
+      Equipment sector 1 (codes 10-24: tilt-rotor, attack, cargo,
+      medevac, utility...). Building from milsymbol would have put 32
+      modifiers into these dropdowns that no 2525D symbol has. Not
+      built; documented at `MODIFIERS` in `sidc.py` with what to revisit
+      if the plugin ever targets 2525E.
+      **Land Equipment has NO sector 2 in 2525D at all.** The standard
+      has D.8.3 (sector 1, "sensor type category") and simply no D.8.4 -
+      confirmed in the table of contents and the body. milsymbol's nine
+      `sIdm2` codes for symbol set 15 are mobility indicators, which the
+      standard encodes in a different field entirely. So
+      `MODIFIERS["land_equipment"]` deliberately has a `sector1` key and
+      no `sector2` key, `build_sidc()` already handles that as "no
+      modifier support" rather than an error, and the Land Equipment
+      layer gets one dropdown where the other two get two. Pinned by a
+      test, because "the pair is incomplete" is exactly what a future
+      pass would try to fix.
+      **Every one of the 55 was rendered and compared against the bare
+      symbol** - all 55 change it. A modifier that draws nothing is a
+      dropdown entry that does nothing, and no existing test would have
+      noticed. 1344 -> 1349 tests on QGIS 4.2.1 and 3.44.12.
+    - **Phase 12 (proposed): move the plugin to MIL-STD-2525E /
+      APP-6E.** Raised by the maintainer 2026-08-18 off the back of D-4,
+      where 32 modifier codes were excluded for being 2525E rather than
+      2525D. **Scoped, then deliberately parked pending the E documents.**
+      **The premise that prompted it does not hold, and this is the
+      finding worth keeping**: milsymbol 3.0.4 renders 2525E and 2525D
+      **identically**. The same symbol rendered with version digits `10`
+      (edition D) and `13` (edition E) produces byte-identical SVG, at
+      both 20 and 30 characters - verified by hashing. `metadata.js`
+      computes `metadata.edition` from those digits ("10"/"11"/"12" = D,
+      "13"/"14" = E) but nothing downstream selects a different icon
+      set, because there is only one. milsymbol's `ms.setStandard()` is
+      a **2525-vs-APP6** switch (frame shapes), NOT a D-vs-E switch.
+      So "include all of milsymbol's E symbols" would add no artwork:
+      every code excluded during D-3/D-4 for being 2525E-only is already
+      renderable today under version 10. They were left out because
+      2525D's tables do not print them, not because milsymbol cannot
+      draw them.
+      **What a real upgrade would actually be**: (1) the vocabulary -
+      every code milsymbol carries beyond D's tables, across all
+      appendices; (2) the SIDC itself - version digits 10 -> 13, and E's
+      SIDC is **30 characters** rather than D's 20, with the extra ten
+      carrying new fields (`frameshape` at position 23, per milsymbol's
+      own metadata reader); (3) 174 occurrences of "2525D" across code,
+      README, `metadata.txt` and the plugin's user-facing description.
+      **The mechanical part is well positioned**: all 139 `build_sidc()`
+      call sites go through that one function, and the whole repo has
+      just 4 hardcoded SIDC literals, all in tests. Changing the format
+      is a one-function change plus its callers' expectations.
+      **The blocker is input, not effort.** `reference/` holds
+      MIL-STD-2525D.pdf and nothing else. Every correctness fix in this
+      session came from reading D's own printed tables - Coast Guard,
+      `law_enforcement_vessel`, the Energy Facility / Water Supply
+      parents, the 32 surplus modifiers - and every one was a case where
+      milsymbol and the standard disagreed and the standard was right.
+      Building E from milsymbol alone reproduces precisely that error
+      class with no way to detect it. **Maintainer's decision
+      2026-08-18: source the MIL-STD-2525E and APP-6E documents first,
+      then do it properly.** Do not start this from milsymbol.
   - **Mini-Phase E (Appendix E, Sea Surface) done 2026-08-08.** New
     `military_symbology/sea_surface_layer.py` builds one "Tactical
     Graphics - Sea Surface" layer (symbol set `30`, Table A-III) - no

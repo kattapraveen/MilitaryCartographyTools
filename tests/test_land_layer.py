@@ -28,7 +28,7 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 from MilitaryCartographyTools.military_symbology import land_layer
-from MilitaryCartographyTools.military_symbology.sidc import ENTITIES
+from MilitaryCartographyTools.military_symbology.sidc import ENTITIES, MODIFIERS
 from MilitaryCartographyTools.military_symbology._point_symbol_layer import (
     build_single_domain_point_layer,
 )
@@ -522,3 +522,230 @@ class TestCoastGuardIsNotLabelledAVessel(QgisTestCase):
                     "Transportation Security Agency (TSA)",
                     set(labels.values())
                 )
+
+
+class TestLandInstallationVocabulary(QgisTestCase):
+
+    """
+    D-3: Land Installation's vocabulary against MIL-STD-2525D Table
+    A-XXVII, completed 2026-08-18 (99 -> 130 entities).
+    """
+
+    # Every code milsymbol's landinstallation.js draws that the standard
+    # does NOT print anywhere in its text. Kept because they shipped and
+    # are in users' saved features; marked in the label so they cannot be
+    # mistaken for standard entities.
+    NON_STANDARD = {"home": "112300", "airport": "120803"}
+
+
+    def test_every_entity_renders_a_real_icon(self):
+
+        from MilitaryCartographyTools.military_symbology import symbol_engine
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        bare_frame = symbol_engine.render_symbol_svg("10032000001199000000")
+
+        for entity in ENTITIES["land_installation"]:
+
+            with self.subTest(entity=entity):
+
+                svg = symbol_engine.render_symbol_svg(
+                    build_sidc(
+                        "friend", entity, symbol_set="land_installation"
+                    )
+                )
+
+                self.assertNotEqual(svg, bare_frame)
+
+
+    def test_codes_are_in_ascending_order(self):
+
+        # Not cosmetic: the dict is maintained by inserting each new code
+        # next to its neighbours, and a code out of order is the visible
+        # symptom of an entry filed under the wrong group.
+        codes = list(ENTITIES["land_installation"].values())
+
+        self.assertEqual(codes, sorted(codes))
+
+
+    def test_non_standard_entities_say_so_in_their_label(self):
+
+        for entity, code in self.NON_STANDARD.items():
+
+            with self.subTest(entity=entity):
+
+                self.assertEqual(ENTITIES["land_installation"][entity], code)
+
+                self.assertIn(
+                    "non-standard",
+                    land_layer._INSTALLATION_ENTITY_LABELS[entity]
+                )
+
+
+    def test_group_headers_are_not_named_after_their_children(self):
+
+        # Two parent codes carried a child's name until 2026-08-18, which
+        # would have put the same text on two different entries once the
+        # children were added. Table A-XXVII's own wording for each.
+        labels = land_layer._INSTALLATION_ENTITY_LABELS
+
+        self.assertEqual(ENTITIES["land_installation"]["electric_power"], "120500")
+        self.assertIn("Energy Facility Infrastructure", labels["electric_power"])
+
+        self.assertEqual(
+            ENTITIES["land_installation"]["electric_power_facility"], "120501"
+        )
+        self.assertEqual(labels["electric_power_facility"], "Electric Power")
+
+        self.assertEqual(ENTITIES["land_installation"]["water"], "121400")
+        self.assertIn("Water Supply Infrastructure", labels["water"])
+
+        self.assertEqual(
+            ENTITIES["land_installation"]["water_facility"], "121410"
+        )
+        self.assertEqual(labels["water_facility"], "Water")
+
+
+    def test_no_label_is_used_twice(self):
+
+        # The whole point of the two fixes above: a dropdown that offers
+        # the same words on two rows is unusable.
+        labels = list(land_layer._INSTALLATION_ENTITY_LABELS.values())
+
+        self.assertEqual(len(labels), len(set(labels)))
+
+
+class TestLandSectorModifiers(QgisTestCase):
+
+    """
+    D-4 (part one), 2026-08-18: sector 1/2 modifiers for Land Civilian,
+    Equipment and Installation. Land Unit's own is a separate pass.
+
+    Counts are transcribed from the standard's own tables, so a code
+    quietly added from milsymbol's larger 2525E lists fails here.
+    """
+
+    # (symbol_set, sector, code count in MIL-STD-2525D, table)
+    EXPECTED = [
+        ("land_civilian", "sector1", 24, "A-XXIII"),
+        ("land_civilian", "sector2", 1, "A-XXIV"),
+        ("land_equipment", "sector1", 9, "A-XXVI"),
+        ("land_installation", "sector1", 13, "A-XXVIII"),
+        ("land_installation", "sector2", 8, "A-XXIX"),
+    ]
+
+    LABEL_ATTRS = {
+        ("land_civilian", "sector1"): "_CIVILIAN_SECTOR1_LABELS",
+        ("land_civilian", "sector2"): "_CIVILIAN_SECTOR2_LABELS",
+        ("land_equipment", "sector1"): "_EQUIPMENT_SECTOR1_LABELS",
+        ("land_installation", "sector1"): "_INSTALLATION_SECTOR1_LABELS",
+        ("land_installation", "sector2"): "_INSTALLATION_SECTOR2_LABELS",
+    }
+
+
+    def test_each_sector_has_exactly_the_standards_codes(self):
+
+        for symbol_set, sector, count, table in self.EXPECTED:
+
+            with self.subTest(symbol_set=symbol_set, sector=sector):
+
+                codes = MODIFIERS[symbol_set][sector]
+
+                self.assertEqual(len(codes), count, table)
+
+                # Contiguous 01..NN, which is how every one of these
+                # tables is printed - a gap means a dropped row.
+                self.assertEqual(
+                    sorted(codes.values()),
+                    ["%02d" % n for n in range(1, count + 1)]
+                )
+
+
+    def test_labels_match_the_modifier_keys(self):
+
+        for (symbol_set, sector), attr in self.LABEL_ATTRS.items():
+
+            with self.subTest(symbol_set=symbol_set, sector=sector):
+
+                self.assertEqual(
+                    set(getattr(land_layer, attr)),
+                    set(MODIFIERS[symbol_set][sector])
+                )
+
+
+    def test_land_equipment_has_no_sector_2(self):
+
+        # MIL-STD-2525D has D.8.3 (Land equipment sector 1) and no
+        # D.8.4 - confirmed in the table of contents and the body.
+        # milsymbol's nine sIdm2 codes for symbol set 15 are mobility
+        # indicators, which the standard encodes elsewhere. Pinned so
+        # nobody "completes" the pair from milsymbol.
+        self.assertIn("sector1", MODIFIERS["land_equipment"])
+        self.assertNotIn("sector2", MODIFIERS["land_equipment"])
+
+        self.assertFalse(
+            hasattr(land_layer, "_EQUIPMENT_SECTOR2_LABELS")
+        )
+
+
+    def test_every_modifier_actually_changes_the_symbol(self):
+
+        # A modifier that renders identically to the plain symbol is a
+        # dropdown entry that does nothing - the user picks it, nothing
+        # happens, and no test would otherwise notice.
+        from MilitaryCartographyTools.military_symbology import symbol_engine
+        from MilitaryCartographyTools.military_symbology.sidc import build_sidc
+
+        probes = [
+            ("land_civilian", "civilian", "sector1"),
+            ("land_civilian", "civilian", "sector2"),
+            ("land_equipment", "tank", "sector1"),
+            ("land_installation", "military", "sector1"),
+            ("land_installation", "military", "sector2"),
+        ]
+
+        for symbol_set, entity, sector in probes:
+
+            plain = symbol_engine.render_symbol_svg(
+                build_sidc("friend", entity, symbol_set=symbol_set)
+            )
+
+            for key in MODIFIERS[symbol_set][sector]:
+
+                with self.subTest(symbol_set=symbol_set, modifier=key):
+
+                    svg = symbol_engine.render_symbol_svg(
+                        build_sidc(
+                            "friend",
+                            entity,
+                            symbol_set=symbol_set,
+                            **{sector + "_modifier": key}
+                        )
+                    )
+
+                    self.assertNotEqual(svg, plain)
+
+
+    def test_the_three_layers_offer_the_dropdowns(self):
+
+        for adder, symbol_set in (
+            (add_land_civilian_layer, "land_civilian"),
+            (add_land_equipment_layer, "land_equipment"),
+            (add_land_installation_layer, "land_installation"),
+        ):
+
+            with self.subTest(symbol_set=symbol_set):
+
+                QgsProject.instance().clear()
+                QgsProject.instance().setCrs(WGS84)
+
+                layer = adder(FakeIface())
+
+                names = [f.name() for f in layer.fields()]
+
+                self.assertIn("sector1_modifier", names)
+
+                if "sector2" in MODIFIERS[symbol_set]:
+                    self.assertIn("sector2_modifier", names)
+                else:
+                    self.assertNotIn("sector2_modifier", names)

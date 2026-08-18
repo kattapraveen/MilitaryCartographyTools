@@ -38,7 +38,7 @@ entity subset (of 219 total) already in sidc.py's ENTITIES["ground_unit"]
 (every code confirmed correct, no bugs found). Land Civilian is
 landcivilian.js's FULL 11-entity vocabulary (small enough that no
 curation is needed). Land Equipment (153 entities, of 229 total in
-landequipment.js) and Land Installation (99 entities, of 131 total in
+landequipment.js) and Land Installation (130 entities, of 131 total in
 landinstallation.js) are curated subsets - see sidc.py's own
 ENTITIES["land_equipment"]/["land_installation"] comments for the
 categories covered and for two follow-up fixes, both caught by the user,
@@ -73,6 +73,23 @@ table at all (the standard's real one is Sea Surface 140300). Two labels
 also read "Agency" where the standard reads "Administration" (DEA, TSA).
 Every fix here changed labels and added entries; no shipped entity KEY
 was renamed, because keys are written into saved features.
+(5) Land Installation's vocabulary completed 2026-08-18 (D-3): 99 -> 130
+entities, every code Table A-XXVII prints. The only code in
+landinstallation.js left out is 112001, a grenade icon in a gap the
+standard does not use. Two codes we already shipped are the same case -
+112300 "Home" and 120803 "Airport" appear NOWHERE in MIL-STD-2525D - and
+are kept, since they are in users' saved features, but their labels now
+say "(non-standard)". The standard's own airport is 121301 Airport/Air
+Base, which was among the 31 added.
+The same pass corrected twelve labels against Table A-XXVII, two of them
+the Coast Guard defect again: 120500 was labelled "Electric Power" and
+121400 "Water (Generic)", but both are GROUP headers (Energy Facility
+Infrastructure / Water Supply Infrastructure) and the standard's real
+Electric Power and Water are their children 120501 and 121410 - both
+added in this pass, so leaving the parents alone would have put identical
+text on two rows. The children take `electric_power_facility` and
+`water_facility` because the legacy keys already held the obvious names
+and keys are never renamed here.
 
 Sector 1/2 modifiers deliberately NOT built for any of these four layers
 in this pass - Land Unit alone has ~50+ sector 1 and ~50+ sector 2
@@ -347,14 +364,34 @@ _EQUIPMENT_ENTITY_LABELS = {
 }
 
 _INSTALLATION_ENTITY_LABELS = {
+    # Table A-XXVII prints 110000 as "Military/Civilian", but the
+    # maintainer's own call (2026-08-18) is to keep the shorter
+    # "Military (Generic)" a user already knows in the dropdown.
     "military": "Military (Generic)",
     "aircraft_production_and_assembly": "Aircraft Production and Assembly",
+    "ammunition_and_explosives_assembly": "Ammunition and Explosives/Assembly",
+    "ammunition_cache": "Ammunition Cache",
+    "armament_production": "Armament Production",
+    "black_list_location": "Black List Location",
     "cbrn": "CBRN",
+    "engineering_equipment_production": "Engineering Equipment Production",
+    "bridge": "Bridge",
     "equipment_manufacture": "Equipment Manufacture",
-    "government": "Government",
+    "government": "Government Leadership",
+    "gray_list_location": "Gray List Location",
+    "mass_grave_site": "Mass Grave Site",
+    "materiel": "Materiel",
     "mine": "Mine",
+    "missile_and_space_system_production":
+        "Missile and Space System Production",
+    "nuclear_non_cbrn_defense": "Nuclear (Non CBRN Defense)",
     "printed_media": "Printed Media",
     "safe_house": "Safe House",
+    "white_list_location": "White List Location",
+    "tented_camp": "Tented Camp (Displaced Persons/Refugee/Evacuees)",
+    "camp": "Camp",
+    "training_camp": "Training Camp",
+    "warehouse_storage_facility": "Warehouse/Storage Facility",
     "law_enforcement": "Law Enforcement (Generic)",
     "bureau_of_alcohol_tobacco_firearms_and_explosives":
         "Bureau of Alcohol, Tobacco, Firearms and Explosives (ATF)",
@@ -381,21 +418,31 @@ _INSTALLATION_ENTITY_LABELS = {
     "law_enforcement_vessel": "Coast Guard",
     "us_marshals_service": "US Marshals Service",
     "emergency_operation": "Emergency Operation",
-    "fire_protection": "Fire Protection",
+    "fire_protection": "Fire Station",
     "emergency_medical_operation": "Emergency Medical Operation",
-    "home": "Home",
+    # 112300 and 120803 render in milsymbol but appear NOWHERE in
+    # MIL-STD-2525D - not in Table A-XXVII, not anywhere in the
+    # document. Kept (they shipped in 1.0.3 and are in users' saved
+    # features) but marked in the label, so nobody reads them as
+    # standard entities. Note the standard's own airport is 121301
+    # Airport/Air Base, added 2026-08-18.
+    "home": "Home (non-standard)",
+    "infrastructure": "Infrastructure (Generic)",
     "agriculture_and_food_infrastructure": "Agriculture and Food Infrastructure (Generic)",
     "agricultural_laboratory": "Agricultural Laboratory",
     "animal_feedlot": "Animal Feedlot",
+    "commercial_food_distribution_center":
+        "Commercial Food Distribution Center",
     "farm_ranch": "Farm/Ranch",
     "food_distribution": "Food Distribution",
-    "food_distribution_production": "Food Distribution (Production)",
-    "food_distribution_retail": "Food Distribution (Retail)",
+    "food_distribution_production": "Food Production Center",
+    "food_distribution_retail": "Food Retail",
     "grain_storage": "Grain Storage",
     "banking_finance_and_insurance_infrastructure": "Banking, Finance and Insurance Infrastructure (Generic)",
     "atm": "ATM",
     "bank": "Bank",
     "bullion_storage": "Bullion Storage",
+    "economic_infrastructure_asset": "Economic Infrastructure Asset",
     "federal_reserve_bank": "Federal Reserve Bank",
     "financial_exchange": "Financial Exchange",
     "financial_services_other": "Financial Services, Other",
@@ -413,15 +460,26 @@ _INSTALLATION_ENTITY_LABELS = {
     "educational_facilities_infrastructure": "Educational Facilities Infrastructure (Generic)",
     "college_university": "College/University",
     "school": "School",
-    "electric_power": "Electric Power",
+    # 120500 is the GROUP header - Table A-XXVII prints it "Energy
+    # Facility Infrastructure". The standard's own "Electric Power" is
+    # its child 120501, added 2026-08-18 as "electric_power_facility"
+    # because this legacy key already occupied the obvious name and is
+    # written into saved features. Same shape as the water pair below.
+    "electric_power": "Energy Facility Infrastructure (Generic)",
+    "electric_power_facility": "Electric Power",
+    "generation_station": "Generation Station",
     "natural_gas_facility": "Natural Gas Facility",
+    "petroleum_facility": "Petroleum Facility",
+    "petroleum_gas_oil": "Petroleum/Gas/Oil",
     "propane_facility": "Propane Facility",
     "government_site_infrastructure": "Government Site Infrastructure",
+    "medical_infrastructure": "Medical Infrastructure (Generic)",
     "medical": "Medical",
     "medical_treatment_facility": "Medical Treatment Facility",
     "military_infrastructure": "Military Infrastructure (Generic)",
-    "base": "Base",
-    "airport": "Airport",
+    "military_armory": "Military Armory",
+    "base": "Military Base",
+    "airport": "Airport (non-standard)",
     "postal_service_infrastructure": "Postal Service Infrastructure (Generic)",
     "postal_distribution_center": "Postal Distribution Center",
     "post_office": "Post Office",
@@ -436,18 +494,26 @@ _INSTALLATION_ENTITY_LABELS = {
     "elder_care": "Elder Care",
     "telecommunications_infrastructure": "Telecommunications Infrastructure (Generic)",
     "broadcast_transmitter_antenna": "Broadcast Transmitter Antenna",
+    "telecommunications": "Telecommunications",
     "telecommunications_tower": "Telecommunications Tower",
     "transportation": "Transportation (Generic)",
+    "airport_air_base": "Airport/Air Base",
     "air_traffic_control_facility": "Air Traffic Control Facility",
-    "ferry": "Ferry",
+    "bus_station": "Bus Station",
+    "ferry": "Ferry Terminal",
     "helicopter_landing_site": "Helicopter Landing Site",
-    "maintenance": "Maintenance",
-    "railhead": "Railhead",
+    "maintenance": "Maintenance Facility",
+    "railhead": "Railhead/Railroad Station",
     "rest_stop": "Rest Stop",
+    "sea_port_naval_base": "Sea Port/Naval Base",
+    "ship_yard": "Ship Yard",
     "toll_facility": "Toll Facility",
     "traffic_inspection_facility": "Traffic Inspection Facility",
     "tunnel": "Tunnel",
-    "water": "Water (Generic)",
+    # 121400 is the GROUP header - "Water Supply Infrastructure". The
+    # standard's own "Water" is its child 121410, added as
+    # "water_facility" for the same legacy-key reason as electric power.
+    "water": "Water Supply Infrastructure (Generic)",
     "control_valve": "Control Valve",
     "dam": "Dam",
     "discharge_outfall": "Discharge Outfall",
@@ -457,7 +523,93 @@ _INSTALLATION_ENTITY_LABELS = {
     "storage_tower": "Storage Tower",
     "surface_water_intake": "Surface Water Intake",
     "wastewater_treatment_facility": "Wastewater Treatment Facility",
-    "water_purification": "Water Purification",
+    "water_facility": "Water",
+    "water_purification": "Water Treatment",
+}
+
+
+
+# D-4, 2026-08-18: sector 1/2 modifier vocabularies for three of the four
+# Land layers. Land Unit's own (Tables D-VI/D-VII, 99 + 85 codes in
+# milsymbol) is a separate pass - see docs/roadmap.md.
+#
+# These follow MIL-STD-2525D's tables, not milsymbol's supersets; see
+# sidc.py's MODIFIERS comment for exactly what was left out and why.
+_CIVILIAN_SECTOR1_LABELS = {
+    "assassination": "Assassination",
+    "execution_wrongful_killing": "Execution (Wrongful Killing)",
+    "murder_victims": "Murder Victims",
+    "hijacking": "Hijacking",
+    "kidnapping": "Kidnapping",
+    "piracy": "Piracy",
+    "rape": "Rape",
+    "civilian": "Civilian",
+    "displaced_persons_refugees_and_evacuees":
+        "Displaced Person(s), Refugee(s) and Evacuee(s)",
+    "foreign_fighters": "Foreign Fighter(s)",
+    "gang_member_or_gang": "Gang Member or Gang",
+    "government_organization": "Government Organization",
+    "leader_or_leadership": "Leader or Leadership",
+    "nongovernmental_organization":
+        "Nongovernmental Organization Member or Organization",
+    "coerced_impressed_recruit": "Coerced/Impressed Recruit",
+    "willing_recruit": "Willing Recruit",
+    "religious_or_religious_organization":
+        "Religious or Religious Organization",
+    "targeted_individual_or_organization":
+        "Targeted Individual or Organization",
+    "terrorist_or_terrorist_organization":
+        "Terrorist or Terrorist Organization",
+    "speaker": "Speaker",
+    "accident": "Accident",
+    "combat": "Combat",
+    "other": "Other",
+    "loot": "Loot",
+}
+
+_CIVILIAN_SECTOR2_LABELS = {
+    "leader_or_leadership": "Leader or Leadership",
+}
+
+# Table A-XXVI: "sensor type category". The standard has no Land
+# Equipment sector 2 at all, so no _EQUIPMENT_SECTOR2_LABELS exists.
+_EQUIPMENT_SECTOR1_LABELS = {
+    "biological": "Biological",
+    "chemical": "Chemical",
+    "early_warning_radar": "Early Warning Radar",
+    "intrusion": "Intrusion",
+    "nuclear": "Nuclear",
+    "radiological": "Radiological",
+    "upgraded_early_warning_radar": "Upgraded Early Warning Radar",
+    "hijacking": "Hijacking",
+    "civilian": "Civilian",
+}
+
+_INSTALLATION_SECTOR1_LABELS = {
+    "biological": "Biological",
+    "chemical": "Chemical",
+    "nuclear": "Nuclear",
+    "radiological": "Radiological",
+    "decontamination": "Decontamination",
+    "coal": "Coal (Electric Power)",
+    "geothermal": "Geothermal (Electric Power)",
+    "hydroelectric": "Hydroelectric (Electric Power)",
+    "natural_gas": "Natural Gas (Electric Power)",
+    "petroleum": "Petroleum (Electric Power)",
+    "civilian": "Civilian",
+    "civilian_telephone": "Civilian Telephone",
+    "civilian_television": "Civilian Television",
+}
+
+_INSTALLATION_SECTOR2_LABELS = {
+    "biological": "Biological (CBRN)",
+    "chemical": "Chemical (CBRN)",
+    "nuclear": "Nuclear (CBRN)",
+    "radiological": "Radiological (CBRN)",
+    "atomic_energy_reactor": "Atomic Energy Reactor (CBRN)",
+    "nuclear_material_production": "Nuclear Material Production (CBRN)",
+    "nuclear_material_storage": "Nuclear Material Storage (CBRN)",
+    "weapons_grade": "Weapons Grade (CBRN)",
 }
 
 
@@ -488,6 +640,8 @@ def add_land_civilian_layer(iface):
         DEFAULT_CIVILIAN_ENTITY,
         include_echelon=False,
         include_headquarters=True,
+        sector1_labels=_CIVILIAN_SECTOR1_LABELS,
+        sector2_labels=_CIVILIAN_SECTOR2_LABELS,
     )
 
 
@@ -503,6 +657,7 @@ def add_land_equipment_layer(iface):
         DEFAULT_EQUIPMENT_ENTITY,
         include_echelon=False,
         include_headquarters=True,
+        sector1_labels=_EQUIPMENT_SECTOR1_LABELS,
     )
 
 
@@ -518,6 +673,8 @@ def add_land_installation_layer(iface):
         DEFAULT_INSTALLATION_ENTITY,
         include_echelon=False,
         include_headquarters=True,
+        sector1_labels=_INSTALLATION_SECTOR1_LABELS,
+        sector2_labels=_INSTALLATION_SECTOR2_LABELS,
     )
 
 

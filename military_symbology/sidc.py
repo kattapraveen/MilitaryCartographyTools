@@ -495,10 +495,21 @@ ENTITIES = {
     "land_installation": {
         "military": "110000",
         "aircraft_production_and_assembly": "110100",
+        "ammunition_and_explosives_assembly": "110200",
+        "ammunition_cache": "110300",
+        "armament_production": "110400",
+        "black_list_location": "110500",
         "cbrn": "110600",
+        "engineering_equipment_production": "110700",
+        "bridge": "110701",
         "equipment_manufacture": "110800",
         "government": "110900",
+        "gray_list_location": "111000",
+        "mass_grave_site": "111100",
+        "materiel": "111200",
         "mine": "111300",
+        "missile_and_space_system_production": "111400",
+        "nuclear_non_cbrn_defense": "111500",
         "printed_media": "111600",
         "safe_house": "111700",
         # Law enforcement - Table A-XXVII's full 13-entity family. ATF
@@ -514,6 +525,11 @@ ENTITIES = {
         # 2026-08-18. The standard's real Law Enforcement Vessel is Sea
         # Surface 140300, which ENTITIES["sea_surface"] has right. Do not
         # "align" these two by changing the sea surface one.
+        "white_list_location": "111800",
+        "tented_camp": "111900",
+        "camp": "111901",
+        "training_camp": "111902",
+        "warehouse_storage_facility": "112000",
         "law_enforcement": "112100",
         "bureau_of_alcohol_tobacco_firearms_and_explosives": "112101",
         "border_patrol": "112102",
@@ -539,9 +555,11 @@ ENTITIES = {
         "fire_protection": "112201",
         "emergency_medical_operation": "112202",
         "home": "112300",
+        "infrastructure": "120000",
         "agriculture_and_food_infrastructure": "120100",
         "agricultural_laboratory": "120101",
         "animal_feedlot": "120102",
+        "commercial_food_distribution_center": "120103",
         "farm_ranch": "120104",
         "food_distribution": "120105",
         "food_distribution_production": "120106",
@@ -551,6 +569,7 @@ ENTITIES = {
         "atm": "120201",
         "bank": "120202",
         "bullion_storage": "120203",
+        "economic_infrastructure_asset": "120204",
         "federal_reserve_bank": "120205",
         "financial_exchange": "120206",
         "financial_services_other": "120207",
@@ -569,12 +588,18 @@ ENTITIES = {
         "college_university": "120401",
         "school": "120402",
         "electric_power": "120500",
+        "electric_power_facility": "120501",
+        "generation_station": "120502",
         "natural_gas_facility": "120503",
+        "petroleum_facility": "120504",
+        "petroleum_gas_oil": "120505",
         "propane_facility": "120506",
         "government_site_infrastructure": "120600",
+        "medical_infrastructure": "120700",
         "medical": "120701",
         "medical_treatment_facility": "120702",
         "military_infrastructure": "120800",
+        "military_armory": "120801",
         "base": "120802",
         "airport": "120803",
         "postal_service_infrastructure": "120900",
@@ -591,14 +616,19 @@ ENTITIES = {
         "elder_care": "121103",
         "telecommunications_infrastructure": "121200",
         "broadcast_transmitter_antenna": "121201",
+        "telecommunications": "121202",
         "telecommunications_tower": "121203",
         "transportation": "121300",
+        "airport_air_base": "121301",
         "air_traffic_control_facility": "121302",
+        "bus_station": "121303",
         "ferry": "121304",
         "helicopter_landing_site": "121305",
         "maintenance": "121306",
         "railhead": "121307",
         "rest_stop": "121308",
+        "sea_port_naval_base": "121309",
+        "ship_yard": "121310",
         "toll_facility": "121311",
         "traffic_inspection_facility": "121312",
         "tunnel": "121313",
@@ -612,6 +642,7 @@ ENTITIES = {
         "storage_tower": "121407",
         "surface_water_intake": "121408",
         "wastewater_treatment_facility": "121409",
+        "water_facility": "121410",
         "water_purification": "121411",
     },
     # Real codes from milsymbol-3.0.4's own src/numbersidc/sidc/air.js
@@ -1695,6 +1726,104 @@ _SIGINT_SECTOR1_MODIFIERS = {
 }
 
 MODIFIERS = {
+    # D-4, 2026-08-18. MIL-STD-2525D Tables A-XXIII/A-XXIV (Land
+    # Civilian), A-XXVI (Land Equipment) and A-XXVIII/A-XXIX (Land
+    # Installation) - the standard's own lists, NOT milsymbol's.
+    #
+    # milsymbol's landcivilian.js/landequipment.js/landinstallation.js
+    # each carry more modifier codes than 2525D prints, because they
+    # also implement 2525E/APP-6E: Cyberspace throughout, Robotic,
+    # Joint Network Node and Command Post Node on Installation, and a
+    # whole aviation-mission axis on Equipment sector 1 (codes 10-24:
+    # tilt-rotor, attack, cargo, medevac, utility and the rest).
+    # Those are deliberately NOT built - this plugin follows 2525D, the
+    # same rule that keeps 112001 out of, and marks 112300/120803 in,
+    # the Land Installation vocabulary. Revisit only if the plugin ever
+    # targets 2525E.
+    #
+    # Land Equipment has NO sector 2 in 2525D at all: the standard has
+    # D.8.3 (sector 1, "sensor type category") and no D.8.4, confirmed
+    # in both the table of contents and the body. milsymbol's nine
+    # sIdm2 codes for symbol set 15 are mobility indicators, which 2525D
+    # encodes elsewhere entirely. So "land_equipment" below has a
+    # sector1 key and no sector2 key - build_sidc() already treats a
+    # missing sector as "no modifier support yet" rather than an error.
+    "land_civilian": {
+        "sector1": {
+            "assassination": "01",
+            "execution_wrongful_killing": "02",
+            "murder_victims": "03",
+            "hijacking": "04",
+            "kidnapping": "05",
+            "piracy": "06",
+            "rape": "07",
+            "civilian": "08",
+            "displaced_persons_refugees_and_evacuees": "09",
+            "foreign_fighters": "10",
+            "gang_member_or_gang": "11",
+            "government_organization": "12",
+            "leader_or_leadership": "13",
+            "nongovernmental_organization": "14",
+            "coerced_impressed_recruit": "15",
+            "willing_recruit": "16",
+            "religious_or_religious_organization": "17",
+            "targeted_individual_or_organization": "18",
+            "terrorist_or_terrorist_organization": "19",
+            "speaker": "20",
+            "accident": "21",
+            "combat": "22",
+            "other": "23",
+            "loot": "24",
+        },
+        "sector2": {
+            "leader_or_leadership": "01",
+        },
+    },
+    "land_equipment": {
+        # Table A-XXVI - "sensor type category". No sector 2 exists.
+        "sector1": {
+            "biological": "01",
+            "chemical": "02",
+            "early_warning_radar": "03",
+            "intrusion": "04",
+            "nuclear": "05",
+            "radiological": "06",
+            "upgraded_early_warning_radar": "07",
+            "hijacking": "08",
+            "civilian": "09",
+        },
+    },
+    "land_installation": {
+        "sector1": {
+            "biological": "01",
+            "chemical": "02",
+            "nuclear": "03",
+            "radiological": "04",
+            "decontamination": "05",
+            # 06-10 are the Electric Power fuel types; the standard's
+            # own Remarks column reads "Used with Electric Power".
+            "coal": "06",
+            "geothermal": "07",
+            "hydroelectric": "08",
+            "natural_gas": "09",
+            "petroleum": "10",
+            "civilian": "11",
+            "civilian_telephone": "12",
+            "civilian_television": "13",
+        },
+        "sector2": {
+            # All eight carry the standard's Remarks "Used with CBRN"
+            # (printed "CRBN" there - a typo in the document itself).
+            "biological": "01",
+            "chemical": "02",
+            "nuclear": "03",
+            "radiological": "04",
+            "atomic_energy_reactor": "05",
+            "nuclear_material_production": "06",
+            "nuclear_material_storage": "07",
+            "weapons_grade": "08",
+        },
+    },
     "space": {
         "sector1": {
             "low_earth_orbit": "01",
