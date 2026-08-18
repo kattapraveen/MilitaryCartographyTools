@@ -2132,6 +2132,93 @@ class TestDecoyChevronSpan(QgisTestCase):
         self.assertEqual(widened, {"minefield_dynamic_dummy"})
 
 
+class TestDummyMinefieldChevronGap(QgisTestCase):
+
+    """
+    2026-08-18, UI request: "the chevron - as close as possible to the
+    area without touching or overlapping, say 1mm gap." The chevron
+    sits in real map units (a QgsGeometryGeneratorSymbolLayer, not a
+    fixed-size marker), so a literal print-scale millimetre isn't
+    expressible here - tightened to a small, fixed fraction of the
+    shape's own height instead, close without touching regardless of
+    the shape's size. Was a 0.12-of-height gap (noticeably floating
+    clear of the shape); now 0.02.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _arms_gap_above_top_edge(self, width, height):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        corners = [
+            QgsPointXY(0, 0),
+            QgsPointXY(width, 0),
+            QgsPointXY(width, height),
+            QgsPointXY(0, height),
+        ]
+
+        polygon = QgsGeometry.fromPolygonXY([corners + [corners[0]]])
+
+        expression = QgsExpression(
+            "translate(mct_decoy_chevron(geom_from_wkt('{}'), 0.5), 0,"
+            " (y_max(geom_from_wkt('{}')) - y_min(geom_from_wkt('{}')))"
+            " * 0.72)".format(*([polygon.asWkt()] * 3))
+        )
+
+        result = expression.evaluate()
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        # The chevron's two arm tips are its lowest points (the apex
+        # is above them) - boundingBox().yMinimum() is exactly that.
+        return result.boundingBox().yMinimum() - height
+
+
+    def test_arms_sit_above_the_top_edge_not_touching_it(self):
+
+        gap = self._arms_gap_above_top_edge(100, 60)
+
+        self.assertGreater(gap, 0)
+
+
+    def test_gap_is_a_small_fraction_of_the_shapes_height(self):
+
+        # Exactly 0.02 * height by construction (0.72 translate minus
+        # arm_drop 0.20 minus the box's own half-height 0.5).
+        self.assertAlmostEqual(
+            self._arms_gap_above_top_edge(100, 60), 60 * 0.02, places=6
+        )
+
+
+    def test_gap_scales_with_the_shapes_own_size(self):
+
+        # A gap defined as a fraction of height reads the same (close,
+        # not touching) on a small minefield and a large one - a fixed
+        # map-unit gap would look enormous on a small shape or
+        # invisible on a large one.
+        small_gap = self._arms_gap_above_top_edge(20, 10)
+        large_gap = self._arms_gap_above_top_edge(200, 100)
+
+        self.assertAlmostEqual(small_gap / 10, large_gap / 100, places=6)
+
+
 class TestWireObstacles(QgisTestCase):
 
     """

@@ -10309,6 +10309,71 @@ detect-secrets both clean.
 
 ---
 
+## IDX smoke-testing round: L09/L12-15, A09-14, P01, M01-04 (2026-08-18)
+
+Every row the maintainer checked in this pass came back clear except
+four findings, three acted on and one investigated and reported back
+rather than guessed at.
+
+**Dummy Minefield, Dynamic's decoy chevron moved closer to the
+shape.** "The chevron - as close as possible to the area without
+touching or overlapping, say 1mm gap." The chevron is real map-unit
+geometry (a `QgsGeometryGeneratorSymbolLayer`, not a fixed-size
+marker), so a literal print-scale millimetre isn't directly
+expressible - tightened to a small, fixed FRACTION of the shape's own
+height instead (0.02, was 0.12 - a `translate()` multiplier of 0.72,
+was 0.82, in `_dynamic_minefield_symbol()`), which reads as close on a
+small minefield and a large one alike, unlike a fixed map-unit gap
+would. The chevron's own internal proportions (apex height, arm
+spread, inside `mct_decoy_chevron()`) are untouched - only the whole
+chevron's distance from the polygon moved. 3 new tests
+(`TestDummyMinefieldChevronGap`) confirm the gap is present (not
+touching), small, and proportional to the shape's own size.
+
+**Trip Wire's known problem has a sibling: Abatis.** "Change to
+symbol - already flagged earlier" (Trip Wire, U-4) and "Abatis -
+change to symbol" (new). Checked Abatis's own construction rather
+than assuming it shares Trip Wire's exact defect: it does not - Trip
+Wire is a repeating marker riding an arbitrary-length line with no
+size of its own, where Abatis's single triangular kink
+(`mct_abatis_line()`) is deliberately sized as a fixed 6% of the
+line's own length, "so the symbol scales with the feature" per its
+own docstring. Different mechanism, same maintainer ask: a point
+symbol with a real page size, not one that scales with however long a
+line gets digitized. U-4 (build tracker) widened to cover both,
+un-fixed here - this is the same category of work as Trip Wire's own
+entry (a layer move, a migration story for existing features, and
+overlap with U-2's rotation work), not a quick tweak, so it stays
+tracked rather than rushed.
+
+**Obstacle Control Measures (Lines)'s own tooltip was stale.** It
+described only the wire-obstacle family (9 codes) and said "the
+table's lines are being built in later batches" - true when written,
+false since batches B5-B7 landed (obstacle effects, bypasses/
+roadblocks, and crossings), which is most of the layer's own 35
+entries. Rewritten to name all four sub-layers (Points/Areas/
+Minefields/Lines) and describe the Lines layer's actual current
+scope.
+
+**"The menu count is 33 while your count is 35" - investigated, not
+found.** Checked directly rather than assumed: `LINE_MEASURE_TYPE_
+LABELS` (`obstacle_control_measures.py`) has exactly 35 keys, all 35
+labels are distinct (no collision that would silently collapse two
+entries into one dropdown row), and building the real layer and
+reading its `measure_type` field's own `ValueMap` editor config back
+confirms 35 selectable entries, matching the IDX tracker's own count
+exactly. No discrepancy found in the data or the widget config this
+session's tools can inspect - reported back to the maintainer rather
+than "fixed" against a guess, since chasing a phantom bug with no
+reproduction is worse than asking where the 33 came from (a hand
+count while scrolling a long dropdown is an easy place for this kind
+of small miscount, but that is a guess, not a finding).
+
+3 new tests (`TestDummyMinefieldChevronGap`), 1417 -> 1420 on both
+QGIS versions; Bandit and detect-secrets both clean.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

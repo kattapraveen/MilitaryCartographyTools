@@ -1241,18 +1241,20 @@ class MilitaryCartographyTools:
         )
 
         self.obstacle_control_measures_action.setToolTip(
-            "Add Obstacle Control Measures (Points) and (Areas) layers "
-            "(MIL-STD-2525D Appendix H.5.21, Table H-XIX). Points: "
-            "mines, booby trap, engineer regulating point, "
-            "tetrahedrons/dragons teeth, towers. Areas: the four "
-            "obstacle zones, the mined-area family and UXO Area. "
-            "Minefields: the table's own five minefield codes, each a "
-            "fixed-size box of mine glyphs, with an Anti-personnel / "
-            "Anti-tank / Unknown / combined mine-type choice. Lines: "
-            "the wire-obstacle family. "
+            "Add Obstacle Control Measures (Points), (Areas), "
+            "(Minefields) and (Lines) layers (MIL-STD-2525D Appendix "
+            "H.5.21, Table H-XIX). Points: mines, booby trap, engineer "
+            "regulating point, tetrahedrons/dragons teeth, towers. "
+            "Areas: the four obstacle zones, the mined-area family and "
+            "UXO Area. Minefields: the table's own five minefield "
+            "codes, each a fixed-size box of mine glyphs, with an "
+            "Anti-personnel / Anti-tank / Unknown / combined mine-type "
+            "choice, plus the two freeform Dynamic minefields. Lines: "
+            "the wire and toothed obstacle families, obstacle effects, "
+            "bypasses/roadblocks, and crossings (bridges, fords, "
+            "ferries). "
             "Obstacles draw green by default, with a per-feature "
-            "switch to black. The table's lines are being built in "
-            "later batches."
+            "switch to black."
         )
 
         self.obstacle_control_measures_action.triggered.connect(

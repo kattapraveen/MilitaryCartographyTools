@@ -1287,9 +1287,21 @@ def _dynamic_minefield_symbol(dummy=False):
         # horizontal extent of the area", where the two Decoy Mined
         # Area variants keep the default narrow span because theirs is
         # drawn inside the boundary.
+        #
+        # The 0.72 translate leaves a gap of 0.02 * the shape's own
+        # height between the polygon's top edge and the chevron's arm
+        # tips (its two lowest points) - close without touching, per
+        # the maintainer's own "as close as possible... without
+        # touching or overlapping" (2026-08-18). mct_decoy_chevron()'s
+        # own arm_drop (0.20) and the box's half-height (0.5) net to
+        # 0.70 before any translate at all; 0.72 is that plus the
+        # 0.02 gap. Was 0.82 (a 0.12 gap, floating noticeably clear of
+        # the shape) - the chevron's own internal proportions
+        # (apex_rise/arm_drop inside mct_decoy_chevron) are untouched,
+        # so this only moves the whole chevron closer, not its shape.
         chevron_generator.setGeometryExpression(
             "translate(mct_decoy_chevron($geometry, 0.5), 0,"
-            " (y_max($geometry) - y_min($geometry)) * 0.82)"
+            " (y_max($geometry) - y_min($geometry)) * 0.72)"
         )
 
         chevron_line = QgsSimpleLineSymbolLayer()
