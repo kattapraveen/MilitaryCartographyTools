@@ -10498,6 +10498,38 @@ detect-secrets both clean.
 
 ---
 
+## Symbol index (IDX) — complete (closed 2026-08-18)
+
+**Every hand-built row checked against the standard: all 15 line
+layers (L01-L15), all 14 area layers (A01-A14), the one point layer
+(P01), and all three modified-milsymbol-icon entries (M01-M03) - 33
+rows in total.** The maintainer's own systematic pass, table by table,
+across several rounds this session.
+
+Most rows came back clean outright. Where they didn't, each finding
+was investigated against the actual construction (not patched on the
+symptom alone) and is recorded in its own dated entry above:
+Position Area For Artillery's perimeter anchors leaving the boundary
+on irregular polygons (A07), Limited Access Area's unmasked label and
+a second latent hatch-colour bug found alongside it (A08), Radiation
+Dose Rate Contours' now-automatic "cGy" suffix (A05), Minimum Safe
+Distance Zone's tightened gap and fixed label-collision handling
+(A04), the Dummy Minefield decoy chevron's gap (P01), Electro-Optical
+Intercept's mask leak (L10), and Mission Task Fix's shrink-to-fit
+degradation on short lines (L11) - the last of these a real design
+question put to the maintainer rather than guessed at. One reported
+count discrepancy (Obstacle Control Measures Lines, L12) was
+investigated and confirmed to be a hand-count, not a bug. Two
+follow-on items (Abatis, alongside the already-tracked Trip Wire)
+were found to need the same kind of construction change and folded
+into the build tracker's own U-4 rather than rushed.
+
+The build tracker's own IDX unit has been removed as a result, per
+the maintainer's standing "remove cleared items" instruction - this
+entry is the permanent record of the pass.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

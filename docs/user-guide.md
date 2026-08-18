@@ -1398,7 +1398,8 @@ need. A sixth ring means a second zone placed at the same point.
 
 **Radiation Dose Rate Contours** is a plain polygon per contour. Draw
 each contour separately — three dose rates are three features — and put
-the rate in **Unique designation**; it draws at the top of the shape,
+the number in **Unique designation** (just "300", not "300cGy" — the
+"cGy" unit is added automatically); it draws at the top of the shape,
 breaking the outline it sits on. This is the one field in the whole
 appendix that is *not* forced to upper case, because the standard's own
 example writes "30cGy" and the case of "cGy" carries meaning.
