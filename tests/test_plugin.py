@@ -10,7 +10,7 @@ Military Cartography Tools
 
 from qgis.core import QgsProject, QgsCoordinateReferenceSystem, QgsPrintLayout, QgsLayoutItemMap
 from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtWidgets import QMainWindow, QApplication
+from qgis.PyQt.QtWidgets import QMainWindow, QApplication, QDialog
 
 from .qgis_test_case import QgisTestCase, FakeIface, make_canvas
 
@@ -617,11 +617,74 @@ class TestLayoutDesignerWiring(QgisTestCase):
 
             self.assertIn("Add Grid Frame", action_texts)
             self.assertIn("Remove Grid Frame", action_texts)
+            self.assertIn("Insert Symbol", action_texts)
 
             plugin.on_layout_designer_closed(designer)
 
             self.assertNotIn(designer, plugin.layout_toolbars)
             self.assertNotIn(designer, plugin.layout_panels)
+
+        finally:
+
+            plugin.unload()
+
+
+    def test_insert_symbol_adds_a_picture_item(self):
+
+        # U-1: "Insert Symbol" places a static SVG picture on the
+        # layout page rather than a georeferenced feature - the
+        # dialog itself is covered by test_layout_symbol_dialog.py,
+        # so here the dialog is accepted with its own defaults and
+        # this only checks the picture actually lands on the layout.
+        from unittest.mock import patch
+
+        from qgis.core import QgsLayoutItemPicture
+
+        from MilitaryCartographyTools.military_symbology.layout_symbol_dialog \
+            import InsertSymbolDialog
+
+        plugin, iface, window, canvas = make_plugin()
+        plugin.initGui()
+
+        try:
+
+            project = QgsProject.instance()
+            layout = QgsPrintLayout(project)
+            layout.initializeDefaults()
+
+            map_item = QgsLayoutItemMap(layout)
+            layout.addLayoutItem(map_item)
+
+            project.layoutManager().addLayout(layout)
+
+            designer = self.FakeDesigner(layout, window)
+
+            plugin.on_layout_designer_opened(designer)
+
+            before = [
+                item for item in layout.items()
+                if isinstance(item, QgsLayoutItemPicture)
+            ]
+
+            self.assertEqual(before, [])
+
+            with patch.object(
+                InsertSymbolDialog, "exec",
+                return_value=QDialog.DialogCode.Accepted
+            ):
+                plugin._insert_symbol(designer)
+
+            pictures = [
+                item for item in layout.items()
+                if isinstance(item, QgsLayoutItemPicture)
+            ]
+
+            self.assertEqual(len(pictures), 1)
+
+            picture = pictures[0]
+
+            self.assertTrue(picture.picturePath().startswith("base64:"))
+            self.assertTrue(picture.id())
 
         finally:
 

@@ -10155,6 +10155,62 @@ request for a second look.
 
 ---
 
+## Usability (U-series)
+
+**U-1 (NATO symbol menu in the print layout) CLOSED, 2026-08-18 - "a
+small win."** Raised 2026-08-17 alongside U-2/U-3/U-4 (still open,
+tracked only in the build tracker artifact, not here - see the "Your
+call on order" note there). A layout page is not a map canvas - no
+attribute table, no ValueMap field, no feature to hold an entity or
+affiliation - so this is a layout item type, not a reused canvas
+path, exactly as the item's own note anticipated.
+
+Built as a new "Insert Symbol" action on the per-Layout-Designer
+toolbar `on_layout_designer_opened()` already builds (alongside the
+existing Add/Remove Grid Frame), opening a small
+`InsertSymbolDialog` (`military_symbology/layout_symbol_dialog.py`):
+Affiliation, Symbol Set, Entity - Entity a real cascading dropdown,
+repopulated from `entities_for_edition(current_edition())` whenever
+Symbol Set changes, so the offered vocabulary always matches whatever
+a newly-added canvas layer would use right now. Accepting it builds a
+SIDC via the same `build_sidc()` every canvas layer uses, renders it
+through `render_symbol_base64_path()` (the same "base64:..." inline-
+SVG path format `QgsSvgMarkerSymbolLayer` already relies on), and
+hands that straight to a `QgsLayoutItemPicture` - confirmed live
+against the bundled QGIS Python that `setPicturePath()` accepts the
+same "base64:" convention as the marker layer, so the symbol never
+touches disk as a temp file. `ResizeMode.ZoomResizeFrame` keeps the
+picture's own aspect ratio correct without extra code. Placed at a
+fixed 20mm frame near the page's top-left corner and named after its
+own entity in the Items panel (`QgsLayoutItem.setId()`); like any
+other layout item it can be dragged and resized afterwards - no
+custom click-to-place mouse tool was built for this pass (a genuine,
+separate scope, considered and set aside rather than assumed
+unnecessary).
+
+Deliberately minimal - Affiliation/Symbol Set/Entity only, no
+echelon/status/headquarters/sector modifiers - matching this
+project's standing decision to leave the manual's amplifier fields
+partial rather than build them out everywhere they could apply: the
+picture is static, there is nothing to edit after insertion, so the
+fuller amplifier set is better reached by building the symbol as a
+real feature on a map layer instead. Entity labels are a plain
+`key.replace("_", " ").title()` humanisation rather than the
+hand-curated per-layer `ENTITY_LABELS` dicts (e.g. land_layer.py's
+own `_UNIT_ENTITY_LABELS`) - those are private to their own modules
+by this codebase's own convention, and importing a dozen of them into
+one dialog was not worth the coupling for a small, standalone
+feature. `SYMBOL_SET_LABELS` (19 entries, one per `sidc.SYMBOL_SETS`
+key) is hand-written and checked by test against `SYMBOL_SETS`
+itself, so a future symbol set cannot go silently missing from the
+dropdown.
+
+11 new tests (`tests/test_layout_symbol_dialog.py` plus one on the
+toolbar wiring itself in `tests/test_plugin.py`), 1403 -> 1414 on
+both QGIS versions; Bandit and detect-secrets both clean.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

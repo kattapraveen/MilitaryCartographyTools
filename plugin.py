@@ -15,9 +15,17 @@ from pathlib import Path
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QAction, QIcon, QActionGroup
-from qgis.PyQt.QtWidgets import QMessageBox, QToolButton, QMenu, QToolBar
+from qgis.PyQt.QtWidgets import QMessageBox, QToolButton, QMenu, QToolBar, QDialog
 from qgis.PyQt import sip
-from qgis.core import Qgis, QgsMessageLog, QgsLayoutItemMap
+from qgis.core import (
+    Qgis,
+    QgsMessageLog,
+    QgsLayoutItemMap,
+    QgsLayoutItemPicture,
+    QgsLayoutPoint,
+    QgsLayoutSize,
+    QgsUnitTypes,
+)
 
 from .expressions import mgrs_functions
 from .expressions import military_symbology_functions
@@ -35,6 +43,8 @@ from .military_symbology.edition import (
     set_current_edition,
 )
 from .military_symbology.sidc import EDITIONS
+from .military_symbology.symbol_engine import render_symbol_base64_path
+from .military_symbology.layout_symbol_dialog import InsertSymbolDialog
 from .military_symbology.land_layer import add_land_layers
 from .military_symbology.sea_surface_layer import add_sea_surface_layer
 from .military_symbology.subsurface_layer import add_subsurface_layers
@@ -2730,7 +2740,96 @@ class MilitaryCartographyTools:
             remove_action
         )
 
+        insert_symbol_action = QAction(
+            QIcon(
+                str(
+                    self.plugin_dir / "icons" / "insert_symbol.svg"
+                )
+            ),
+            "Insert Symbol",
+            designer.window()
+        )
+
+        insert_symbol_action.setToolTip(
+            "Insert a MIL-STD-2525/APP-6 symbol onto this layout page"
+        )
+
+        insert_symbol_action.triggered.connect(
+            lambda: self._insert_symbol(
+                designer
+            )
+        )
+
+        toolbar.addAction(
+            insert_symbol_action
+        )
+
         return toolbar
+
+
+    def _insert_symbol(self, designer):
+
+        """
+        U-1: places one MIL-STD-2525/APP-6 symbol on the currently
+        open layout as a QgsLayoutItemPicture, via InsertSymbolDialog.
+        A layout page has no features/attribute table to hold entity/
+        affiliation the way a canvas layer's own ValueMap fields do,
+        so the symbol is baked once into a static SVG picture at
+        insertion time - see layout_symbol_dialog.py's own docstring
+        for why this is deliberately narrower than a canvas layer's
+        amplifier set. Placed at a fixed default position/size; like
+        any other layout item, it can be dragged and resized
+        afterwards in the designer.
+        """
+
+        layout = designer.layout()
+
+        if layout is None:
+            return
+
+        dialog = InsertSymbolDialog(designer.window())
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        picture = QgsLayoutItemPicture(layout)
+
+        picture.setPicturePath(
+            render_symbol_base64_path(dialog.sidc()),
+            QgsLayoutItemPicture.FormatSVG
+        )
+
+        picture.setResizeMode(
+            QgsLayoutItemPicture.ResizeMode.ZoomResizeFrame
+        )
+
+        layout.addLayoutItem(
+            picture
+        )
+
+        picture.attemptResize(
+            QgsLayoutSize(
+                20,
+                20,
+                QgsUnitTypes.LayoutUnit.LayoutMillimeters
+            )
+        )
+
+        picture.attemptMove(
+            QgsLayoutPoint(
+                10,
+                10,
+                QgsUnitTypes.LayoutUnit.LayoutMillimeters
+            ),
+            useReferencePoint=False,
+            page=0
+        )
+
+        picture.setId(
+            dialog.entity_label()
+        )
+
+        picture.refreshPicture()
 
 
     def _build_layout_settings_panel(self, designer, layout):

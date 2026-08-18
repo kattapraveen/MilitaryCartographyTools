@@ -36,6 +36,9 @@ Requires QGIS 3.44 or later.
 - **Print-layout grid frame** — border tick marks and coordinate
   annotations around a layout's map, the standard topographic-map
   convention.
+- **Insert Symbol** — place a MIL-STD-2525/APP-6 symbol directly onto a
+  print layout page, for a legend key or callout rather than a
+  georeferenced map feature.
 - **Grid convergence and magnetic declination** (WMM2025) as expression
   functions, usable anywhere in QGIS or wired into a layout's own
   marginalia.

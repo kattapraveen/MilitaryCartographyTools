@@ -14,7 +14,7 @@ military grid generation, and automated print-layout production.
 - [Military grids](#military-grids)
 - [New Military Layout](#new-military-layout)
 - [Military Layout Settings panel](#military-layout-settings-panel)
-- [Print-layout grid frame](#print-layout-grid-frame)
+- [Print-layout toolbar](#print-layout-toolbar)
 - [Tanaka Contours](#tanaka-contours)
 - [Hypsometric Tint](#hypsometric-tint)
 - [Line of Sight](#line-of-sight)
@@ -71,8 +71,8 @@ checked/unchecked inside the dropdown, same as they did as standalone
 toolbar buttons) — grouping only changes *where* you click to reach it.
 
 Each Layout Designer window (opened from a print layout) additionally gets
-its own small toolbar with **Add/Remove Grid Frame** and a **Military Layout
-Settings** toggle — see their own sections below.
+its own small toolbar with **Add/Remove Grid Frame**, **Insert Symbol**, and
+a **Military Layout Settings** toggle — see their own sections below.
 
 ---
 
@@ -209,7 +209,7 @@ resize.
 
 ---
 
-## Print-layout grid frame
+## Print-layout toolbar
 
 Each Layout Designer window's own small toolbar has:
 
@@ -219,6 +219,16 @@ Each Layout Designer window's own small toolbar has:
   layout specifically (the interactive canvas keeps showing them normally).
 - **Remove Grid Frame** — removes it and restores the normal on-map labels
   for that layout.
+- **Insert Symbol** — places a MIL-STD-2525/APP-6 symbol directly onto the
+  layout page (for a legend key, a callout, or a cover sheet, rather than a
+  georeferenced feature on the map). Pick an **Affiliation**, **Symbol
+  Set** and **Entity** and click **Insert**; the symbol appears near the
+  top-left corner of the page as a normal, draggable/resizable picture
+  item, using whichever standard the toolbar's own Symbology Edition
+  setting is currently on. Deliberately minimal: no echelon, status,
+  headquarters or sector modifiers — it is a static picture, not a live
+  feature, so there is nothing to edit afterwards; build the symbol on a
+  map layer instead if you need the fuller set of amplifiers.
 
 This is the standard topographic/military-map convention: ticks and numbers
 on the neatline rather than labels drawn over the map content.

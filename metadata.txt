@@ -63,6 +63,11 @@ changelog=1.0.4
       apply across many symbol types rather than one) alongside the
       symbol's own list. A symbol set with no MIL-STD-2525E modifiers of
       its own still has no dropdown, same as before.
+    - Added an "Insert Symbol" button to every print layout window's own
+      toolbar: pick an Affiliation, Symbol Set and Entity and it places
+      that symbol directly on the layout page as a normal, draggable
+      picture item - for a legend key or callout, without needing a
+      georeferenced feature on the map.
     1.0.3
     - Correctness fix: the drawn UTM/GZD grid now honours the two
       exceptions the standard itself makes. Over south-west Norway
