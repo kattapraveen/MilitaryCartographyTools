@@ -192,11 +192,15 @@ class TestTableHXIXInventory(QgisTestCase):
         self.assertEqual(TABLE_H_XIX_INVENTORY["282003"]["geometry"], LINE)
         self.assertEqual(TABLE_H_XIX_INVENTORY["282003"]["name"], "Overhead Wire")
 
-        # Abatis sits under the "Protection Points" heading but is a
-        # LINE - "requires at least two anchor points... to define the
-        # line". B0 classified it by that heading and got it wrong; the
-        # maintainer's own audit caught it.
-        self.assertEqual(TABLE_H_XIX_INVENTORY["280100"]["geometry"], LINE)
+        # Abatis's TEMPLATE sits under the "Protection Points" heading
+        # but reads as a LINE - "requires at least two anchor points...
+        # to define the line". B0 classified it by the heading and got
+        # it wrong; the maintainer's own audit caught it. **Reversed
+        # again, U-4, 2026-08-19**: built as a POINT after all, a
+        # deliberate trade (fixed page size, rotatable) rather than a
+        # template misreading this time - see TABLE_H_XIX_INVENTORY's
+        # own comment on this row for the full history.
+        self.assertEqual(TABLE_H_XIX_INVENTORY["280100"]["geometry"], POINT)
 
         # 290400 is Mine Cluster. B0 read the PDF's "Une Cluste1" as
         # "Line Cluster" - a name taken from mangled OCR.
@@ -204,9 +208,11 @@ class TestTableHXIXInventory(QgisTestCase):
 
         # Both were listed as "symbol/point" in the maintainer's audit
         # but their templates need two and three anchor points; settled
-        # 2026-08-12 as LINES. Pinned so B4 cannot drift back.
+        # 2026-08-12 as LINES. Pinned so B4 cannot drift back - Mine
+        # Cluster, anyway. Trip Wire (290500) reversed to a POINT, U-4,
+        # 2026-08-19 - same reasoning as Abatis just above.
         self.assertEqual(TABLE_H_XIX_INVENTORY["290400"]["geometry"], LINE)
-        self.assertEqual(TABLE_H_XIX_INVENTORY["290500"]["geometry"], LINE)
+        self.assertEqual(TABLE_H_XIX_INVENTORY["290500"]["geometry"], POINT)
 
         # The PDF text layer renders 271500 as "~~ry", which reads as
         # Ferry. It is Ford Easy; Ferry is 290700.
@@ -336,30 +342,36 @@ class TestObstaclePointsLayer(QgisTestCase):
             self.assertIn(entity, ENTITIES["control_measure"])
 
 
-    def test_excludes_the_two_28xxxx_codes_that_are_lines(self):
+    def test_excludes_the_one_28xxxx_code_that_is_still_a_line(self):
 
-        # Abatis (280100) and Overhead Wire (282003) carry 28xxxx codes
-        # but are lines - they belong to B4 and B7.
+        # Overhead Wire (282003) carries a 28xxxx code but is a line -
+        # it belongs to B7. POINT_ENTITY_LABELS is exactly the real
+        # milsymbol/2525D vocabulary (see that dict's own comment), so
+        # every one of its codes must resolve via ENTITIES.
         codes = {
             ENTITIES["control_measure"][entity]
             for entity in POINT_ENTITY_LABELS
         }
 
-        self.assertNotIn("280100", codes)
         self.assertNotIn("282003", codes)
 
-        # Abatis sat on the old shared Control Measure Points layer
-        # only so it would not vanish from every dropdown between
-        # batches. B4 built its line version and should have taken it
-        # out; that was missed and finally done in H17. It is offered
-        # as a LINE and by no points dropdown at all - the second half
-        # of that is swept across every Points layer at once by
-        # tests/test_point_layer_affiliations.py.
+        # Abatis (280100) moved BACK to this layer, U-4, 2026-08-19 -
+        # the opposite direction from the earlier B4/H17 history this
+        # test used to pin - but as a custom fixed-size glyph, not a
+        # real milsymbol entity, so it lives in
+        # _CUSTOM_SHAPE_POINT_LABELS rather than POINT_ENTITY_LABELS,
+        # and is no longer on the Lines layer's own dropdown at all.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             LINE_MEASURE_TYPE_LABELS,
+            _CUSTOM_SHAPE_POINT_LABELS,
         )
 
-        self.assertIn("abatis", LINE_MEASURE_TYPE_LABELS)
+        self.assertNotIn("abatis", LINE_MEASURE_TYPE_LABELS)
+        self.assertNotIn("trip_wire", LINE_MEASURE_TYPE_LABELS)
+        self.assertIn("abatis", _CUSTOM_SHAPE_POINT_LABELS)
+        self.assertIn("trip_wire", _CUSTOM_SHAPE_POINT_LABELS)
+        self.assertNotIn("abatis", POINT_ENTITY_LABELS)
+        self.assertNotIn("trip_wire", POINT_ENTITY_LABELS)
 
 
     def test_has_a_per_feature_colour_field_defaulting_to_green(self):
@@ -370,7 +382,10 @@ class TestObstaclePointsLayer(QgisTestCase):
 
         self.assertEqual(
             [field.name() for field in layer.fields()],
-            ["affiliation", "entity", "status", "colour", "unique_designation"]
+            [
+                "affiliation", "entity", "status", "colour",
+                "unique_designation", "rotation", "scale",
+            ]
         )
 
         idx = layer.fields().indexOf("colour")
@@ -396,7 +411,7 @@ class TestObstaclePointsLayer(QgisTestCase):
 
         layer = create_obstacle_control_measures_points_layer()
 
-        svg_layer = layer.renderer().symbol().symbolLayer(0)
+        svg_layer = _svg_symbol_layer(layer.renderer().symbol())
 
         def rendered(colour):
 
@@ -426,7 +441,7 @@ class TestObstaclePointsLayer(QgisTestCase):
 
         layer = create_obstacle_control_measures_points_layer()
 
-        svg_layer = layer.renderer().symbol().symbolLayer(0)
+        svg_layer = _svg_symbol_layer(layer.renderer().symbol())
 
         for entity in POINT_ENTITY_LABELS:
 
@@ -496,6 +511,222 @@ class TestObstaclePointsLayer(QgisTestCase):
         self.assertEqual(label_for("antipersonnel_mine"), "")
 
 
+class TestCustomShapePointsIntegration(QgisTestCase):
+
+    """
+    U-4 (build tracker), 2026-08-19, second pass: Trip Wire and Abatis,
+    wired onto the Points layer's own EXISTING single SVG marker layer
+    (_build_points_renderer()) via its Name/Size/Angle expressions,
+    exactly like the layer's other 13 real milsymbol entities - just
+    with mct_trip_wire_svg()/mct_abatis_svg() supplying the path
+    instead of mct_sidc_svg(). No second symbol layer, no geometry
+    generator, no @map_scale - see those two functions' own docstrings
+    for why an earlier geometry-generator attempt the same day was
+    retired.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_both_are_offered_in_the_entity_dropdown(self):
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        idx = layer.fields().indexOf("entity")
+
+        config = layer.editorWidgetSetup(idx).config()
+
+        self.assertIn("trip_wire", config["map"].values())
+        self.assertIn("abatis", config["map"].values())
+
+
+    def test_the_symbol_still_has_exactly_one_layer(self):
+
+        from qgis.core import QgsSvgMarkerSymbolLayer
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        symbol = layer.renderer().symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 1)
+        self.assertIsInstance(symbol.symbolLayer(0), QgsSvgMarkerSymbolLayer)
+
+
+    def _evaluated_properties(self, entity, rotation=0, scale=100,
+                               status="present", colour="green"):
+
+        from qgis.core import QgsGeometry, QgsPointXY
+
+        layer = create_obstacle_control_measures_points_layer()
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", entity)
+        feature.setAttribute("status", status)
+        feature.setAttribute("colour", colour)
+        feature.setAttribute("scale", scale)
+        feature.setAttribute("rotation", rotation)
+
+        svg_layer = _svg_symbol_layer(layer.renderer().symbol())
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        properties = svg_layer.dataDefinedProperties()
+
+        path, path_ok = properties.valueAsString(
+            QgsSymbolLayer.Property.Name, context, ""
+        )
+        size, size_ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Size, context, -1.0
+        )
+        angle, angle_ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Angle, context, -1.0
+        )
+
+        self.assertTrue(path_ok)
+        self.assertTrue(size_ok)
+        self.assertTrue(angle_ok)
+
+        return path, size, angle
+
+
+    def _decoded(self, path):
+
+        import base64
+
+        self.assertTrue(path.startswith("base64:"), path)
+
+        return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+
+    def test_each_custom_shape_draws_its_own_svg(self):
+
+        for entity, function in (
+            ("trip_wire", "mct_trip_wire_svg"),
+            ("abatis", "mct_abatis_svg"),
+        ):
+
+            with self.subTest(entity=entity):
+
+                path, size, angle = self._evaluated_properties(entity)
+
+                svg = self._decoded(path)
+
+                self.assertTrue(svg.startswith("<svg "))
+                self.assertGreater(size, 0)
+
+
+    def test_neither_custom_shape_renders_the_unknown_icon_fallback(self):
+
+        for entity in ("trip_wire", "abatis"):
+
+            with self.subTest(entity=entity):
+
+                path, _, _ = self._evaluated_properties(entity)
+
+                svg = self._decoded(path)
+
+                self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
+
+
+    def test_an_ordinary_entity_is_unaffected(self):
+
+        path, size, angle = self._evaluated_properties(
+            "antipersonnel_mine", rotation=90, scale=200
+        )
+
+        svg = self._decoded(path)
+
+        # Still the real milsymbol icon - the layer's other 13 entities
+        # don't read "rotation"/"scale" at all (deliberately, this
+        # pass - see _CUSTOM_SHAPE_ANGLE_EXPRESSION/_CUSTOM_SHAPE_SIZE_
+        # EXPRESSION's own comments).
+        self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
+        self.assertAlmostEqual(angle, 0.0, places=6)
+
+
+    def test_colour_reaches_the_custom_shapes_via_stroke(self):
+
+        for entity in ("trip_wire", "abatis"):
+
+            with self.subTest(entity=entity):
+
+                green_path, _, _ = self._evaluated_properties(
+                    entity, colour="green"
+                )
+                black_path, _, _ = self._evaluated_properties(
+                    entity, colour="black"
+                )
+
+                self.assertIn("rgb(0,155,0)", self._decoded(green_path))
+                self.assertIn("rgb(0,0,0)", self._decoded(black_path))
+
+
+    def test_planned_status_dashes_the_custom_shapes(self):
+
+        for entity in ("trip_wire", "abatis"):
+
+            with self.subTest(entity=entity):
+
+                present_path, _, _ = self._evaluated_properties(
+                    entity, status="present"
+                )
+                planned_path, _, _ = self._evaluated_properties(
+                    entity, status="planned"
+                )
+
+                self.assertNotIn(
+                    "stroke-dasharray", self._decoded(present_path)
+                )
+                self.assertIn(
+                    "stroke-dasharray", self._decoded(planned_path)
+                )
+
+
+    def test_rotation_reaches_the_angle_property(self):
+
+        for entity in ("trip_wire", "abatis"):
+
+            with self.subTest(entity=entity):
+
+                _, _, angle = self._evaluated_properties(
+                    entity, rotation=135
+                )
+
+                self.assertAlmostEqual(angle, 135.0, places=6)
+
+
+    def test_scale_multiplies_the_base_size(self):
+
+        for entity in ("trip_wire", "abatis"):
+
+            with self.subTest(entity=entity):
+
+                _, size_100, _ = self._evaluated_properties(
+                    entity, scale=100
+                )
+                _, size_200, _ = self._evaluated_properties(
+                    entity, scale=200
+                )
+
+                self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
+
+
 # milsymbol's own unknown-icon fallback is an inverted "?" - this is a
 # stable fragment of the path it draws for it. Present in the rendered
 # SVG iff milsymbol could not resolve the SIDC it was handed.
@@ -510,13 +741,38 @@ class TestObstaclePointsLayer(QgisTestCase):
 _MILSYMBOL_UNKNOWN_ICON_MARK = "94.8206,78.1372"
 
 
+def _svg_symbol_layer(symbol):
+
+    """
+    The Points layer's own milsymbol-driven SVG marker layer, found by
+    which layer has an ACTIVE data-defined Name property rather than
+    assumed to be symbolLayer(0) - it moved to index 1, U-4,
+    2026-08-19 (see _build_points_renderer()'s own comment for why: a
+    zero-size/unloadable SVG layer at index 0 was found, live, to zero
+    out the whole marker's render bounds for every layer after it too).
+    Same robust-search pattern tests/test_point_layer_affiliations.py's
+    own _rendered_icon_svg() already used for exactly this reason.
+    """
+
+    for index in range(symbol.symbolLayerCount()):
+
+        candidate = symbol.symbolLayer(index)
+
+        if candidate.dataDefinedProperties().isActive(
+            QgsSymbolLayer.Property.Name
+        ):
+            return candidate
+
+    raise AssertionError("no symbol layer has an active Name property")
+
+
 def _decoded_icon_svg(layer, feature):
 
     """The actual SVG a feature renders to, decoded from its base64 path."""
 
     import base64
 
-    svg_layer = layer.renderer().symbol().symbolLayer(0)
+    svg_layer = _svg_symbol_layer(layer.renderer().symbol())
 
     context = layer.createExpressionContext()
     context.setFeature(feature)
@@ -1429,7 +1685,7 @@ class TestB1SmokeTestFollowUps(QgisTestCase):
 
         import base64
 
-        svg_layer = layer.renderer().symbol().symbolLayer(0)
+        svg_layer = _svg_symbol_layer(layer.renderer().symbol())
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("affiliation", "friend")
@@ -1451,7 +1707,7 @@ class TestB1SmokeTestFollowUps(QgisTestCase):
 
     def _rendered_size(self, layer, entity):
 
-        svg_layer = layer.renderer().symbol().symbolLayer(0)
+        svg_layer = _svg_symbol_layer(layer.renderer().symbol())
 
         feature = QgsFeature(layer.fields())
         feature.setAttribute("entity", entity)
@@ -2284,10 +2540,13 @@ class TestWireObstacles(QgisTestCase):
             LINE_MEASURE_TYPE_LABELS,
         )
 
+        # "abatis" and "trip_wire" moved to the Points layer as fixed
+        # page-size glyphs, U-4, 2026-08-19 - no longer on this layer at
+        # all, so no longer in this expected set either.
         self.assertEqual(
             set(_WIRE_SPECS) | {
-                "abatis", "antitank_ditch_reinforced", "mine_cluster",
-                "trip_wire", "block", "disrupt", "fix", "turn",
+                "antitank_ditch_reinforced", "mine_cluster",
+                "block", "disrupt", "fix", "turn",
                 "obstacle_bypass_easy", "obstacle_bypass_difficult",
                 "obstacle_bypass_impossible", "bridge_or_gap",
                 "roadblock_planned", "roadblock_readiness_1",
@@ -2563,10 +2822,13 @@ class TestWireObstacles(QgisTestCase):
 
     def test_the_toothed_obstacles_reuse_the_wire_construction(self):
 
-        # Abatis, both antitank ditches and the antitank wall are the
-        # same thing as the wire family - a line carrying a repeating
-        # glyph - so they are built by the same code rather than by a
-        # parallel mechanism that would drift from it.
+        # Both antitank ditches and the antitank wall are the same
+        # thing as the wire family - a line carrying a repeating glyph -
+        # so they are built by the same code rather than by a parallel
+        # mechanism that would drift from it. Abatis used to be the one
+        # exception here (a single hump, not a repeating glyph); U-4
+        # (2026-08-19) moved it to the Points layer entirely, so it is
+        # no longer part of this family at all.
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             LINE_MEASURE_TYPE_CODES,
             TOOTHED_MEASURE_TYPE_CODES,
@@ -2583,21 +2845,17 @@ class TestWireObstacles(QgisTestCase):
 
             self.assertIn(measure_type, LINE_MEASURE_TYPE_CODES)
 
-            # Abatis is the exception: a SINGLE hump just after the
-            # first anchor point, then straight line - not a repeating
-            # glyph at all, so it has its own builder rather than a
-            # _WireSpec. The maintainer's own correction.
-            # Abatis (a single kink) and the reinforced ditch (two
-            # interleaved glyph series) each need their own builder -
-            # neither is one glyph at one interval.
-            if measure_type in ("abatis", "antitank_ditch_reinforced"):
+            # The reinforced ditch is the remaining exception: two
+            # interleaved glyph series, not one glyph at one interval,
+            # so it needs its own builder rather than a _WireSpec.
+            if measure_type == "antitank_ditch_reinforced":
                 self.assertNotIn(measure_type, _WIRE_SPECS)
             else:
                 self.assertIn(measure_type, _WIRE_SPECS)
 
         self.assertEqual(
             set(TOOTHED_MEASURE_TYPE_CODES.values()),
-            {"280100", "290100", "290201", "290202", "290203", "290204"}
+            {"290100", "290201", "290202", "290203", "290204"}
         )
 
 
@@ -2971,14 +3229,15 @@ class TestMineClusterObstacle(QgisTestCase):
         )
 
 
-class TestTripWireObstacle(QgisTestCase):
+class TestTripWireAndAbatisSvg(QgisTestCase):
 
     """
-    Trip Wire (290500) - rebuilt 2026-08-13 from the maintainer's own
-    dictated construction (their exact words are quoted in
-    mct_trip_wire_geometry's own docstring), replacing an earlier
-    3-anchor-point reading of the standard's own template picture.
-    Two anchor points now: PT1, PT2.
+    Trip Wire (290500) and Abatis (280100), U-4 rebuild (2026-08-19,
+    second pass): fixed inline SVG markers - see mct_trip_wire_svg()/
+    mct_abatis_svg()'s own docstrings for why this replaced the first
+    pass's geometry-generator construction the same day (confirmed LIVE
+    to draw nothing through QGIS's actual render pipeline, despite
+    evaluating correctly against a direct QgsExpression check).
     """
 
     def setUp(self):
@@ -2997,43 +3256,19 @@ class TestTripWireObstacle(QgisTestCase):
         super().tearDown()
 
 
-    def _parts(self, pt1, pt2, segments=None):
+    def _decoded_svg(self, function, colour=None, dashed=None):
 
-        from qgis.core import QgsGeometry, QgsPointXY
+        import base64
 
-        wkt = QgsGeometry.fromPolylineXY(
-            [QgsPointXY(*pt1), QgsPointXY(*pt2)]
-        ).asWkt()
+        arguments = []
 
-        arguments = "geom_from_wkt('{}')".format(wkt)
+        if colour is not None:
+            arguments.append(f"'{colour}'")
 
-        if segments is not None:
-            arguments += ", {}".format(segments)
+        if dashed is not None:
+            arguments.append(str(bool(dashed)).lower())
 
-        expression = QgsExpression(f"mct_trip_wire_geometry({arguments})")
-
-        result = expression.evaluate()
-
-        self.assertFalse(
-            expression.hasEvalError(), expression.evalErrorString()
-        )
-
-        self.assertEqual(result.wkbType().name, "MultiLineString")
-
-        return result.asMultiPolyline()
-
-
-    def test_too_few_vertices_returns_the_geometry_unchanged(self):
-
-        from qgis.core import QgsGeometry, QgsPointXY
-
-        one_point = QgsGeometry.fromPolylineXY([QgsPointXY(0, 0)])
-
-        expression = QgsExpression(
-            "mct_trip_wire_geometry(geom_from_wkt('{}'))".format(
-                one_point.asWkt()
-            )
-        )
+        expression = QgsExpression(f"{function}({', '.join(arguments)})")
 
         result = expression.evaluate()
 
@@ -3041,229 +3276,63 @@ class TestTripWireObstacle(QgisTestCase):
             expression.hasEvalError(), expression.evalErrorString()
         )
 
-        self.assertEqual(result.asWkt(), one_point.asWkt())
+        self.assertTrue(result.startswith("base64:"), result)
 
+        return base64.b64decode(result[len("base64:"):]).decode("utf-8")
 
-    def test_returns_three_parts_main_line_and_two_crossbars(self):
 
-        parts = self._parts((0, 0), (10, 0))
+    def test_both_return_a_well_formed_svg_by_default(self):
 
-        self.assertEqual(len(parts), 3)
+        for function in ("mct_trip_wire_svg", "mct_abatis_svg"):
 
+            with self.subTest(function=function):
 
-    def test_main_line_starts_at_pt1_and_the_arc_ends_the_path(self):
+                svg = self._decoded_svg(function)
 
-        parts = self._parts((0, 0), (10, 0))
+                self.assertTrue(svg.startswith("<svg "))
+                self.assertIn("viewBox=", svg)
+                self.assertIn("rgb(0,155,0)", svg)
+                self.assertNotIn("stroke-dasharray", svg)
 
-        main_line_and_arc = parts[0]
 
-        self.assertAlmostEqual(main_line_and_arc[0].x(), 0)
-        self.assertAlmostEqual(main_line_and_arc[0].y(), 0)
+    def test_both_bake_in_a_custom_colour(self):
 
-        # PT2 itself is the arc's own start point, so it must appear on
-        # the path exactly where the straight run ends.
-        self.assertAlmostEqual(main_line_and_arc[1].x(), 10)
-        self.assertAlmostEqual(main_line_and_arc[1].y(), 0)
+        for function in ("mct_trip_wire_svg", "mct_abatis_svg"):
 
+            with self.subTest(function=function):
 
-    def test_arc_ends_a_quarter_turn_anticlockwise_at_one_fifth_radius(self):
+                svg = self._decoded_svg(function, colour="rgb(0,0,0)")
 
-        # The maintainer's own numbers: radius = PT1-PT2 distance / 5,
-        # 90 degrees anticlockwise, starting tangent to the main line's
-        # own direction of travel. Verified against the module's own
-        # hand-derived worked example (PT1=(0,0), PT2=(10,0) ->
-        # centre=(10,2), end=(12,2)), not just "some plausible curve".
-        parts = self._parts((0, 0), (10, 0))
+                self.assertIn("rgb(0,0,0)", svg)
+                self.assertNotIn("rgb(0,155,0)", svg)
 
-        main_line_and_arc = parts[0]
 
-        end = main_line_and_arc[-1]
+    def test_both_dash_when_asked(self):
 
-        self.assertAlmostEqual(end.x(), 12, places=6)
-        self.assertAlmostEqual(end.y(), 2, places=6)
+        for function in ("mct_trip_wire_svg", "mct_abatis_svg"):
 
+            with self.subTest(function=function):
 
-    def test_crossbar_near_pt1_sits_at_one_seventh_symmetric_half_length(self):
+                svg = self._decoded_svg(
+                    function, colour="rgb(0,155,0)", dashed=True
+                )
 
-        # "both the horizontal lines are on one side of the line
-        # connecting pt1 and 2, they should be on both sides" - each
-        # crossbar now runs the dictated length to EACH side of the
-        # main line, not just one.
-        parts = self._parts((0, 0), (14, 0))
+                self.assertIn("stroke-dasharray", svg)
 
-        crossbar = parts[1]
 
-        # 1/7 of 14 = 2, the base point on the main line.
-        self.assertAlmostEqual((crossbar[0].x() + crossbar[1].x()) / 2, 2)
-        self.assertAlmostEqual((crossbar[0].y() + crossbar[1].y()) / 2, 0)
+    def test_trip_wire_has_three_path_elements(self):
 
-        # Perpendicular, length 0.5 * 14 = 7 to EACH side.
-        ys = sorted(point.y() for point in crossbar)
+        # Main line + arc, plus the two crossbars, each its own <path>.
+        svg = self._decoded_svg("mct_trip_wire_svg")
 
-        self.assertAlmostEqual(ys[0], -7, places=6)
-        self.assertAlmostEqual(ys[1], 7, places=6)
+        self.assertEqual(svg.count("<path"), 3)
 
-        for point in crossbar:
-            self.assertAlmostEqual(point.x(), 2, places=6)
 
+    def test_abatis_has_one_path_element(self):
 
-    def test_crossbar_at_midpoint_has_one_point_two_times_length_each_side(self):
+        svg = self._decoded_svg("mct_abatis_svg")
 
-        parts = self._parts((0, 0), (10, 0))
-
-        crossbar = parts[2]
-
-        self.assertAlmostEqual((crossbar[0].x() + crossbar[1].x()) / 2, 5)
-        self.assertAlmostEqual((crossbar[0].y() + crossbar[1].y()) / 2, 0)
-
-        # Perpendicular, length 1.2 * 10 = 12 to EACH side.
-        ys = sorted(point.y() for point in crossbar)
-
-        self.assertAlmostEqual(ys[0], -12, places=6)
-        self.assertAlmostEqual(ys[1], 12, places=6)
-
-
-    def test_only_the_arc_is_one_sided_not_the_crossbars(self):
-
-        # The maintainer's own correction named "both the horizontal
-        # lines" specifically - the arc was left as-is, still on one
-        # side (the main line's own left, standard CCW sense).
-        parts = self._parts((0, 0), (10, 0))
-
-        main_line_and_arc, crossbar_1, crossbar_2 = parts
-
-        self.assertTrue(all(point.y() >= 0 for point in main_line_and_arc))
-
-        for crossbar in (crossbar_1, crossbar_2):
-
-            ys = [point.y() for point in crossbar]
-
-            self.assertLess(min(ys), 0)
-            self.assertGreater(max(ys), 0)
-
-
-    def test_construction_rotates_with_the_main_lines_own_direction(self):
-
-        # Not hard-coded to a horizontal PT1-PT2 - a vertical line's
-        # crossbars/arc must rotate right along with it.
-        parts = self._parts((0, 0), (0, 10))
-
-        main_line_and_arc, crossbar_1, crossbar_2 = parts
-
-        end = main_line_and_arc[-1]
-
-        # Centre = PT2 + r*n where n = u rotated 90 CCW; u=(0,1) here,
-        # n=(-1,0). radius=2. end = PT2 + r*(n+u) = (0,10)+2*(-1,1)
-        # = (-2,12).
-        self.assertAlmostEqual(end.x(), -2, places=6)
-        self.assertAlmostEqual(end.y(), 12, places=6)
-
-        # Crossbar at the midpoint should now run along +/-x, not +/-y.
-        xs = sorted(point.x() for point in crossbar_2)
-
-        self.assertAlmostEqual(xs[0], -12, places=6)
-        self.assertAlmostEqual(xs[1], 12, places=6)
-
-        for point in crossbar_2:
-            self.assertAlmostEqual(point.y(), 5, places=6)
-
-
-    def test_trip_wire_is_offered_on_the_lines_layer(self):
-
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            LINE_MEASURE_TYPE_CODES,
-            LINE_MEASURE_TYPE_LABELS,
-            create_obstacle_control_measures_lines_layer,
-        )
-
-        self.assertEqual(LINE_MEASURE_TYPE_CODES["trip_wire"], "290500")
-        self.assertEqual(LINE_MEASURE_TYPE_LABELS["trip_wire"], "Trip Wire")
-
-        layer = create_obstacle_control_measures_lines_layer()
-
-        labels = {
-            rule.label() for rule in layer.renderer().rootRule().children()
-        }
-
-        self.assertIn("trip_wire", labels)
-
-
-    def test_trip_wire_symbol_is_one_generated_geometry_layer(self):
-
-        from qgis.core import QgsGeometryGeneratorSymbolLayer
-
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _trip_wire_symbol,
-        )
-
-        symbol = _trip_wire_symbol()
-
-        self.assertEqual(symbol.symbolLayerCount(), 1)
-
-        self.assertIsInstance(
-            symbol.symbolLayer(0), QgsGeometryGeneratorSymbolLayer
-        )
-
-        self.assertIn(
-            "mct_trip_wire_geometry($geometry)",
-            symbol.symbolLayer(0).geometryExpression()
-        )
-
-
-    def test_trip_wire_follows_status_unlike_mine_cluster(self):
-
-        # No "always dashed" note on Trip Wire's own draw rules -
-        # ordinary present/planned styling, the same as the rest of
-        # the wire family and unlike Mine Cluster's fixed dash.
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            _trip_wire_symbol,
-        )
-
-        symbol = _trip_wire_symbol()
-
-        inner_line = symbol.symbolLayer(0).subSymbol().symbolLayer(0)
-
-        self.assertTrue(
-            inner_line.dataDefinedProperties().isActive(
-                QgsSymbolLayer.Property.StrokeStyle
-            )
-        )
-
-
-    def test_trip_wire_geometry_evaluates_against_a_real_feature(self):
-
-        from qgis.core import QgsFeature, QgsGeometry, QgsPointXY
-
-        from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
-            create_obstacle_control_measures_lines_layer,
-        )
-
-        layer = create_obstacle_control_measures_lines_layer()
-
-        feature = QgsFeature(layer.fields())
-
-        feature.setGeometry(
-            QgsGeometry.fromPolylineXY(
-                [QgsPointXY(0, 0), QgsPointXY(10, 0)]
-            )
-        )
-
-        feature.setAttribute("measure_type", "trip_wire")
-        feature.setAttribute("colour", "green")
-        feature.setAttribute("status", "present")
-
-        expression = QgsExpression("mct_trip_wire_geometry($geometry)")
-
-        context = layer.createExpressionContext()
-        context.setFeature(feature)
-
-        path = expression.evaluate(context)
-
-        self.assertFalse(
-            expression.hasEvalError(), expression.evalErrorString()
-        )
-        self.assertFalse(path.isEmpty())
-        self.assertEqual(len(path.asMultiPolyline()), 3)
+        self.assertEqual(svg.count("<path"), 1)
 
 
 class TestBlockObstacleEffect(QgisTestCase):

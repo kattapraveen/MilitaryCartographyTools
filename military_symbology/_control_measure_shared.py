@@ -268,6 +268,78 @@ def stabilised_point_size_expression(size_expression, svg_expression):
     )
 
 
+def configure_rotation_and_scale_fields(layer):
+
+    """
+    Configures an already-added "rotation" (degrees, clockwise from
+    north) and "scale" (percent of the symbol's own base size, 100 =
+    unchanged) field with QGIS's "Range" spin-box editor widget, a
+    sensible default, and a field alias naming the unit - the U-2
+    (build tracker) convention every point-symbol layer wanting
+    rotation/scale should share.
+
+    **Shared here from the start, unlike stabilised_point_size_
+    expression() (see that function's own docstring)** - that fix only
+    reached layers built through _point_symbol_layer.py's shared
+    builder at first, and seven modules building their own point
+    renderer each had to be found and fixed separately later. U-2's
+    first landing (2026-08-19) was in that same shared builder; this
+    helper exists so the SECOND caller (U-4, obstacle_control_
+    measures.py) reuses the exact same widget config instead of a
+    second hand-copied version that could quietly drift from it, and so
+    do the rest of the module's own now-deferred follow-up pass.
+
+    Caller adds the two QgsField()s itself first (this project's
+    per-module attribute-list conventions differ too much to standardise
+    that half too) - this only configures the widget/default/alias for
+    fields that already exist on the layer.
+    """
+
+    fields = layer.fields()
+
+    rotation_idx = fields.indexOf("rotation")
+
+    layer.setEditorWidgetSetup(
+        rotation_idx,
+        QgsEditorWidgetSetup(
+            "Range",
+            {
+                "Min": 0.0,
+                "Max": 360.0,
+                "Step": 1.0,
+                "Precision": 1,
+                "Style": "SpinBox",
+                "AllowNull": False,
+            }
+        )
+    )
+
+    layer.setDefaultValueDefinition(rotation_idx, QgsDefaultValue("0"))
+
+    layer.setFieldAlias(rotation_idx, "Rotation (°, clockwise from north)")
+
+    scale_idx = fields.indexOf("scale")
+
+    layer.setEditorWidgetSetup(
+        scale_idx,
+        QgsEditorWidgetSetup(
+            "Range",
+            {
+                "Min": 10.0,
+                "Max": 400.0,
+                "Step": 5.0,
+                "Precision": 0,
+                "Style": "SpinBox",
+                "AllowNull": False,
+            }
+        )
+    )
+
+    layer.setDefaultValueDefinition(scale_idx, QgsDefaultValue("100"))
+
+    layer.setFieldAlias(scale_idx, "Scale (% of symbol's own size)")
+
+
 def _build_sidc_argument(svg_expression):
 
     """

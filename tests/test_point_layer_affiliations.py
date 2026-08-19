@@ -363,33 +363,47 @@ class TestEveryPointLayerBuildsValidSidcs(QgisTestCase):
                 self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
 
 
-    def test_abatis_is_not_offered_as_a_point_anywhere(self):
+    def test_abatis_and_trip_wire_are_not_offered_as_plain_points_anywhere(self):
 
-        # Abatis (280100) is a LINE, so milsymbol has no point icon for
-        # it and it renders as the unknown-icon fallback whatever the
-        # affiliation. It sat in the old shared Control Measure Points
-        # dropdown as a stopgap so it would not vanish between batches;
-        # B4 built the line version and removed it, and this asserts it
-        # has stayed out rather than drifting back into any layer.
+        # Neither Abatis (280100) nor Trip Wire (290500) is a real
+        # milsymbol/2525D entity, so either one fed blindly into
+        # mct_build_sidc() renders as the unknown-icon fallback whatever
+        # the affiliation. Abatis once sat in the old shared Control
+        # Measure Points dropdown as a stopgap so it would not vanish
+        # between batches; B4 built its (since-retired) line version and
+        # removed it, and this used to assert it had stayed out of
+        # every points dropdown rather than drifting back in.
         #
-        # Both halves matter. The first pins WHY it may not be offered
-        # - drop the second and the test would still pass if abatis
-        # quietly reappeared.
+        # **U-4 (2026-08-19) deliberately reversed that** for exactly
+        # one layer: the obstacle Points layer now offers both as
+        # custom-shape entities (see obstacle_control_measures.py's own
+        # _CUSTOM_SHAPE_POINT_LABELS) - handled by that layer's OWN
+        # renderer branch, never fed into mct_build_sidc(), so the
+        # unknown-icon check below still holds for the generic case.
+        # This test's job narrows to "everywhere ELSE, still never" -
+        # the exact accidental-drift failure mode it was built to
+        # catch, now scoped past the one deliberate exception.
         layer = mission_task_control_measures.create_mission_task_points_layer()
 
-        feature = QgsFeature(layer.fields())
+        for entity in ("abatis", "trip_wire"):
 
-        for field, value in self._default_attributes(layer).items():
-            feature.setAttribute(field, value)
+            feature = QgsFeature(layer.fields())
 
-        feature.setAttribute("entity", "abatis")
+            for field, value in self._default_attributes(layer).items():
+                feature.setAttribute(field, value)
 
-        self.assertIn(
-            _MILSYMBOL_UNKNOWN_ICON_MARK,
-            self._rendered_icon_svg(layer, feature)
-        )
+            feature.setAttribute("entity", entity)
+
+            self.assertIn(
+                _MILSYMBOL_UNKNOWN_ICON_MARK,
+                self._rendered_icon_svg(layer, feature),
+                entity
+            )
 
         for name, factory in _POINT_LAYER_FACTORIES:
+
+            if name == "obstacle":
+                continue
 
             with self.subTest(layer=name):
 
@@ -398,6 +412,7 @@ class TestEveryPointLayerBuildsValidSidcs(QgisTestCase):
                 ).config().get("map", {})
 
                 self.assertNotIn("abatis", set(offered.values()), name)
+                self.assertNotIn("trip_wire", set(offered.values()), name)
 
     def test_every_offered_affiliation_renders_a_real_icon(self):
 

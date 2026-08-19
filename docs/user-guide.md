@@ -1278,16 +1278,25 @@ own unit's practice. The green marks an obstacle specifically, so the
 **water crossing sites default to black**: a crossing is the opposite
 of an obstacle.
 
-**Points** offers 13 entries: **Antipersonnel Mine** and its
+**Points** offers 15 entries: **Antipersonnel Mine** and its
 **Directional Effects** variant, **Antitank Mine** and its
 **Anti-handling Device** variant, **Wide Area Antitank Mine**,
 **Unspecified Mine**, **Booby Trap**, **Engineer Regulating Point**,
 the Tetrahedrons/Dragons Teeth family (**Fixed and Prefabricated**,
-**Movable**, **Movable and Prefabricated**), and **Tower, Low** /
-**Tower, High**.
+**Movable**, **Movable and Prefabricated**), **Tower, Low** /
+**Tower, High**, and **Trip Wire** / **Abatis** (moved here from
+**Lines**, 2026-08-19 — both draw as a fixed page size regardless of
+zoom, oriented by the feature's own **Rotation** field, rather than
+growing with however long a line got digitized).
 
 Both Towers take a **unique designation** drawn beside the icon.
 Engineer Regulating Point takes one too, drawn inside its own symbol.
+
+Every feature on this layer has a **Rotation** (degrees, clockwise from
+north) and a **Scale** (%) field. Only Trip Wire and Abatis currently
+use them — set a heading and size after placing one, same as typing
+into any other field on the form. The other 13 entries ignore both for
+now.
 
 **Areas** covers the four serrated obstacle zones (**Belt**, **Zone**,
 **Free Zone**, **Restricted Zone**), the mined-area family (**Mined
@@ -1301,7 +1310,7 @@ unknown, or a combined field that alternates both).
 
 **Lines** is the largest of the four and carries everything else: the
 nine wire obstacles, both antitank ditches, the antitank wall, Obstacle
-Line, Abatis, Mine Cluster and Trip Wire; the four obstacle effects
+Line and Mine Cluster; the four obstacle effects
 (**Block**, **Disrupt**, **Fix**, **Turn**); the three **Obstacle
 Bypass** variants, **Bridge or Gap** and the four **Roadblock** states;
 and the water crossing sites — **Bridge / Assault Crossing**, **Ford

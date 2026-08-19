@@ -1026,90 +1026,80 @@ def mct_wire_glyph_svg(values, feature=None, parent=None):
 
 
 @qgsfunction(
-    'mct_abatis_line',
+    'mct_abatis_svg',
     group='Military Cartography Tools'
 )
-def mct_abatis_line(values, feature=None, parent=None):
+def mct_abatis_svg(values, feature=None, parent=None):
 
     """
-    Table H-XIX's own Abatis (280100): the line with a single triangular
-    KINK near its start - "_^____", in the maintainer's own notation.
+    Abatis (280100), U-4 rebuild (2026-08-19, second pass): a fixed
+    inline SVG marker, the same "base64:<...>" pattern
+    mct_decoy_chevron_svg() already established for a hand-drawn (not
+    milsymbol) glyph that must NOT scale with the map - see that
+    function's own docstring for why a real-map-unit geometry generator
+    is wrong for a fixed-size point icon.
 
-    Built as real geometry rather than a marker riding the line,
-    because the hump must INTERRUPT the line: "the base of triangle
-    touching the line should be clear, so it is like a kink in the
-    beginning of line, not a full triangle". A marker drawn on top
-    still leaves the straight line running underneath it, closing the
-    triangle - which is exactly what the first attempt did.
+    **This replaces mct_abatis_point_geometry() (2026-08-19, first
+    pass), retired the same day it shipped.** That version drew real
+    map-unit geometry via a geometry generator, converting a page-mm
+    size to ground units through `@map_scale` - correct in isolation
+    (confirmed by direct QgsExpression evaluation against a real
+    QgsMapSettings scope) but confirmed LIVE, by actually rendering it,
+    to draw NOTHING through QGIS's real render pipeline: reproduced
+    with a minimal marker symbol outside this module entirely, and
+    narrowed to `@map_scale` not resolving the same way inside a
+    QgsGeometryGeneratorSymbolLayer's own per-feature evaluation during
+    a live render as it does when evaluated directly - despite this
+    project's own prior note ("@map_scale DOES resolve inside a
+    geometry generator - probed 2026-08-15") to the contrary; that
+    probe evidently covered a different case; not chased further to a
+    root cause once the fixed-SVG alternative below was confirmed
+    working end to end. A plain SVG marker sidesteps the whole question
+    - QGIS resolves marker size from millimetres via its own output DPI,
+    no `@map_scale` involved anywhere.
 
-    `at` is where the kink sits along the line and `size` how big it
-    is, both as fractions of the line's own length, so the symbol
-    scales with the feature.
+    Also drops the retired version's long straight lead-in/trail-off
+    run (`at`, the kink's position "near the start" of an implied
+    longer line) - meaningful only when Abatis interrupted a real,
+    arbitrarily long, user-digitized obstacle line, a concept that does
+    not carry over to a fixed point icon. What remains, and is what
+    actually makes Abatis recognisable, is just the kink itself: a
+    short stub in, a triangular jog to the left, a short stub out -
+    "_^_", not "_____^_____". Sized to read clearly next to this
+    layer's own milsymbol siblings, per the maintainer's own
+    instruction ("keep the size of these two similar to what the
+    milsymbol generates") - a first render-verified guess, adjustable
+    like any other fixed-size element in this project once seen on a
+    real map.
+
+    Drawn pointing due NORTH (up), unrotated - the marker's own Angle
+    data-defined property (see configure_rotation_and_scale_fields())
+    handles rotation directly, the same as every other point icon in
+    this project; this function never needs to know about it.
+
+    `colour` (values[0], default green) and `dashed` (values[1],
+    default False - planned status, H.5.1.1.3) are baked directly into
+    the returned SVG, the same two-argument convention
+    mct_decoy_chevron_svg() already uses.
     """
 
-    if len(values) < 1:
-        return "Need a geometry (e.g. $geometry)"
+    colour = str(values[0]) if values and values[0] else "rgb(0,155,0)"
+    dashed = bool(values[1]) if len(values) > 1 else False
 
-    geometry = values[0]
+    dash_attr = ' stroke-dasharray="6,5"' if dashed else ''
 
-    if geometry is None or geometry.isEmpty():
-        return geometry
-
-    at = float(values[1]) if len(values) > 1 else 0.10
-    size = float(values[2]) if len(values) > 2 else 0.06
-
-    length = geometry.length()
-
-    if length <= 0:
-        return geometry
-
-    half_width = length * size * 0.5
-    height = length * size
-
-    centre = length * at
-
-    start_distance = max(0.0, centre - half_width)
-    end_distance = min(length, centre + half_width)
-
-    def at_distance(distance):
-
-        point = geometry.interpolate(distance).asPoint()
-
-        return QgsPointXY(point.x(), point.y())
-
-    foot_in = at_distance(start_distance)
-    foot_out = at_distance(end_distance)
-
-    # Apex perpendicular to the line at the kink's own midpoint.
-    dx = foot_out.x() - foot_in.x()
-    dy = foot_out.y() - foot_in.y()
-
-    span = math.hypot(dx, dy)
-
-    if span == 0:
-        return geometry
-
-    apex = QgsPointXY(
-        (foot_in.x() + foot_out.x()) / 2.0 - dy / span * height,
-        (foot_in.y() + foot_out.y()) / 2.0 + dx / span * height,
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-17 -2 20 44"'
+        ' width="20" height="44">'
+        '<path d="M 0,40 L 0,28 L -14,20 L 0,12 L 0,0" fill="none"'
+        f' stroke="{colour}" stroke-width="3" stroke-linecap="butt"'
+        f' stroke-linejoin="round"{dash_attr}/>'
+        '</svg>'
     )
 
-    points = [at_distance(0.0), foot_in, apex, foot_out]
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
-    # The rest of the original line, kept vertex for vertex so a
-    # multi-segment abatis still follows what was digitized.
-    vertices = geometry.asPolyline()
-
-    for vertex in vertices:
-
-        if geometry.lineLocatePoint(
-            QgsGeometry.fromPointXY(vertex)
-        ) > end_distance:
-            points.append(vertex)
-
-    points.append(at_distance(length))
-
-    return QgsGeometry.fromPolylineXY(points)
+    return "base64:" + encoded
 
 
 @qgsfunction(
@@ -1144,8 +1134,10 @@ def mct_mine_cluster_arc(values, feature=None, parent=None):
     separately and at its full length (see _mine_cluster_symbol); this
     returns only the arc. Real generated geometry rather than a
     fixed-size marker, so it scales with however far apart the two
-    clicks are, the same reason mct_abatis_line and mct_decoy_chevron
-    are geometry rather than markers.
+    clicks are, the same reason mct_decoy_chevron is geometry rather
+    than a marker. (mct_abatis_line used to be the other example here -
+    retired 2026-08-19, U-4, into a FIXED page-size point construction;
+    see mct_abatis_point_geometry.)
 
     The dome bulges to the LEFT of the PT1->PT2 direction of travel
     (rotate the direction vector 90 degrees counterclockwise), which
@@ -1218,17 +1210,24 @@ def mct_mine_cluster_arc(values, feature=None, parent=None):
 
 
 @qgsfunction(
-    'mct_trip_wire_geometry',
+    'mct_trip_wire_svg',
     group='Military Cartography Tools'
 )
-def mct_trip_wire_geometry(values, feature=None, parent=None):
+def mct_trip_wire_svg(values, feature=None, parent=None):
 
     """
-    Table H-XIX's own Trip Wire (290500). Rebuilt 2026-08-13 to the
-    maintainer's own dictated construction, replacing an earlier
-    reading of the standard's own template picture (which used three
-    clicked anchor points, not two) after the maintainer reviewed that
-    render and gave the exact steps instead:
+    Table H-XIX's own Trip Wire (290500), U-4 rebuild (2026-08-19,
+    second pass): a fixed inline SVG marker - see mct_abatis_svg()'s
+    own docstring for why this replaces mct_trip_wire_point_geometry()
+    (2026-08-19, first pass, retired the same day): a geometry-generator
+    construction that correctly computed real map-unit geometry via
+    `@map_scale` when evaluated directly, but was confirmed LIVE to
+    draw nothing through QGIS's actual render pipeline.
+
+    Reuses the maintainer's own dictated proportions EXACTLY, just
+    drawn once as a fixed shape instead of computed per-feature from a
+    "PT1-PT2 distance" that no longer exists (a single anchor point has
+    no second point to measure against):
 
     "user clicks PT1 and PT2 - draw a line connecting PT1 and 2, now at
     1/7 pt from PT1, draw a line 90 deg to the line between PT1 and
@@ -1238,143 +1237,49 @@ def mct_trip_wire_geometry(values, feature=None, parent=None):
     PT2, finally at PT2, draw an arc of 90 deg anticlockwise, radius
     1/5 of the distance between PT1 and PT2"
 
-    Only two anchor points now (PT1, PT2), taken from the feature's own
-    digitized vertices - everything else is derived from them:
+    With the main "line" fixed at 60 SVG units: crossbars at 1/7 (30
+    each side) and 1/2 (72 each side) of the way up it, and a 90 degree
+    anticlockwise arc at the top, radius 12, both matching the dictated
+    ratios exactly (0.5x/1.2x/0.2x of 60). The wide crossbars make this
+    icon's own natural bounding box (144 wide, 72 tall) much wider than
+    it is tall - inherent to the dictated construction itself, not a
+    side effect of fixing the size; QGIS sizes an SVG marker by WIDTH,
+    so it draws proportionally shorter than a square milsymbol icon at
+    the same nominal size.
 
-    - The main line, PT1 to PT2, drawn as-is.
-    - A crossbar at 1/7 of the way from PT1 to PT2, perpendicular to
-      the main line, running 0.5x the PT1-PT2 distance to EACH side of
-      it - corrected 2026-08-13 from an initial one-sided build: "both
-      the horizontal lines are on one side of the line connecting pt1
-      and 2, they should be on both sides". The dictated length is
-      kept as the length of each side, so the crossbar's own total
-      span is twice the stated multiplier.
-    - A second crossbar at the midpoint, same symmetric treatment,
-      1.2x the PT1-PT2 distance to each side.
-    - A 90 degree arc at PT2, anticlockwise, radius 0.2x (1/5) the
-      PT1-PT2 distance, starting tangent to the main line's own
-      direction of travel (continuing past PT2) and sweeping
-      anticlockwise from there - standard mathematical sense
-      (increasing angle, toward the main line's own left side, in a
-      Y-up plane, which is how a digitized map's own coordinates read).
-      Not corrected to be symmetric - the maintainer's own "both the
-      horizontal lines" named the crossbars specifically, not the arc.
+    Drawn pointing due NORTH (up), unrotated - the marker's own Angle
+    data-defined property (see configure_rotation_and_scale_fields())
+    handles rotation directly, the same as every other point icon in
+    this project; this function never needs to know about it.
 
-    Which side "anticlockwise" reads as on screen was not pinned down
-    beyond the dictated wording - the arc is built on the main line's
-    own left by the standard right-hand/CCW convention, a placement
-    call rather than a measurement, exactly the kind of thing the
-    maintainer said they would give further correction on after seeing
-    a render.
-
-    Returned as a MultiLineString: the main line fused with the arc
-    (they share PT2, so it is one continuous path), plus the two
-    crossbars as their own separate parts, since neither crossbar
-    shares an endpoint with anything else it is drawn against.
+    `colour` (values[0], default green) and `dashed` (values[1],
+    default False - planned status, H.5.1.1.3) are baked directly into
+    the returned SVG, the same two-argument convention
+    mct_decoy_chevron_svg()/mct_abatis_svg() already use.
     """
 
-    if len(values) < 1:
-        return "Need a geometry (e.g. $geometry)"
+    colour = str(values[0]) if values and values[0] else "rgb(0,155,0)"
+    dashed = bool(values[1]) if len(values) > 1 else False
 
-    geometry = values[0]
+    dash_attr = ' stroke-dasharray="8,6"' if dashed else ''
 
-    if geometry is None or geometry.isEmpty():
-        return geometry
-
-    segments = int(values[1]) if len(values) > 1 else 12
-
-    vertices = geometry.asPolyline()
-
-    if len(vertices) < 2:
-        return geometry
-
-    pt1 = QgsPointXY(vertices[0])
-    pt2 = QgsPointXY(vertices[1])
-
-    dx = pt2.x() - pt1.x()
-    dy = pt2.y() - pt1.y()
-
-    length = math.hypot(dx, dy)
-
-    if length == 0:
-        return geometry
-
-    # u: unit vector along PT1->PT2. n: u rotated 90 degrees
-    # anticlockwise (standard maths sense, Y-up) - the one consistent
-    # side every perpendicular element in this symbol is built on.
-    ux, uy = dx / length, dy / length
-    nx, ny = -uy, ux
-
-    def point_along(fraction):
-
-        return QgsPointXY(
-            pt1.x() + fraction * dx,
-            pt1.y() + fraction * dy,
-        )
-
-    def crossbar(fraction, length_multiplier):
-
-        # Symmetric about the base point - "both the horizontal lines
-        # are on one side of the line connecting pt1 and 2, they should
-        # be on both sides", the maintainer's own correction to an
-        # initial one-sided build. The dictated length is kept as the
-        # length of EACH side, so the arm on the +n side and the arm on
-        # the -n side both run the full length_multiplier x length.
-        base = point_along(fraction)
-
-        arm = length * length_multiplier
-
-        near = QgsPointXY(
-            base.x() - arm * nx,
-            base.y() - arm * ny,
-        )
-
-        far = QgsPointXY(
-            base.x() + arm * nx,
-            base.y() + arm * ny,
-        )
-
-        return [near, far]
-
-    crossbar_near_pt1 = crossbar(1.0 / 7.0, 0.5)
-    crossbar_midpoint = crossbar(0.5, 1.2)
-
-    radius = length * (1.0 / 5.0)
-
-    # Centre of the arc's own circle: PT2 offset by one radius along n
-    # (u rotated 90 CCW). Derived, not guessed - the only centre for
-    # which a point starting at PT2, moving with tangent u, and
-    # sweeping ANTICLOCKWISE (standard maths sense: increasing angle)
-    # is consistent. The vector from centre back to PT2 is then -n;
-    # rotating THAT vector anticlockwise by the sweep angle traces the
-    # arc, ending with vector +u from the centre (tangent there is n -
-    # a quarter-turn CCW from the starting tangent u, as it should be).
-    center_x = pt2.x() + radius * nx
-    center_y = pt2.y() + radius * ny
-
-    start_x, start_y = -nx, -ny
-
-    arc_points = []
-
-    for index in range(segments + 1):
-
-        t = (index / segments) * (math.pi / 2.0)
-
-        dir_x = start_x * math.cos(t) - start_y * math.sin(t)
-        dir_y = start_x * math.sin(t) + start_y * math.cos(t)
-
-        arc_points.append(
-            QgsPointXY(
-                center_x + radius * dir_x,
-                center_y + radius * dir_y,
-            )
-        )
-
-    main_line_and_arc = [pt1] + arc_points
-
-    return QgsGeometry.fromMultiPolylineXY(
-        [main_line_and_arc, crossbar_near_pt1, crossbar_midpoint]
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-72 0 144 72"'
+        ' width="144" height="72">'
+        '<path d="M 0,72 L 0,12 L -0.41,8.89 L -1.61,6.00 L -3.52,3.52'
+        ' L -6.00,1.61 L -8.89,0.41 L -12,0" fill="none"'
+        f' stroke="{colour}" stroke-width="4" stroke-linecap="butt"'
+        f' stroke-linejoin="round"{dash_attr}/>'
+        f'<path d="M 30,63.43 L -30,63.43" fill="none" stroke="{colour}"'
+        f' stroke-width="4" stroke-linecap="butt"{dash_attr}/>'
+        f'<path d="M 72,42 L -72,42" fill="none" stroke="{colour}"'
+        f' stroke-width="4" stroke-linecap="butt"{dash_attr}/>'
+        '</svg>'
     )
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
 
 
 @qgsfunction(
@@ -1391,9 +1296,9 @@ def mct_block_geometry(values, feature=None, parent=None):
     line is determined by plotting point 3 on a plane extending
     perpendicularly from the midpoint of the vertical line") - the
     PERPENDICULAR distance from PT3 to the infinite line through
-    PT1-PT2, the same projection already used in mct_trip_wire_geometry
-    and mct_block_geometry's own sibling functions, general enough that
-    PT3 need not be clicked exactly perpendicular.
+    PT1-PT2, the same projection already used in mct_block_geometry's
+    own sibling functions, general enough that PT3 need not be clicked
+    exactly perpendicular.
 
     Three anchor points, reinterpreted from the feature's own digitized
     vertices rather than drawn as the raw PT1-PT2-PT3 polyline.
@@ -5666,10 +5571,12 @@ def mct_bypass_ticks(values, feature=None, parent=None):
 #
 # So PT3 sets the diameter's LENGTH and its SIDE, not its direction:
 # the diameter is the PERPENDICULAR distance from PT3 to the infinite
-# line through PT1-PT2. That is the same projection mct_block_geometry,
-# mct_contain_arc and mct_trip_wire_geometry all use for a third point
-# that sets a depth, so a third point behaves the same way everywhere
-# in this module.
+# line through PT1-PT2. That is the same projection mct_block_geometry
+# and mct_contain_arc use for a third point that sets a depth, so a
+# third point behaves the same way everywhere in this module.
+# (mct_trip_wire_geometry used to be a third example here - retired
+# 2026-08-19, U-4, into a fixed inline SVG marker with no anchor
+# points at all beyond the one it's placed on; see mct_trip_wire_svg.)
 #
 # The one thing PT3 cannot settle at all is which way the semicircle
 # bulges: a diameter admits two. It bulges AWAY FROM PT1, which is what
@@ -8653,9 +8560,9 @@ _FUNCTIONS = [
     mct_decoy_chevron,
     mct_decoy_chevron_svg,
     mct_scatter_points,
-    mct_abatis_line,
+    mct_abatis_svg,
     mct_mine_cluster_arc,
-    mct_trip_wire_geometry,
+    mct_trip_wire_svg,
     mct_block_geometry,
     mct_turn_arc,
     mct_disrupt_geometry,

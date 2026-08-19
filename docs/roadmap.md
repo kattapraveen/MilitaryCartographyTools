@@ -10597,6 +10597,107 @@ wired in safely.
 
 ---
 
+## U-4: Trip Wire and Abatis become point symbols (2026-08-19)
+
+**Both moved from the Obstacle Control Measures (Lines) layer to the
+Points layer**, drawn as fixed page-size glyphs oriented by a
+"rotation" field, replacing constructions whose every dimension had
+derived from however long a line the user happened to digitize -
+Trip Wire (290500) without limit (a dictated construction built
+2026-08-13 from two anchor points), Abatis (280100) by a smaller but
+real fraction (`mct_abatis_line()`'s own `size=0.06`, calibrated for an
+arbitrarily long obstacle line). Design decisions confirmed with the
+maintainer before building (layer placement, rotation workflow, old-
+line migration) - see the three-question exchange this session; all
+three "recommended" options were chosen: land on the EXISTING Points
+layer rather than a new one, set facing by typing into the rotation
+field rather than a two-click bearing tool, and accept the break for
+any line feature already digitized under the old (buggy) construction
+rather than keep both offered.
+
+**Two real implementation passes, same day - the first one retired
+after being confirmed broken by an actual render, not by reasoning
+about the code.** First pass: `mct_trip_wire_point_geometry()`/
+`mct_abatis_point_geometry()`, real map-unit geometry via a
+`QgsGeometryGeneratorSymbolLayer`, converting a page-mm size to ground
+units through `@map_scale` (the same `_page_gap_in_map_units()`
+pattern every other fixed-size element in this module uses), rotated
+by wrapping the result in QGIS's own `rotate(...)`. Evaluated correctly
+against a direct `QgsExpression` check with a real `QgsMapSettings`
+scope - but rendered NOTHING through QGIS's actual render pipeline,
+confirmed by three independent render attempts (`QgsMapRendererParallelJob`
+and `QgsMapRendererCustomPainterJob` both, ruling out a Parallel-job-
+specific quirk). Narrowed, not just noticed: reproduced with a minimal
+two-layer marker symbol built entirely outside this module, and traced
+to QGIS computing the whole marker's own render/clip bounds from
+symbol layer 0's reported size BEFORE per-feature data-defined
+properties are evaluated - an SVG marker layer with a data-defined
+Size that resolves to 0 (needed to hide it for these two entities, so
+the geometry generator layer could draw instead) zeroed the bounds for
+every layer after it too, not just itself. Reordering the two layers
+(geometry generator first) fixed the render in isolation - confirmed
+live - but that fix would have required every existing test asserting
+`symbolLayer(0)` is the SVG layer on this Points layer to be rewritten
+around a fragile index instead of a stable "which layer has an active
+Name property" search.
+
+**Second pass, while implementing that reorder fix, landed on a better
+design instead of shipping the workaround**: `mct_trip_wire_svg()`/
+`mct_abatis_svg()`, fixed inline "base64:<...>" SVG markers - the exact
+pattern `mct_decoy_chevron_svg()` already established for a hand-drawn
+glyph that must not scale with the map. This sidesteps `@map_scale`
+inside a geometry generator entirely (confirmed unreliable there in a
+live render, contradicting this project's own 2026-08-15 note that it
+"DOES resolve inside a geometry generator" - that earlier probe
+evidently covered a different case; not chased to a root cause once
+the working alternative was confirmed) and reuses the SAME Angle/Size
+data-defined properties every other point icon in this project already
+has (U-2's own mechanism) - no `rotate()`, no second symbol layer, no
+layer-ordering fragility. Both new SVG functions take `colour` and
+`dashed` arguments the same way `mct_decoy_chevron_svg()` does; Trip
+Wire keeps the maintainer's own dictated proportions exactly (0.5x/1.2x
+crossbars, 0.2x arc radius, now against a fixed 60-unit "line" instead
+of a digitized PT1-PT2 span); Abatis drops the retired construction's
+long lead-in/trail-off run (meaningful only when interrupting a real,
+arbitrarily long digitized line, a concept a point icon does not
+carry) and keeps just the kink itself, sized up from the old 6% (which
+would have drawn sub-millimetre against a small fixed icon) to read
+next to this layer's own milsymbol siblings - a first render-verified
+guess, screenshot sent to the maintainer for their own visual call, the
+same way every other page-size constant in this project has been
+tuned.
+
+**Where the two custom entities live**: `_CUSTOM_SHAPE_POINT_LABELS`,
+deliberately separate from `POINT_ENTITY_LABELS` (the real milsymbol/
+2525D vocabulary every existing test walks expecting a real SIDC
+entity) and merged into the layer's own entity dropdown only at the
+attribute-form level. Rotation only affects these two entities on this
+layer - deliberately not extended to the other 13 real milsymbol
+entities here, which is the deferred U-2 rollout's own job, not U-4's.
+
+`TABLE_H_XIX_INVENTORY`'s own "geometry" tag for both rows flipped from
+LINE to POINT (a second reversal for Abatis specifically - it was moved
+points-to-lines once already, 2026-08-12/H17, for a template-reading
+reason; this one is a deliberate trade, not a correction) - this field
+records how the symbol is actually drawn in this plugin, not a frozen
+record of the standard's own template, so it follows the real
+construction the same way the minefield family's own geometry
+corrections did earlier in this appendix.
+
+7 new tests for the two SVG functions, 9 for the Points-layer wiring
+(entity dropdown, colour/dashing/rotation/scale each verified via the
+actual data-defined properties, not assumed from the expression text),
+plus fixes to every pre-existing test that depended on Trip Wire/Abatis
+being on the Lines layer, on Abatis being excluded from every points
+dropdown (the 2026-08-12/H17 guard in `tests/test_point_layer_
+affiliations.py`, narrowed to name this layer as the one deliberate
+exception rather than deleted), and on `symbolLayer(0)` being the SVG
+layer specifically. 1442 -> 1444 tests on both QGIS versions (heavy
+churn along the way from two full construction rewrites in one day,
+not just net-new coverage); Bandit and detect-secrets both clean.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

@@ -64,7 +64,10 @@ from .sidc_2525e import (
     SECTOR2_LABELS_2525E,
 )
 
-from ._control_measure_shared import stabilised_point_size_expression
+from ._control_measure_shared import (
+    configure_rotation_and_scale_fields,
+    stabilised_point_size_expression,
+)
 
 
 DEFAULT_MARKER_SIZE_MM = 8.0
@@ -75,9 +78,9 @@ DEFAULT_MARKER_SIZE_MM = 8.0
 # every domain equally (a heading and a size adjustment are meaningful
 # for any point symbol, not table-specific amplifiers). See
 # _build_renderer()'s own comment for how each is wired into the
-# marker symbol layer.
-DEFAULT_ROTATION_DEGREES = 0.0
-DEFAULT_SCALE_PERCENT = 100.0
+# marker symbol layer, and configure_rotation_and_scale_fields()'s own
+# docstring for why the field configuration itself is shared rather
+# than a private copy.
 
 # Shared across every single-domain layer this module builds. Table VII
 # (Ch 5) shows echelon (Field B) and headquarters (Field S) aren't
@@ -294,68 +297,12 @@ def _configure_attribute_form(
             QgsDefaultValue("'{}'".format(extra_text_field["default"]))
         )
 
-    _configure_rotation_and_scale_fields(layer, fields)
-
-
-def _configure_rotation_and_scale_fields(layer, fields):
-
-    """
-    "rotation" (degrees, clockwise from north - the same convention
-    QGIS's own marker "Rotation" data-defined property uses, so a
-    heading typed here matches what a compass or a GPS track would
-    report) and "scale" (percent of the layer's own base marker size,
-    100 = unchanged) - added unconditionally to every layer this module
-    builds. Both use QGIS's "Range" editor widget (a spin box, not a
-    free-text field) so the attribute form can't be handed a value
-    mct_sidc_svg's own Angle/Size wiring wasn't built to expect - see
-    _build_renderer().
-    """
-
-    rotation_idx = fields.indexOf("rotation")
-
-    layer.setEditorWidgetSetup(
-        rotation_idx,
-        QgsEditorWidgetSetup(
-            "Range",
-            {
-                "Min": 0.0,
-                "Max": 360.0,
-                "Step": 1.0,
-                "Precision": 1,
-                "Style": "SpinBox",
-                "AllowNull": False,
-            }
-        )
-    )
-
-    layer.setDefaultValueDefinition(
-        rotation_idx, QgsDefaultValue(f"{DEFAULT_ROTATION_DEGREES:g}")
-    )
-
-    layer.setFieldAlias(rotation_idx, "Rotation (°, clockwise from north)")
-
-    scale_idx = fields.indexOf("scale")
-
-    layer.setEditorWidgetSetup(
-        scale_idx,
-        QgsEditorWidgetSetup(
-            "Range",
-            {
-                "Min": 10.0,
-                "Max": 400.0,
-                "Step": 5.0,
-                "Precision": 0,
-                "Style": "SpinBox",
-                "AllowNull": False,
-            }
-        )
-    )
-
-    layer.setDefaultValueDefinition(
-        scale_idx, QgsDefaultValue(f"{DEFAULT_SCALE_PERCENT:g}")
-    )
-
-    layer.setFieldAlias(scale_idx, "Scale (% of symbol's own size)")
+    # U-2 (build tracker): shared with every other point-symbol module
+    # that wants rotation/scale, so the widget config cannot drift
+    # between callers the way stabilised_point_size_expression()'s own
+    # fix once did before IT was made shared - see
+    # configure_rotation_and_scale_fields()'s own docstring.
+    configure_rotation_and_scale_fields(layer)
 
 
 def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides, dimension_symbol_sets=None):
@@ -620,7 +567,7 @@ def _build_renderer(
         base_size_expression = f"{marker_size_mm:g}"
 
     # U-2, 2026-08-19: the "scale" field (percent, 100 = unchanged - see
-    # _configure_rotation_and_scale_fields()) multiplies the base size
+    # configure_rotation_and_scale_fields()) multiplies the base size
     # BEFORE stabilised_point_size_expression()'s own designation-text
     # compensation is applied, so the two compose correctly - a scaled-
     # up icon still holds its own size when a designation is typed into
@@ -653,7 +600,7 @@ def _build_renderer(
     )
 
     # U-2, 2026-08-19: "rotation" (degrees, clockwise from north - see
-    # _configure_rotation_and_scale_fields()) drives the marker's own
+    # configure_rotation_and_scale_fields()) drives the marker's own
     # Angle property directly; QGIS already interprets a marker symbol
     # layer's Angle the same way, so no conversion is needed here.
     # coalesce(..., 0) for the same reason as above - an unset field
@@ -758,7 +705,7 @@ def build_single_domain_point_layer(
     (U-2, 2026-08-19), unconditionally - not opt-in like the fields
     above, since a heading and a size adjustment are meaningful for any
     point symbol regardless of domain. See
-    _configure_rotation_and_scale_fields() and _build_renderer()'s own
+    configure_rotation_and_scale_fields() and _build_renderer()'s own
     comments for the field convention and how each drives the marker.
     """
 

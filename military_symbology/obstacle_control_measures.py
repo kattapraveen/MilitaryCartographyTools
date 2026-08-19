@@ -178,6 +178,7 @@ from ..expressions.military_symbology_functions import (
 )
 
 from ._control_measure_shared import (
+    configure_rotation_and_scale_fields,
     stabilised_point_size_expression,
     POINT_AFFILIATION_LABELS,
     STATUS_LABELS,
@@ -352,12 +353,18 @@ TABLE_H_XIX_INVENTORY = {
     "271600": _e("Ford Difficult", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
     # -- Protection points --
     "280000": _e("Protection Points", PARENT, B1_POINTS, CONFIRMED),
-    # Abatis is a LINE, not a point - the maintainer's audit caught this
-    # and the template confirms it ("requires at least two anchor
-    # points... to define the line", drawn as a toothed line). B0 had it
-    # as a point purely because it sits under the "Protection Points"
-    # heading, which is the exact trap the module docstring warns about.
-    "280100": _e("Abatis", LINE, B4_WIRE, CONFIRMED, GREEN),
+    # Abatis's own TEMPLATE is a line ("requires at least two anchor
+    # points... to define the line", drawn as a toothed line) - the
+    # maintainer's audit caught this after B0 had it as a point purely
+    # because it sits under the "Protection Points" heading, the exact
+    # trap the module docstring warns about. **Reversed again, U-4,
+    # 2026-08-19**: built as a POINT after all - not a template
+    # misreading this time, a deliberate trade the maintainer asked
+    # for (a fixed page-size, rotatable glyph rather than one that
+    # scales with however long a line gets digitized). Still owned by
+    # B4_WIRE (unchanged) - this "geometry" field records how the
+    # symbol is actually drawn, not which batch built it.
+    "280100": _e("Abatis", POINT, B4_WIRE, CONFIRMED, GREEN),
     "280200": _e("Antipersonnel Mine", POINT, B1_POINTS, CONFIRMED),
     "280201": _e("Antipersonnel Mine with Directional Effects", POINT,
                  B1_POINTS),
@@ -406,13 +413,18 @@ TABLE_H_XIX_INVENTORY = {
     # corners of the symbol"), so it is digitized as a line even though
     # it draws as one fixed glyph - see OPEN QUESTIONS in the docstring.
     "290400": _e("Mine Cluster", LINE, B4_WIRE, CONFIRMED, GREEN),
-    # Three anchor points per its own template, so likewise a line -
-    # confirmed by the maintainer. Its construction is the awkward one
-    # in B4: PT1-PT2 give a vertical straight portion, PT3 the
-    # horizontal extent, plus a 90 degree arc at the bottom whose radius
-    # is the distance from the PT1-PT2 line to PT3. Budget for it
-    # separately from the shared marker-line helper.
-    "290500": _e("Trip Wire", LINE, B4_WIRE, CONFIRMED, GREEN),
+    # Three anchor points per its own TEMPLATE, so originally a line -
+    # confirmed by the maintainer (2026-08-12). Its first construction
+    # (2026-08-13) took only two of the three, riding a dictated
+    # PT1-PT2 span. **Reversed to a POINT, U-4, 2026-08-19** - same
+    # trade as Abatis just above: every dimension of that construction
+    # derived from the digitized span with no size of its own, growing
+    # without limit with however long a line got drawn. Now a fixed
+    # page-size glyph anchored at one point, oriented by its own
+    # "rotation" field. Still owned by B4_WIRE (unchanged) - this
+    # "geometry" field records how the symbol is actually drawn, not
+    # which batch built it.
+    "290500": _e("Trip Wire", POINT, B4_WIRE, CONFIRMED, GREEN),
     "290600": _e("Lane", LINE, B7_CROSSINGS, ASSUMED, BLACK),
     "290700": _e("Ferry", LINE, B7_CROSSINGS, ASSUMED, BLACK),
     "290800": _e("Raft Site", LINE, B7_CROSSINGS, CONFIRMED, BLACK),
@@ -449,12 +461,12 @@ def buildable_inventory():
 
 POINTS_LAYER_NAME = "Obstacle Control Measures (Points)"
 
-# The 13 point entries B1 owns. Abatis (280100) and Overhead Wire
-# (282003) are NOT here despite their 28xxxx codes - both are lines
-# (see the module docstring) and belong to B4 and B7. Abatis stays on
-# the shared control_measure_points.py layer meanwhile, so it does not
-# vanish from every dropdown between batches; B4 removes it there when
-# it builds the line version.
+# The 13 point entries B1 owns. Overhead Wire (282003) is NOT here
+# despite its 28xxxx code - it is a line (see the module docstring) and
+# belongs to B7. Every key here is a real milsymbol/2525D entity (see
+# TestObstaclePointsLayer.test_offers_exactly_the_point_entries_b1_owns)
+# - Trip Wire and Abatis, U-4's own two custom-shape additions below,
+# are deliberately NOT mixed in here for exactly that reason.
 POINT_ENTITY_LABELS = {
     "antipersonnel_mine": "Antipersonnel Mine",
     "antipersonnel_mine_directional": "Antipersonnel Mine with Directional Effects",
@@ -469,6 +481,22 @@ POINT_ENTITY_LABELS = {
     "obstacle_movable_prefabricated": "Movable and Prefabricated Obstacle",
     "tower_low": "Tower, Low",
     "tower_high": "Tower, High",
+}
+
+# U-4 (build tracker), 2026-08-19: Trip Wire (290500) and Abatis
+# (280100) moved here from the Lines layer as fixed page-size glyphs -
+# see mct_trip_wire_point_geometry()/mct_abatis_point_geometry(). Kept
+# OUT of POINT_ENTITY_LABELS deliberately - neither is a real
+# milsymbol/2525D entity (ENTITIES["control_measure"] has no key for
+# either), so every existing test that walks POINT_ENTITY_LABELS
+# expecting a real SIDC entity stays correct, unchanged. Merged into
+# the layer's own "entity" dropdown only, in
+# _configure_points_attribute_form(); _build_points_renderer() branches
+# on these two values to draw a custom geometry-generator glyph instead
+# of a milsymbol icon.
+_CUSTOM_SHAPE_POINT_LABELS = {
+    "trip_wire": "Trip Wire",
+    "abatis": "Abatis",
 }
 
 # Per the maintainer: obstacles are green by default, but "user should
@@ -611,7 +639,14 @@ def _configure_points_attribute_form(layer):
 
     layer.setEditorWidgetSetup(
         entity_idx,
-        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(POINT_ENTITY_LABELS)})
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {
+                "map": _value_map(
+                    {**POINT_ENTITY_LABELS, **_CUSTOM_SHAPE_POINT_LABELS}
+                )
+            }
+        )
     )
 
     layer.setEditorWidgetSetup(
@@ -644,6 +679,56 @@ def _configure_points_attribute_form(layer):
     # TABLE_H_XIX_INVENTORY's own "colour" instead.
     layer.setDefaultValueDefinition(colour_idx, QgsDefaultValue(f"'{GREEN}'"))
 
+    # U-4 (build tracker): rotation/scale only have visible effect on
+    # Trip Wire/Abatis (the two custom-shape entries), but the field
+    # applies to the whole layer - every other entity here simply
+    # ignores it, same as any milsymbol icon not yet touched by U-2's
+    # own deferred rollout to this module's other 13 entries.
+    configure_rotation_and_scale_fields(layer)
+
+
+# U-4 (build tracker), 2026-08-19, second pass: Trip Wire and Abatis
+# draw as a fixed inline SVG (mct_trip_wire_svg()/mct_abatis_svg() - see
+# those functions' own docstrings for why this replaced an earlier
+# geometry-generator attempt the same day), same as every other entity
+# on this layer, just with their own hand-drawn path instead of a
+# milsymbol one. Both take the SAME green/black colour rule as every
+# other icon here (_POINT_MONO_COLOR_EXPRESSION) and the same
+# present/planned dashing rule as the wire family on the Lines layer.
+_CUSTOM_SHAPE_NAME_EXPRESSION = (
+    "CASE"
+    " WHEN \"entity\" = 'trip_wire' THEN mct_trip_wire_svg("
+    f"{_POINT_MONO_COLOR_EXPRESSION}, \"status\" = 'planned')"
+    " WHEN \"entity\" = 'abatis' THEN mct_abatis_svg("
+    f"{_POINT_MONO_COLOR_EXPRESSION}, \"status\" = 'planned')"
+    f" ELSE {_POINTS_SIDC_EXPRESSION}"
+    " END"
+)
+
+# Sized like any other icon here (_POINTS_DEFAULT_MARKER_SIZE_MM), per
+# the maintainer's own instruction ("keep the size of these two similar
+# to what the milsymbol generates"), scaled by the feature's own
+# "scale" field (configure_rotation_and_scale_fields()) - unlike the
+# other 13 entities, which don't get a designation-compensation ratio
+# either, since neither custom shape carries one.
+_CUSTOM_SHAPE_SIZE_EXPRESSION = (
+    "CASE WHEN \"entity\" IN ('trip_wire', 'abatis') THEN "
+    f'{_POINTS_DEFAULT_MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
+    f" ELSE ({stabilised_point_size_expression(_POINT_SIZE_EXPRESSION, _POINTS_SIDC_EXPRESSION)})"
+    " END"
+)
+
+# Rotation only has an effect on Trip Wire/Abatis - deliberately NOT
+# extended to this layer's other 13 milsymbol entities in this pass
+# (U-2's own deferred rollout to the ~15 modules with their own point
+# renderer, this one included, is separate, later work - see the build
+# tracker). QGIS's marker Angle property is clockwise from north, the
+# same convention "rotation" already uses everywhere else.
+_CUSTOM_SHAPE_ANGLE_EXPRESSION = (
+    "CASE WHEN \"entity\" IN ('trip_wire', 'abatis')"
+    " THEN coalesce(\"rotation\", 0) ELSE 0 END"
+)
+
 
 def _build_points_renderer():
 
@@ -653,20 +738,19 @@ def _build_points_renderer():
 
     svg_layer.setSize(_POINTS_DEFAULT_MARKER_SIZE_MM)
 
-    # Holds the icon still when a designation is typed -
-    # see stabilised_point_size_expression().
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
-        QgsProperty.fromExpression(
-            stabilised_point_size_expression(
-                _POINT_SIZE_EXPRESSION, _POINTS_SIDC_EXPRESSION
-            )
-        )
+        QgsProperty.fromExpression(_CUSTOM_SHAPE_SIZE_EXPRESSION)
     )
 
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
-        QgsProperty.fromExpression(_POINTS_SIDC_EXPRESSION)
+        QgsProperty.fromExpression(_CUSTOM_SHAPE_NAME_EXPRESSION)
+    )
+
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Angle,
+        QgsProperty.fromExpression(_CUSTOM_SHAPE_ANGLE_EXPRESSION)
     )
 
     symbol.changeSymbolLayer(0, svg_layer)
@@ -764,8 +848,11 @@ def create_obstacle_control_measures_points_layer(name=POINTS_LAYER_NAME):
 
     """
     A fresh, empty point layer for Table H-XIX's own protection points
-    (batch B1) - see POINT_ENTITY_LABELS for the 13 entries and for the
-    two 28xxxx codes that are lines and live elsewhere.
+    (batch B1, see POINT_ENTITY_LABELS for the 13 entries and the one
+    28xxxx code - Overhead Wire - that is a line and lives elsewhere),
+    plus Trip Wire and Abatis (U-4, 2026-08-19: see
+    _CUSTOM_SHAPE_POINT_LABELS), each a fixed page-size glyph rather
+    than a milsymbol icon.
     """
 
     crs = QgsProject.instance().crs()
@@ -779,6 +866,8 @@ def create_obstacle_control_measures_points_layer(name=POINTS_LAYER_NAME):
             QgsField("status", QMetaType.Type.QString),
             QgsField("colour", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("rotation", QMetaType.Type.Double),
+            QgsField("scale", QMetaType.Type.Double),
         ]
     )
 
@@ -2397,9 +2486,11 @@ WIRE_MEASURE_TYPE_LABELS = {
 
 # The toothed-line obstacles, which share the wire family's own
 # construction - a line carrying a repeating glyph - and so are built
-# by the same code rather than by a parallel mechanism.
+# by the same code rather than by a parallel mechanism. Abatis was the
+# one exception here (a single hump, not a repeating glyph) until U-4
+# (2026-08-19) moved it to the Points layer as a fixed page-size glyph
+# entirely - see create_obstacle_control_measures_points_layer().
 TOOTHED_MEASURE_TYPE_LABELS = {
-    "abatis": "Abatis",
     "obstacle_line": "Obstacle Line",
     "antitank_ditch_reinforced":
         "Antitank Ditch Reinforced with Antitank Mines",
@@ -2409,7 +2500,6 @@ TOOTHED_MEASURE_TYPE_LABELS = {
 }
 
 TOOTHED_MEASURE_TYPE_CODES = {
-    "abatis": "280100",
     "obstacle_line": "290100",
     "antitank_ditch_reinforced": "290203",
     "antitank_ditch_under_construction": "290201",
@@ -2530,66 +2620,11 @@ _WIRE_TILE_OVERLAP_MM = 0.12
 _WIRE_GAP_SCALE = 0.6
 
 
-# Abatis is the one line obstacle here that is NOT a repeating glyph:
-# a single hump just after the first anchor point, then straight line
-# for the rest - "_^____" in the maintainer's own notation, with the
-# hump's legs meeting the line. So it gets its own builder rather than
-# a _WireSpec.
-# Where the kink sits along the line, and how big it is - both as
-# fractions of the line's own length, so the symbol scales with the
-# feature.
-_ABATIS_KINK_AT = 0.10
-_ABATIS_KINK_SIZE = 0.06
-
-
-def _abatis_symbol():
-
-    """
-    Abatis (280100) - a single triangular KINK near the start of the
-    line, then straight for the rest.
-
-    The kink is real geometry (mct_abatis_line), not a marker riding
-    the line: a marker leaves the straight line running underneath it,
-    which closes the triangle. The maintainer's own correction - "it is
-    like a kink in the beginning of line, not a full triangle".
-    """
-
-    line_layer = QgsSimpleLineSymbolLayer()
-
-    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
-
-    _apply_obstacle_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor],
-        _AREA_OUTLINE_COLOR_EXPRESSION
-    )
-
-    line_layer.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-    )
-
-    generator = QgsGeometryGeneratorSymbolLayer.create({})
-
-    generator.setSymbolType(QgsSymbol.SymbolType.Line)
-
-    generator.setGeometryExpression(
-        f"mct_abatis_line($geometry, {_ABATIS_KINK_AT},"
-        f" {_ABATIS_KINK_SIZE})"
-    )
-
-    inner = QgsLineSymbol()
-
-    inner.changeSymbolLayer(0, line_layer)
-
-    generator.setSubSymbol(inner)
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(0, generator)
-
-    return symbol
-
+# Abatis (280100) moved to the Points layer as a fixed page-size glyph,
+# U-4, 2026-08-19 - see create_obstacle_control_measures_points_layer()
+# and mct_abatis_point_geometry(). Its own line-family builder
+# (_abatis_symbol(), which rode mct_abatis_line()) is retired along
+# with it; TOOTHED_MEASURE_TYPE_LABELS/CODES no longer carry it either.
 
 # Mine Cluster (290400): "user clicks two points, connect it with a
 # dashed line, make a semi-circle over it" - the maintainer's own
@@ -2682,54 +2717,13 @@ def _mine_cluster_symbol():
     return symbol
 
 
-def _trip_wire_symbol():
-
-    """
-    Trip Wire (290500) - two clicked anchor points (PT1, PT2), built
-    from the maintainer's own dictated construction rather than the
-    standard's own template picture (see mct_trip_wire_geometry's own
-    docstring for the exact wording and why it replaced an earlier,
-    3-point reading): the main PT1-PT2 line, two perpendicular
-    crossbars at 1/7 and 1/2 of the way along it, and a 90 degree
-    anticlockwise arc at PT2. Unlike Mine Cluster, the standard's own
-    draw rules carry no "always dashed" note for this symbol, so it
-    follows the ordinary H.5.1.1.3 present/planned rule like the rest
-    of the wire family - solid when present, dashed when planned.
-    """
-
-    line_layer = QgsSimpleLineSymbolLayer()
-
-    line_layer.setWidth(_AREA_OUTLINE_WIDTH_MM)
-
-    _apply_obstacle_color(
-        line_layer,
-        [QgsSymbolLayer.Property.StrokeColor],
-        _AREA_OUTLINE_COLOR_EXPRESSION
-    )
-
-    line_layer.setDataDefinedProperty(
-        QgsSymbolLayer.Property.StrokeStyle,
-        QgsProperty.fromExpression(_STATUS_LINE_STYLE_EXPRESSION)
-    )
-
-    generator = QgsGeometryGeneratorSymbolLayer.create({})
-
-    generator.setSymbolType(QgsSymbol.SymbolType.Line)
-
-    generator.setGeometryExpression("mct_trip_wire_geometry($geometry)")
-
-    inner = QgsLineSymbol()
-
-    inner.changeSymbolLayer(0, line_layer)
-
-    generator.setSubSymbol(inner)
-
-    symbol = QgsLineSymbol()
-
-    symbol.changeSymbolLayer(0, generator)
-
-    return symbol
-
+# Trip Wire (290500) moved to the Points layer as a fixed page-size
+# glyph, U-4, 2026-08-19 - see create_obstacle_control_measures_points_
+# layer() and mct_trip_wire_point_geometry(). Its own line-family
+# builder (_trip_wire_symbol(), which rode mct_trip_wire_geometry()) is
+# retired along with it; TRIP_WIRE_MEASURE_TYPE_LABELS/CODES are gone
+# too - see the old merge site, now just a comment, near
+# LINE_MEASURE_TYPE_LABELS below.
 
 # B5 - obstacle effects (270501-270504), all four now built. Table
 # H-XIX's own hardest batch: Block and Turn started from the standard's
@@ -4185,26 +4179,22 @@ def _roadblock_complete_symbol():
 
 
 # B4 is now fully built (17 of 17) - all of Table H-XIX's own line
-# obstacles this project's audit confirmed buildable.
+# obstacles this project's audit confirmed buildable. (17, not 18: Trip
+# Wire moved to the Points layer, U-4, 2026-08-19 - see
+# create_obstacle_control_measures_points_layer() and
+# mct_trip_wire_point_geometry(). TRIP_WIRE_MEASURE_TYPE_LABELS/CODES,
+# which used to live here as their own small dict alongside Mine
+# Cluster's, are gone with it.)
 #
-# Mine Cluster and Trip Wire are neither the wire family nor the
-# toothed family, so each gets its own small dict rather than folding
-# into either - fixed constructions (a generated arc, a generated
-# hooked path), nothing repeating along a line.
+# Mine Cluster is neither the wire family nor the toothed family, so it
+# gets its own small dict rather than folding into either - a fixed
+# construction (a generated arc), nothing repeating along a line.
 MINE_CLUSTER_MEASURE_TYPE_LABELS = {
     "mine_cluster": "Mine Cluster",
 }
 
 MINE_CLUSTER_MEASURE_TYPE_CODES = {
     "mine_cluster": "290400",
-}
-
-TRIP_WIRE_MEASURE_TYPE_LABELS = {
-    "trip_wire": "Trip Wire",
-}
-
-TRIP_WIRE_MEASURE_TYPE_CODES = {
-    "trip_wire": "290500",
 }
 
 # B5 - obstacle effects, all 4 now built (270501-270504). Disrupt and
@@ -4312,7 +4302,6 @@ _B7_MERGED_CODES = {
 LINE_MEASURE_TYPE_LABELS = dict(WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(TOOTHED_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(MINE_CLUSTER_MEASURE_TYPE_LABELS)
-LINE_MEASURE_TYPE_LABELS.update(TRIP_WIRE_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(B5_EFFECTS_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(B6_ROADBLOCKS_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_LABELS.update(B7_CROSSINGS_MEASURE_TYPE_LABELS)
@@ -4320,7 +4309,6 @@ LINE_MEASURE_TYPE_LABELS.update(B7_CROSSINGS_MEASURE_TYPE_LABELS)
 LINE_MEASURE_TYPE_CODES = dict(WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(TOOTHED_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(MINE_CLUSTER_MEASURE_TYPE_CODES)
-LINE_MEASURE_TYPE_CODES.update(TRIP_WIRE_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(B5_EFFECTS_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(B6_ROADBLOCKS_MEASURE_TYPE_CODES)
 LINE_MEASURE_TYPE_CODES.update(B7_CROSSINGS_MEASURE_TYPE_CODES)
@@ -4331,7 +4319,7 @@ _LINE_SYMBOL_BUILDERS = {
     )
     for measure_type in LINE_MEASURE_TYPE_LABELS
     if measure_type not in (
-        "abatis", "antitank_ditch_reinforced", "mine_cluster", "trip_wire",
+        "antitank_ditch_reinforced", "mine_cluster",
         "block", "disrupt", "fix", "turn",
         "obstacle_bypass_easy", "obstacle_bypass_difficult",
         "obstacle_bypass_impossible", "bridge_or_gap", "roadblock_planned",
@@ -4342,12 +4330,10 @@ _LINE_SYMBOL_BUILDERS = {
     )
 }
 
-_LINE_SYMBOL_BUILDERS["abatis"] = _abatis_symbol
 _LINE_SYMBOL_BUILDERS["antitank_ditch_reinforced"] = (
     _antitank_ditch_reinforced_symbol
 )
 _LINE_SYMBOL_BUILDERS["mine_cluster"] = _mine_cluster_symbol
-_LINE_SYMBOL_BUILDERS["trip_wire"] = _trip_wire_symbol
 _LINE_SYMBOL_BUILDERS["block"] = _block_symbol
 _LINE_SYMBOL_BUILDERS["disrupt"] = _disrupt_symbol
 _LINE_SYMBOL_BUILDERS["fix"] = _fix_symbol
