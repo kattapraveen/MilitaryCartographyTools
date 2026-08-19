@@ -47,6 +47,7 @@ from MilitaryCartographyTools.military_symbology.sidc import (
 )
 from MilitaryCartographyTools.military_symbology.symbol_engine import (
     render_symbol_svg,
+    scale_svg_stroke_width,
 )
 
 import base64
@@ -459,17 +460,24 @@ class TestCbrnSmokeTestFixes(QgisTestCase):
 
         # ...and both are exactly what the icon renders with no
         # designation asked for at all. ("<text" alone would not do:
-        # the icon's own "DCN" is text too.)
+        # the icon's own "DCN" is text too.) Wrapped in
+        # scale_svg_stroke_width() at mct_sidc_svg()'s own default
+        # stroke_scale (U-3, 2026-08-19) - render_symbol_svg() alone
+        # returns milsymbol's raw, unscaled stroke widths, which is no
+        # longer what the layer itself actually draws.
         self.assertEqual(
             svgs[0],
-            render_symbol_svg(
-                build_sidc(
-                    "friend",
-                    "decontamination_point",
-                    symbol_set="control_measure",
-                    echelon="unspecified",
-                    status="present",
-                )
+            scale_svg_stroke_width(
+                render_symbol_svg(
+                    build_sidc(
+                        "friend",
+                        "decontamination_point",
+                        symbol_set="control_measure",
+                        echelon="unspecified",
+                        status="present",
+                    )
+                ),
+                military_symbology_functions.DEFAULT_STROKE_SCALE
             )
         )
 

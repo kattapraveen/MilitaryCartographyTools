@@ -159,6 +159,72 @@ class TestMctSidcSvgFunction(QgisTestCase):
         self.assertTrue(result.startswith("base64:"))
 
 
+    def _svg_for(self, sidc, stroke_scale_arg):
+
+        expression = QgsExpression(
+            f"mct_sidc_svg('{sidc}', '', '', '', {stroke_scale_arg})"
+        )
+
+        context = QgsExpressionContext()
+
+        result = expression.evaluate(context)
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return base64.b64decode(result[len("base64:"):]).decode("utf-8")
+
+
+    def test_default_stroke_scale_applies_when_the_fifth_argument_is_omitted(self):
+
+        # U-3, 2026-08-19: every mct_sidc_svg() call in the plugin omits
+        # this argument, so DEFAULT_STROKE_SCALE is what makes the
+        # thickening global - see that constant's own comment.
+        sidc = build_sidc(affiliation="friend", entity="infantry")
+
+        expression = QgsExpression(f"mct_sidc_svg('{sidc}')")
+        context = QgsExpressionContext()
+        result = expression.evaluate(context)
+
+        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
+
+        omitted_svg = base64.b64decode(
+            result[len("base64:"):]
+        ).decode("utf-8")
+
+        explicit_svg = symbol_engine.render_symbol_base64_path(sidc)
+        explicit_svg = base64.b64decode(explicit_svg[len("base64:"):]).decode("utf-8")
+
+        raw_widths = [float(w) for w in re.findall(r'stroke-width="([\d.]+)"', explicit_svg)]
+        omitted_widths = [float(w) for w in re.findall(r'stroke-width="([\d.]+)"', omitted_svg)]
+
+        self.assertTrue(raw_widths)
+        self.assertEqual(len(raw_widths), len(omitted_widths))
+
+        for raw, scaled in zip(raw_widths, omitted_widths):
+            self.assertAlmostEqual(
+                scaled, raw * military_symbology_functions.DEFAULT_STROKE_SCALE,
+                places=6
+            )
+
+
+    def test_an_explicit_stroke_scale_overrides_the_default(self):
+
+        sidc = build_sidc(affiliation="friend", entity="infantry")
+
+        raw_svg = symbol_engine.render_symbol_base64_path(sidc)
+        raw_svg = base64.b64decode(raw_svg[len("base64:"):]).decode("utf-8")
+        raw_widths = [float(w) for w in re.findall(r'stroke-width="([\d.]+)"', raw_svg)]
+
+        overridden_svg = self._svg_for(sidc, "1.0")
+        overridden_widths = [
+            float(w) for w in re.findall(r'stroke-width="([\d.]+)"', overridden_svg)
+        ]
+
+        self.assertEqual(raw_widths, overridden_widths)
+
+
 class TestDominantBaselineIsBakedIn(QgisTestCase):
 
     """

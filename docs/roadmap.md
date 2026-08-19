@@ -10747,6 +10747,76 @@ and detect-secrets both clean.
 
 ---
 
+## U-3: milsymbol stroke width, applied globally (2026-08-19)
+
+**Scope check first.** Asked to fix "too thin" lines, the maintainer's
+own audit of the icon set found roughly 40 entities across a dozen-plus
+modules - the basic Checkpoint/Contact Point/Decision Point/reference-
+point family, every Observation Post variant, Target Reference Point,
+CBRN event triangles, Sonobuoys, and similar - all sharing the same
+thin, unfilled milsymbol frame. Asked directly: "instead of doing this
+one by one, can we just increase the line width by 50% across all
+milsymbols for lines? is that easier?"
+
+**A working global mechanism already existed, unused.** `mct_sidc_svg()`
+has had an optional fifth argument, `stroke_scale`, wired all the way
+through `render_symbol_base64_path()`/`scale_svg_stroke_width()` since
+earlier this session - but no caller (~26 call sites across the plugin)
+had ever passed it. It multiplies every `stroke-width="X"` in the
+RENDERED svg markup directly - deliberately NOT milsymbol's own native
+`strokeWidth` option, which `scale_svg_stroke_width()`'s own docstring
+records as broken: probed directly, that option only widens the
+generated viewBox (108 -> 110.8), leaving every path's own stroke-width
+unchanged - it makes the icon draw SMALLER at a fixed marker size, not
+thicker.
+
+**Two rounds of render comparison before deciding anything**, both
+requested directly rather than assumed:
+
+1. A thin unfilled Checkpoint against a filled Infantry unit box, each
+   at 1.0x and 1.5x. Confirmed live: `stroke_scale` has no way to tell
+   "thin frame-only icon" from "filled unit box" apart - it thickens
+   the outline and internal glyph lines on BOTH. Global was going to
+   mean literally global, not "every thin icon", and the maintainer
+   needed to see that plainly before choosing.
+2. Five of the plugin's own busiest icons - Radiological Event,
+   Decontamination Point, SIGINT Communications, Miniaturized
+   Satellite, Drifter - each at 1.0x and 1.5x, to check nothing goes to
+   mud at a higher stroke weight on fine internal linework. None did;
+   Communications' own delicate antenna glyph (the busiest of the
+   five) held up legibly even at 1.5x, just visibly fuller at its
+   joints.
+
+**Landed at 1.3x** - the maintainer's own choice after both
+comparisons, between the 1.5x first tried and milsymbol's own
+unscaled 1.0x. `DEFAULT_STROKE_SCALE = 1.3` in
+`expressions/military_symbology_functions.py`, applied as the
+FALLBACK for `mct_sidc_svg()`'s/`mct_sidc_svg_width()`'s own
+`stroke_scale` argument rather than a new call anywhere - since every
+existing caller omits that argument, changing its own default in one
+place reaches all ~26 of them without touching any caller's own
+expression text. A caller that ever needs a different value (or
+milsymbol's own true 1.0x) still can, by passing its own fifth
+argument.
+
+**Deliberately not touching Trip Wire/Abatis** - those are hand-built
+inline SVGs (`mct_trip_wire_svg()`/`mct_abatis_svg()`), never routed
+through `mct_sidc_svg()` or milsymbol at all, and were already widened
+directly in the entry above, the same day.
+
+One existing test (`test_cbrn_defense.py`'s
+`test_an_empty_designation_leaves_the_icon_alone`) compared a layer's
+own rendered icon against a hand-computed "reference" that called
+`render_symbol_svg()` directly, bypassing `mct_sidc_svg()` entirely -
+correct before this change, since both sides were equally unscaled;
+updated to wrap that reference in `scale_svg_stroke_width(...,
+DEFAULT_STROKE_SCALE)` too, matching what the layer itself now
+actually draws. 2 new tests confirm the default applies when the fifth
+argument is omitted and that an explicit value still overrides it.
+1444 -> 1446 tests on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

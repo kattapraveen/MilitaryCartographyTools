@@ -76,6 +76,44 @@ def _distance_area():
 # SIDC-to-symbol renderer
 # ============================================================
 
+# U-3 (build tracker), 2026-08-19: every milsymbol-rendered icon in the
+# plugin gets its stroke width multiplied by this factor, by default -
+# "Tripwire... etc" 's own smoke test (obstacle points, previous
+# session entry) started the thin-line complaint, but the maintainer's
+# own follow-up audit found ~40 line/frame-only entities affected
+# across a dozen-plus modules (checkpoints, reference points,
+# observation posts, sonobuoys, and similar) - too many to fix one by
+# one. Landed here, globally, rather than per-entity, after two rounds
+# of render comparison the maintainer asked for directly: first a thin
+# unfilled Checkpoint against a filled Infantry unit box side by side
+# (confirming this ALSO thickens filled icons' own outlines, not just
+# the thin ones - an accepted trade-off, not a surprise), then five of
+# the plugin's own busiest icons (Radiological Event, Decontamination
+# Point, SIGINT Communications, Miniaturized Satellite, Drifter) to
+# check nothing goes to mud at the higher stroke weight - none did,
+# Communications' own fine internal linework (the busiest of the five)
+# held up legibly even at 1.5x. Landed at 1.3x, the maintainer's own
+# choice after seeing both comparisons, not the 1.5x first tried.
+#
+# Applied via `stroke_scale`, mct_sidc_svg()'s own optional fifth
+# argument (already wired end to end - see scale_svg_stroke_width() -
+# but never exercised by any caller until now): every one of this
+# project's ~26 mct_sidc_svg()/mct_sidc_svg_width() call sites omits
+# that argument, so changing ITS OWN fallback below, in one place,
+# reaches every one of them without touching any caller's own
+# expression text. A caller that ever needs a DIFFERENT stroke_scale
+# (or explicitly wants milsymbol's own unscaled 1.0x) still can, by
+# passing a fifth argument of its own - this default only fills in for
+# "not given".
+#
+# Deliberately NOT applied to Trip Wire/Abatis (obstacle_control_
+# measures.py) - those are hand-built inline SVGs (mct_trip_wire_svg()/
+# mct_abatis_svg()), never routed through mct_sidc_svg() or milsymbol
+# at all, and were already widened directly, the same day, after their
+# own separate smoke-test report.
+DEFAULT_STROKE_SCALE = 1.3
+
+
 @qgsfunction(
     'mct_sidc_svg',
     group='Military Cartography Tools'
@@ -155,7 +193,18 @@ def mct_sidc_svg(values, feature=None, parent=None):
     # AND fill across the whole icon, so it needs no post-processing of
     # the returned SVG.
     mono_color = str(values[3]) if len(values) > 3 and values[3] else None
-    stroke_scale = float(values[4]) if len(values) > 4 and values[4] else None
+
+    # Optional FIFTH argument: stroke_scale, defaulting to
+    # DEFAULT_STROKE_SCALE (see that constant's own comment for the
+    # full U-3 story) rather than to "no scaling" - every existing
+    # caller omits this argument, so this default is what actually
+    # makes the plugin-wide thickening global. A caller that explicitly
+    # passes its own value (including 1.0, milsymbol's own unscaled
+    # stroke) still overrides it.
+    stroke_scale = (
+        float(values[4]) if len(values) > 4 and values[4]
+        else DEFAULT_STROKE_SCALE
+    )
 
     # Optional SIXTH and SEVENTH arguments: a SECOND text and its own
     # slot, for the one icon that needs two amplifiers at once - Table
@@ -223,7 +272,19 @@ def mct_sidc_svg_width(values, feature=None, parent=None):
     )
 
     mono_color = str(values[3]) if len(values) > 3 and values[3] else None
-    stroke_scale = float(values[4]) if len(values) > 4 and values[4] else None
+
+    # Same DEFAULT_STROKE_SCALE fallback as mct_sidc_svg() - kept in
+    # sync so the two stay callable "side by side with the same
+    # expression text" per this function's own docstring above, even
+    # though scale_svg_stroke_width() never changes the viewBox this
+    # function actually reads (stroke_scale has no effect on the
+    # returned width today - see that function's own docstring for
+    # why - but a mismatched default here would be a trap for whatever
+    # relies on that "same arguments" contract next).
+    stroke_scale = (
+        float(values[4]) if len(values) > 4 and values[4]
+        else DEFAULT_STROKE_SCALE
+    )
 
     # Optional SIXTH and SEVENTH arguments: a SECOND text and its own
     # slot, for the one icon that needs two amplifiers at once - Table
