@@ -11009,6 +11009,22 @@ this fix, needs that one manual re-add.
 
 ---
 
+## U-2 — closed (2026-08-19)
+
+Smoke-tested by the maintainer across both rollout passes and
+confirmed fully clear: the shared single-domain builder's 8 domains,
+Trip Wire/Abatis (U-4), the six modules with their own point renderer,
+the two anchor-line fixes, and Obstacle Control Measures Points' full
+entity set. The build tracker's own U-2 item has been removed as a
+result, per the maintainer's standing "remove cleared items"
+instruction; this entry is the permanent record of the pass.
+
+Every U-series item raised 2026-08-17 (U-1 through U-4) is now closed.
+Only V-1/V-2 (Viewshed) and P-11 (non-NATO symbology, blocked on the
+maintainer's own scope) remain on the tracker.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
