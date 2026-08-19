@@ -711,9 +711,23 @@ _CUSTOM_SHAPE_NAME_EXPRESSION = (
 # "scale" field (configure_rotation_and_scale_fields()) - unlike the
 # other 13 entities, which don't get a designation-compensation ratio
 # either, since neither custom shape carries one.
+#
+# _CUSTOM_SHAPE_SIZE_MULTIPLIER (2026-08-19, same day as the kink fix
+# above): "increase overall size by 10%", raised against Trip Wire but
+# applied to BOTH here, deliberately - mct_abatis_svg() was rebuilt the
+# same day to share Trip Wire's own declared canvas and stroke width
+# exactly, specifically so the two stay in lockstep at whatever size
+# this multiplier ends up being; scaling only one would break that.
+# QGIS scales an SVG marker uniformly from its declared width to this
+# target millimetre size, so this single multiplier grows the whole
+# icon - path AND stroke - together, without needing a second, separate
+# edit to either function's own SVG numbers.
+_CUSTOM_SHAPE_SIZE_MULTIPLIER = 1.10
+
 _CUSTOM_SHAPE_SIZE_EXPRESSION = (
     "CASE WHEN \"entity\" IN ('trip_wire', 'abatis') THEN "
-    f'{_POINTS_DEFAULT_MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
+    f'{_POINTS_DEFAULT_MARKER_SIZE_MM * _CUSTOM_SHAPE_SIZE_MULTIPLIER:g}'
+    ' * coalesce("scale", 100) / 100.0'
     f" ELSE ({stabilised_point_size_expression(_POINT_SIZE_EXPRESSION, _POINTS_SIDC_EXPRESSION)})"
     " END"
 )

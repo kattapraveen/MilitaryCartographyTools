@@ -1072,21 +1072,47 @@ def mct_abatis_svg(values, feature=None, parent=None):
     the beginning - the line segments should be in a ratio of about
     1:4." The first render-verified guess had centred the kink roughly
     at the icon's own midpoint (40-unit total length, kink spanning
-    12-28, apex offset 14) - too far from the anchor and too large.
-    Now: apex offset 8 (was 14, -43%) and kink span 6-16 (height 10,
-    was 16, -37.5%), centred at 11 - solved so the straight run before
-    the kink (6 units) to the straight run after it (24 units) comes
-    out to exactly 1:4, matching the maintainer's own ratio.
+    12-28, apex offset 14) - too far from the anchor and too large. That
+    pass fixed the kink's own proportions (stub-in : stub-out = 1:4,
+    depth ~40% smaller) but kept the icon drawn vertically at a much
+    smaller declared size than mct_trip_wire_svg() - the two hadn't
+    been compared side by side.
 
-    Drawn pointing due NORTH (up), unrotated - the marker's own Angle
-    data-defined property (see configure_rotation_and_scale_fields())
-    handles rotation directly, the same as every other point icon in
-    this project; this function never needs to know about it.
+    **Rebuilt again the same day, after the maintainer's own side-by-
+    side smoke test**: "Abatis basic size is too big and by default it
+    is rotated 90 degrees. Rotate it 90 degrees clockwise and reduce
+    size to match that of tripwire. match abatis line width to the
+    tripwire line width." QGIS sizes an SVG marker to a fixed
+    millimetre WIDTH and derives the height from the SVG's own declared
+    aspect ratio - the vertical build's 12-wide/44-tall canvas rendered
+    over 7x TALLER than wide, dwarfing trip wire's own 144-wide/72-tall
+    (2x wider than tall) canvas at the same marker size, which is
+    almost certainly what read as "rotated 90 degrees, too big" against
+    trip wire's own much flatter, wider footprint. Fixed by adopting
+    trip wire's own canvas (144x72) and stroke width (6) EXACTLY, not
+    just similar values - the two icons now share the same rendered
+    width, height and stroke thickness by construction, with only the
+    path itself differing. The kink's own proportions from the fix
+    above carry over unchanged, just rotated 90 degrees clockwise (the
+    stub-in/kink/stub-out run is now horizontal, deviating in Y instead
+    of X) and rescaled from a 40-unit line to a 100-unit one to fit the
+    new canvas: stub-in 15 units, kink span 25 (37 to 62, depth 20),
+    stub-out 60 - still exactly a 1:4 stub-in:stub-out ratio.
+
+    Drawn pointing due EAST (right) at rotation 0, unlike every other
+    icon in this project (which point due north) - a direct consequence
+    of matching trip wire's own north-pointing vertical canvas exactly
+    and then rotating Abatis 90 degrees clockwise within it, per the
+    maintainer's own instruction above. The marker's own Angle data-
+    defined property (see configure_rotation_and_scale_fields())
+    applies on top of this starting orientation, the same as every
+    other point icon in this project; this function never needs to
+    know about it.
 
     `colour` (values[0], default green) and `dashed` (values[1],
     default False - planned status, H.5.1.1.3) are baked directly into
     the returned SVG, the same two-argument convention
-    mct_decoy_chevron_svg() already uses.
+    mct_decoy_chevron_svg()/mct_trip_wire_svg() already use.
     """
 
     colour = str(values[0]) if values and values[0] else "rgb(0,155,0)"
@@ -1095,10 +1121,10 @@ def mct_abatis_svg(values, feature=None, parent=None):
     dash_attr = ' stroke-dasharray="6,5"' if dashed else ''
 
     svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -2 12 44"'
-        ' width="12" height="44">'
-        '<path d="M 0,40 L 0,34 L -8,29 L 0,24 L 0,0" fill="none"'
-        f' stroke="{colour}" stroke-width="3" stroke-linecap="butt"'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 72"'
+        ' width="144" height="72">'
+        '<path d="M 22,36 L 37,36 L 49.5,16 L 62,36 L 122,36" fill="none"'
+        f' stroke="{colour}" stroke-width="6" stroke-linecap="butt"'
         f' stroke-linejoin="round"{dash_attr}/>'
         '</svg>'
     )
@@ -1253,6 +1279,24 @@ def mct_trip_wire_svg(values, feature=None, parent=None):
     so it draws proportionally shorter than a square milsymbol icon at
     the same nominal size.
 
+    **Stroke widened 2026-08-19, same day, after the maintainer's smoke
+    test**: "line width is too less, increase by 50%." All three paths'
+    stroke-width raised from 4 to 6 SVG units - at this icon's own
+    144-unit declared width, the old value rendered under a quarter of
+    a millimetre wide at the layer's default marker size, far thinner
+    than any milsymbol icon on the same layer. The "overall size"
+    increase raised in the same report (+10%) is applied separately, as
+    a multiplier on the shared marker-size expression in
+    obstacle_control_measures.py (`_CUSTOM_SHAPE_SIZE_EXPRESSION`) -
+    QGIS scales an SVG marker uniformly from its declared width to the
+    target millimetre size, so scaling that target size by 1.1 already
+    grows this icon's stroke right along with everything else; this
+    function's own numbers below did not need to change a second time.
+    mct_abatis_svg() shares that same multiplier, and - separately -
+    was resized to match this icon's own declared canvas and stroke
+    width exactly, per the maintainer's own "match abatis line width to
+    the tripwire line width."
+
     Drawn pointing due NORTH (up), unrotated - the marker's own Angle
     data-defined property (see configure_rotation_and_scale_fields())
     handles rotation directly, the same as every other point icon in
@@ -1274,12 +1318,12 @@ def mct_trip_wire_svg(values, feature=None, parent=None):
         ' width="144" height="72">'
         '<path d="M 0,72 L 0,12 L -0.41,8.89 L -1.61,6.00 L -3.52,3.52'
         ' L -6.00,1.61 L -8.89,0.41 L -12,0" fill="none"'
-        f' stroke="{colour}" stroke-width="4" stroke-linecap="butt"'
+        f' stroke="{colour}" stroke-width="6" stroke-linecap="butt"'
         f' stroke-linejoin="round"{dash_attr}/>'
         f'<path d="M 30,63.43 L -30,63.43" fill="none" stroke="{colour}"'
-        f' stroke-width="4" stroke-linecap="butt"{dash_attr}/>'
+        f' stroke-width="6" stroke-linecap="butt"{dash_attr}/>'
         f'<path d="M 72,42 L -72,42" fill="none" stroke="{colour}"'
-        f' stroke-width="4" stroke-linecap="butt"{dash_attr}/>'
+        f' stroke-width="6" stroke-linecap="butt"{dash_attr}/>'
         '</svg>'
     )
 

@@ -10707,6 +10707,44 @@ after it (24) comes out to exactly 1:4. Confirmed by render, not just
 by the numbers - see that function's own docstring for the full before/
 after.
 
+**Trip Wire widened and Abatis rebuilt a second time, same day, after
+the maintainer's own smoke test of both fixes above**: "Tripwire line
+width is too less, increase by 50%, increase overall size by 10%.
+Abatis basic size is too big and by default it is rotated 90 degrees.
+Rotate it 90 degrees clockwise and reduce size to match that of
+tripwire. match abatis line width to the tripwire line width." Two
+separate root causes, found by actually comparing the two icons side
+by side (rendered together for the first time this pass, not
+separately as before):
+
+- Trip Wire's own stroke width (4 SVG units, on a 144-wide declared
+  canvas) rendered under a quarter of a millimetre at this layer's
+  default marker size - far thinner than any milsymbol icon sharing
+  the layer. Raised to 6 in all three of `mct_trip_wire_svg()`'s paths.
+- Abatis's declared canvas (12 wide, 44 tall - a vertical build, kink
+  deviating in X) was over 7x taller than wide, next to Trip Wire's own
+  144-wide/72-tall (2x wider than tall) canvas - almost certainly what
+  read as "rotated 90 degrees, too big" once the two were compared.
+  Rebuilt to adopt Trip Wire's own canvas and stroke width EXACTLY
+  (144x72, stroke 6), with the same kink proportions from the fix
+  above rotated 90 degrees clockwise into it (main run now horizontal,
+  deviating in Y) and rescaled proportionally to the new canvas - still
+  exactly a 1:4 stub-in:stub-out ratio.
+- The "overall size +10%" is a new `_CUSTOM_SHAPE_SIZE_MULTIPLIER`
+  (1.10) in `obstacle_control_measures.py`, applied to both entities'
+  shared marker-size expression rather than to either SVG's own path
+  numbers - QGIS scales an SVG marker uniformly from its declared width
+  to a target millimetre size, so one multiplier grows path and stroke
+  together for both icons at once, keeping them in lockstep now that
+  they share a canvas.
+
+Confirmed by rendering both icons side by side, unrotated and at 90
+degrees: Abatis now reads as comparably sized to Trip Wire, both
+strokes visually match, and the 90-degree rotation behaves consistently
+across both. 1444 tests on both QGIS versions (no test pinned exact
+path coordinates, only structure - colour, dash, path count); Bandit
+and detect-secrets both clean.
+
 ---
 
 ## Suggested near-term order
