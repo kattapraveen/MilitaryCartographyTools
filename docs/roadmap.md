@@ -10988,6 +10988,25 @@ still renders its real icon, one confirming it now rotates and scales
 like every other entity on the layer. 1465 -> 1466 tests on both QGIS
 versions.
 
+**Caveat found the same day, while the maintainer smoke-tested this
+fix**: an Obstacle Control Measures Points layer already sitting in a
+saved project (added before this fix landed) does not pick up
+rotation/scale after just updating the plugin and reopening that
+project - rotation and scale stay inert, exactly as before, on that
+one already-saved layer. Confirmed as expected behaviour, not a bug:
+QGIS serializes a layer's own renderer (the symbol, its data-defined
+properties, everything) into the project file at save time, and
+reopening a project reconstructs the layer from what was saved rather
+than re-running this plugin's `_build_points_renderer()` - the same
+category of "old layer keeps its old style" behaviour already accepted
+for S-3 (an old 1.0.3 layer stays on its own recorded edition after
+the plugin is updated). Deleting and re-adding the layer rebuilds it
+with the current code and picks up the new wiring immediately, which
+is exactly what the maintainer found by hand. Nothing to fix - a
+brand-new layer in any project, old or new, gets rotation/scale
+automatically; only a layer added by an OLDER plugin version, before
+this fix, needs that one manual re-add.
+
 ---
 
 ## Suggested near-term order
