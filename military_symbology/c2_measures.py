@@ -167,6 +167,7 @@ from qgis.PyQt.QtCore import QMetaType, QPointF
 from qgis.PyQt.QtGui import QColor
 
 from ._control_measure_shared import (
+    configure_rotation_and_scale_fields,
     stabilised_point_size_expression,
     AFFILIATION_LABELS,
     ECHELON_LABELS,
@@ -1118,6 +1119,9 @@ def _configure_points_attribute_form(layer):
     layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'checkpoint'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
+    # U-2 rollout (build tracker), 2026-08-19.
+    configure_rotation_and_scale_fields(layer)
+
 
 # Every entity sharing the box+cone icon construction (confirmed by an
 # IDENTICAL rendered SVG path across all of them, not assumed from name
@@ -1261,8 +1265,33 @@ def _distress_call_anchor_line_layer():
         _DISTRESS_CALL_ANCHOR_LINE_LENGTH_MM
     )
 
-    line_layer.setAngle(
-        _DISTRESS_CALL_ANCHOR_LINE_ANGLE
+    # U-2 rollout (build tracker), 2026-08-19: "rotation" is ADDED to
+    # this line's own fixed base angle, data-defined, rather than
+    # replacing the static setAngle() above (kept as the property's own
+    # default for a feature with no rotation field yet, e.g. an older
+    # saved project). QgsSimpleMarkerSymbolLayer's own `angle` rotates
+    # BOTH the drawn line AND its own pre-computed `offset` together
+    # (confirmed above) - exactly what's needed to keep this line
+    # attached to the icon as the whole feature turns, with no separate
+    # offset recalculation required.
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Angle,
+        QgsProperty.fromExpression(
+            f'{_DISTRESS_CALL_ANCHOR_LINE_ANGLE:g} + coalesce("rotation", 0)'
+        )
+    )
+
+    # "scale" (U-2 rollout, 2026-08-19) grows the line proportionally
+    # with the icon. Its own `offset` is NOT re-derived for scale (only
+    # for the angle above) - a scaled Distress Call sits fractionally
+    # off its own icon's edge at extreme scale values, a minor cosmetic
+    # gap on one entity's own decorative line, not the icon itself.
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Size,
+        QgsProperty.fromExpression(
+            f'{_DISTRESS_CALL_ANCHOR_LINE_LENGTH_MM:g}'
+            ' * coalesce("scale", 100) / 100.0'
+        )
     )
 
     line_layer.setOffset(
@@ -1297,12 +1326,16 @@ def _build_points_renderer():
     )
 
     # Holds the icon still when a designation is typed -
-    # see stabilised_point_size_expression().
+    # see stabilised_point_size_expression(). "scale" (U-2 rollout,
+    # 2026-08-19) multiplies the base size BEFORE that compensation is
+    # applied - see _point_symbol_layer.py's own _build_renderer() for
+    # why that order matters.
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
             stabilised_point_size_expression(
-                _POINT_SIZE_EXPRESSION, _POINT_SIDC_EXPRESSION
+                f'({_POINT_SIZE_EXPRESSION}) * coalesce("scale", 100) / 100.0',
+                _POINT_SIDC_EXPRESSION
             )
         )
     )
@@ -1313,6 +1346,14 @@ def _build_points_renderer():
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.VerticalAnchor,
         QgsProperty.fromExpression(_POINT_VERTICAL_ANCHOR_EXPRESSION)
+    )
+
+    # U-2 rollout (build tracker), 2026-08-19: "rotation" drives the
+    # marker's own Angle property directly, the same convention every
+    # other point icon in this project uses.
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Angle,
+        QgsProperty.fromExpression('coalesce("rotation", 0)')
     )
 
     symbol.changeSymbolLayer(
@@ -1350,6 +1391,8 @@ def create_c2_measures_points_layer(name=POINTS_LAYER_NAME):
             QgsField("entity", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("rotation", QMetaType.Type.Double),
+            QgsField("scale", QMetaType.Type.Double),
         ]
     )
 

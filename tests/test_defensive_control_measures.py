@@ -59,6 +59,7 @@ from MilitaryCartographyTools.military_symbology.defensive_control_measures impo
     create_defensive_control_measures_areas_layer,
     create_defensive_control_measures_lines_layer,
     create_defensive_control_measures_points_layer,
+    _forward_observer_anchor_line_geometry,
 )
 
 
@@ -631,7 +632,10 @@ class TestCreateDefensiveControlMeasuresPointsLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["affiliation", "entity", "status", "unique_designation"]
+            [
+                "affiliation", "entity", "status", "unique_designation",
+                "rotation", "scale",
+            ]
         )
 
 
@@ -1673,3 +1677,164 @@ class TestLetterTicksAreShortenedNotRemoved(QgisTestCase):
             self.assertGreater(
                 math.hypot(foot.x() - end.x(), foot.y() - end.y()), 1.0
             )
+
+
+class TestPointsRotationAndScale(QgisTestCase):
+
+    """
+    U-2 rollout (build tracker), 2026-08-19 - see
+    test_control_measure_shared.py for the shared widget/default
+    contract. Forward Observer's own second symbol layer (the diagonal
+    anchor line milsymbol.js's own icon has no separate slot for) needs
+    its own check: "rotation" has to be ADDED to that layer's fixed
+    base angle, not just to the icon's own Angle property, or the line
+    stops tracking the icon as the whole feature turns.
+
+    Unlike c2_measures.py's own Distress Call, this layer's anchor line
+    is symbolLayer(0) and the SVG icon is symbolLayer(1) - the opposite
+    order, deliberate (see this module's own "Bug 2" comment) - and its
+    base angle is computed per-call, not a fixed module constant, so
+    the expected value here is recomputed the same way rather than
+    hardcoded.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+
+    def _feature(self, layer, entity, rotation, scale):
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", entity)
+        feature.setAttribute("status", "present")
+
+        if rotation is not None:
+            feature.setAttribute("rotation", rotation)
+
+        if scale is not None:
+            feature.setAttribute("scale", scale)
+
+        return feature
+
+
+    def test_icon_rotation_and_scale(self):
+
+        layer = create_defensive_control_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(1)
+
+        context = layer.createExpressionContext()
+        context.setFeature(
+            self._feature(layer, "observation_post", rotation=200, scale=None)
+        )
+
+        angle, angle_ok = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Angle, context, 0.0
+        )
+
+        self.assertTrue(angle_ok)
+        self.assertAlmostEqual(angle, 200.0, places=6)
+
+        context_100 = layer.createExpressionContext()
+        context_100.setFeature(
+            self._feature(layer, "observation_post", rotation=None, scale=100)
+        )
+        context_200 = layer.createExpressionContext()
+        context_200.setFeature(
+            self._feature(layer, "observation_post", rotation=None, scale=200)
+        )
+
+        size_100, ok_100 = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_100, 0.0
+        )
+        size_200, ok_200 = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_200, 0.0
+        )
+
+        self.assertTrue(ok_100)
+        self.assertTrue(ok_200)
+        self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
+
+
+    def test_forward_observers_own_anchor_line_rotates_with_the_icon(self):
+
+        layer = create_defensive_control_measures_points_layer()
+
+        anchor_line_layer = layer.renderer().symbol().symbolLayer(0)
+
+        _, raw_base_angle, _ = _forward_observer_anchor_line_geometry()
+
+        # The production expression bakes this constant in via an f-string
+        # `:g` format (6 significant figures), same as the module's own
+        # size expressions - round-tripped here too so the comparison
+        # isn't chasing precision the expression string never carried.
+        base_angle = float(f"{raw_base_angle:g}")
+
+        for rotation, expected_angle in (
+            (None, base_angle),
+            (0, base_angle),
+            (40, base_angle + 40),
+        ):
+
+            with self.subTest(rotation=rotation):
+
+                context = layer.createExpressionContext()
+                context.setFeature(
+                    self._feature(
+                        layer,
+                        "observation_post_forward_observer",
+                        rotation=rotation,
+                        scale=None,
+                    )
+                )
+
+                angle, ok = anchor_line_layer.dataDefinedProperties().valueAsDouble(
+                    QgsSymbolLayer.Property.Angle, context, 0.0
+                )
+
+                self.assertTrue(ok)
+                self.assertAlmostEqual(angle, expected_angle, places=6)
+
+
+    def test_forward_observers_own_anchor_line_scales_with_the_icon(self):
+
+        layer = create_defensive_control_measures_points_layer()
+
+        anchor_line_layer = layer.renderer().symbol().symbolLayer(0)
+
+        context_100 = layer.createExpressionContext()
+        context_100.setFeature(
+            self._feature(
+                layer, "observation_post_forward_observer",
+                rotation=None, scale=100
+            )
+        )
+        context_200 = layer.createExpressionContext()
+        context_200.setFeature(
+            self._feature(
+                layer, "observation_post_forward_observer",
+                rotation=None, scale=200
+            )
+        )
+
+        size_100, ok_100 = anchor_line_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_100, 0.0
+        )
+        size_200, ok_200 = anchor_line_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_200, 0.0
+        )
+
+        self.assertTrue(ok_100)
+        self.assertTrue(ok_200)
+        self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)

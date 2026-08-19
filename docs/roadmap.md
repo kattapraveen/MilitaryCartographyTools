@@ -10832,6 +10832,77 @@ on the tracker.
 
 ---
 
+## U-3 — closed (2026-08-19)
+
+Smoke-tested by the maintainer and confirmed clear. Build tracker's
+own U-3 item removed per the standing "remove cleared items"
+instruction; the U-3 entry above (global 1.3x stroke scale) is the
+permanent record.
+
+---
+
+## U-2 rollout — the remaining ~15 modules (2026-08-19)
+
+Extends rotation and scale to every module that builds its own point
+renderer instead of going through `_point_symbol_layer.py`'s shared
+builder - the follow-up explicitly deferred when U-2 first landed. An
+investigation pass first cut the "~15" figure down to the real count:
+of every `military_symbology/*.py` file constructing a
+`QgsSvgMarkerSymbolLayer`/`QgsMarkerSymbol`, only **six** build a
+genuine standalone point-icon layer that didn't already have this
+wiring - `airspace_control_measures.py`, `c2_measures.py`,
+`defensive_control_measures.py`, `maritime_control_measures.py`,
+`offensive_control_measures.py`, `target_control_measures.py`. The
+rest either already delegate to the shared builder
+(`cbrn_defense.py`, `field_fortification.py`,
+`mission_task_control_measures.py`, `supply_points.py` - no work
+needed) or construct markers for something other than a point icon
+(line/area decorations in `maneuver_control_measures.py` and its `_2`
+sibling; `target_acquisition_control_measures.py`'s Range Fans layer,
+which has no icon glyph at all to rotate - flagged, not folded in
+here, a separate design question if it's ever wanted).
+
+Each of the six got the same treatment `obstacle_control_measures.py`
+already established for U-4: two new fields (`rotation`, `scale`) via
+`configure_rotation_and_scale_fields()` - the shared widget/default/
+alias helper in `_control_measure_shared.py`, exercised directly for
+the first time this pass in its own new test file
+(`test_control_measure_shared.py`) rather than only indirectly through
+each caller - `"scale"` folded into the base size expression BEFORE
+`stabilised_point_size_expression()`'s own designation-compensation
+ratio (same ordering as U-2's first landing, so a scaled icon still
+holds its size when a designation is typed into it), and `"rotation"`
+wired to the marker's own `Angle` property.
+
+**Two modules needed more care.** `c2_measures.py` (Distress Call) and
+`defensive_control_measures.py` (Forward Observer) each draw a SECOND
+symbol layer on top of the SVG icon - a small diagonal anchor line
+milsymbol.js's own icon has no slot for, built via
+`QgsSimpleMarkerSymbolLayer` at a fixed base angle. Setting Angle only
+on the icon would have left these lines standing still while the icon
+turned, breaking the maintainer's own explicit requirement from
+earlier this session ("any addition eg modifiers, field t etc - all of
+them should be rotated as one unit of the symbol"). Fixed by ADDING
+`"rotation"` to each line's own fixed base angle (data-defined,
+`f'{base_angle:g} + coalesce("rotation", 0)'`) rather than replacing
+it - `QgsSimpleMarkerSymbolLayer`'s own `angle` property already
+rotates both the drawn line AND its own pre-computed `offset` together
+around the feature's point (documented and confirmed by render in this
+project already, see `_distress_call_anchor_line_offset()`'s own
+comment), so no separate offset recalculation was needed - just the
+same rotation value added to what was already there. Confirmed by
+rendering Distress Call and Forward Observer at 0/90/180/270 degrees:
+both anchor lines stay attached to their icon at every angle. `"scale"`
+was also applied to each line's own length, though its static `offset`
+is not re-derived for scale - a minor, accepted cosmetic gap on these
+two entities' own decorative lines at extreme scale values, not the
+icon itself.
+
+6 new/extended test files (one per module, plus the new shared-helper
+test file), 1446 -> 1463 tests on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

@@ -671,7 +671,10 @@ class TestCreateTargetControlMeasuresPointsLayer(QgisTestCase):
 
         self.assertEqual(
             [field.name() for field in layer.fields()],
-            ["affiliation", "entity", "status", "unique_designation"]
+            [
+                "affiliation", "entity", "status", "unique_designation",
+                "rotation", "scale",
+            ]
         )
 
 
@@ -861,3 +864,78 @@ class TestCreateTargetControlMeasuresPointsLayer(QgisTestCase):
             len(QgsProject.instance().mapLayersByName(POINTS_LAYER_NAME)),
             1
         )
+
+
+class TestPointsRotationAndScale(QgisTestCase):
+
+    """
+    U-2 rollout (build tracker), 2026-08-19 - see
+    test_control_measure_shared.py for the shared widget/default
+    contract; this only checks THIS module's own Angle/Size wiring
+    actually uses the fields it declares.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+
+    def _size_and_angle(self, layer, rotation, scale):
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", "point_target")
+        feature.setAttribute("status", "present")
+
+        if rotation is not None:
+            feature.setAttribute("rotation", rotation)
+
+        if scale is not None:
+            feature.setAttribute("scale", scale)
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        properties = layer.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties()
+
+        size, size_ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Size, context, 0.0
+        )
+        angle, angle_ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Angle, context, 0.0
+        )
+
+        self.assertTrue(size_ok)
+        self.assertTrue(angle_ok)
+
+        return size, angle
+
+
+    def test_rotation_drives_the_angle_property(self):
+
+        layer = create_target_control_measures_points_layer()
+
+        _, angle = self._size_and_angle(layer, rotation=200, scale=None)
+
+        self.assertAlmostEqual(angle, 200.0, places=6)
+
+
+    def test_scale_multiplies_the_base_size(self):
+
+        layer = create_target_control_measures_points_layer()
+
+        size_100, _ = self._size_and_angle(layer, rotation=None, scale=100)
+        size_200, _ = self._size_and_angle(layer, rotation=None, scale=200)
+
+        self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)

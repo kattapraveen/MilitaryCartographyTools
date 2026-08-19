@@ -100,6 +100,7 @@ from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QColor
 
 from ._control_measure_shared import (
+    configure_rotation_and_scale_fields,
     stabilised_point_size_expression,
     AFFILIATION_LABELS,
     POINT_AFFILIATION_LABELS,
@@ -761,6 +762,9 @@ def _configure_points_attribute_form(layer):
     layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'point_target'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
+    # U-2 rollout (build tracker), 2026-08-19.
+    configure_rotation_and_scale_fields(layer)
+
 
 def _build_points_renderer():
 
@@ -778,12 +782,16 @@ def _build_points_renderer():
     )
 
     # Holds the icon still when a designation is typed -
-    # see stabilised_point_size_expression().
+    # see stabilised_point_size_expression(). "scale" (U-2 rollout,
+    # 2026-08-19) multiplies the base size BEFORE that compensation is
+    # applied - see _point_symbol_layer.py's own _build_renderer() for
+    # why that order matters.
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
             stabilised_point_size_expression(
-                _POINT_SIZE_EXPRESSION, _POINTS_SIDC_EXPRESSION
+                f'({_POINT_SIZE_EXPRESSION}) * coalesce("scale", 100) / 100.0',
+                _POINTS_SIDC_EXPRESSION
             )
         )
     )
@@ -796,6 +804,14 @@ def _build_points_renderer():
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.VerticalAnchor,
         QgsProperty.fromExpression(_POINT_VERTICAL_ANCHOR_EXPRESSION)
+    )
+
+    # U-2 rollout (build tracker), 2026-08-19: "rotation" drives the
+    # marker's own Angle property directly, the same convention every
+    # other point icon in this project uses.
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Angle,
+        QgsProperty.fromExpression('coalesce("rotation", 0)')
     )
 
     symbol.changeSymbolLayer(
@@ -828,6 +844,8 @@ def create_target_control_measures_points_layer(name=POINTS_LAYER_NAME):
             QgsField("entity", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("rotation", QMetaType.Type.Double),
+            QgsField("scale", QMetaType.Type.Double),
         ]
     )
 

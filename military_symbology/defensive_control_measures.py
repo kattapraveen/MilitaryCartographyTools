@@ -162,6 +162,7 @@ from qgis.PyQt.QtGui import QColor
 from ..core.text_format import build_text_format
 
 from ._control_measure_shared import (
+    configure_rotation_and_scale_fields,
     stabilised_point_size_expression,
     AFFILIATION_LABELS,
     LABEL_FONT_SIZE,
@@ -1384,6 +1385,36 @@ def _forward_observer_anchor_line_layer():
         angle_degrees
     )
 
+    # U-2 rollout (build tracker), 2026-08-19: "rotation" is ADDED to
+    # this line's own fixed base angle, data-defined, rather than
+    # replacing the static setAngle() above (kept as the property's own
+    # default for a feature with no rotation field yet, e.g. an older
+    # saved project). QgsSimpleMarkerSymbolLayer's own `angle` rotates
+    # BOTH the drawn line AND its own pre-computed `offset` together -
+    # see c2_measures.py's own _distress_call_anchor_line_offset() for
+    # the confirmed rotation convention this reuses - exactly what's
+    # needed to keep this line attached to the icon as the whole
+    # feature turns, with no separate offset recalculation required.
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Angle,
+        QgsProperty.fromExpression(
+            f'{angle_degrees:g} + coalesce("rotation", 0)'
+        )
+    )
+
+    # "scale" (U-2 rollout, 2026-08-19) grows the line proportionally
+    # with the icon. Its own `offset` is NOT re-derived for scale (only
+    # for the angle above) - a scaled Forward Observer sits fractionally
+    # off its own icon's true position at extreme scale values, a minor
+    # cosmetic gap on one entity's own decorative line, not the icon
+    # itself.
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Size,
+        QgsProperty.fromExpression(
+            f'{length_mm:g} * coalesce("scale", 100) / 100.0'
+        )
+    )
+
     line_layer.setOffset(
         offset
     )
@@ -1438,6 +1469,9 @@ def _configure_points_attribute_form(layer):
     layer.setDefaultValueDefinition(entity_idx, QgsDefaultValue("'observation_post'"))
     layer.setDefaultValueDefinition(status_idx, QgsDefaultValue("'present'"))
 
+    # U-2 rollout (build tracker), 2026-08-19.
+    configure_rotation_and_scale_fields(layer)
+
 
 def _build_points_renderer():
 
@@ -1469,14 +1503,27 @@ def _build_points_renderer():
     )
 
     # Holds the icon still when a designation is typed -
-    # see stabilised_point_size_expression().
+    # see stabilised_point_size_expression(). "scale" (U-2 rollout,
+    # 2026-08-19) multiplies the base size BEFORE that compensation is
+    # applied - see _point_symbol_layer.py's own _build_renderer() for
+    # why that order matters.
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
             stabilised_point_size_expression(
-                DEFAULT_POINT_MARKER_SIZE_MM, _POINT_SIDC_EXPRESSION
+                f'{DEFAULT_POINT_MARKER_SIZE_MM:g}'
+                ' * coalesce("scale", 100) / 100.0',
+                _POINT_SIDC_EXPRESSION
             )
         )
+    )
+
+    # U-2 rollout (build tracker), 2026-08-19: "rotation" drives the
+    # marker's own Angle property directly, the same convention every
+    # other point icon in this project uses.
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Angle,
+        QgsProperty.fromExpression('coalesce("rotation", 0)')
     )
 
     symbol.appendSymbolLayer(
@@ -1561,6 +1608,8 @@ def create_defensive_control_measures_points_layer(name=POINTS_LAYER_NAME):
             QgsField("entity", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
+            QgsField("rotation", QMetaType.Type.Double),
+            QgsField("scale", QMetaType.Type.Double),
         ]
     )
 

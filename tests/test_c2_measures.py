@@ -62,6 +62,7 @@ from MilitaryCartographyTools.military_symbology.c2_measures import (
     create_c2_measures_areas_layer,
     create_c2_measures_lines_layer,
     create_c2_measures_points_layer,
+    _DISTRESS_CALL_ANCHOR_LINE_ANGLE,
 )
 from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
 
@@ -1247,7 +1248,10 @@ class TestCreateC2MeasuresPointsLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["affiliation", "entity", "status", "unique_designation"]
+            [
+                "affiliation", "entity", "status", "unique_designation",
+                "rotation", "scale",
+            ]
         )
 
 
@@ -1648,3 +1652,140 @@ class TestAddC2MeasuresPointsLayer(QgisTestCase):
 
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0].id(), first.id())
+
+
+class TestPointsRotationAndScale(QgisTestCase):
+
+    """
+    U-2 rollout (build tracker), 2026-08-19 - see
+    test_control_measure_shared.py for the shared widget/default
+    contract. Distress Call's own second symbol layer (the diagonal
+    anchor line missing from milsymbol.js's own icon) needs its own
+    check: "rotation" has to be ADDED to that layer's fixed base angle,
+    not just to the icon's own Angle property, or the line stops
+    tracking the icon as the whole feature turns.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+
+    def _feature(self, layer, entity, rotation, scale):
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", entity)
+        feature.setAttribute("status", "present")
+
+        if rotation is not None:
+            feature.setAttribute("rotation", rotation)
+
+        if scale is not None:
+            feature.setAttribute("scale", scale)
+
+        return feature
+
+
+    def test_icon_rotation_and_scale(self):
+
+        layer = create_c2_measures_points_layer()
+
+        svg_layer = layer.renderer().symbol().symbolLayer(0)
+
+        context = layer.createExpressionContext()
+        context.setFeature(
+            self._feature(layer, "checkpoint", rotation=200, scale=None)
+        )
+
+        angle, angle_ok = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Angle, context, 0.0
+        )
+
+        self.assertTrue(angle_ok)
+        self.assertAlmostEqual(angle, 200.0, places=6)
+
+        context_100 = layer.createExpressionContext()
+        context_100.setFeature(
+            self._feature(layer, "checkpoint", rotation=None, scale=100)
+        )
+        context_200 = layer.createExpressionContext()
+        context_200.setFeature(
+            self._feature(layer, "checkpoint", rotation=None, scale=200)
+        )
+
+        size_100, ok_100 = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_100, 0.0
+        )
+        size_200, ok_200 = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_200, 0.0
+        )
+
+        self.assertTrue(ok_100)
+        self.assertTrue(ok_200)
+        self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
+
+
+    def test_distress_calls_own_anchor_line_rotates_with_the_icon(self):
+
+        layer = create_c2_measures_points_layer()
+
+        anchor_line_layer = layer.renderer().symbol().symbolLayer(1)
+
+        for rotation, expected_angle in (
+            (None, _DISTRESS_CALL_ANCHOR_LINE_ANGLE),
+            (0, _DISTRESS_CALL_ANCHOR_LINE_ANGLE),
+            (40, _DISTRESS_CALL_ANCHOR_LINE_ANGLE + 40),
+        ):
+
+            with self.subTest(rotation=rotation):
+
+                context = layer.createExpressionContext()
+                context.setFeature(
+                    self._feature(
+                        layer, "distress_call", rotation=rotation, scale=None
+                    )
+                )
+
+                angle, ok = anchor_line_layer.dataDefinedProperties().valueAsDouble(
+                    QgsSymbolLayer.Property.Angle, context, 0.0
+                )
+
+                self.assertTrue(ok)
+                self.assertAlmostEqual(angle, expected_angle, places=6)
+
+
+    def test_distress_calls_own_anchor_line_scales_with_the_icon(self):
+
+        layer = create_c2_measures_points_layer()
+
+        anchor_line_layer = layer.renderer().symbol().symbolLayer(1)
+
+        context_100 = layer.createExpressionContext()
+        context_100.setFeature(
+            self._feature(layer, "distress_call", rotation=None, scale=100)
+        )
+        context_200 = layer.createExpressionContext()
+        context_200.setFeature(
+            self._feature(layer, "distress_call", rotation=None, scale=200)
+        )
+
+        size_100, ok_100 = anchor_line_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_100, 0.0
+        )
+        size_200, ok_200 = anchor_line_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, context_200, 0.0
+        )
+
+        self.assertTrue(ok_100)
+        self.assertTrue(ok_200)
+        self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
