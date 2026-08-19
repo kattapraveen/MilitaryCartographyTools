@@ -3,9 +3,10 @@
 """
 Shared builder for a single-symbol-set "<Domain>"
 point layer: one entity vocabulary, one fixed SIDC symbol_set, a plain
-affiliation/entity/echelon/status/headquarters/unique_designation
-attribute form, and a renderer that computes each feature's own
-MIL-STD-2525/APP-6 symbol live via mct_build_sidc()/mct_sidc_svg().
+affiliation/entity/echelon/status/headquarters/unique_designation/
+rotation/scale attribute form, and a renderer that computes each
+feature's own MIL-STD-2525/APP-6 symbol live via
+mct_build_sidc()/mct_sidc_svg().
 
 Factored out of military_symbology/unit_layer.py (2026-08-08) once the
 appendix-by-appendix completion plan called for each MIL-STD-2525D
@@ -67,6 +68,16 @@ from ._control_measure_shared import stabilised_point_size_expression
 
 
 DEFAULT_MARKER_SIZE_MM = 8.0
+
+# U-2 (build tracker), 2026-08-19: every layer built through this module
+# gains a "rotation" and a "scale" field, unconditionally - unlike the
+# opt-in echelon/headquarters/sector fields above, these two apply to
+# every domain equally (a heading and a size adjustment are meaningful
+# for any point symbol, not table-specific amplifiers). See
+# _build_renderer()'s own comment for how each is wired into the
+# marker symbol layer.
+DEFAULT_ROTATION_DEGREES = 0.0
+DEFAULT_SCALE_PERCENT = 100.0
 
 # Shared across every single-domain layer this module builds. Table VII
 # (Ch 5) shows echelon (Field B) and headquarters (Field S) aren't
@@ -282,6 +293,69 @@ def _configure_attribute_form(
             extra_idx,
             QgsDefaultValue("'{}'".format(extra_text_field["default"]))
         )
+
+    _configure_rotation_and_scale_fields(layer, fields)
+
+
+def _configure_rotation_and_scale_fields(layer, fields):
+
+    """
+    "rotation" (degrees, clockwise from north - the same convention
+    QGIS's own marker "Rotation" data-defined property uses, so a
+    heading typed here matches what a compass or a GPS track would
+    report) and "scale" (percent of the layer's own base marker size,
+    100 = unchanged) - added unconditionally to every layer this module
+    builds. Both use QGIS's "Range" editor widget (a spin box, not a
+    free-text field) so the attribute form can't be handed a value
+    mct_sidc_svg's own Angle/Size wiring wasn't built to expect - see
+    _build_renderer().
+    """
+
+    rotation_idx = fields.indexOf("rotation")
+
+    layer.setEditorWidgetSetup(
+        rotation_idx,
+        QgsEditorWidgetSetup(
+            "Range",
+            {
+                "Min": 0.0,
+                "Max": 360.0,
+                "Step": 1.0,
+                "Precision": 1,
+                "Style": "SpinBox",
+                "AllowNull": False,
+            }
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        rotation_idx, QgsDefaultValue(f"{DEFAULT_ROTATION_DEGREES:g}")
+    )
+
+    layer.setFieldAlias(rotation_idx, "Rotation (°, clockwise from north)")
+
+    scale_idx = fields.indexOf("scale")
+
+    layer.setEditorWidgetSetup(
+        scale_idx,
+        QgsEditorWidgetSetup(
+            "Range",
+            {
+                "Min": 10.0,
+                "Max": 400.0,
+                "Step": 5.0,
+                "Precision": 0,
+                "Style": "SpinBox",
+                "AllowNull": False,
+            }
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        scale_idx, QgsDefaultValue(f"{DEFAULT_SCALE_PERCENT:g}")
+    )
+
+    layer.setFieldAlias(scale_idx, "Scale (% of symbol's own size)")
 
 
 def _symbol_set_expression(default_symbol_set, entity_symbol_set_overrides, dimension_symbol_sets=None):
@@ -545,6 +619,20 @@ def _build_renderer(
 
         base_size_expression = f"{marker_size_mm:g}"
 
+    # U-2, 2026-08-19: the "scale" field (percent, 100 = unchanged - see
+    # _configure_rotation_and_scale_fields()) multiplies the base size
+    # BEFORE stabilised_point_size_expression()'s own designation-text
+    # compensation is applied, so the two compose correctly - a scaled-
+    # up icon still holds its own size when a designation is typed into
+    # it, rather than the compensation ratio being computed against the
+    # un-scaled size and then thrown off. coalesce(..., 100) matches
+    # every other per-feature field read in this expression: a feature
+    # with no value yet (created before this field existed, or hand-
+    # edited) renders at 100% rather than losing its base size.
+    scaled_size_expression = (
+        f'({base_size_expression}) * coalesce("scale", 100) / 100.0'
+    )
+
     # **Hold the ICON still when a designation is added** - see
     # stabilised_point_size_expression(), which every point renderer in
     # this project now shares. This one had its own copy until
@@ -554,7 +642,7 @@ def _build_renderer(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
             stabilised_point_size_expression(
-                base_size_expression, expression
+                scaled_size_expression, expression
             )
         )
     )
@@ -562,6 +650,17 @@ def _build_renderer(
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Name,
         QgsProperty.fromExpression(expression)
+    )
+
+    # U-2, 2026-08-19: "rotation" (degrees, clockwise from north - see
+    # _configure_rotation_and_scale_fields()) drives the marker's own
+    # Angle property directly; QGIS already interprets a marker symbol
+    # layer's Angle the same way, so no conversion is needed here.
+    # coalesce(..., 0) for the same reason as above - an unset field
+    # draws unrotated rather than nulling the whole symbol out.
+    svg_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Angle,
+        QgsProperty.fromExpression('coalesce("rotation", 0)')
     )
 
     symbol.changeSymbolLayer(0, svg_layer)
@@ -654,6 +753,13 @@ def build_single_domain_point_layer(
     (optional) picks the MIL-STD edition this layer is built against;
     None means "whatever the plugin setting says", which is what every
     add_*_layer() passes.
+
+    Every layer built here also gets a "rotation" and a "scale" field
+    (U-2, 2026-08-19), unconditionally - not opt-in like the fields
+    above, since a heading and a size adjustment are meaningful for any
+    point symbol regardless of domain. See
+    _configure_rotation_and_scale_fields() and _build_renderer()'s own
+    comments for the field convention and how each drives the marker.
     """
 
     # Edition is fixed per LAYER, never per feature: the entity dropdown
@@ -752,6 +858,9 @@ def build_single_domain_point_layer(
         attributes.append(
             QgsField(extra_text_field["name"], QMetaType.Type.QString)
         )
+
+    attributes.append(QgsField("rotation", QMetaType.Type.Double))
+    attributes.append(QgsField("scale", QMetaType.Type.Double))
 
     layer.dataProvider().addAttributes(attributes)
 

@@ -334,6 +334,165 @@ class TestDimensionField(QgisTestCase):
                 self.assertTrue(path.startswith("base64:"))
 
 
+class TestRotationAndScaleFields(QgisTestCase):
+
+    """
+    U-2 (build tracker), 2026-08-19: "rotation" and "scale" are added
+    unconditionally by this module - no opt-in flag, unlike echelon/
+    headquarters/sector1/sector2 above - so every test here builds a
+    plain layer with no extra kwargs.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _build(self):
+
+        return build_single_domain_point_layer(
+            "Test Layer",
+            "ground_unit",
+            _ENTITY_LABELS,
+            "infantry",
+        )
+
+
+    def test_both_fields_present(self):
+
+        layer = self._build()
+
+        field_names = [field.name() for field in layer.fields()]
+
+        self.assertIn("rotation", field_names)
+        self.assertIn("scale", field_names)
+
+
+    def test_both_use_a_range_spin_box_widget(self):
+
+        layer = self._build()
+
+        for name, expected_min, expected_max in (
+            ("rotation", 0.0, 360.0), ("scale", 10.0, 400.0)
+        ):
+
+            with self.subTest(field=name):
+
+                idx = layer.fields().indexOf(name)
+                setup = layer.editorWidgetSetup(idx)
+
+                self.assertEqual(setup.type(), "Range")
+
+                config = setup.config()
+
+                self.assertEqual(config["Min"], expected_min)
+                self.assertEqual(config["Max"], expected_max)
+                self.assertEqual(config["Style"], "SpinBox")
+                self.assertFalse(config["AllowNull"])
+
+
+    def test_default_values(self):
+
+        layer = self._build()
+
+        rotation_idx = layer.fields().indexOf("rotation")
+        scale_idx = layer.fields().indexOf("scale")
+
+        self.assertEqual(
+            layer.defaultValueDefinition(rotation_idx).expression(), "0"
+        )
+        self.assertEqual(
+            layer.defaultValueDefinition(scale_idx).expression(), "100"
+        )
+
+
+    def _size_and_angle(self, layer, rotation, scale):
+
+        feature = QgsFeature(layer.fields())
+        feature.setAttribute("affiliation", "friend")
+        feature.setAttribute("entity", "infantry")
+        feature.setAttribute("status", "present")
+
+        if rotation is not None:
+            feature.setAttribute("rotation", rotation)
+
+        if scale is not None:
+            feature.setAttribute("scale", scale)
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        properties = layer.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties()
+
+        size, size_ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Size, context, 0.0
+        )
+        angle, angle_ok = properties.valueAsDouble(
+            QgsSymbolLayer.Property.Angle, context, 0.0
+        )
+
+        self.assertTrue(size_ok)
+        self.assertTrue(angle_ok)
+
+        return size, angle
+
+
+    def test_rotation_drives_the_angle_property(self):
+
+        layer = self._build()
+
+        _, angle = self._size_and_angle(layer, rotation=135, scale=None)
+
+        self.assertAlmostEqual(angle, 135.0, places=6)
+
+
+    def test_an_unset_rotation_draws_unrotated(self):
+
+        layer = self._build()
+
+        _, angle = self._size_and_angle(layer, rotation=None, scale=None)
+
+        self.assertAlmostEqual(angle, 0.0, places=6)
+
+
+    def test_scale_multiplies_the_base_size(self):
+
+        layer = self._build()
+
+        size_100, _ = self._size_and_angle(layer, rotation=None, scale=100)
+        size_200, _ = self._size_and_angle(layer, rotation=None, scale=200)
+
+        # Same feature otherwise (same designation, empty), so the
+        # designation-compensation ratio inside
+        # stabilised_point_size_expression() is identical on both sides
+        # and the ratio between the two sizes should be exactly the
+        # ratio between the two scale values.
+        self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
+
+
+    def test_an_unset_scale_draws_at_full_size(self):
+
+        layer = self._build()
+
+        size_unset, _ = self._size_and_angle(layer, rotation=None, scale=None)
+        size_100, _ = self._size_and_angle(layer, rotation=None, scale=100)
+
+        self.assertAlmostEqual(size_unset, size_100, places=6)
+
+
 class TestValueMapWithNone(QgisTestCase):
 
     def test_prepends_a_none_entry_mapped_to_empty_string(self):

@@ -10530,6 +10530,73 @@ entry is the permanent record of the pass.
 
 ---
 
+## U-2, first landing: rotation and scale on the shared point-layer builder (2026-08-19)
+
+**Scope, by the maintainer's own choice**: land the mechanism in
+`military_symbology/_point_symbol_layer.py` - the shared builder behind
+Land, Air, Sea Surface, Subsurface, Space, Cyberspace, SIGINT and
+Activities - rather than touching the ~15 other modules that build
+their own point renderer (`c2_measures.py`, `obstacle_control_
+measures.py`, `maritime_control_measures.py`, and the rest). Those stay
+tracked as their own follow-up pass rather than folded in here.
+
+**Two fields, added unconditionally** (not opt-in like echelon/
+headquarters/sector1/sector2 above them): `rotation` (degrees,
+clockwise from north - the same convention QGIS's own marker "Rotation"
+data-defined property already uses, so a heading typed here matches a
+compass or GPS-track bearing) and `scale` (percent of the layer's own
+base marker size, 100 = unchanged). Both use QGIS's "Range" spin-box
+editor widget (0-360°, 10-400%) rather than a free-text field, with a
+field alias naming the unit since the Range widget itself has no
+suffix option.
+
+**Wiring**: `rotation` drives the marker's `QgsSymbolLayer.Property.
+Angle` directly (`coalesce("rotation", 0)` - an unset field draws
+unrotated rather than nulling the icon out, same guard pattern as every
+other per-feature read in this expression). `scale` multiplies the base
+size BEFORE `stabilised_point_size_expression()`'s own designation-
+text compensation is applied, so the two compose correctly - a scaled-
+up icon still holds its own size when a unique designation is typed
+into it, rather than the compensation ratio being thrown off by
+computing it against the un-scaled size.
+
+**"Rotate as one unit" was raised mid-build** - the maintainer's own
+words: "keep in mind any addition eg modifiers, field t etc - all of
+them should be rotated as one unit of the symbol." Checked rather than
+assumed: this module builds exactly ONE `QgsSvgMarkerSymbolLayer` per
+feature (`QgsMarkerSymbol()`'s default single layer, never added to),
+and `mct_sidc_svg()` bakes the icon, every amplifier (echelon ticks,
+headquarters underline, Field T/T1 designation) into ONE rendered SVG
+picture, which is what that one layer's Angle property rotates as a
+whole - there is no second, separately-positioned renderer for the
+text. Confirmed by rendering a friend Infantry Battalion ("1AD",
+echelon ticks "II") at rotation=0 and rotation=90: the box, its
+echelon ticks and its designation text all turned together, staying in
+the same relative position to the box at both angles. Separately
+confirmed scale=200 renders visibly larger than scale=100 at the same
+rotation. (The other ~15 modules deferred to the follow-up pass will
+each need this same check individually - several may draw a
+designation via QGIS's own PAL labelling instead of baking it into the
+SVG, which would NOT rotate with the icon the same way.)
+
+7 new tests (`TestRotationAndScaleFields` in `tests/test_point_symbol_
+layer.py`): field presence, Range widget config, default values
+("0"/"100"), rotation driving Angle (including the unset-field-draws-
+unrotated case), and scale multiplying size 2x-for-2x (including the
+unset-field-draws-at-100%-case). 7 existing layer-module tests (air,
+sea surface, subsurface x2, space, sigint, cyberspace, activities) that
+pinned the exact field list needed the two new fields appended - not a
+regression, just an assertion that had to catch up to a real schema
+change. 1435 -> 1442 tests on both QGIS versions; Bandit and
+detect-secrets both clean.
+
+Follow-up, not yet started: the same mechanism in the ~15 modules that
+build their own point renderer - each needs the same "is the text baked
+into the same SVG, or drawn separately" check before Angle can be
+wired in safely.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

@@ -133,6 +133,8 @@ class TestBuildLayers(QgisTestCase):
                 "sector1_modifier",
                 "sector2_modifier",
                 "unique_designation",
+                "rotation",
+                "scale",
             ]
         )
 
@@ -151,6 +153,8 @@ class TestBuildLayers(QgisTestCase):
                 "entity",
                 "status",
                 "unique_designation",
+                "rotation",
+                "scale",
             ]
         )
 

@@ -132,6 +132,8 @@ class TestBuildSigintLayer(QgisTestCase):
                 "status",
                 "sector1_modifier",
                 "unique_designation",
+                "rotation",
+                "scale",
             ]
         )
 

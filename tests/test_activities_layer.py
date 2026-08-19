@@ -105,6 +105,8 @@ class TestBuildActivitiesLayer(QgisTestCase):
                 "status",
                 "sector1_modifier",
                 "unique_designation",
+                "rotation",
+                "scale",
             ]
         )
 

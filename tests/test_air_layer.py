@@ -129,6 +129,8 @@ class TestBuildAirLayer(QgisTestCase):
                 "sector1_modifier",
                 "sector2_modifier",
                 "unique_designation",
+                "rotation",
+                "scale",
             ]
         )
 

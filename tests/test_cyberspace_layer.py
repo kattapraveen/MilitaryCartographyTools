@@ -99,6 +99,8 @@ class TestBuildCyberspaceLayer(QgisTestCase):
                 "entity",
                 "status",
                 "unique_designation",
+                "rotation",
+                "scale",
             ]
         )
 
