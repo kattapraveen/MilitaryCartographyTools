@@ -10696,6 +10696,17 @@ layer specifically. 1442 -> 1444 tests on both QGIS versions (heavy
 churn along the way from two full construction rewrites in one day,
 not just net-new coverage); Bandit and detect-secrets both clean.
 
+**Abatis's own kink corrected the same day, after the maintainer saw
+the render**: "reduce the kink by 40% and shift it closer to the
+beginning - the line segments should be in a ratio of about 1:4." The
+first render-verified guess had it centred near the icon's own
+midpoint; `mct_abatis_svg()`'s path numbers now put the kink's apex
+offset at 8 (was 14) and its span at 6-16 of the 40-unit icon (was
+12-28), solved so the straight run before the kink (6) to the run
+after it (24) comes out to exactly 1:4. Confirmed by render, not just
+by the numbers - see that function's own docstring for the full before/
+after.
+
 ---
 
 ## Suggested near-term order

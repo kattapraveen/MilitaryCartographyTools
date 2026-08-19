@@ -1065,12 +1065,18 @@ def mct_abatis_svg(values, feature=None, parent=None):
     not carry over to a fixed point icon. What remains, and is what
     actually makes Abatis recognisable, is just the kink itself: a
     short stub in, a triangular jog to the left, a short stub out -
-    "_^_", not "_____^_____". Sized to read clearly next to this
-    layer's own milsymbol siblings, per the maintainer's own
-    instruction ("keep the size of these two similar to what the
-    milsymbol generates") - a first render-verified guess, adjustable
-    like any other fixed-size element in this project once seen on a
-    real map.
+    "_^_", not "_____^_____".
+
+    **Kink position and size corrected 2026-08-19, same day, after
+    seeing the render**: "reduce the kink by 40% and shift it closer to
+    the beginning - the line segments should be in a ratio of about
+    1:4." The first render-verified guess had centred the kink roughly
+    at the icon's own midpoint (40-unit total length, kink spanning
+    12-28, apex offset 14) - too far from the anchor and too large.
+    Now: apex offset 8 (was 14, -43%) and kink span 6-16 (height 10,
+    was 16, -37.5%), centred at 11 - solved so the straight run before
+    the kink (6 units) to the straight run after it (24 units) comes
+    out to exactly 1:4, matching the maintainer's own ratio.
 
     Drawn pointing due NORTH (up), unrotated - the marker's own Angle
     data-defined property (see configure_rotation_and_scale_fields())
@@ -1089,9 +1095,9 @@ def mct_abatis_svg(values, feature=None, parent=None):
     dash_attr = ' stroke-dasharray="6,5"' if dashed else ''
 
     svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-17 -2 20 44"'
-        ' width="20" height="44">'
-        '<path d="M 0,40 L 0,28 L -14,20 L 0,12 L 0,0" fill="none"'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -2 12 44"'
+        ' width="12" height="44">'
+        '<path d="M 0,40 L 0,34 L -8,29 L 0,24 L 0,0" fill="none"'
         f' stroke="{colour}" stroke-width="3" stroke-linecap="butt"'
         f' stroke-linejoin="round"{dash_attr}/>'
         '</svg>'
