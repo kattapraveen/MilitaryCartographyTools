@@ -31,9 +31,8 @@ military grid generation, and automated print-layout production.
 ## Installation
 
 Requires QGIS 3.44 or later. Install from the [official QGIS Plugin
-Repository](https://plugins.qgis.org) — the plugin is currently listed as
-experimental, so tick **"Show also experimental plugins"** under **Plugins
-→ Manage and Install Plugins → Settings** first — or manually:
+Repository](https://plugins.qgis.org) via **Plugins → Manage and Install
+Plugins**, search for "Military Cartography Tools" — or manually:
 
 1. Copy the `MilitaryCartographyTools` folder into your QGIS plugins
    directory (`Settings → User Profiles → Open Active Profile Folder →
