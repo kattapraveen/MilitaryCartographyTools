@@ -63,6 +63,7 @@ from MilitaryCartographyTools.military_symbology.c2_measures import (
     create_c2_measures_lines_layer,
     create_c2_measures_points_layer,
     _DISTRESS_CALL_ANCHOR_LINE_ANGLE,
+    _distress_call_anchor_line_offset,
 )
 from MilitaryCartographyTools.military_symbology.sidc import AFFILIATIONS
 
@@ -1789,3 +1790,45 @@ class TestPointsRotationAndScale(QgisTestCase):
         self.assertTrue(ok_100)
         self.assertTrue(ok_200)
         self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
+
+
+    def test_distress_calls_own_anchor_line_offset_scales_with_the_icon(self):
+
+        # 2026-08-19, same day, after the maintainer's own smoke test:
+        # "when we scale the distress call the line shifts - if we
+        # increase the scale, the line shifts slightly right of the
+        # point, if we decrease it moves left and appears detached."
+        # The offset's own magnitude has to track Size exactly, at
+        # every scale value, not just at 100%.
+        layer = create_c2_measures_points_layer()
+
+        anchor_line_layer = layer.renderer().symbol().symbolLayer(1)
+
+        def offset_at(scale):
+
+            context = layer.createExpressionContext()
+            context.setFeature(
+                self._feature(layer, "distress_call", rotation=None, scale=scale)
+            )
+
+            value, ok = anchor_line_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Offset, context, ""
+            )
+
+            self.assertTrue(ok)
+
+            x, y = value.split(",")
+
+            return float(x), float(y)
+
+        base_offset = _distress_call_anchor_line_offset()
+        base_x, base_y = base_offset.x(), base_offset.y()
+
+        for scale, expected_factor in ((100, 1.0), (200, 2.0), (50, 0.5)):
+
+            with self.subTest(scale=scale):
+
+                x, y = offset_at(scale)
+
+                self.assertAlmostEqual(x, base_x * expected_factor, places=4)
+                self.assertAlmostEqual(y, base_y * expected_factor, places=4)

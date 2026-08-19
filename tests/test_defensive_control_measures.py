@@ -1838,3 +1838,48 @@ class TestPointsRotationAndScale(QgisTestCase):
         self.assertTrue(ok_100)
         self.assertTrue(ok_200)
         self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
+
+
+    def test_forward_observers_own_anchor_line_offset_scales_with_the_icon(self):
+
+        # 2026-08-19, same day, after the maintainer's own smoke test:
+        # "when we scale up i.e. increase, the line is going out of the
+        # triangle's sides; even when we reduce the scale, the line is
+        # not correct." Same root cause as c2_measures.py's own Distress
+        # Call: the offset's own magnitude has to track Size exactly, at
+        # every scale value, not just at 100%.
+        layer = create_defensive_control_measures_points_layer()
+
+        anchor_line_layer = layer.renderer().symbol().symbolLayer(0)
+
+        def offset_at(scale):
+
+            context = layer.createExpressionContext()
+            context.setFeature(
+                self._feature(
+                    layer, "observation_post_forward_observer",
+                    rotation=None, scale=scale
+                )
+            )
+
+            value, ok = anchor_line_layer.dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Offset, context, ""
+            )
+
+            self.assertTrue(ok)
+
+            x, y = value.split(",")
+
+            return float(x), float(y)
+
+        _, _, base_offset = _forward_observer_anchor_line_geometry()
+        base_x, base_y = base_offset.x(), base_offset.y()
+
+        for scale, expected_factor in ((100, 1.0), (200, 2.0), (50, 0.5)):
+
+            with self.subTest(scale=scale):
+
+                x, y = offset_at(scale)
+
+                self.assertAlmostEqual(x, base_x * expected_factor, places=4)
+                self.assertAlmostEqual(y, base_y * expected_factor, places=4)

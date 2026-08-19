@@ -10916,6 +10916,45 @@ release; it accumulates for the next one, per this project's standing
 
 ---
 
+## U-2 rollout: fix the anchor lines' own offset at non-100% scale (2026-08-19)
+
+Found by the maintainer's own smoke test of the six-module rollout
+above: "when we scale the distress call the line shifts - if we
+increase the scale, the line shifts slightly right of the point, if we
+decrease it moves left and appears detached" (c2_measures.py) and "when
+we scale up i.e. increase, the line is going out of the triangle's
+sides; even when we reduce the scale, the line is not correct"
+(defensive_control_measures.py). Rotation was fine on both - only
+scale broke.
+
+Root cause: both anchor lines' `offset` (a `QgsSimpleMarkerSymbolLayer`
+property that shifts the drawn line so it starts AT the feature's own
+point rather than being centred on it) was left as the FIXED vector
+computed for the line's own 100%-scale length, while `Size` (the
+line's own drawn length) was correctly scaled. At any scale other than
+100%, the line's own drawn length no longer matched the fixed offset
+that positions it - too little offset at scale > 100% (the line
+reaching back past its own intended start, reading as "shifted right/
+into the icon"), too much offset at scale < 100% (the line's own
+nearest point pulled away from the icon entirely, reading as
+"detached"). The U-2 rollout entry above called this "a minor cosmetic
+gap" - the maintainer's own report shows it was worse than that call
+allowed for.
+
+Fixed by making `offset` data-defined too, in both
+`_distress_call_anchor_line_layer()` (c2_measures.py) and
+`_forward_observer_anchor_line_layer()` (defensive_control_measures.py):
+the same fixed (x, y) vector, both components multiplied by the
+identical `coalesce("scale", 100) / 100.0` factor already used for
+`Size`, so the offset's own magnitude always matches the line's own
+current length. Confirmed by rendering both at scale 50/100/200/300 -
+the line now stays attached at the icon's own edge, proportionally, at
+every size. 2 new tests (one per module) pin the offset's own value at
+three scale factors against the base vector; 1463 -> 1465 tests on
+both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

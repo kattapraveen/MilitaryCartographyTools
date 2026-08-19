@@ -1282,10 +1282,7 @@ def _distress_call_anchor_line_layer():
     )
 
     # "scale" (U-2 rollout, 2026-08-19) grows the line proportionally
-    # with the icon. Its own `offset` is NOT re-derived for scale (only
-    # for the angle above) - a scaled Distress Call sits fractionally
-    # off its own icon's edge at extreme scale values, a minor cosmetic
-    # gap on one entity's own decorative line, not the icon itself.
+    # with the icon.
     line_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
@@ -1294,12 +1291,37 @@ def _distress_call_anchor_line_layer():
         )
     )
 
+    base_offset = _distress_call_anchor_line_offset()
+
     line_layer.setOffset(
-        _distress_call_anchor_line_offset()
+        base_offset
     )
 
     line_layer.setOffsetUnit(
         Qgis.RenderUnit.Millimeters
+    )
+
+    # **Fixed 2026-08-19, same day, after the maintainer's own smoke
+    # test**: "when we scale the distress call the line shifts - if we
+    # increase the scale, the line shifts slightly right of the point,
+    # if we decrease it moves left and appears detached." Root cause:
+    # `offset` above is a FIXED vector, sized for the line's own base
+    # (100%) length - Size scaling this line's drawn length without
+    # scaling its offset by the same factor left the line's own
+    # anchor-to-icon attachment point wrong at any scale other than
+    # 100%, growing worse the further from 100% the scale value was
+    # (exactly matching "detached... shifts", not a vague "small gap").
+    # Re-expressed data-defined, scaling BOTH components of the same
+    # fixed vector by the identical "scale" factor used for Size above,
+    # so the offset's own magnitude always matches the line's own
+    # current length, at any scale value.
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Offset,
+        QgsProperty.fromExpression(
+            f'({base_offset.x():g} * coalesce("scale", 100) / 100.0)'
+            ' || \',\' || '
+            f'({base_offset.y():g} * coalesce("scale", 100) / 100.0)'
+        )
     )
 
     line_layer.setDataDefinedProperty(

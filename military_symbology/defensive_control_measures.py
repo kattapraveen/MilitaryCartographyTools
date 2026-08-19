@@ -1403,11 +1403,7 @@ def _forward_observer_anchor_line_layer():
     )
 
     # "scale" (U-2 rollout, 2026-08-19) grows the line proportionally
-    # with the icon. Its own `offset` is NOT re-derived for scale (only
-    # for the angle above) - a scaled Forward Observer sits fractionally
-    # off its own icon's true position at extreme scale values, a minor
-    # cosmetic gap on one entity's own decorative line, not the icon
-    # itself.
+    # with the icon.
     line_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
         QgsProperty.fromExpression(
@@ -1421,6 +1417,27 @@ def _forward_observer_anchor_line_layer():
 
     line_layer.setOffsetUnit(
         Qgis.RenderUnit.Millimeters
+    )
+
+    # **Fixed 2026-08-19, same day, after the maintainer's own smoke
+    # test**: "when we scale up i.e. increase, the line is going out of
+    # the triangle's sides; even when we reduce the scale, the line is
+    # not correct." Same root cause as c2_measures.py's own Distress
+    # Call, fixed the same way: `offset` above is a FIXED vector sized
+    # for this line's own base (100%) length - Size scaling the line's
+    # own drawn length without scaling its offset by the same factor
+    # left the anchor-to-icon attachment wrong at any scale other than
+    # 100%. Re-expressed data-defined, scaling BOTH components of the
+    # same fixed vector by the identical "scale" factor used for Size
+    # above, so the offset's own magnitude always matches the line's
+    # own current length, at any scale value.
+    line_layer.setDataDefinedProperty(
+        QgsSymbolLayer.Property.Offset,
+        QgsProperty.fromExpression(
+            f'({offset.x():g} * coalesce("scale", 100) / 100.0)'
+            ' || \',\' || '
+            f'({offset.y():g} * coalesce("scale", 100) / 100.0)'
+        )
     )
 
     line_layer.setDataDefinedProperty(
