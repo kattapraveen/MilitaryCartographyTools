@@ -10903,6 +10903,19 @@ test file), 1446 -> 1463 tests on both QGIS versions.
 
 ---
 
+## 1.1.0 — moderator approved, live on plugins.qgis.org (2026-08-19)
+
+Confirmed by the maintainer. Uploaded and security-checked earlier this
+session (see this file's own 1.1.0 housekeeping/packaging entry above),
+now live for every user - the same milestone 1.0.3 reached 2026-08-17.
+Everything since that upload - the menu polish, the full IDX symbol-
+index pass, U-1 through U-4, and U-2's own rollout - was built AFTER
+1.1.0 was already packaged and uploaded, so none of it shipped in this
+release; it accumulates for the next one, per this project's standing
+"fixes accumulate for the next version" policy.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
