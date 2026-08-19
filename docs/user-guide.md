@@ -588,6 +588,8 @@ the same core fields:
 | Entity | The full entity vocabulary for that layer's own domain — open the dropdown to see every option; see the table below for scope/size per layer |
 | Status | Present / Planned (planned symbols render with a dashed outline) |
 | Unique designation | Free-text label (e.g. "1-501 IN") |
+| Rotation | Degrees, clockwise from north — default 0. Turns the whole symbol, amplifiers included (echelon ticks, unique designation text), as one picture rather than just the base icon. |
+| Scale | Percent of the symbol's own default size — default 100. |
 
 Some layers add further fields, since MIL-STD-2525D's own amplifier
 tables don't apply the same fields to every domain (a battalion has an
@@ -715,6 +717,16 @@ Each layer is created empty and ready to use immediately; there's no
 dialog, and clicking an entry again never replaces a layer that already
 exists (each is checked independently, so it only adds back whichever
 ones are still missing).
+
+**Every Points layer under Control Measures also has a Rotation
+field** (degrees, clockwise from north — default 0) **and a Scale
+field** (percent of the symbol's own default size — default 100),
+alongside its own Affiliation/Entity/Status/Unique designation fields
+— the same two fields every point-symbol layer described in
+[Tactical Graphics - point symbol layers](#tactical-graphics---point-symbol-layers)
+has. Rotating or scaling a symbol carries its own amplifiers along
+with it as one picture. Lines and Areas layers don't have these
+fields — only Points.
 
 **Appendix H is complete** — every one of its logical groups was rebuilt
 and verified one section at a time, finishing 2026-08-16. C2
@@ -1293,10 +1305,9 @@ Both Towers take a **unique designation** drawn beside the icon.
 Engineer Regulating Point takes one too, drawn inside its own symbol.
 
 Every feature on this layer has a **Rotation** (degrees, clockwise from
-north) and a **Scale** (%) field. Only Trip Wire and Abatis currently
-use them — set a heading and size after placing one, same as typing
-into any other field on the form. The other 13 entries ignore both for
-now.
+north) and a **Scale** (%) field, and every one of the 15 entries uses
+them — set a heading and size after placing one, same as typing into
+any other field on the form.
 
 **Areas** covers the four serrated obstacle zones (**Belt**, **Zone**,
 **Free Zone**, **Restricted Zone**), the mined-area family (**Mined

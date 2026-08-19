@@ -11025,6 +11025,40 @@ maintainer's own scope) remain on the tracker.
 
 ---
 
+## 1.2.0 — packaged (2026-08-19)
+
+Everything built since 1.1.0's own upload - the menu polish, the full
+IDX symbol-index pass, U-1 through U-4, and U-2's own rollout across
+both passes - ships in this release. Decided as a MINOR bump, not a
+patch, on the same grounds as 1.0.3 -> 1.1.0: genuine new capability
+(rotation and scale on every point symbol in the plugin, print-layout
+symbol insertion), not just fixes, plus one small, deliberate, called-
+out break (Trip Wire/Abatis moving from Lines to Points - an existing
+project with either digitized as a line needs those two features
+re-drawn).
+
+`metadata.txt`'s `changelog=1.2.0` gained a new top section (rotation/
+scale, the Trip Wire/Abatis move, the global stroke widening, the six
+IDX corrections, and the three menu-polish items); the previous
+`1.1.0` content moved down to its own dated sub-section, unedited, as
+this project's own changelog convention already does release over
+release. `docs/user-guide.md` updated in three places: the Obstacle
+Control Measures Points section no longer says only Trip Wire/Abatis
+use Rotation/Scale (all 15 entries do now), a Rotation/Scale row added
+to the point-symbol-layers' own shared field table, and a note added
+near the top of the Control Measures section that every Points layer
+there carries the same two fields.
+
+Release checklist run in full: both QGIS test suites (1466/1466 on
+3.44.12 and 4.2.1), Bandit 1.9.4 and detect-secrets both clean on the
+source tree, `package_plugin.sh` run, then the built zip extracted and
+BOTH the test suite (against the packaged code, not the dev checkout -
+1466/1466, 3 skipped by design) and both scanners re-run against the
+extraction itself. Built as `dist/MilitaryCartographyTools-1.2.0.zip`
+(gitignored, exists only on the maintainer's own machine).
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

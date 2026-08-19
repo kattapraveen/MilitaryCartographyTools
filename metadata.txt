@@ -6,9 +6,51 @@ description=Military cartography, MIL-STD-2525D/E and APP-6D/E tactical graphics
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.1.0
+version=1.2.0
 
-changelog=1.1.0
+changelog=1.2.0
+    - Every NATO symbol other than lines and areas can now be rotated
+      (a Rotation field, degrees clockwise from north) and resized (a
+      Scale field, percent of its own default size) - added to every
+      point-symbol layer in the plugin. Rotating or scaling a symbol
+      carries its own amplifiers (echelon ticks, unique designation
+      text) along with it as one picture.
+    - Trip Wire and Abatis (Obstacle Control Measures) are now point
+      symbols - a fixed page size with their own Rotation field,
+      instead of a shape that grew or shrank with however long a line
+      you digitized. An existing project with either digitized as a
+      line will need those two features re-drawn as points; nothing
+      else on that layer is affected.
+    - Widened the lines milsymbol draws inside its own icons - some,
+      like Checkpoint and the Observation Post family, were thin
+      enough to be hard to read at working scales. Every milsymbol-
+      rendered icon in the plugin is affected; the plugin's own hand-
+      built lines and areas (control measure lines, obstacle belts,
+      and similar) are unchanged.
+    - Corrected several symbol-drawing issues found in a full pass
+      against the standard: Position Area For Artillery's designator
+      label now always stays on the polygon's own perimeter, including
+      on irregular shapes; Limited Access Area's unique designation is
+      now masked like every other area's; Radiation Dose Rate Contours
+      now suffixes "cGy" to the typed number automatically; Minimum
+      Safe Distance Zone's concentric-ring labels no longer overlap or
+      hide each other; the Dummy Minefield's decoy chevron sits closer
+      to the minefield it belongs to; Electro-Optical Intercept's "O"
+      label no longer shows a leaked dot from the line underneath; and
+      Mission Task Fix's kinks and letter now shrink to fit a short
+      digitized line instead of disappearing entirely.
+    - Alphabetised the NATO Symbols and Control Measures menus - both
+      had followed the standard's own printed table order, which has
+      no reason to survive into a plain "pick one of many" dropdown.
+    - Renamed "Supply Points" to "Supply Control Measures" in the
+      Control Measures menu, matching the naming convention every
+      other entry that adds more than one layer type already uses (it
+      adds three: Points, Lines and Areas).
+    - Newly-added symbology layers now insert collapsed in the Layers
+      panel rather than expanded - one click routinely adds two or
+      more layers at once, and an expanded legend for each stacks up
+      fast.
+    1.1.0
     - Renamed in two Entity dropdowns: what the Land Installation and
       Activities layers called "Law Enforcement Vessel" is Coast Guard,
       which is what the standard prints for that code and what the
