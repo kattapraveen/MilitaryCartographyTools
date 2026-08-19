@@ -10817,6 +10817,21 @@ argument is omitted and that an explicit value still overrides it.
 
 ---
 
+## U-4 — closed (2026-08-19)
+
+Smoke-tested by the maintainer and confirmed clear, covering rotation,
+scale, colour, dashed/planned status, and a side-by-side size check
+against the layer's own milsymbol siblings on both Trip Wire and
+Abatis - including the corrected kink (this same day) and the widened
+canvas/stroke match to Trip Wire (this same day). The build tracker's
+own U-4 item has been removed as a result, per the maintainer's
+standing "remove cleared items" instruction; this entry is the
+permanent record of the pass. U-2's own rollout to the ~15 modules
+that build their own point renderer, and U-3's smoke test, remain open
+on the tracker.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
