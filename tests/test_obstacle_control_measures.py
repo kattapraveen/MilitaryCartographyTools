@@ -644,7 +644,7 @@ class TestCustomShapePointsIntegration(QgisTestCase):
                 self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
 
 
-    def test_an_ordinary_entity_is_unaffected(self):
+    def test_an_ordinary_entity_still_renders_its_real_icon(self):
 
         path, size, angle = self._evaluated_properties(
             "antipersonnel_mine", rotation=90, scale=200
@@ -652,12 +652,29 @@ class TestCustomShapePointsIntegration(QgisTestCase):
 
         svg = self._decoded(path)
 
-        # Still the real milsymbol icon - the layer's other 13 entities
-        # don't read "rotation"/"scale" at all (deliberately, this
-        # pass - see _CUSTOM_SHAPE_ANGLE_EXPRESSION/_CUSTOM_SHAPE_SIZE_
-        # EXPRESSION's own comments).
+        # Still the real milsymbol icon, not broken by rotation/scale
+        # now applying to it too (U-2 rollout, 2026-08-19 - extended
+        # from Trip Wire/Abatis only, see _CUSTOM_SHAPE_ANGLE_
+        # EXPRESSION/_CUSTOM_SHAPE_SIZE_EXPRESSION's own comments).
         self.assertNotIn(_MILSYMBOL_UNKNOWN_ICON_MARK, svg)
-        self.assertAlmostEqual(angle, 0.0, places=6)
+
+
+    def test_an_ordinary_entity_rotates_and_scales_too(self):
+
+        # U-2 rollout (build tracker), 2026-08-19: extended to all 13
+        # milsymbol entities on this layer, not just Trip Wire/Abatis -
+        # raised by the maintainer's own "have you missed obstacle
+        # control points?" after smoke-testing the other six modules.
+        path_100, size_100, angle_100 = self._evaluated_properties(
+            "antipersonnel_mine", rotation=0, scale=100
+        )
+        path_200, size_200, angle_200 = self._evaluated_properties(
+            "antipersonnel_mine", rotation=90, scale=200
+        )
+
+        self.assertAlmostEqual(angle_100, 0.0, places=6)
+        self.assertAlmostEqual(angle_200, 90.0, places=6)
+        self.assertAlmostEqual(size_200 / size_100, 2.0, places=6)
 
 
     def test_colour_reaches_the_custom_shapes_via_stroke(self):

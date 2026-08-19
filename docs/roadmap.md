@@ -10955,6 +10955,41 @@ both QGIS versions.
 
 ---
 
+## U-2 rollout: Obstacle Control Points' remaining 13 entities (2026-08-19)
+
+Raised as a question by the maintainer after smoke-testing the six-
+module rollout: "I think you've missed obstacle control points, field
+fortification, cbrn, supply points, sustainment points, mission
+tasks?" Checked all six directly rather than assumed - five of them
+(`field_fortification.py`, `cbrn_defense.py`, `supply_points.py`,
+`sustainment_control_measures.py`, `mission_task_control_measures.py`)
+already delegate their own Points layer to
+`build_single_domain_point_layer()`, which has had working rotation
+and scale since U-2's very first landing - confirmed by evaluating a
+real feature's own Angle/Size properties on each, not just reading the
+code. **Obstacle Control Measures Points was the real gap**: U-4's own
+first landing had deliberately scoped rotation/scale to Trip Wire/
+Abatis only, leaving this layer's other 13 milsymbol entities
+(Antipersonnel Mine, both Towers, and the rest) unable to rotate or
+scale at all - a genuine, intentional-at-the-time deferral, not an
+oversight, but one the maintainer now wants closed.
+
+`_CUSTOM_SHAPE_ANGLE_EXPRESSION` simplified from a CASE scoped to Trip
+Wire/Abatis to a plain `coalesce("rotation", 0)` applying to every
+entity; `_CUSTOM_SHAPE_SIZE_EXPRESSION`'s own ELSE branch (the 13
+milsymbol entities) now folds `"scale"` into the base size expression
+before `stabilised_point_size_expression()`'s designation-compensation
+ratio, the same ordering every other module in this rollout uses.
+Confirmed by rendering Antipersonnel Mine and Tower Low at several
+rotation/scale combinations. One existing test
+(`test_an_ordinary_entity_is_unaffected`) pinned the OLD deferred
+behaviour and was replaced with two: one confirming an ordinary entity
+still renders its real icon, one confirming it now rotates and scales
+like every other entity on the layer. 1465 -> 1466 tests on both QGIS
+versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

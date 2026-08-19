@@ -679,11 +679,13 @@ def _configure_points_attribute_form(layer):
     # TABLE_H_XIX_INVENTORY's own "colour" instead.
     layer.setDefaultValueDefinition(colour_idx, QgsDefaultValue(f"'{GREEN}'"))
 
-    # U-4 (build tracker): rotation/scale only have visible effect on
-    # Trip Wire/Abatis (the two custom-shape entries), but the field
-    # applies to the whole layer - every other entity here simply
-    # ignores it, same as any milsymbol icon not yet touched by U-2's
-    # own deferred rollout to this module's other 13 entries.
+    # U-2 rollout (build tracker), 2026-08-19: rotation/scale apply to
+    # every entity on this layer, not just Trip Wire/Abatis - see
+    # _CUSTOM_SHAPE_ANGLE_EXPRESSION/_CUSTOM_SHAPE_SIZE_EXPRESSION's own
+    # comments for the milsymbol-entity half of this, extended the same
+    # day the maintainer's own smoke test asked "have you missed
+    # obstacle control points?" (U-4's own first landing had
+    # deliberately deferred the other 13 entries to this later pass).
     configure_rotation_and_scale_fields(layer)
 
 
@@ -728,20 +730,25 @@ _CUSTOM_SHAPE_SIZE_EXPRESSION = (
     "CASE WHEN \"entity\" IN ('trip_wire', 'abatis') THEN "
     f'{_POINTS_DEFAULT_MARKER_SIZE_MM * _CUSTOM_SHAPE_SIZE_MULTIPLIER:g}'
     ' * coalesce("scale", 100) / 100.0'
-    f" ELSE ({stabilised_point_size_expression(_POINT_SIZE_EXPRESSION, _POINTS_SIDC_EXPRESSION)})"
+    " ELSE ("
+    + stabilised_point_size_expression(
+        f'({_POINT_SIZE_EXPRESSION}) * coalesce("scale", 100) / 100.0',
+        _POINTS_SIDC_EXPRESSION
+    )
+    + ")"
     " END"
 )
 
-# Rotation only has an effect on Trip Wire/Abatis - deliberately NOT
-# extended to this layer's other 13 milsymbol entities in this pass
-# (U-2's own deferred rollout to the ~15 modules with their own point
-# renderer, this one included, is separate, later work - see the build
-# tracker). QGIS's marker Angle property is clockwise from north, the
-# same convention "rotation" already uses everywhere else.
-_CUSTOM_SHAPE_ANGLE_EXPRESSION = (
-    "CASE WHEN \"entity\" IN ('trip_wire', 'abatis')"
-    " THEN coalesce(\"rotation\", 0) ELSE 0 END"
-)
+# U-2 rollout (build tracker), 2026-08-19: extended to every entity on
+# this layer, not just Trip Wire/Abatis - the maintainer's own smoke
+# test of the six-module rollout asked "have you missed obstacle
+# control points?", and this layer's other 13 milsymbol entities had
+# indeed been deliberately deferred when U-4 first landed rotation/
+# scale here (see this layer's own U-4 history in docs/roadmap.md).
+# QGIS's marker Angle property is clockwise from north, the same
+# convention "rotation" already uses everywhere else - no CASE needed
+# now that every entity shares it.
+_CUSTOM_SHAPE_ANGLE_EXPRESSION = 'coalesce("rotation", 0)'
 
 
 def _build_points_renderer():
