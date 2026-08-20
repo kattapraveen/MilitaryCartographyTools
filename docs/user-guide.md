@@ -20,6 +20,7 @@ military grid generation, and automated print-layout production.
 - [Line of Sight](#line-of-sight)
 - [Hillshade Combinations](#hillshade-combinations)
 - [Viewshed](#viewshed)
+- [Sensor Coverage](#sensor-coverage)
 - [Waypoint Import/Export (GPX/KML)](#waypoint-importexport-gpxkml)
 - [Map Sheet Series](#map-sheet-series)
 - [Tactical Graphics - point symbol layers](#tactical-graphics---point-symbol-layers)
@@ -59,7 +60,7 @@ Left to right:
 | Toggle switch | *(standalone)* | **Symbology Edition** — MIL-STD-2525D/APP-6D or MIL-STD-2525E/APP-6E; picks which standard newly added symbology layers use, see [below](#tactical-graphics---point-symbol-layers) |
 | 3×3 grid | **Grid** | UTM Grid, MGRS 100km Grid, Sub Grid (10km/5km/1km spacing, itself a nested flyout), Clear Grid |
 | Compass rose | **Navigation** | Coordinate Probe, Bearing / Range |
-| Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed |
+| Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage |
 | Location pin | **Waypoints** | Import Waypoints, Export Waypoints |
 | Printed sheet with a folded corner | **Print Production** | New Military Layout, Map Sheet Series |
 | Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/E and APP-6D/E point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |
@@ -481,6 +482,101 @@ track of. Like Line of Sight, the DEM is clipped to a box around wherever
 the observer actually is (sized from the max distance you've set), not
 tied to the current map canvas extent, and the tool stays active across
 repeated clicks until you select a different tool.
+
+---
+
+## Sensor Coverage
+
+Where Viewshed answers "what can this one observer see", Sensor Coverage
+answers "what does this whole sensor laydown cover" — several sensors
+plotted together, with their coverage merged into one picture.
+
+Click the two-overlapping-circles icon to open the setup dialog. Pick
+your **DEM layer** and tick which of the three levels you need, and the
+plugin creates a **Sensor Points** layer for each one. That's all the
+dialog does — everything after this happens on the layers themselves.
+
+### The three levels
+
+Sensors are split by the altitude band they're covering, each with its
+own points layer and its own coverage layer:
+
+| Level | Target altitude band |
+|---|---|
+| **Low Level** | Ground level to 3,300 m (up to 10,000 ft) |
+| **Medium Level** | 3,300 m to 7,000 m (10,000–25,000 ft) |
+| **High Level** | Above 7,000 m (above 25,000 ft) |
+
+Each level draws in its own colour — green, amber and blue respectively —
+so all three can be read together over the same ground. A whole band can
+be shown or hidden with its own checkbox in the Layers panel.
+
+### Plotting sensors
+
+Select the **Sensor Points** layer for the level you want, toggle
+editing on, and place sensors with QGIS's ordinary **Add Point** tool.
+Each sensor carries its own characteristics:
+
+| Field | Notes |
+|---|---|
+| Sensor height | Height of the sensor above ground, in metres (default 5) |
+| Target height | Height above ground being detected, in metres — limited to that layer's own band, so a point on the Low Level layer can't be given a high-level target height by accident |
+| Maximum range | That individual sensor's own detection range, in metres (default 30,000) |
+
+Range and sensor height are deliberately **not** tied to the level.
+Sensors in the same band routinely differ by an order of magnitude — a
+man-portable set at 5–6 m and 30 km, a vehicle-mounted one at 10–12 m
+and 150 km, and a ground-based one at 10–15 m and 180 km can all be
+low-level sensors — so each point carries its own figures. Only the DEM
+is shared across the whole laydown.
+
+### The coverage layer
+
+Save your edits and a **Sensor Coverage** layer appears for that level,
+covering everything visible from any sensor on it. Where two sensors'
+coverage overlaps, the two are **merged into a single perimeter** rather
+than drawn on top of each other; sensors too far apart to overlap simply
+keep their own separate outlines. Each sensor's own footprint is
+computed exactly the way Viewshed computes one, accounting for terrain,
+earth curvature and atmospheric refraction, and treating water as sea
+level rather than seabed depth.
+
+Coverage updates itself: move a sensor with the vertex tool, correct a
+range in the attribute form, add or delete a point, and that level's
+coverage redraws when you **save your edits**. Only the level you edited
+is recomputed — the other two bands are left alone. Regeneration is
+deliberately tied to saving rather than to every intermediate drag
+position, because each sensor on the layer means a full viewshed
+computation and re-running that continuously through a drag would make
+the drag itself unusable.
+
+Deleting the last sensor on a level removes that level's coverage layer,
+rather than leaving a shape behind claiming ground nothing covers any
+more.
+
+### On maximum ranges
+
+The maximum range field is that sensor's own detection range — the
+plugin doesn't compute one for you, because the real limit is the
+sensor's own capability far more often than it is the horizon. For
+reference, though, curvature alone puts a hard ceiling on any sightline.
+A sensor 5 m above ground can at best see:
+
+| Target height | Absolute maximum range |
+|---|---|
+| Ground level | ~8.6 km |
+| 3,300 m (10,000 ft) | ~228 km |
+| 7,000 m (25,000 ft) | ~329 km |
+| 15,000 m (~49,000 ft) | ~477 km |
+
+Those are unobstructed-atmosphere ceilings, not suggested values —
+terrain cuts real coverage well below them anywhere that isn't open flat
+ground, and at medium and high level a sensor's own range binds long
+before curvature does.
+
+Requires a DEM layer already loaded in your project (see "Getting a DEM"
+above). Reopen the dialog at any time to add a level you skipped, or to
+point an existing laydown at a different DEM.
 
 ---
 

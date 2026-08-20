@@ -11059,6 +11059,98 @@ extraction itself. Built as `dist/MilitaryCartographyTools-1.2.0.zip`
 
 ---
 
+## V-1 and V-2: multi-sensor coverage (2026-08-20)
+
+The two Viewshed items that had been waiting on a design conversation,
+built together because neither works without the other: merging several
+sensors' coverage needs the sensors to be real, addressable features
+first.
+
+**What it is.** Three "Sensor Points" layers - Low, Medium and High
+Level - each an ordinary editable point layer the user digitizes into,
+and each driving its own "Sensor Coverage" polygon. Every sensor's own
+visible area is computed exactly as the single-observer Viewshed tool
+already computes one, then all of a level's results are unioned:
+overlapping footprints fuse into a single perimeter, and sensors too far
+apart to overlap stay separate parts of the same multipolygon, still
+drawing their own outlines. That was the maintainer's own statement of
+the requirement almost verbatim.
+
+**Three layers, not one layer with a level field.** The bands are target
+ALTITUDE bands, and a laydown is planned one band at a time - the
+low-level picture and the high-level picture are different products.
+Separate layers also let each layer's own target-height field be
+range-limited to its own band by the attribute form, which one shared
+field could not be, and let a whole band be shown or hidden with one
+Layers-panel checkbox.
+
+**The bands.** Below 10,000 ft, 10,000-25,000 ft, and above - given by
+the maintainer, and stored as round metric figures (0-3,300 m,
+3,300-7,000 m, 7,000 m up) rather than the exact conversions 3,048 and
+7,620. These are planning band edges, not measurements; a sensor does
+not change band over three metres.
+
+**Per-sensor characteristics, NOT per-level presets.** This was the one
+place the initial design was wrong, and the maintainer corrected it with
+a concrete case: three radars that all belong on the Low Level layer
+while differing by an order of magnitude - a man-portable set at ~5-6 m
+and 30 km, a vehicle-mounted one at ~10-12 m and 150 km, and a
+semi-mobile ground set at ~10-15 m and 180 km. So sensor height, target
+height and maximum range are all per-FEATURE fields; the level
+constrains only which target heights are valid on that layer. Only the
+DEM is genuinely global to a laydown, and it is remembered on the points
+layer as a custom property so a saved project reopens knowing it.
+
+**Curvature was already handled.** Asked what the maximum ranges should
+be, the honest answer turned out to be that the tool already accounts
+for the earth's curvature: `terrain/viewshed.py` passes gdal_viewshed a
+`-cc` coefficient derived from `line_of_sight.py`'s own
+`REFRACTION_COEFFICIENT` (0.13), so every run has always been
+curvature-corrected per pixel. The refraction-corrected horizon is
+`d = sqrt(2Rh/(1-k))` ~= 3.83*sqrt(h) km; for a 5 m observer that is
+8.6 km to a ground target, ~228 km to a target at 3,300 m, ~329 km at
+7,000 m and ~477 km at 15,000 m. Those are the CEILING, not defaults -
+a real sensor's own detection range binds long before curvature does at
+medium and high level, which is exactly why range is a per-sensor field
+and not a computed one. `max_distance` is capped at 500 km on the form
+and left otherwise unconstrained.
+
+**Regeneration is automatic, on commit.** The maintainer asked for
+automatic ("the user will deploy the sensors when required"), not a
+Generate button, and for only the edited level to recompute. The signal
+is `afterCommitChanges`, deliberately not `geometryChanged`: one
+regeneration is a full gdal:viewshed run PER sensor, seconds of work on
+a real DEM, and QGIS fires `geometryChanged` continuously through a
+vertex drag - hanging a regeneration off every intermediate position
+would make the drag unusable. Committing an edit session is the moment
+the user has decided what they meant.
+
+**Two behaviours worth stating.** Deleting the last sensor on a level
+REMOVES that level's coverage rather than leaving a stale shape claiming
+ground nothing can see any more. A missing DEM, by contrast, leaves the
+existing coverage alone and warns - that is a recoverable setup problem,
+not a reason to discard a picture computed against a real DEM.
+
+**Verified by render, not only by property assertions.** Three
+scenarios rendered headlessly and inspected: two overlapping sensors
+(one merged perimeter, no internal dividing line), two far apart (two
+separate outlines), and three of mixed range (the two short-ranged ones
+correctly absorbed inside the long-ranged one's footprint). A property
+test cannot tell a merged perimeter from two outlines drawn on top of
+each other - the same class of gap that let the U-2 anchor-line offset
+bug through on 2026-08-19. The toolbar icon was rasterized and checked
+the same way, and redrawn: two stroked circles unioned read as a
+figure-eight at 24px, so it is a filled silhouette instead.
+
+`viewshed.py`'s own per-observer pipeline was split out as
+`visible_area_for_observer()` and shared rather than copied - the same
+reasoning that made `stabilised_point_size_expression()` shared after
+seven modules had each had to be found and fixed separately.
+
+1510 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
