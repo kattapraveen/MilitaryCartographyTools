@@ -99,6 +99,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "Hillshade Combinations",
                     "Line of Sight",
                     "Viewshed",
+                    "Sensor Coverage",
                 ],
                 "waypoints": [
                     "Import Waypoints",

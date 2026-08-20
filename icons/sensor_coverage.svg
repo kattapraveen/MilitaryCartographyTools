@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- two sensors whose coverage overlaps into one merged footprint -
+       the multi-sensor counterpart to viewshed.svg's own
+       single-observer sweep. Drawn as two overlapping FILLED circles
+       rather than a stroked outline: at 24px the union of two stroked
+       circles reads as a figure-eight, while the filled silhouette is
+       unambiguously one shape. -->
+  <g fill="#1f3a5f">
+    <circle cx="8.5" cy="12" r="6"/>
+    <circle cx="15.5" cy="12" r="6"/>
+  </g>
+  <circle cx="8.5" cy="12" r="1.8" fill="#ffffff"/>
+  <circle cx="15.5" cy="12" r="1.8" fill="#ffffff"/>
+</svg>

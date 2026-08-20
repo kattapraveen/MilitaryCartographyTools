@@ -136,6 +136,8 @@ from .terrain import (
     show_hillshade_combination_dialog,
 )
 from .terrain.line_of_sight_tool import LineOfSightTool
+from .terrain.sensor_coverage_dialog import SensorCoverageDialog
+from .terrain.sensor_coverage_manager import SensorCoverageManager
 from .terrain.viewshed_tool import ViewshedTool
 from .waypoints import show_export_waypoints_dialog, show_import_waypoints_dialog
 
@@ -183,6 +185,7 @@ class MilitaryCartographyTools:
         self.line_of_sight_action = None
         self.hillshade_combination_action = None
         self.viewshed_action = None
+        self.sensor_coverage_action = None
         self.import_waypoints_action = None
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
@@ -238,6 +241,12 @@ class MilitaryCartographyTools:
         self.bearing_range_tool = None
         self.line_of_sight_tool = None
         self.viewshed_tool = None
+
+        # Keeps each level's Sensor Coverage polygon in step with its
+        # own Sensor Points layer - see
+        # terrain/sensor_coverage_manager.py. Long-lived (it owns the
+        # signal connections), unlike the setup dialog it is passed to.
+        self.sensor_coverage_manager = None
 
         # One small toolbar per currently-open Layout Designer
         # window, keyed by the designer interface itself - just
@@ -308,6 +317,7 @@ class MilitaryCartographyTools:
         self._setup_line_of_sight_action()
         self._setup_hillshade_combination_action()
         self._setup_viewshed_action()
+        self._setup_sensor_coverage_action()
         self._setup_import_waypoints_action()
         self._setup_export_waypoints_action()
         self._setup_map_sheet_series_action()
@@ -820,6 +830,29 @@ class MilitaryCartographyTools:
             ),
             checkable=True,
             callback=self.toggle_viewshed,
+            standalone=False
+        )
+
+
+    def _setup_sensor_coverage_action(self):
+
+        # One-shot setup dialog, not a map tool: it creates the sensor
+        # points layers and points them at a DEM, after which the
+        # coverage keeps itself up to date whenever the user commits an
+        # edit - see terrain/sensor_coverage_manager.py.
+        self.sensor_coverage_manager = SensorCoverageManager(
+            self.iface
+        )
+
+        self.sensor_coverage_action = self._build_action(
+            "sensor_coverage.svg",
+            "Sensor Coverage",
+            tooltip=(
+                "Plot several sensors at low, medium or high level and "
+                "draw each level's combined coverage, merging "
+                "overlapping footprints into one perimeter"
+            ),
+            callback=self.create_sensor_coverage,
             standalone=False
         )
 
@@ -1473,7 +1506,7 @@ class MilitaryCartographyTools:
                 (
                     "DEM-derived terrain analysis: Tanaka Contours, "
                     "Hypsometric Tint, Hillshade Combinations, Line of "
-                    "Sight, Viewshed"
+                    "Sight, Viewshed, Sensor Coverage"
                 ),
                 [
                     self.tanaka_contours_action,
@@ -1481,6 +1514,7 @@ class MilitaryCartographyTools:
                     self.hillshade_combination_action,
                     self.line_of_sight_action,
                     self.viewshed_action,
+                    self.sensor_coverage_action,
                 ],
             ),
             (
@@ -1773,7 +1807,8 @@ class MilitaryCartographyTools:
         # coordinate_probe_action/bearing_range_action/
         # tanaka_contours_action/hypsometric_tint_action/
         # line_of_sight_action/hillshade_combination_action/
-        # viewshed_action/import_waypoints_action/
+        # viewshed_action/sensor_coverage_action/
+        # import_waypoints_action/
         # export_waypoints_action/map_sheet_series_action are
         # parented to the main window (like self.action above), not
         # the toolbar, so they survive sip.delete(self.toolbar) -
@@ -1793,6 +1828,8 @@ class MilitaryCartographyTools:
         self.hillshade_combination_action = None
         self.viewshed_action = None
         self.viewshed_tool = None
+        self.sensor_coverage_action = None
+        self.sensor_coverage_manager = None
         self.import_waypoints_action = None
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
@@ -2072,6 +2109,27 @@ class MilitaryCartographyTools:
             self.iface.mapCanvas().unsetMapTool(
                 self.viewshed_tool
             )
+
+
+    def create_sensor_coverage(self):
+        """
+        Set up (or repoint) the multi-sensor coverage layers - see
+        terrain/sensor_coverage_dialog.py.
+        """
+
+        # Any sensor points layer already in this project - reopened
+        # from disk, or added before this dialog was last closed -
+        # needs its coverage connection re-made, since signal
+        # connections don't survive a project load.
+        self.sensor_coverage_manager.attach_existing()
+
+        dialog = SensorCoverageDialog(
+            self.iface,
+            self.sensor_coverage_manager,
+            self.iface.mainWindow()
+        )
+
+        dialog.exec()
 
 
     def create_import_waypoints(self):
