@@ -327,32 +327,29 @@ def default_insert_position(project, layer):
     )
 
 
-def generate_viewshed(
+def visible_area_for_observer(
     dem_layer,
     observer_lonlat,
     observer_height,
     target_height,
-    max_distance,
-    opacity=DEFAULT_OPACITY,
-    color=DEFAULT_COLOR,
-    outline_only=DEFAULT_OUTLINE_ONLY
+    max_distance
 ):
 
     """
-    Build a "Viewshed" polygon layer covering just the area visible
-    from observer_lonlat (a WGS84 QgsPointXY), out to max_distance,
-    against dem_layer clipped to a box sized from max_distance (see
-    _observer_extent() - deliberately not the DEM's full extent or the
-    current map canvas). Deliberately does NOT add the layer to the
-    project - see core/_layer_utils.py's module docstring for why.
+    The whole clip/clamp/viewshed/polygonize pipeline for ONE observer,
+    returning an unnamed, unstyled polygon layer of just the visible
+    area - or None if observer_lonlat falls outside dem_layer's own
+    coverage. The returned layer is in the local UTM zone
+    clip_and_reproject_dem() picked for this observer, NOT a fixed CRS:
+    two observers far enough apart genuinely land in different zones,
+    so a caller combining several results must reproject them to a
+    common CRS itself (see sensor_coverage.py).
 
-    color (an (r, g, b) tuple) and outline_only control how the
-    coverage polygon is drawn, not what it contains - see
-    _apply_polygon_style(). Both default to the original appearance,
-    so an existing caller passing neither is unaffected.
-
-    Returns None if observer_lonlat falls outside dem_layer's own
-    coverage.
+    Split out of generate_viewshed() (2026-08-20) so multi-sensor
+    coverage can run the same pipeline per point and merge the results,
+    rather than owning a second copy of it that could drift from this
+    one - the same reasoning that made stabilised_point_size_
+    expression() shared.
     """
 
     transform_to_source_crs = QgsCoordinateTransform(
@@ -394,9 +391,49 @@ def generate_viewshed(
         max_distance
     )
 
-    output_layer = _polygonize_visible_area(
+    return _polygonize_visible_area(
         raw_viewshed
     )
+
+
+def generate_viewshed(
+    dem_layer,
+    observer_lonlat,
+    observer_height,
+    target_height,
+    max_distance,
+    opacity=DEFAULT_OPACITY,
+    color=DEFAULT_COLOR,
+    outline_only=DEFAULT_OUTLINE_ONLY
+):
+
+    """
+    Build a "Viewshed" polygon layer covering just the area visible
+    from observer_lonlat (a WGS84 QgsPointXY), out to max_distance,
+    against dem_layer clipped to a box sized from max_distance (see
+    _observer_extent() - deliberately not the DEM's full extent or the
+    current map canvas). Deliberately does NOT add the layer to the
+    project - see core/_layer_utils.py's module docstring for why.
+
+    color (an (r, g, b) tuple) and outline_only control how the
+    coverage polygon is drawn, not what it contains - see
+    _apply_polygon_style(). Both default to the original appearance,
+    so an existing caller passing neither is unaffected.
+
+    Returns None if observer_lonlat falls outside dem_layer's own
+    coverage.
+    """
+
+    output_layer = visible_area_for_observer(
+        dem_layer,
+        observer_lonlat,
+        observer_height,
+        target_height,
+        max_distance
+    )
+
+    if output_layer is None:
+        return None
 
     output_layer.setName(
         OUTPUT_LAYER_NAME
