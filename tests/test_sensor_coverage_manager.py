@@ -124,8 +124,8 @@ class SensorCoverageTestCase(QgisTestCase):
             QgsGeometry.fromPointXY(lonlat)
         )
 
-        feature["observer_height"] = 5.0
-        feature["target_height"] = 0.0
+        feature["sensor_height"] = 5.0
+        feature["detection_height"] = 1000.0
         feature["max_distance"] = max_distance
 
         before = {f.id() for f in points_layer.getFeatures()}
@@ -434,8 +434,8 @@ class TestWiring(SensorCoverageTestCase):
             QgsGeometry.fromPointXY(self._lonlat_at(0.5))
         )
 
-        feature["observer_height"] = 5.0
-        feature["target_height"] = 0.0
+        feature["sensor_height"] = 5.0
+        feature["detection_height"] = 1000.0
         feature["max_distance"] = 200.0
 
         points.addFeature(feature)
@@ -505,8 +505,8 @@ class TestWiring(SensorCoverageTestCase):
             QgsGeometry.fromPointXY(self._lonlat_at(0.5))
         )
 
-        feature["observer_height"] = 5.0
-        feature["target_height"] = 0.0
+        feature["sensor_height"] = 5.0
+        feature["detection_height"] = 1000.0
         feature["max_distance"] = DEFAULT_MAX_DISTANCE_M
 
         points.addFeature(feature)

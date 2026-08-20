@@ -11151,6 +11151,85 @@ seven modules had each had to be found and fixed separately.
 
 ---
 
+## Sensor Coverage: the band is measured from the ANTENNA (2026-08-20)
+
+Same day as the entry above, and a genuine correction to it rather than
+an addition. The first build treated the three bands as absolute
+altitude slices of airspace. They are not. The maintainer settled it
+with two worked cases:
+
+  - Radar on a boat, 5 m mast, so 5 m AMSL. Aircraft at 300 m AMSL is
+    295 m above it, inside a 3,300 m capability. Aircraft at 3,500 m
+    AMSL is 3,495 m above it - outside it.
+  - Same radar on a 2,000 m plateau, so 2,005 m AMSL. That same 3,500 m
+    aircraft is now 1,495 m above it - inside the same capability.
+
+So a level describes the SENSOR's vertical reach, and siting a set
+higher lifts its whole band with it. The same aircraft can be a
+low-level target to one radar and out of reach of an identical one
+sited lower.
+
+**What that broke, concretely.** gdal:viewshed's `-tz` is a height above
+the terrain at each TARGET cell, so a fixed value makes the "aircraft"
+ride up and down over every ridge instead of flying level - which is
+both physically wrong and, worse, wrong in the flattering direction:
+terrain that should hide a target instead lifted it into view.
+
+**The fix is gdal_viewshed's DEM output mode**, `-om DEM`, which returns
+per pixel the minimum ABSOLUTE altitude at which that pixel becomes
+visible. Threshold it at one altitude and the answer is exact, terrain
+masking included for free. The sensor's own altitude comes from sampling
+the (sea-level-clamped) DEM under it, so target altitude is
+`terrain + sensor height + detection height`.
+
+Two things were probed rather than assumed, and one of them was a trap:
+
+  - `-om DEM` semantics confirmed against a 200 m synthetic ridge -
+    values behind it climb 200 -> 217.7 -> 235.5 as the grazing
+    sightline projects outward, 0 in front of it.
+  - **`-md` is silently IGNORED in DEM mode.** Output is byte-identical
+    with `-md 1500` and with no limit at all. Maximum range therefore
+    has to be imposed afterwards, which `_clip_to_range()` now does with
+    a real metric circle - without it coverage ran to the corners of the
+    clip box, about 1.4x the intended range on the diagonal.
+
+**Refraction is now the radar figure**, k = 0.25 (the 4/3-earth model),
+for Sensor Coverage only; Line of Sight and Viewshed keep the optical
+0.13, since those are about what an eye can see. Roughly 15% more
+horizon - tens of kilometres on a long-range set, so not a rounding
+choice.
+
+**Antenna tilt, beam width and RF path loss are all closed, not
+pending.** Tilt and beam width were ruled out by the maintainer as too
+sensor-specific to state usefully. Path loss was investigated properly -
+crc-covlib (ITU-R P.1812/P.452, Python wrapper), NTIA's own ITM
+reference implementation, SPLAT! and Signal-Server are all real, open,
+and licence-compatible - and rejected on the grounds that every one of
+them needs frequency, transmit power, antenna gain, receiver sensitivity
+and ground constants. The maintainer has already established that real
+sensor figures cannot be used here, so those inputs would be invented
+and the output would be a confident dB contour resting on nothing. The
+geometric model claims exactly what it knows. Revisit only if real
+parameters ever become available; crc-covlib is where to start.
+
+Also worth recording: the example tool that prompted the search
+(a Gemini-written "radar siting tool") computes no terrain at all - its
+coverage lobes come from `Math.sin`/`Math.cos` noise seeded off the
+site's own coordinates, and its "Longley-Rice" option only changes the
+fill opacity. A useful reminder of what the failure mode looks like.
+
+Verified by render as well as tests: three bands from one sensor nest
+cleanly (areas 0.0116 / 0.0243 / 0.0501 on the same fixture), and an
+identical low-level sensor covers 4.3x more ground sited on a 2,000 m
+plateau than on the flat beside it. The sharpest test pins the ridge top
+itself as NOT covered at a low detection height - confirmed 2026-08-20
+to genuinely discriminate, since the old above-ground path reports that
+same point as covered.
+
+1514 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

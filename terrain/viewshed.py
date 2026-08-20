@@ -18,7 +18,9 @@ import processing
 
 from qgis.core import (
     QgsCoordinateTransform,
+    QgsFeature,
     QgsFillSymbol,
+    QgsGeometry,
     QgsProcessing,
     QgsProject,
     QgsRasterLayer,
@@ -73,6 +75,13 @@ MIN_COS_LATITUDE = 0.01
 # clip box, matching line_of_sight.py's own margin convention around
 # its two points' bounding box.
 OBSERVER_EXTENT_MARGIN_FRACTION = 0.1
+
+# Segments per quadrant when building the maximum-range circle the
+# fixed-altitude path is clipped back to (see _clip_to_range()). 36 puts
+# a vertex every 2.5 degrees, far finer than the DEM pixels the coverage
+# polygon is already quantised to, so the circle never becomes the
+# visibly coarse edge.
+RANGE_CIRCLE_SEGMENTS = 36
 
 
 def _observer_extent(observer_lonlat, max_distance_m):
@@ -198,6 +207,236 @@ def _run_viewshed(
     return QgsRasterLayer(
         result["OUTPUT"],
         "viewshed_raw"
+    )
+
+
+def _run_min_visible_altitude(
+    clamped_dem,
+    observer_point,
+    observer_height,
+    refraction_coefficient
+):
+
+    """
+    gdal:viewshed in its DEM output mode, which returns something quite
+    different from _run_viewshed()'s visible/not-visible mask: every
+    pixel holds the MINIMUM ABSOLUTE ALTITUDE - in the DEM's own
+    vertical datum, i.e. AMSL - at which a target over that pixel first
+    becomes visible from the observer.
+
+    That is the right primitive for a target at a constant altitude (an
+    aircraft flying level), which the plain mask cannot express at all:
+    -tz is a height above the terrain at each target cell, so a fixed
+    -tz makes the "aircraft" ride up and down over every ridge instead
+    of flying level. Threshold this raster at an altitude Z instead and
+    the answer is exact, terrain masking included for free - ground
+    standing above Z simply reports a minimum higher than Z and drops
+    out, which is also why a target cannot be seen "through" a mountain
+    taller than it is.
+
+    Verified by probe 2026-08-20 against a 200 m synthetic ridge:
+    values behind it climb 200 -> 217.7 -> 235.5 as the grazing
+    sightline projects outward, and are 0 (visible at ground level) in
+    front of it.
+
+    **-md does NOT apply in this mode** - confirmed by probe, output is
+    byte-identical with -md unset and -md 1500. Maximum range has to be
+    imposed afterwards; see _clip_to_range().
+    """
+
+    result = processing.run(
+        "gdal:viewshed",
+        {
+            "INPUT": clamped_dem,
+            "BAND": 1,
+            "OBSERVER": observer_point,
+            "OBSERVER_HEIGHT": observer_height,
+            "TARGET_HEIGHT": 0.0,
+            "MAX_DISTANCE": 0,
+            "OPTIONS": "",
+            "CREATION_OPTIONS": "",
+            "EXTRA": (
+                f"-om DEM -cc {1.0 - refraction_coefficient}"
+            ),
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
+        }
+    )
+
+    return QgsRasterLayer(
+        result["OUTPUT"],
+        "min_visible_altitude"
+    )
+
+
+def _threshold_at_altitude(min_altitude_raster, target_altitude):
+
+    """
+    A minimum-visible-altitude raster (see
+    _run_min_visible_altitude()) reduced to the same
+    visible/out-of-range classification _run_viewshed() produces
+    directly, so _polygonize_visible_area() can consume either: a pixel
+    whose minimum is at or below target_altitude is visible, everything
+    else is not.
+    """
+
+    result = processing.run(
+        "gdal:rastercalculator",
+        {
+            "INPUT_A": min_altitude_raster,
+            "BAND_A": 1,
+            "FORMULA": (
+                f"numpy.where(A <= {target_altitude}, "
+                f"{VISIBLE_VALUE}, {OUT_OF_RANGE_VALUE})"
+            ),
+            "NO_DATA": OUT_OF_RANGE_VALUE,
+            "RTYPE": 0,  # Byte - the output only ever holds 0 or 2
+            "OPTIONS": "",
+            "EXTRA": None,
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
+        }
+    )
+
+    return QgsRasterLayer(
+        result["OUTPUT"],
+        "visible_at_altitude"
+    )
+
+
+def _clip_to_range(layer, centre_point, max_distance):
+
+    """
+    Cuts `layer` back to a circle of radius max_distance around
+    centre_point (both in layer's own metric CRS). Needed only on the
+    fixed-altitude path, where gdal:viewshed's own -md is ignored (see
+    _run_min_visible_altitude()) - without this the result would run
+    out to the corners of the clip box, which reach roughly 1.4x the
+    intended range on the diagonal.
+    """
+
+    circle = QgsVectorLayer(
+        f"Polygon?crs={layer.crs().authid()}",
+        "range_circle",
+        "memory"
+    )
+
+    feature = QgsFeature()
+
+    feature.setGeometry(
+        QgsGeometry.fromPointXY(centre_point).buffer(
+            max_distance,
+            RANGE_CIRCLE_SEGMENTS
+        )
+    )
+
+    circle.dataProvider().addFeature(feature)
+    circle.updateExtents()
+
+    result = processing.run(
+        "native:clip",
+        {
+            "INPUT": layer,
+            "OVERLAY": circle,
+            "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
+        }
+    )
+
+    return result["OUTPUT"]
+
+
+def visible_area_at_altitude(
+    dem_layer,
+    observer_lonlat,
+    observer_height,
+    detection_height,
+    max_distance,
+    refraction_coefficient=REFRACTION_COEFFICIENT
+):
+
+    """
+    The area from which a target flying LEVEL at a fixed altitude is
+    visible to an observer at observer_lonlat - the sensor-coverage
+    counterpart to visible_area_for_observer(), which instead answers
+    "what ground can be seen from here".
+
+    `detection_height` is the sensor's own vertical capability measured
+    ABOVE ITS OWN ANTENNA, not above the terrain and not above sea
+    level. The target's absolute altitude is therefore
+    (terrain under the sensor) + observer_height + detection_height, so
+    the same radar covers a higher slice of airspace when sited higher:
+    a 5 m mast at sea level with a 3,300 m capability reaches 3,305 m
+    AMSL, while the same set on a 2,000 m plateau reaches 5,305 m. That
+    is the maintainer's own model, worked through on 2026-08-20, and it
+    is the reason this cannot be expressed with a plain -tz.
+
+    `refraction_coefficient` defaults to this module's own optical
+    value so a caller that does not care is unchanged; radar callers
+    pass their own (see sensor_coverage.RADAR_REFRACTION_COEFFICIENT).
+
+    Returns None if observer_lonlat falls outside dem_layer's coverage.
+    """
+
+    transform_to_source_crs = QgsCoordinateTransform(
+        WGS84,
+        dem_layer.crs(),
+        QgsProject.instance()
+    )
+
+    if not dem_layer.extent().contains(
+        transform_to_source_crs.transform(observer_lonlat)
+    ):
+        return None
+
+    clipped_dem = clip_and_reproject_dem(
+        dem_layer,
+        _observer_extent(observer_lonlat, max_distance),
+        WGS84
+    )
+
+    clamped_dem = _clamp_to_sea_level(
+        clipped_dem
+    )
+
+    transform_to_dem_crs = QgsCoordinateTransform(
+        WGS84,
+        clamped_dem.crs(),
+        QgsProject.instance()
+    )
+
+    observer_point = transform_to_dem_crs.transform(
+        observer_lonlat
+    )
+
+    # The sea-level-clamped DEM, deliberately, not the raw one: a
+    # sensor on a boat sits on the water surface at 0 m, not on the
+    # seabed - the same reasoning as _clamp_to_sea_level() itself.
+    terrain_elevation, sampled = clamped_dem.dataProvider().sample(
+        observer_point,
+        1
+    )
+
+    if not sampled:
+        return None
+
+    target_altitude = (
+        terrain_elevation + observer_height + detection_height
+    )
+
+    min_altitude_raster = _run_min_visible_altitude(
+        clamped_dem,
+        observer_point,
+        observer_height,
+        refraction_coefficient
+    )
+
+    visible_mask = _threshold_at_altitude(
+        min_altitude_raster,
+        target_altitude
+    )
+
+    return _clip_to_range(
+        _polygonize_visible_area(visible_mask),
+        observer_point,
+        max_distance
     )
 
 

@@ -498,18 +498,30 @@ dialog does — everything after this happens on the layers themselves.
 
 ### The three levels
 
-Sensors are split by the altitude band they're covering, each with its
-own points layer and its own coverage layer:
+Sensors are split by how high above themselves they can detect, each
+level with its own points layer and its own coverage layer:
 
-| Level | Target altitude band |
+| Level | Detection height above the sensor |
 |---|---|
-| **Low Level** | Ground level to 3,300 m (up to 10,000 ft) |
+| **Low Level** | Up to 3,300 m (10,000 ft) |
 | **Medium Level** | 3,300 m to 7,000 m (10,000–25,000 ft) |
 | **High Level** | Above 7,000 m (above 25,000 ft) |
 
+**These bands are measured from the antenna, not from sea level**, and
+that distinction matters as soon as you site anything on high ground.
+A radar with a 5 m mast on a boat sits at 5 m AMSL, so a 3,300 m
+capability reaches up to 3,305 m — an aircraft at 3,500 m is above it
+and out of reach. Put the identical radar on a 2,000 m plateau and it
+sits at 2,005 m, so the same capability now reaches 5,305 m and that
+same aircraft is comfortably inside the low-level picture. Siting a
+sensor higher lifts its whole band with it.
+
 Each level draws in its own colour — green, amber and blue respectively —
 so all three can be read together over the same ground. A whole band can
-be shown or hidden with its own checkbox in the Layers panel.
+be shown or hidden with its own checkbox in the Layers panel. Each band
+is drawn at its own **top**, so for identically sited sensors the three
+nest: whatever the low-level layer covers, the medium and high layers
+cover too.
 
 ### Plotting sensors
 
@@ -519,8 +531,8 @@ Each sensor carries its own characteristics:
 
 | Field | Notes |
 |---|---|
-| Sensor height | Height of the sensor above ground, in metres (default 5) |
-| Target height | Height above ground being detected, in metres — limited to that layer's own band, so a point on the Low Level layer can't be given a high-level target height by accident |
+| Sensor height | Height of the antenna above the ground it stands on, in metres (default 5). The DEM supplies the ground elevation underneath it |
+| Max detection height above sensor | How far above itself this sensor can detect, in metres — limited to that layer's own band, so a point on the Low Level layer can't be given a high-level capability by accident. Defaults to the band's ceiling |
 | Maximum range | That individual sensor's own detection range, in metres (default 30,000) |
 
 Range and sensor height are deliberately **not** tied to the level.
@@ -536,10 +548,20 @@ Save your edits and a **Sensor Coverage** layer appears for that level,
 covering everything visible from any sensor on it. Where two sensors'
 coverage overlaps, the two are **merged into a single perimeter** rather
 than drawn on top of each other; sensors too far apart to overlap simply
-keep their own separate outlines. Each sensor's own footprint is
-computed exactly the way Viewshed computes one, accounting for terrain,
-earth curvature and atmospheric refraction, and treating water as sea
-level rather than seabed depth.
+keep their own separate outlines.
+
+Each sensor's own footprint accounts for terrain, earth curvature and
+atmospheric refraction, and treats water as sea level rather than seabed
+depth. Unlike Viewshed, the target is modelled as **flying level at a
+fixed altitude** rather than at a fixed height above whatever ground is
+underneath it — so a mountain taller than the target's altitude hides
+what is behind it, and the mountain itself isn't covered either. An
+aircraft at 3,305 m cannot be over a 4,000 m peak.
+
+Refraction uses the **4/3-earth model** standard for radar (k = 0.25),
+rather than the optical coefficient Line of Sight and Viewshed use. That
+pushes the horizon out roughly 15% further than an optical sightline —
+on a long-range set, tens of kilometres.
 
 Coverage updates itself: move a sensor with the vertex tool, correct a
 range in the attribute form, add or delete a point, and that level's
@@ -560,19 +582,34 @@ The maximum range field is that sensor's own detection range — the
 plugin doesn't compute one for you, because the real limit is the
 sensor's own capability far more often than it is the horizon. For
 reference, though, curvature alone puts a hard ceiling on any sightline.
-A sensor 5 m above ground can at best see:
+Using the radar 4/3-earth model, the horizon distance for something at
+height *h* metres is roughly `4.12 × √h` km, and the maximum range
+between sensor and target is the sum of both horizons. For a 5 m mast at
+sea level:
 
-| Target height | Absolute maximum range |
+| Detection height above the sensor | Curvature ceiling |
 |---|---|
-| Ground level | ~8.6 km |
-| 3,300 m (10,000 ft) | ~228 km |
-| 7,000 m (25,000 ft) | ~329 km |
-| 15,000 m (~49,000 ft) | ~477 km |
+| Ground level (0 m) | ~9 km |
+| 3,300 m (10,000 ft) | ~246 km |
+| 7,000 m (25,000 ft) | ~354 km |
+| 30,000 m | ~723 km |
 
 Those are unobstructed-atmosphere ceilings, not suggested values —
 terrain cuts real coverage well below them anywhere that isn't open flat
 ground, and at medium and high level a sensor's own range binds long
-before curvature does.
+before curvature does. Note that these grow when the sensor is sited
+higher, since both the sensor's own horizon and the target's altitude
+rise together.
+
+### What is deliberately not modelled
+
+Antenna tilt limits, beam width, and RF path loss are all left out. Path
+loss in particular (Longley-Rice, ITU-R P.1812 and similar) needs
+frequency, transmit power, antenna gain, receiver sensitivity and ground
+constants — supply guesses for those and you get a confident-looking
+signal contour built on invented numbers. This tool models geometry
+only: terrain, curvature, and the range you state. It claims what it
+knows and nothing more.
 
 Requires a DEM layer already loaded in your project (see "Getting a DEM"
 above). Reopen the dialog at any time to add a level you skipped, or to

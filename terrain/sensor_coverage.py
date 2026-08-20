@@ -13,26 +13,59 @@ perimeter, and only genuinely separated ones should draw as separate
 shapes. That is exactly what a unary union of every sensor's own
 visible-area polygon produces - see generate_sensor_coverage().
 
-**Why three layers rather than one with a "level" field.** The bands are
-target ALTITUDE bands (below 10,000 ft, 10,000-25,000 ft, above), and a
-real sensor laydown is planned one band at a time - the low-level
-picture and the high-level picture are different products, drawn and
-read separately. Splitting them into their own layers also lets each
-layer's own target-height field be range-limited to its own band by the
+**The bands are measured ABOVE THE ANTENNA, not above sea level.** This
+is the single most counter-intuitive thing in this module and it was
+established by the maintainer directly, 2026-08-20, with two worked
+cases:
+
+  - A radar on a boat, 5 m mast, so 5 m AMSL. An aircraft at 300 m AMSL
+    is 295 m above it - inside a 3,300 m capability. An aircraft at
+    3,500 m AMSL is 3,495 m above it - OUTSIDE that capability.
+  - The same radar on a 2,000 m plateau, still 5 m of mast, so 2,005 m
+    AMSL. The 3,500 m aircraft is now only 1,495 m above it - INSIDE
+    the same capability.
+
+So a level is a statement about the SENSOR's vertical reach, not about
+a fixed slice of airspace: siting a set higher lifts its whole band
+with it, and the same aircraft can be a low-level target to one radar
+and out of reach of an identical one elsewhere. Getting this backwards
+(treating the bands as absolute AMSL altitudes) is the obvious mistake,
+and was in fact the first implementation here before the maintainer
+corrected it.
+
+**Why three layers rather than one with a "level" field.** A real
+laydown is planned one band at a time - the low-level picture and the
+high-level picture are different products, drawn and read separately.
+Splitting them into their own layers also lets each layer's own
+detection-height field be range-limited to its own band by the
 attribute form (see _configure_attribute_form()), which a single shared
 field could not be, and lets a user show/hide one band's whole picture
-with one Layers-panel checkbox.
+with one Layers-panel checkbox. Because each band is drawn at its own
+TOP (the maintainer's choice, 2026-08-20 - the best case rather than
+the guaranteed-throughout-the-band case), coverage for identically
+sited sensors nests: High contains Medium contains Low.
 
 **Per-point sensor characteristics, not per-level presets.** Confirmed
 with the maintainer 2026-08-20 against a concrete case: three radars
 that all belong on the LOW level layer but differ by an order of
 magnitude in range (a man-portable set at ~5-6 m and 30 km, a
 vehicle-mounted one at ~10-12 m and 150 km, a semi-mobile ground set at
-~10-15 m and 180 km). So observer height, target height and maximum
-range are all per-FEATURE fields; the level only constrains which target
-heights are valid on that layer. The DEM, by contrast, is global - one
-terrain source covers the whole laydown - and is remembered on the
-points layer itself (see set_dem_layer()).
+~10-15 m and 180 km). So sensor height, detection height and maximum
+range are all per-FEATURE fields; the level only constrains which
+detection heights are valid on that layer. The DEM, by contrast, is
+global - one terrain source covers the whole laydown - and is
+remembered on the points layer itself (see set_dem_layer()).
+
+**Deliberately NOT modelled: antenna tilt limits and beam width.** Both
+were raised and both were ruled out by the maintainer, 2026-08-20, as
+too sensor-specific to express usefully without real figures. Nor is
+any RF path-loss model used (Longley-Rice, ITU-R P.1812 and friends
+were surveyed): every one of them needs frequency, transmit power,
+antenna gain, receiver sensitivity and ground constants, none of which
+this tool's users can supply, and inventing them would dress made-up
+inputs up as a dB contour. The geometric model here claims exactly what
+it knows - terrain, curvature, and an operator-stated maximum range -
+and nothing more.
 
 Deliberately NOT a generate_*()/replace_named_layer() feature on the
 POINTS side, same reasoning as military_symbology/_point_symbol_layer.py:
@@ -66,8 +99,18 @@ from .viewshed import (
     _apply_polygon_style,
     DEFAULT_OPACITY,
     DEFAULT_OUTLINE_ONLY,
-    visible_area_for_observer,
+    visible_area_at_altitude,
 )
+
+
+# Radar propagation bends more than light does. The rest of this plugin
+# uses 0.13, the standard OPTICAL refraction coefficient, because Line
+# of Sight and Viewshed are both about what an eye can see; radar
+# convention is the 4/3-earth model, k = 0.25, which pushes the horizon
+# out by roughly 15%. On a 180 km set that is tens of kilometres, so it
+# is not a rounding choice. Confirmed with the maintainer 2026-08-20:
+# use the radar figure here and leave the other two features optical.
+RADAR_REFRACTION_COEFFICIENT = 0.25
 
 
 # Which DEM this layer's coverage is computed against, remembered on
@@ -82,12 +125,13 @@ POINTS_LAYER_NAME_TEMPLATE = "Sensor Points - {label}"
 COVERAGE_LAYER_NAME_TEMPLATE = "Sensor Coverage - {label}"
 
 
-# The three target-altitude bands, as agreed with the maintainer
-# 2026-08-20. The boundaries are the familiar flight-level ones - 10,000
-# ft and 25,000 ft - converted to round metric figures rather than their
-# exact conversions (3,048 m and 7,620 m), because these are planning
-# band edges, not measurements: a sensor is not assigned to the low-level
-# picture by three metres.
+# The three bands, as agreed with the maintainer 2026-08-20. Each is a
+# height ABOVE THE SENSOR'S OWN ANTENNA (see this module's docstring),
+# not an absolute altitude. The boundaries are the familiar flight-level
+# ones - 10,000 ft and 25,000 ft - converted to round metric figures
+# rather than their exact conversions (3,048 m and 7,620 m), because
+# these are planning band edges, not measurements: a sensor is not
+# assigned to the low-level picture by three metres.
 #
 # `ceiling` on the top band is a form limit, not a physical one - the
 # band itself is open-ended ("above 25,000 ft"), and 30,000 m is simply
@@ -117,8 +161,8 @@ SENSOR_LEVELS = (
 # A light, mobile set sits a few metres up; a mast-mounted one tens of
 # metres. The range is deliberately wide rather than tuned to any one
 # sensor type - see this module's own docstring.
-DEFAULT_OBSERVER_HEIGHT_M = 5.0
-MAX_OBSERVER_HEIGHT_M = 500.0
+DEFAULT_SENSOR_HEIGHT_M = 5.0
+MAX_SENSOR_HEIGHT_M = 500.0
 
 # 30 km is the low end of the maintainer's own worked example (a
 # man-portable set), so it is a defensible starting value that is
@@ -194,15 +238,17 @@ def _configure_attribute_form(layer, level):
     layer in this plugin uses (see military_symbology/
     _control_measure_shared.py's configure_rotation_and_scale_fields()).
 
-    Target height is the one field whose range is level-specific: it is
-    clamped to this layer's own band, which is what makes a point
+    Detection height is the one field whose range is level-specific: it
+    is clamped to this layer's own band, which is what makes a point
     placed on the Low Level layer a low-level sensor rather than
-    something the user has to remember to keep in band by hand.
+    something the user has to remember to keep in band by hand. It
+    defaults to the band's CEILING, because each band is drawn at its
+    own top - see this module's docstring.
     """
 
     fields = layer.fields()
 
-    observer_idx = fields.indexOf("observer_height")
+    observer_idx = fields.indexOf("sensor_height")
 
     layer.setEditorWidgetSetup(
         observer_idx,
@@ -210,7 +256,7 @@ def _configure_attribute_form(layer, level):
             "Range",
             {
                 "Min": 0.0,
-                "Max": MAX_OBSERVER_HEIGHT_M,
+                "Max": MAX_SENSOR_HEIGHT_M,
                 "Step": 0.5,
                 "Precision": 1,
                 "Style": "SpinBox",
@@ -221,7 +267,7 @@ def _configure_attribute_form(layer, level):
 
     layer.setDefaultValueDefinition(
         observer_idx,
-        QgsDefaultValue(f"{DEFAULT_OBSERVER_HEIGHT_M:g}")
+        QgsDefaultValue(f"{DEFAULT_SENSOR_HEIGHT_M:g}")
     )
 
     layer.setFieldAlias(
@@ -229,10 +275,11 @@ def _configure_attribute_form(layer, level):
         "Sensor height (m above ground)"
     )
 
-    target_idx = fields.indexOf("target_height")
+
+    detection_idx = fields.indexOf("detection_height")
 
     layer.setEditorWidgetSetup(
-        target_idx,
+        detection_idx,
         QgsEditorWidgetSetup(
             "Range",
             {
@@ -247,13 +294,13 @@ def _configure_attribute_form(layer, level):
     )
 
     layer.setDefaultValueDefinition(
-        target_idx,
-        QgsDefaultValue(f"{level.floor_m:g}")
+        detection_idx,
+        QgsDefaultValue(f"{level.ceiling_m:g}")
     )
 
     layer.setFieldAlias(
-        target_idx,
-        f"Target height (m above ground, {level.label.lower()})"
+        detection_idx,
+        f"Max detection height above sensor (m, {level.label.lower()})"
     )
 
     distance_idx = fields.indexOf("max_distance")
@@ -303,8 +350,8 @@ def build_sensor_points_layer(level):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("observer_height", QMetaType.Type.Double),
-            QgsField("target_height", QMetaType.Type.Double),
+            QgsField("sensor_height", QMetaType.Type.Double),
+            QgsField("detection_height", QMetaType.Type.Double),
             QgsField("max_distance", QMetaType.Type.Double),
         ]
     )
@@ -333,16 +380,17 @@ def build_sensor_points_layer(level):
     return layer
 
 
-def _sensor_observations(points_layer):
+def _sensor_observations(points_layer, level):
 
     """
-    Every sensor on points_layer as a (WGS84 QgsPointXY,
-    observer_height, target_height, max_distance) tuple, skipping any
-    feature with no geometry. Field values fall back to this module's
-    own defaults rather than being trusted to exist: a feature created
-    before a field did, or one whose value was cleared by hand, should
-    still contribute its coverage instead of silently dropping out of
-    the picture.
+    Every sensor on points_layer as a (WGS84 QgsPointXY, sensor_height,
+    detection_height, max_distance) tuple, skipping any feature with no
+    geometry. Field values fall back to sensible defaults rather than
+    being trusted to exist: a feature created before a field did, or
+    one whose value was cleared by hand, should still contribute its
+    coverage instead of silently dropping out of the picture. The
+    detection-height fallback is this LEVEL's own ceiling, matching the
+    field default - see _configure_attribute_form().
     """
 
     to_wgs84 = QgsCoordinateTransform(
@@ -370,21 +418,21 @@ def _sensor_observations(points_layer):
 
         yield (
             point,
-            value("observer_height", DEFAULT_OBSERVER_HEIGHT_M),
-            value("target_height", 0.0),
+            value("sensor_height", DEFAULT_SENSOR_HEIGHT_M),
+            value("detection_height", level.ceiling_m),
             value("max_distance", DEFAULT_MAX_DISTANCE_M),
         )
 
 
-def _merged_visible_geometry(dem_layer, points_layer):
+def _merged_visible_geometry(dem_layer, points_layer, level):
 
     """
-    One QgsGeometry (in WGS84) covering everything visible from any
-    sensor on points_layer, or None if no sensor produced any coverage
-    at all.
+    One QgsGeometry (in WGS84) covering everything from which a target
+    at any sensor's own detection ceiling would be visible, or None if
+    no sensor produced any coverage at all.
 
     Every per-sensor result is reprojected to WGS84 BEFORE being
-    unioned. That is not incidental tidying: visible_area_for_observer()
+    unioned. That is not incidental tidying: visible_area_at_altitude()
     returns its polygon in whatever local UTM zone the DEM clip around
     THAT sensor resolved to, and two sensors far enough apart genuinely
     land in different zones - unioning those raw would silently place
@@ -400,14 +448,15 @@ def _merged_visible_geometry(dem_layer, points_layer):
 
     geometries = []
 
-    for point, observer_height, target_height, max_distance in _sensor_observations(points_layer):
+    for point, sensor_height, detection_height, max_distance in _sensor_observations(points_layer, level):
 
-        visible = visible_area_for_observer(
+        visible = visible_area_at_altitude(
             dem_layer,
             point,
-            observer_height,
-            target_height,
-            max_distance
+            sensor_height,
+            detection_height,
+            max_distance,
+            refraction_coefficient=RADAR_REFRACTION_COEFFICIENT
         )
 
         if visible is None:
@@ -465,7 +514,8 @@ def generate_sensor_coverage(
 
     merged = _merged_visible_geometry(
         dem_layer,
-        points_layer
+        points_layer,
+        level
     )
 
     if merged is None or merged.isEmpty():

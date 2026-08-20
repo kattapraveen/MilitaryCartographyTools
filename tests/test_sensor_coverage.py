@@ -12,6 +12,8 @@ import os
 
 from qgis.core import (
     Qgis,
+    QgsCoordinateTransform,
+    QgsDistanceArea,
     QgsFeature,
     QgsGeometry,
     QgsPointXY,
@@ -20,6 +22,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
+from MilitaryCartographyTools.core.coordinate_utils import WGS84
+
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
 from MilitaryCartographyTools.terrain.sensor_coverage import (
@@ -27,7 +31,7 @@ from MilitaryCartographyTools.terrain.sensor_coverage import (
     coverage_layer_name,
     default_insert_position,
     DEFAULT_MAX_DISTANCE_M,
-    DEFAULT_OBSERVER_HEIGHT_M,
+    DEFAULT_SENSOR_HEIGHT_M,
     dem_layer_for,
     generate_sensor_coverage,
     level_by_key,
@@ -46,9 +50,9 @@ class TestSensorLevels(QgisTestCase):
 
     def test_the_three_bands_are_contiguous_and_ascending(self):
 
-        # The bands are a partition of altitude, not three independent
-        # ranges - a gap or an overlap between them would leave a target
-        # height that belongs to no layer, or to two.
+        # The bands are a partition of height-above-the-sensor, not
+        # three independent ranges - a gap or an overlap between them
+        # would leave a detection height belonging to no layer, or two.
         for lower, upper in zip(SENSOR_LEVELS, SENSOR_LEVELS[1:]):
 
             self.assertEqual(
@@ -120,7 +124,7 @@ class TestSensorPointsLayer(QgisTestCase):
 
         self.assertEqual(
             [field.name() for field in layer.fields()],
-            ["observer_height", "target_height", "max_distance"]
+            ["sensor_height", "detection_height", "max_distance"]
         )
 
 
@@ -128,7 +132,7 @@ class TestSensorPointsLayer(QgisTestCase):
 
         layer = build_sensor_points_layer(LOW)
 
-        for field_name in ("observer_height", "target_height", "max_distance"):
+        for field_name in ("sensor_height", "detection_height", "max_distance"):
 
             with self.subTest(field=field_name):
 
@@ -140,7 +144,7 @@ class TestSensorPointsLayer(QgisTestCase):
                 )
 
 
-    def test_target_height_is_clamped_to_its_own_levels_band(self):
+    def test_detection_height_is_clamped_to_its_own_levels_band(self):
 
         # This is what makes a point on the Low Level layer a low-level
         # sensor: the form itself will not accept an out-of-band target
@@ -151,22 +155,22 @@ class TestSensorPointsLayer(QgisTestCase):
 
                 layer = build_sensor_points_layer(level)
 
-                config = self._widget_config(layer, "target_height")
+                config = self._widget_config(layer, "detection_height")
 
                 self.assertEqual(config["Min"], level.floor_m)
                 self.assertEqual(config["Max"], level.ceiling_m)
 
 
-    def test_the_bands_do_not_all_share_one_target_height_range(self):
+    def test_the_bands_do_not_all_share_one_detection_height_range(self):
 
         # Guards against a refactor that accidentally passes the same
         # level (or a module-level constant) to every layer - which
-        # test_target_height_is_clamped... alone would still pass if
+        # test_detection_height_is_clamped... alone would still pass if
         # every level happened to be built from the same one.
         ranges = {
             (
-                self._widget_config(build_sensor_points_layer(level), "target_height")["Min"],
-                self._widget_config(build_sensor_points_layer(level), "target_height")["Max"],
+                self._widget_config(build_sensor_points_layer(level), "detection_height")["Min"],
+                self._widget_config(build_sensor_points_layer(level), "detection_height")["Max"],
             )
             for level in SENSOR_LEVELS
         }
@@ -177,7 +181,7 @@ class TestSensorPointsLayer(QgisTestCase):
         )
 
 
-    def test_observer_height_and_range_are_not_band_limited(self):
+    def test_sensor_height_and_range_are_not_band_limited(self):
 
         # The maintainer's own worked case: three radars on the SAME
         # level differing by an order of magnitude in range (30 km to
@@ -210,24 +214,26 @@ class TestSensorPointsLayer(QgisTestCase):
 
                 fields = layer.fields()
 
-                target_default = float(
+                # Each band is drawn at its own TOP (maintainer's
+                # choice 2026-08-20), so the default is the ceiling -
+                # not merely somewhere inside the band.
+                detection_default = float(
                     layer.defaultValueDefinition(
-                        fields.indexOf("target_height")
+                        fields.indexOf("detection_height")
                     ).expression()
                 )
 
-                self.assertGreaterEqual(target_default, level.floor_m)
-                self.assertLessEqual(target_default, level.ceiling_m)
+                self.assertAlmostEqual(detection_default, level.ceiling_m)
 
                 observer_default = float(
                     layer.defaultValueDefinition(
-                        fields.indexOf("observer_height")
+                        fields.indexOf("sensor_height")
                     ).expression()
                 )
 
                 self.assertAlmostEqual(
                     observer_default,
-                    DEFAULT_OBSERVER_HEIGHT_M
+                    DEFAULT_SENSOR_HEIGHT_M
                 )
 
                 distance_default = float(
@@ -246,7 +252,7 @@ class TestSensorPointsLayer(QgisTestCase):
 
         layer = build_sensor_points_layer(LOW)
 
-        for field_name in ("observer_height", "target_height", "max_distance"):
+        for field_name in ("sensor_height", "detection_height", "max_distance"):
 
             with self.subTest(field=field_name):
 
@@ -360,7 +366,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         """
         A sensor points layer holding one feature per
-        (lonlat, observer_height, target_height, max_distance) tuple.
+        (lonlat, sensor_height, detection_height, max_distance) tuple.
         Built in WGS84 directly so the fixture's own coordinates need no
         conversion - the production layer takes the project CRS, and
         _sensor_observations() transforms whatever it finds.
@@ -380,7 +386,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         features = []
 
-        for lonlat, observer_height, target_height, max_distance in sensors:
+        for lonlat, sensor_height, detection_height, max_distance in sensors:
 
             feature = QgsFeature(layer.fields())
 
@@ -388,8 +394,8 @@ class TestGenerateSensorCoverage(QgisTestCase):
                 QgsGeometry.fromPointXY(lonlat)
             )
 
-            feature["observer_height"] = observer_height
-            feature["target_height"] = target_height
+            feature["sensor_height"] = sensor_height
+            feature["detection_height"] = detection_height
             feature["max_distance"] = max_distance
 
             features.append(feature)
@@ -422,7 +428,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
     def test_a_single_sensor_produces_a_single_coverage_polygon(self):
 
         layer = self._coverage(
-            [(self._lonlat_at(0.5), 5.0, 0.0, 200.0)]
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0)]
         )
 
         self.assertTrue(layer.isValid())
@@ -447,7 +453,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
                 layer = generate_sensor_coverage(
                     self.dem_layer,
                     self._points_layer(
-                        [(self._lonlat_at(0.5), 5.0, level.floor_m, 200.0)],
+                        [(self._lonlat_at(0.5), 5.0, level.ceiling_m, 200.0)],
                         level
                     ),
                     level
@@ -465,8 +471,8 @@ class TestGenerateSensorCoverage(QgisTestCase):
         # their footprints overlap must read as ONE perimeter, not two
         # circles drawn on top of each other.
         close_together = [
-            (self._lonlat_at(0.45), 5.0, 0.0, 300.0),
-            (self._lonlat_at(0.55), 5.0, 0.0, 300.0),
+            (self._lonlat_at(0.45), 5.0, 1000.0, 300.0),
+            (self._lonlat_at(0.55), 5.0, 1000.0, 300.0),
         ]
 
         geometry = self._coverage(close_together).getFeature(1).geometry()
@@ -482,8 +488,8 @@ class TestGenerateSensorCoverage(QgisTestCase):
         # The other half of the same requirement: no overlap means no
         # merge, and each sensor keeps its own outline.
         far_apart = [
-            (self._lonlat_at(0.08), 5.0, 0.0, 120.0),
-            (self._lonlat_at(0.92), 5.0, 0.0, 120.0),
+            (self._lonlat_at(0.08), 5.0, 1000.0, 120.0),
+            (self._lonlat_at(0.92), 5.0, 1000.0, 120.0),
         ]
 
         geometry = self._coverage(far_apart).getFeature(1).geometry()
@@ -500,13 +506,13 @@ class TestGenerateSensorCoverage(QgisTestCase):
         # than their two areas added together, or the "merge" is really
         # just stacking.
         one = self._coverage(
-            [(self._lonlat_at(0.45), 5.0, 0.0, 300.0)]
+            [(self._lonlat_at(0.45), 5.0, 1000.0, 300.0)]
         )
 
         two = self._coverage(
             [
-                (self._lonlat_at(0.45), 5.0, 0.0, 300.0),
-                (self._lonlat_at(0.55), 5.0, 0.0, 300.0),
+                (self._lonlat_at(0.45), 5.0, 1000.0, 300.0),
+                (self._lonlat_at(0.55), 5.0, 1000.0, 300.0),
             ]
         )
 
@@ -523,13 +529,13 @@ class TestGenerateSensorCoverage(QgisTestCase):
         # the same level with very different ranges. The long-ranged one
         # must contribute more ground than the short-ranged one.
         short = self._coverage(
-            [(self._lonlat_at(0.5), 5.0, 0.0, 100.0)]
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 100.0)]
         )
 
         mixed = self._coverage(
             [
-                (self._lonlat_at(0.5), 5.0, 0.0, 100.0),
-                (self._lonlat_at(0.5), 5.0, 0.0, 400.0),
+                (self._lonlat_at(0.5), 5.0, 1000.0, 100.0),
+                (self._lonlat_at(0.5), 5.0, 1000.0, 400.0),
             ]
         )
 
@@ -550,8 +556,8 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         layer = self._coverage(
             [
-                (self._lonlat_at(0.5), 5.0, 0.0, 200.0),
-                (far_outside, 5.0, 0.0, 200.0),
+                (self._lonlat_at(0.5), 5.0, 1000.0, 200.0),
+                (far_outside, 5.0, 1000.0, 200.0),
             ]
         )
 
@@ -574,7 +580,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
         self.assertIsNone(
-            self._coverage([(far_outside, 5.0, 0.0, 200.0)])
+            self._coverage([(far_outside, 5.0, 1000.0, 200.0)])
         )
 
 
@@ -583,7 +589,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
         layer = generate_sensor_coverage(
             self.dem_layer,
             self._points_layer(
-                [(self._lonlat_at(0.5), 5.0, MEDIUM.floor_m, 200.0)],
+                [(self._lonlat_at(0.5), 5.0, MEDIUM.ceiling_m, 200.0)],
                 MEDIUM
             ),
             MEDIUM
@@ -600,12 +606,232 @@ class TestGenerateSensorCoverage(QgisTestCase):
     def test_the_output_layer_is_not_added_to_the_project(self):
 
         layer = self._coverage(
-            [(self._lonlat_at(0.5), 5.0, 0.0, 200.0)]
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0)]
         )
 
         self.assertIsNone(
             QgsProject.instance().mapLayer(layer.id())
         )
+
+
+    def test_max_range_is_actually_enforced(self):
+
+        # gdal:viewshed's own -md is IGNORED in the DEM output mode this
+        # now uses (confirmed by probe 2026-08-20: byte-identical output
+        # with -md set and unset), so the range limit is imposed by
+        # _clip_to_range() instead. Without it the coverage would run
+        # out to the corners of the DEM clip box - about 1.4x the
+        # intended range on the diagonal.
+        max_distance = 200.0
+
+        centre = self._lonlat_at(0.5)
+
+        layer = self._coverage(
+            [(centre, 5.0, 1000.0, max_distance)]
+        )
+
+        transform = QgsCoordinateTransform(
+            WGS84,
+            layer.crs(),
+            QgsProject.instance()
+        )
+
+        centre_geometry = QgsGeometry.fromPointXY(
+            transform.transform(centre)
+        )
+
+        # Measured on the ellipsoid, in metres, rather than in the
+        # layer's own degrees.
+        measure = QgsDistanceArea()
+        measure.setSourceCrs(layer.crs(), QgsProject.instance().transformContext())
+        measure.setEllipsoid("WGS84")
+
+        furthest = measure.measureLength(
+            QgsGeometry.fromPolylineXY(
+                [
+                    centre_geometry.asPoint(),
+                    layer.getFeature(1).geometry().boundingBox().center()
+                ]
+            )
+        )
+
+        # A cheap sanity bound first, then the real one: no vertex of
+        # the coverage may sit beyond the stated range (plus one DEM
+        # pixel of polygonization slack).
+        self.assertLess(furthest, max_distance)
+
+        for vertex in layer.getFeature(1).geometry().vertices():
+
+            distance = measure.measureLength(
+                QgsGeometry.fromPolylineXY(
+                    [centre_geometry.asPoint(), QgsPointXY(vertex)]
+                )
+            )
+
+            self.assertLessEqual(
+                distance,
+                max_distance * 1.05
+            )
+
+
+    def test_siting_a_sensor_higher_enlarges_its_coverage(self):
+
+        # The maintainer's own boat-versus-plateau case, in miniature:
+        # the band is measured above the ANTENNA, so lifting the sensor
+        # lifts the whole slice of airspace it covers, and it sees
+        # further. Same sensor, same capability, different ground.
+        ridge_path = build_synthetic_ridge_dem(
+            width=60,
+            height=60,
+            base_elevation=0.0,
+            ridge_height=300.0,
+            ridge_start_column=28,
+            ridge_end_column=32
+        )
+
+        try:
+
+            dem = QgsRasterLayer(ridge_path, "stepped_dem")
+
+            extent = dem.extent()
+
+            def at(fraction):
+                return QgsPointXY(
+                    extent.xMinimum() + extent.width() * fraction,
+                    extent.center().y()
+                )
+
+            def area(observer):
+                layer = generate_sensor_coverage(
+                    dem,
+                    self._points_layer([(observer, 5.0, 500.0, 400.0)]),
+                    LOW
+                )
+                return layer.getFeature(1).geometry().area()
+
+            # On the raised block versus on the flat ground beside it.
+            on_high_ground = area(at(0.5))
+            on_low_ground = area(at(0.1))
+
+            self.assertGreater(on_high_ground, on_low_ground)
+
+        finally:
+
+            try:
+                os.remove(ridge_path)
+            except OSError:
+                pass
+
+
+    def test_a_higher_band_covers_at_least_as_much_as_a_lower_one(self):
+
+        # Each band is drawn at its own top, so for identically sited
+        # sensors the three nest: High contains Medium contains Low.
+        # This is what makes the three layers readable stacked.
+        centre = self._lonlat_at(0.5)
+
+        areas = []
+
+        for level in SENSOR_LEVELS:
+
+            layer = generate_sensor_coverage(
+                self.dem_layer,
+                self._points_layer(
+                    [(centre, 5.0, level.ceiling_m, 400.0)],
+                    level
+                ),
+                level
+            )
+
+            areas.append(layer.getFeature(1).geometry().area())
+
+        for lower, higher in zip(areas, areas[1:]):
+
+            self.assertGreaterEqual(
+                round(higher, 12),
+                round(lower, 12)
+            )
+
+
+    def test_terrain_taller_than_the_target_still_blocks_it(self):
+
+        # The consequence of computing at an ABSOLUTE altitude: a target
+        # cannot be seen "over" ground that stands higher than the
+        # target itself is flying. A detection height of 100 m from a
+        # 5 m mast puts the target at ~105 m; a 300 m ridge must still
+        # hide what is behind it.
+        ridge_path = build_synthetic_ridge_dem(
+            width=60,
+            height=20,
+            base_elevation=0.0,
+            ridge_height=300.0,
+            ridge_start_column=20,
+            ridge_end_column=24
+        )
+
+        try:
+
+            dem = QgsRasterLayer(ridge_path, "ridge_dem")
+
+            extent = dem.extent()
+
+            def at(fraction):
+                return QgsPointXY(
+                    extent.xMinimum() + extent.width() * fraction,
+                    extent.center().y()
+                )
+
+            def covers(fraction, detection_height):
+
+                layer = generate_sensor_coverage(
+                    dem,
+                    self._points_layer([(at(0.05), 5.0, detection_height, 600.0)]),
+                    LOW
+                )
+
+                if layer is None:
+                    return False
+
+                transform = QgsCoordinateTransform(
+                    WGS84, layer.crs(), QgsProject.instance()
+                )
+
+                probe = QgsGeometry.fromPointXY(
+                    transform.transform(at(fraction))
+                )
+
+                return layer.getFeature(1).geometry().contains(probe)
+
+            self.assertFalse(
+                covers(0.75, 100.0)
+            )
+
+            # Lift the target well above the ridge and it reappears.
+            self.assertTrue(
+                covers(0.75, 3000.0)
+            )
+
+            # The sharpest statement of the whole rework, and the one
+            # assertion that genuinely separates it from the old
+            # above-ground model: the RIDGE TOP ITSELF is not covered
+            # at a low detection height. A target 105 m above sea level
+            # cannot be over a 300 m hill.
+            #
+            # Confirmed 2026-08-20 that the two models really do differ
+            # here rather than this passing for free - the old
+            # visible_area_for_observer() path reports this same point
+            # as covered, because a fixed -tz makes the target ride up
+            # to 400 m along with the terrain instead of flying level.
+            self.assertFalse(
+                covers(0.36, 100.0)
+            )
+
+        finally:
+
+            try:
+                os.remove(ridge_path)
+            except OSError:
+                pass
 
 
     def test_default_insert_position_places_it_at_the_top_of_the_tree(self):
@@ -617,7 +843,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
         project.layerTreeRoot().insertLayer(0, existing)
 
         layer = self._coverage(
-            [(self._lonlat_at(0.5), 5.0, 0.0, 200.0)]
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0)]
         )
 
         project.addMapLayer(layer, False)
