@@ -28,10 +28,11 @@ from qgis.core import QgsProject
 
 from ..core._layer_utils import replace_named_layer
 from .sensor_coverage import (
+    build_sensor_layers,
     coverage_layer_name,
     default_insert_position,
     dem_layer_for,
-    generate_sensor_coverage,
+    designations_layer_name,
     points_layer_name,
     SENSOR_LEVELS,
 )
@@ -96,11 +97,11 @@ class SensorCoverageManager:
         return existing[0] if existing else None
 
 
-    def _remove_coverage(self, level):
+    def _remove_named(self, name):
 
         project = QgsProject.instance()
 
-        for layer in project.mapLayersByName(coverage_layer_name(level)):
+        for layer in project.mapLayersByName(name):
 
             project.removeMapLayer(
                 layer.id()
@@ -140,26 +141,44 @@ class SensorCoverageManager:
 
             return None
 
-        def generate():
+        # Both layers come out of ONE pass, because each sensor's
+        # footprint is a full gdal:viewshed run and computing them twice
+        # would double the cost of every edit.
+        coverage, designations = build_sensor_layers(
+            dem_layer,
+            points_layer,
+            level
+        )
 
-            return generate_sensor_coverage(
-                dem_layer,
-                points_layer,
-                level
-            )
-
-        coverage = replace_named_layer(
+        replaced = replace_named_layer(
             coverage_layer_name(level),
-            generate,
+            lambda: coverage,
             default_insert_position
         )
 
-        if coverage is None:
+        if replaced is None:
 
             # Nothing is visible from anywhere on this level any more -
             # every sensor deleted, or all of them off the DEM. Leaving
             # the previous coverage drawn would show ground that is no
-            # longer covered by anything.
-            self._remove_coverage(level)
+            # longer covered by anything, and its designations would
+            # label a perimeter that is gone.
+            self._remove_named(coverage_layer_name(level))
+            self._remove_named(designations_layer_name(level))
 
-        return coverage
+            return None
+
+        if designations is None:
+
+            # No sensor on this level carries a designation any more.
+            self._remove_named(designations_layer_name(level))
+
+        else:
+
+            replace_named_layer(
+                designations_layer_name(level),
+                lambda: designations,
+                default_insert_position
+            )
+
+        return replaced

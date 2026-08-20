@@ -10,6 +10,8 @@ Military Cartography Tools
 
 import os
 
+from qgis.PyQt.QtCore import Qt
+
 from qgis.core import (
     Qgis,
     QgsCoordinateTransform,
@@ -27,6 +29,10 @@ from MilitaryCartographyTools.core.coordinate_utils import WGS84
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
 from MilitaryCartographyTools.terrain.sensor_coverage import (
+    affiliation_for,
+    AFFILIATION_COLORS,
+    build_sensor_layers,
+    AFFILIATION_LABELS,
     build_sensor_points_layer,
     coverage_layer_name,
     default_insert_position,
@@ -37,7 +43,9 @@ from MilitaryCartographyTools.terrain.sensor_coverage import (
     level_by_key,
     points_layer_name,
     SENSOR_LEVELS,
+    set_affiliation,
     set_dem_layer,
+    tinted,
 )
 
 
@@ -66,16 +74,71 @@ class TestSensorLevels(QgisTestCase):
         )
 
 
-    def test_each_level_has_its_own_colour(self):
+    def test_each_level_is_a_distinguishable_tint(self):
 
-        # Three coverage layers are read together over the same ground,
-        # so they must be distinguishable.
-        colors = [level.color for level in SENSOR_LEVELS]
+        # The three bands nest by design, so stacked they must still be
+        # tellable apart - which is what the per-level tint is for, now
+        # that affiliation owns the hue.
+        tints = [level.tint for level in SENSOR_LEVELS]
 
         self.assertEqual(
-            len(set(colors)),
-            len(colors)
+            len(set(tints)),
+            len(tints)
         )
+
+        # Ascending, so the higher (larger) band is always the paler one
+        # and never hides the smaller band drawn over it.
+        self.assertEqual(tints, sorted(tints))
+
+
+    def test_every_affiliation_stays_distinguishable_at_every_level(self):
+
+        # The real risk of tinting toward white: push it far enough and
+        # two sides converge. All twelve combinations must stay distinct.
+        swatches = [
+            tinted(color, level.tint)
+            for color in AFFILIATION_COLORS.values()
+            for level in SENSOR_LEVELS
+        ]
+
+        self.assertEqual(
+            len(set(swatches)),
+            len(swatches)
+        )
+
+
+    def test_affiliation_colours_match_the_rest_of_the_plugin(self):
+
+        # Not a restatement of AFFILIATION_COLORS' own definition: this
+        # pins Sensor Coverage against the colours every control measure
+        # in this plugin already draws with, which is the whole point of
+        # following affiliation rather than picking free RGB. The source
+        # is deliberately duplicated rather than imported across a
+        # package boundary, so this is what stops the two drifting.
+        from MilitaryCartographyTools.military_symbology._control_measure_shared import (
+            _AFFILIATION_COLOR_EXPRESSION,
+            POINT_AFFILIATION_LABELS,
+        )
+
+        self.assertEqual(
+            set(AFFILIATION_LABELS),
+            set(POINT_AFFILIATION_LABELS)
+        )
+
+        self.assertEqual(
+            AFFILIATION_LABELS,
+            POINT_AFFILIATION_LABELS
+        )
+
+        for affiliation, (red, green, blue) in AFFILIATION_COLORS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                self.assertIn(
+                    f"WHEN \"affiliation\" = '{affiliation}' "
+                    f"THEN color_rgb({red}, {green}, {blue})",
+                    _AFFILIATION_COLOR_EXPRESSION
+                )
 
 
     def test_level_by_key_returns_none_for_an_unknown_key(self):
@@ -109,7 +172,7 @@ class TestSensorPointsLayer(QgisTestCase):
         return layer.editorWidgetSetup(idx).config()
 
 
-    def test_the_layer_carries_the_three_per_sensor_fields(self):
+    def test_the_layer_carries_the_per_sensor_fields(self):
 
         layer = build_sensor_points_layer(LOW)
 
@@ -124,7 +187,12 @@ class TestSensorPointsLayer(QgisTestCase):
 
         self.assertEqual(
             [field.name() for field in layer.fields()],
-            ["sensor_height", "detection_height", "max_distance"]
+            [
+                "sensor_height",
+                "detection_height",
+                "max_distance",
+                "unique_designation",
+            ]
         )
 
 
@@ -386,7 +454,12 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         features = []
 
-        for lonlat, sensor_height, detection_height, max_distance in sensors:
+        for sensor in sensors:
+
+            # Designation is optional in these fixtures - most cases
+            # don't care about it, and the ones that do say so.
+            lonlat, sensor_height, detection_height, max_distance = sensor[:4]
+            designation = sensor[4] if len(sensor) > 4 else ""
 
             feature = QgsFeature(layer.fields())
 
@@ -397,6 +470,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
             feature["sensor_height"] = sensor_height
             feature["detection_height"] = detection_height
             feature["max_distance"] = max_distance
+            feature["unique_designation"] = designation
 
             features.append(feature)
 
@@ -584,7 +658,14 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
 
-    def test_coverage_is_drawn_in_its_own_levels_colour(self):
+    def _fill_of(self, layer):
+
+        fill = layer.renderer().symbol().symbolLayer(0).color()
+
+        return (fill.red(), fill.green(), fill.blue())
+
+
+    def test_coverage_defaults_to_the_friendly_colour_tinted_for_its_band(self):
 
         layer = generate_sensor_coverage(
             self.dem_layer,
@@ -595,11 +676,43 @@ class TestGenerateSensorCoverage(QgisTestCase):
             MEDIUM
         )
 
-        fill = layer.renderer().symbol().symbolLayer(0).color()
+        self.assertEqual(
+            self._fill_of(layer),
+            tinted(AFFILIATION_COLORS["friend"], MEDIUM.tint)
+        )
+
+
+    def test_the_chosen_affiliation_drives_the_coverage_colour(self):
+
+        points = self._points_layer(
+            [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0)]
+        )
+
+        set_affiliation(points, "hostile")
+
+        layer = generate_sensor_coverage(
+            self.dem_layer, points, LOW
+        )
 
         self.assertEqual(
-            (fill.red(), fill.green(), fill.blue()),
-            MEDIUM.color
+            self._fill_of(layer),
+            tinted(AFFILIATION_COLORS["hostile"], LOW.tint)
+        )
+
+
+    def test_an_explicit_colour_still_overrides_the_affiliation(self):
+
+        points = self._points_layer(
+            [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0)]
+        )
+
+        layer = generate_sensor_coverage(
+            self.dem_layer, points, LOW, color=(12, 34, 56)
+        )
+
+        self.assertEqual(
+            self._fill_of(layer),
+            (12, 34, 56)
         )
 
 
@@ -832,6 +945,188 @@ class TestGenerateSensorCoverage(QgisTestCase):
                 os.remove(ridge_path)
             except OSError:
                 pass
+
+
+    def _designations(self, sensors, level=LOW):
+
+        _, designations = build_sensor_layers(
+            self.dem_layer,
+            self._points_layer(sensors, level),
+            level
+        )
+
+        return designations
+
+
+    def test_no_designations_means_no_designations_layer(self):
+
+        # A laydown that doesn't name its sensors shouldn't be given an
+        # empty third layer to manage.
+        self.assertIsNone(
+            self._designations(
+                [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0, "")]
+            )
+        )
+
+
+    def test_a_named_sensor_gets_its_designation_on_a_line(self):
+
+        layer = self._designations(
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0, "RADAR A")]
+        )
+
+        self.assertEqual(
+            layer.geometryType(),
+            Qgis.GeometryType.Line
+        )
+
+        self.assertEqual(
+            [f["unique_designation"] for f in layer.getFeatures()],
+            ["RADAR A"]
+        )
+
+
+    def test_each_sensor_labels_its_own_stretch_of_the_perimeter(self):
+
+        # The maintainer's own specification: on overlap, each sensor
+        # labels the segment of the merged perimeter that is its own.
+        sensors = [
+            (self._lonlat_at(0.45), 5.0, 1000.0, 300.0, "RADAR A"),
+            (self._lonlat_at(0.55), 5.0, 1000.0, 300.0, "RADAR B"),
+        ]
+
+        layer = self._designations(sensors)
+
+        self.assertEqual(
+            sorted(f["unique_designation"] for f in layer.getFeatures()),
+            ["RADAR A", "RADAR B"]
+        )
+
+        coverage, _ = build_sensor_layers(
+            self.dem_layer,
+            self._points_layer(sensors),
+            LOW
+        )
+
+        merged_boundary = coverage.getFeature(1).geometry().convertToType(
+            Qgis.GeometryType.Line
+        )
+
+        # Every labelled segment lies ON the merged perimeter, and the
+        # segments together are shorter than the two sensors' own full
+        # boundaries would be - the overlapping arcs are swallowed.
+        for feature in layer.getFeatures():
+
+            with self.subTest(designation=feature["unique_designation"]):
+
+                self.assertGreater(feature.geometry().length(), 0.0)
+
+                # Within a whisker of the merged outline rather than
+                # floating somewhere inside it.
+                self.assertLess(
+                    feature.geometry().hausdorffDistance(merged_boundary),
+                    merged_boundary.boundingBox().width()
+                )
+
+        self.assertAlmostEqual(
+            sum(f.geometry().length() for f in layer.getFeatures()),
+            merged_boundary.length(),
+            places=6
+        )
+
+
+    def test_a_swallowed_sensor_gets_no_label(self):
+
+        # A sensor entirely inside a much larger one contributes no
+        # perimeter at all, so labelling it would put a name on a line
+        # that isn't drawn.
+        centre = self._lonlat_at(0.5)
+
+        layer = self._designations(
+            [
+                (centre, 5.0, 1000.0, 400.0, "BIG"),
+                (centre, 5.0, 1000.0, 80.0, "SWALLOWED"),
+            ]
+        )
+
+        self.assertEqual(
+            [f["unique_designation"] for f in layer.getFeatures()],
+            ["BIG"]
+        )
+
+
+    def test_unnamed_sensors_are_skipped_but_others_still_labelled(self):
+
+        layer = self._designations(
+            [
+                (self._lonlat_at(0.15), 5.0, 1000.0, 120.0, "NAMED"),
+                (self._lonlat_at(0.85), 5.0, 1000.0, 120.0, ""),
+            ]
+        )
+
+        self.assertEqual(
+            [f["unique_designation"] for f in layer.getFeatures()],
+            ["NAMED"]
+        )
+
+
+    def test_labels_are_enabled_above_the_line_and_never_dropped(self):
+
+        layer = self._designations(
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0, "RADAR A")]
+        )
+
+        self.assertTrue(layer.labelsEnabled())
+
+        settings = layer.labeling().settings()
+
+        self.assertEqual(settings.placement, Qgis.LabelPlacement.Line)
+
+        # "just above the sensor perimeter" - the maintainer's own words.
+        self.assertTrue(
+            settings.lineSettings().placementFlags()
+            & Qgis.LabelLinePlacementFlag.AboveLine
+        )
+
+        self.assertGreater(settings.dist, 0.0)
+
+        # PAL drops labels it cannot place unless told otherwise, and
+        # these arcs share endpoints wherever coverages meet.
+        self.assertTrue(settings.displayAll)
+
+
+    def test_the_line_itself_is_not_drawn(self):
+
+        # The coverage polygon underneath already draws this exact
+        # perimeter; a second stroke would double its weight.
+        layer = self._designations(
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0, "RADAR A")]
+        )
+
+        self.assertEqual(
+            layer.renderer().symbol().symbolLayer(0).penStyle(),
+            Qt.PenStyle.NoPen
+        )
+
+
+    def test_designations_take_the_affiliation_colour(self):
+
+        points = self._points_layer(
+            [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0, "RADAR A")]
+        )
+
+        set_affiliation(points, "hostile")
+
+        _, designations = build_sensor_layers(
+            self.dem_layer, points, LOW
+        )
+
+        text_color = designations.labeling().settings().format().color()
+
+        self.assertEqual(
+            (text_color.red(), text_color.green(), text_color.blue()),
+            tinted(AFFILIATION_COLORS["hostile"], LOW.tint)
+        )
 
 
     def test_default_insert_position_places_it_at_the_top_of_the_tree(self):

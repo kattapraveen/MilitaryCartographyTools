@@ -492,9 +492,17 @@ answers "what does this whole sensor laydown cover" — several sensors
 plotted together, with their coverage merged into one picture.
 
 Click the two-overlapping-circles icon to open the setup dialog. Pick
-your **DEM layer** and tick which of the three levels you need, and the
-plugin creates a **Sensor Points** layer for each one. That's all the
-dialog does — everything after this happens on the layers themselves.
+your **DEM layer**, tick which of the three levels you need, and set
+each one's **affiliation**; the plugin creates a **Sensor Points** layer
+for each. That's all the dialog does — everything after this happens on
+the layers themselves.
+
+Colour follows MIL-STD-2525 affiliation rather than being a free choice,
+so a sensor laydown reads the same way as every other symbol in the
+plugin: **friend blue, hostile red, neutral green, unknown yellow**. Each
+band is drawn as a progressively lighter tint of that colour, so the
+three levels stay tellable apart when stacked. Reopen the dialog at any
+time to switch a level to another side.
 
 ### The three levels
 
@@ -534,6 +542,7 @@ Each sensor carries its own characteristics:
 | Sensor height | Height of the antenna above the ground it stands on, in metres (default 5). The DEM supplies the ground elevation underneath it |
 | Max detection height above sensor | How far above itself this sensor can detect, in metres — limited to that layer's own band, so a point on the Low Level layer can't be given a high-level capability by accident. Defaults to the band's ceiling |
 | Maximum range | That individual sensor's own detection range, in metres (default 30,000) |
+| Unique designation | Optional free text naming this sensor. Leave it blank and the sensor simply isn't labelled |
 
 Range and sensor height are deliberately **not** tied to the level.
 Sensors in the same band routinely differ by an order of magnitude — a
@@ -575,6 +584,26 @@ the drag itself unusable.
 Deleting the last sensor on a level removes that level's coverage layer,
 rather than leaving a shape behind claiming ground nothing covers any
 more.
+
+### Naming sensors on the perimeter
+
+Give a sensor a **Unique designation** and a third layer appears —
+**Sensor Coverage - <Level> (Designations)** — carrying the name just
+outside the perimeter, in the laydown's own affiliation colour.
+
+Each sensor labels *its own stretch* of the perimeter. Where two
+coverages overlap, the swallowed arc is no longer part of any boundary,
+so each name sits on the piece of the outline that its own sensor
+actually contributes — two merged radars produce one perimeter with two
+names on their respective halves of it, not one name for the pair. A
+sensor whose footprint falls entirely inside a larger one contributes no
+perimeter and so is not labelled.
+
+The layer only exists while at least one sensor on that level is named,
+so a laydown that doesn't use designations never has to manage it. The
+line itself is invisible — the coverage polygon underneath already draws
+that boundary — and labels are set to display even where they collide,
+so none is silently dropped.
 
 ### On maximum ranges
 

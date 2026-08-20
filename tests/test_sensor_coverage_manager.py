@@ -22,13 +22,17 @@ from qgis.core import (
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
 from MilitaryCartographyTools.terrain.sensor_coverage import (
+    affiliation_for,
+    AFFILIATION_COLORS,
     build_sensor_points_layer,
     coverage_layer_name,
     DEFAULT_MAX_DISTANCE_M,
     dem_layer_for,
+    designations_layer_name,
     level_by_key,
     points_layer_name,
     set_dem_layer,
+    tinted,
 )
 
 from MilitaryCartographyTools.terrain.sensor_coverage_dialog import (
@@ -109,7 +113,7 @@ class SensorCoverageTestCase(QgisTestCase):
         )
 
 
-    def _add_sensor(self, points_layer, lonlat, max_distance=200.0):
+    def _add_sensor(self, points_layer, lonlat, max_distance=200.0, designation=""):
 
         """
         Adds one sensor and returns the id the PROVIDER assigned it -
@@ -127,6 +131,7 @@ class SensorCoverageTestCase(QgisTestCase):
         feature["sensor_height"] = 5.0
         feature["detection_height"] = 1000.0
         feature["max_distance"] = max_distance
+        feature["unique_designation"] = designation
 
         before = {f.id() for f in points_layer.getFeatures()}
 
@@ -416,6 +421,192 @@ class TestRegenerate(SensorCoverageTestCase):
         large = self.manager.regenerate(LOW).getFeature(1).geometry().area()
 
         self.assertGreater(large, small)
+
+
+class TestDesignationsLayer(SensorCoverageTestCase):
+
+    def _designation_layers(self, level=LOW):
+
+        return QgsProject.instance().mapLayersByName(
+            designations_layer_name(level)
+        )
+
+
+    def _set_up_level(self, level=LOW):
+
+        apply_dialog_values(
+            self.iface, self.manager, self.dem_layer, [level.key]
+        )
+
+        return self._points_layer_in_project(level)
+
+
+    def test_an_unnamed_laydown_gets_no_designations_layer(self):
+
+        points = self._set_up_level()
+
+        self._add_sensor(points, self._lonlat_at(0.5))
+
+        self.manager.regenerate(LOW)
+
+        self.assertEqual(self._designation_layers(), [])
+
+
+    def test_naming_a_sensor_creates_the_layer(self):
+
+        points = self._set_up_level()
+
+        self._add_sensor(
+            points, self._lonlat_at(0.5), designation="RADAR A"
+        )
+
+        self.manager.regenerate(LOW)
+
+        self.assertEqual(len(self._designation_layers()), 1)
+
+
+    def test_clearing_every_designation_removes_the_layer(self):
+
+        # Otherwise a stale layer would keep labelling a perimeter that
+        # nothing claims any more.
+        points = self._set_up_level()
+
+        sensor_id = self._add_sensor(
+            points, self._lonlat_at(0.5), designation="RADAR A"
+        )
+
+        self.manager.regenerate(LOW)
+
+        self.assertEqual(len(self._designation_layers()), 1)
+
+        points.dataProvider().changeAttributeValues(
+            {
+                sensor_id: {
+                    points.fields().indexOf("unique_designation"): ""
+                }
+            }
+        )
+
+        self.manager.regenerate(LOW)
+
+        self.assertEqual(self._designation_layers(), [])
+
+
+    def test_deleting_every_sensor_removes_the_designations_too(self):
+
+        points = self._set_up_level()
+
+        sensor_id = self._add_sensor(
+            points, self._lonlat_at(0.5), designation="RADAR A"
+        )
+
+        self.manager.regenerate(LOW)
+
+        points.dataProvider().deleteFeatures([sensor_id])
+        points.updateExtents()
+
+        self.manager.regenerate(LOW)
+
+        self.assertEqual(self._designation_layers(), [])
+
+
+    def test_regenerating_does_not_stack_up_designation_layers(self):
+
+        points = self._set_up_level()
+
+        self._add_sensor(
+            points, self._lonlat_at(0.5), designation="RADAR A"
+        )
+
+        for _ in range(3):
+            self.manager.regenerate(LOW)
+
+        self.assertEqual(len(self._designation_layers()), 1)
+
+
+class TestAffiliation(SensorCoverageTestCase):
+
+    def test_the_dialogs_choice_is_remembered(self):
+
+        apply_dialog_values(
+            self.iface,
+            self.manager,
+            self.dem_layer,
+            ["low"],
+            {"low": "hostile"}
+        )
+
+        self.assertEqual(
+            affiliation_for(self._points_layer_in_project(LOW)),
+            "hostile"
+        )
+
+
+    def test_it_defaults_to_friend(self):
+
+        apply_dialog_values(
+            self.iface, self.manager, self.dem_layer, ["low"]
+        )
+
+        self.assertEqual(
+            affiliation_for(self._points_layer_in_project(LOW)),
+            "friend"
+        )
+
+
+    def test_changing_it_recolours_existing_coverage_immediately(self):
+
+        # Coverage is only rebuilt on an edit, so without an explicit
+        # regenerate a side change would not show until the user
+        # happened to move a sensor.
+        apply_dialog_values(
+            self.iface, self.manager, self.dem_layer, ["low"]
+        )
+
+        points = self._points_layer_in_project(LOW)
+
+        self._add_sensor(points, self._lonlat_at(0.5))
+
+        self.manager.regenerate(LOW)
+
+        apply_dialog_values(
+            self.iface,
+            self.manager,
+            self.dem_layer,
+            ["low"],
+            {"low": "hostile"}
+        )
+
+        coverage = QgsProject.instance().mapLayersByName(
+            coverage_layer_name(LOW)
+        )[0]
+
+        fill = coverage.renderer().symbol().symbolLayer(0).color()
+
+        self.assertEqual(
+            (fill.red(), fill.green(), fill.blue()),
+            tinted(AFFILIATION_COLORS["hostile"], LOW.tint)
+        )
+
+
+    def test_the_sensor_markers_follow_the_same_colour(self):
+
+        apply_dialog_values(
+            self.iface,
+            self.manager,
+            self.dem_layer,
+            ["low"],
+            {"low": "neutral"}
+        )
+
+        points = self._points_layer_in_project(LOW)
+
+        marker = points.renderer().symbol().symbolLayer(0).color()
+
+        self.assertEqual(
+            (marker.red(), marker.green(), marker.blue()),
+            tinted(AFFILIATION_COLORS["neutral"], LOW.tint)
+        )
 
 
 class TestWiring(SensorCoverageTestCase):

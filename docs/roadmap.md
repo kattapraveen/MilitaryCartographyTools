@@ -11230,6 +11230,82 @@ same point as covered.
 
 ---
 
+## Sensor Coverage: affiliation colour and perimeter designations (2026-08-20)
+
+Three follow-ups from the maintainer, same day.
+
+**1. The detection-height default was already the band ceiling** - that
+landed with the "drawn at its top" decision earlier the same day, so
+nothing to change. Flagged back that High's own 30,000 m is a form limit
+invented here, since "above 25,000 ft" has no top.
+
+**2. Colour follows AFFILIATION, not a free RGB pick.** The first cut of
+this was a plain colour button; the maintainer redirected it to "inline
+with the affiliation that we used in the mil-std 2525". So the dialog
+now offers Friend/Hostile/Neutral/Unknown per level, using the same four
+colours every control measure in this plugin already draws with.
+
+That created a tension worth recording: affiliation owns the hue, but
+the three bands NEST by design, so a friendly laydown would have drawn
+all three in the same blue and the stacked bands would have been
+unreadable. Resolved by giving each level a TINT of the affiliation
+colour (0 / 0.35 / 0.65 of the way toward white), ascending so the
+larger, paler band never hides the smaller one drawn over it. Blending
+toward white rather than QColor.lighter(), which is a no-op on these
+fully saturated primaries.
+
+The colour lives on the POINTS layer as a custom property, not on the
+coverage: coverage layers are regenerated from scratch on every edit, so
+anything set with QGIS's own layer styling would be discarded the next
+time a sensor moved. The affiliation constants are duplicated here
+rather than imported across a package boundary into
+_control_measure_shared.py's private namespace, and a test pins them
+against it so the two cannot drift.
+
+**3. Unique designation, labelled on the perimeter.** A
+`unique_designation` field on each sensor, drawn just outside the
+coverage boundary. The maintainer's own spec was precise: "each sensor
+label is on its respective perimeter, in case of overlap - in the
+respective segment of the perimeter, the label can lie slightly above
+the perimeter".
+
+That is exactly implementable, because a merged perimeter is made of
+arcs contributed by different sensors: a sensor's own stretch is its
+boundary MINUS every other footprint. A sensor swallowed entirely by a
+larger one contributes no perimeter and so gets no label, which is
+correct - a name on a line that is not drawn would be worse than none.
+
+**Why this needed a third layer.** The coverage is deliberately ONE
+feature holding the merged shape, which is what gives it a single clean
+outer perimeter. A label belongs to a feature, so that one feature can
+only ever carry one label. Splitting the perimeter back into per-sensor
+arcs is the only way each sensor can name its own. The layer exists only
+while at least one sensor is named, and its line symbol is set to "no
+pen" - the coverage polygon underneath already draws that exact
+boundary, and a second stroke would double its weight.
+
+**Two labelling traps, both caught by render rather than by tests:**
+
+  - `displayAll = True`, which the maintainer asked for by name ("use
+    qgis pal label system to ensure label is always visible"). PAL drops
+    labels it cannot place, and these arcs share endpoints wherever
+    coverages meet - the same setting that rescued the nested dose-rate
+    contours. Line overrun is set too, since an arc can be shorter than
+    its own label.
+  - **Ring orientation decides which SIDE "above the line" is.** The
+    first render put ALPHA and BRAVO outside the coverage and CHARLIE in
+    the middle of the fill, because "above" means to the LEFT of the
+    direction of travel and the rings ran in different directions.
+    Fixed with forceRHR() before converting each footprint to a line, so
+    every exterior ring runs clockwise and left-of-travel is
+    consistently OUTSIDE. MapOrientation is deliberately NOT set: it
+    would make "above" mean north-of-the-line, which on a closed ring
+    puts roughly half the labels inside again.
+
+1526 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

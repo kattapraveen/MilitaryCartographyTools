@@ -81,20 +81,26 @@ Military Cartography Tools
 from collections import namedtuple
 
 from qgis.core import (
+    Qgis,
     QgsCoordinateTransform,
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsFeature,
     QgsField,
     QgsGeometry,
+    QgsLineSymbol,
     QgsMarkerSymbol,
+    QgsPalLayerSettings,
     QgsProject,
     QgsVectorLayer,
+    QgsVectorLayerSimpleLabeling,
 )
 
 from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtGui import QColor
 
 from ..core.coordinate_utils import WGS84
+from ..core.text_format import build_text_format
 from .viewshed import (
     _apply_polygon_style,
     DEFAULT_OPACITY,
@@ -121,8 +127,70 @@ RADAR_REFRACTION_COEFFICIENT = 0.25
 # knowing its own DEM.
 DEM_LAYER_PROPERTY = "mct/sensor_coverage_dem_layer_id"
 
+# Which side this laydown belongs to, remembered the same way and for
+# the same reason as the DEM: coverage layers are REGENERATED from
+# scratch on every edit, so a colour the user set with QGIS's own layer
+# styling would be thrown away the next time they moved a sensor.
+# Stored on the POINTS layer, which is the thing that survives.
+COVERAGE_AFFILIATION_PROPERTY = "mct/sensor_coverage_affiliation"
+
+# Colour follows AFFILIATION rather than being a free RGB pick, at the
+# maintainer's own request 2026-08-20 ("inline with the affiliation that
+# we used in the mil-std 2525"). These are the same four standard
+# identities and the same four colours every control measure in this
+# plugin already draws with - see military_symbology/
+# _control_measure_shared.py's POINT_AFFILIATION_LABELS and
+# _AFFILIATION_COLOR_EXPRESSION. Deliberately duplicated here rather
+# than imported across a package boundary into that module's private
+# namespace; test_sensor_coverage.py pins both against it so neither can
+# drift, the same way Viewshed's own default green is pinned against
+# Line of Sight's.
+#
+# Note this is the FOUR-value vocabulary, not the five-value one the
+# lines/areas helper uses: there is no "unspecified" here. That fifth
+# value caused a real bug on 2026-08-12 (every obstacle point rendering
+# as unknown) and nothing on this layer feeds a SIDC anyway.
+AFFILIATION_LABELS = {
+    "friend": "Friend",
+    "hostile": "Hostile",
+    "neutral": "Neutral",
+    "unknown": "Unknown",
+}
+
+AFFILIATION_COLORS = {
+    "friend": (0, 0, 255),
+    "hostile": (255, 0, 0),
+    "neutral": (0, 255, 0),
+    "unknown": (255, 255, 0),
+}
+
+DEFAULT_AFFILIATION = "friend"
+
 POINTS_LAYER_NAME_TEMPLATE = "Sensor Points - {label}"
 COVERAGE_LAYER_NAME_TEMPLATE = "Sensor Coverage - {label}"
+
+# A third layer per level, and one that only exists when at least one
+# sensor has actually been given a designation - see
+# _perimeter_segments() for what it holds and why it cannot simply be
+# labels on the coverage polygon.
+DESIGNATIONS_LAYER_NAME_TEMPLATE = "Sensor Coverage - {label} (Designations)"
+
+# How far above the perimeter the designation sits, in millimetres.
+# "Just above the sensor perimeter" - the maintainer's own words,
+# 2026-08-20.
+DESIGNATION_LABEL_DISTANCE_MM = 1.2
+DESIGNATION_LABEL_FONT_SIZE = 8.0
+
+# A perimeter arc can be shorter than its own label - a sensor barely
+# breaking the surface of a much larger one's footprint - and PAL will
+# not place a label on a line shorter than the text unless allowed to
+# overrun its ends.
+DESIGNATION_LABEL_OVERRUN_MM = 12.0
+
+# Wide enough to bridge inter-letter spacing, not just outline each
+# glyph - a narrower buffer lets the terrain underneath show through
+# between letters.
+DESIGNATION_LABEL_BUFFER_MM = 1.0
 
 
 # The three bands, as agreed with the maintainer 2026-08-20. Each is a
@@ -143,19 +211,37 @@ HIGH_CEILING_M = 30000.0
 
 SensorLevel = namedtuple(
     "SensorLevel",
-    ("key", "label", "floor_m", "ceiling_m", "color")
+    ("key", "label", "floor_m", "ceiling_m", "tint")
 )
 
-# Each band gets its own colour: all three coverage layers are meant to
-# be read together over the same ground, and three greens would be
-# indistinguishable. Low keeps viewshed.py's own green (the established
-# "this is visible" colour in this plugin), with amber and blue climbing
-# from it.
+# Affiliation owns the HUE (see AFFILIATION_COLORS); the level owns how
+# far that hue is washed toward white. Without this the three bands of
+# one friendly laydown would all be the same blue, and since they nest
+# by design - High contains Medium contains Low - stacked bands would be
+# unreadable. Tinting instead keeps both signals legible at once: which
+# side it is, and which band.
+#
+# Blending toward white rather than using QColor.lighter(): the
+# affiliation colours are fully saturated primaries, whose HSV value is
+# already maxed, so lighter() is a no-op on every one of them.
 SENSOR_LEVELS = (
-    SensorLevel("low", "Low Level", 0.0, LOW_CEILING_M, (60, 160, 60)),
-    SensorLevel("medium", "Medium Level", LOW_CEILING_M, MEDIUM_CEILING_M, (220, 150, 40)),
-    SensorLevel("high", "High Level", MEDIUM_CEILING_M, HIGH_CEILING_M, (60, 110, 200)),
+    SensorLevel("low", "Low Level", 0.0, LOW_CEILING_M, 0.0),
+    SensorLevel("medium", "Medium Level", LOW_CEILING_M, MEDIUM_CEILING_M, 0.35),
+    SensorLevel("high", "High Level", MEDIUM_CEILING_M, HIGH_CEILING_M, 0.65),
 )
+
+
+def tinted(color, tint):
+
+    """
+    `color` blended `tint` of the way toward white (0.0 = untouched,
+    1.0 = white).
+    """
+
+    return tuple(
+        round(channel + (255 - channel) * tint)
+        for channel in color
+    )
 
 
 # A light, mobile set sits a few metres up; a mast-mounted one tens of
@@ -201,11 +287,62 @@ def coverage_layer_name(level):
     return COVERAGE_LAYER_NAME_TEMPLATE.format(label=level.label)
 
 
+def designations_layer_name(level):
+
+    return DESIGNATIONS_LAYER_NAME_TEMPLATE.format(label=level.label)
+
+
 def set_dem_layer(points_layer, dem_layer):
 
     points_layer.setCustomProperty(
         DEM_LAYER_PROPERTY,
         dem_layer.id()
+    )
+
+
+def set_affiliation(points_layer, affiliation):
+
+    """
+    Remember which side this laydown belongs to - one of
+    AFFILIATION_LABELS' own keys. Stored on the POINTS layer, see
+    COVERAGE_AFFILIATION_PROPERTY.
+    """
+
+    points_layer.setCustomProperty(
+        COVERAGE_AFFILIATION_PROPERTY,
+        affiliation
+    )
+
+
+def affiliation_for(points_layer):
+
+    """
+    The remembered affiliation for points_layer, or DEFAULT_AFFILIATION
+    if none was ever set or what was stored is not a value this module
+    knows. A custom property is plain text in the project file, so a
+    hand-edited or stale one has to fall back rather than raise.
+    """
+
+    stored = points_layer.customProperty(
+        COVERAGE_AFFILIATION_PROPERTY
+    )
+
+    if stored in AFFILIATION_COLORS:
+        return stored
+
+    return DEFAULT_AFFILIATION
+
+
+def coverage_color_for(points_layer, level):
+
+    """
+    The colour this level's coverage should be drawn in: the laydown's
+    own affiliation hue, tinted for the band - see SENSOR_LEVELS.
+    """
+
+    return tinted(
+        AFFILIATION_COLORS[affiliation_for(points_layer)],
+        level.tint
     )
 
 
@@ -330,6 +467,17 @@ def _configure_attribute_form(layer, level):
         "Maximum range (m)"
     )
 
+    # Field T, the same free-text designation every symbology layer in
+    # this plugin carries, and drawn upper-case per H.5.4's own
+    # all-caps rule for text labelling. Left with no default: an unnamed
+    # sensor is the normal case and should not invent a name.
+    designation_idx = fields.indexOf("unique_designation")
+
+    layer.setFieldAlias(
+        designation_idx,
+        "Unique designation"
+    )
+
 
 def build_sensor_points_layer(level):
 
@@ -353,6 +501,7 @@ def build_sensor_points_layer(level):
             QgsField("sensor_height", QMetaType.Type.Double),
             QgsField("detection_height", QMetaType.Type.Double),
             QgsField("max_distance", QMetaType.Type.Double),
+            QgsField("unique_designation", QMetaType.Type.QString),
         ]
     )
 
@@ -363,9 +512,28 @@ def build_sensor_points_layer(level):
         level
     )
 
-    red, green, blue = level.color
+    apply_points_style(
+        layer,
+        coverage_color_for(layer, level)
+    )
 
-    layer.renderer().setSymbol(
+    return layer
+
+
+def apply_points_style(points_layer, color):
+
+    """
+    The sensor marker, in the same colour as the coverage it generates -
+    so a level's points and its footprint read as one thing. Separate
+    from build_sensor_points_layer() because a colour change has to
+    restyle the EXISTING points layer too: unlike the coverage, the
+    points layer is never regenerated (it holds the user's own data),
+    so nothing else would ever repaint it.
+    """
+
+    red, green, blue = color
+
+    points_layer.renderer().setSymbol(
         QgsMarkerSymbol.createSimple(
             {
                 "name": "triangle",
@@ -377,7 +545,7 @@ def build_sensor_points_layer(level):
         )
     )
 
-    return layer
+    points_layer.triggerRepaint()
 
 
 def _sensor_observations(points_layer, level):
@@ -416,39 +584,42 @@ def _sensor_observations(points_layer, level):
 
             return fallback if raw is None else float(raw)
 
+        designation = feature["unique_designation"]
+
         yield (
             point,
+            "" if designation is None else str(designation).strip(),
             value("sensor_height", DEFAULT_SENSOR_HEIGHT_M),
             value("detection_height", level.ceiling_m),
             value("max_distance", DEFAULT_MAX_DISTANCE_M),
         )
 
 
-def _merged_visible_geometry(dem_layer, points_layer, level):
+def _sensor_footprints(dem_layer, points_layer, level):
 
     """
-    One QgsGeometry (in WGS84) covering everything from which a target
-    at any sensor's own detection ceiling would be visible, or None if
-    no sensor produced any coverage at all.
+    [(designation, footprint)] - one entry per sensor that produced any
+    coverage at all, each footprint a single QgsGeometry in WGS84.
 
-    Every per-sensor result is reprojected to WGS84 BEFORE being
-    unioned. That is not incidental tidying: visible_area_at_altitude()
-    returns its polygon in whatever local UTM zone the DEM clip around
-    THAT sensor resolved to, and two sensors far enough apart genuinely
-    land in different zones - unioning those raw would silently place
-    one of them thousands of kilometres from where it belongs.
+    Kept PER SENSOR rather than unioned on the spot because the
+    designations need it: each sensor labels its own stretch of the
+    merged perimeter (see _perimeter_segments()), which cannot be
+    recovered once everything has been fused into one shape.
 
-    The union itself is what the whole feature is for: overlapping
-    footprints fuse into a single outer perimeter, while sensors too far
-    apart to overlap simply stay separate parts of the same multipolygon
-    and keep drawing their own outlines.
+    Every per-sensor result is reprojected to WGS84 here, before
+    anything is combined. That is not incidental tidying:
+    visible_area_at_altitude() returns its polygon in whatever local UTM
+    zone the DEM clip around THAT sensor resolved to, and two sensors
+    far enough apart genuinely land in different zones - combining those
+    raw would silently place one of them thousands of kilometres from
+    where it belongs.
     """
 
     project = QgsProject.instance()
 
-    geometries = []
+    footprints = []
 
-    for point, sensor_height, detection_height, max_distance in _sensor_observations(points_layer, level):
+    for point, designation, sensor_height, detection_height, max_distance in _sensor_observations(points_layer, level):
 
         visible = visible_area_at_altitude(
             dem_layer,
@@ -471,6 +642,8 @@ def _merged_visible_geometry(dem_layer, points_layer, level):
             project
         )
 
+        parts = []
+
         for feature in visible.getFeatures():
 
             geometry = QgsGeometry(
@@ -481,16 +654,100 @@ def _merged_visible_geometry(dem_layer, points_layer, level):
                 to_wgs84
             )
 
-            geometries.append(
-                geometry
-            )
+            parts.append(geometry)
 
-    if not geometries:
+        if not parts:
+            continue
+
+        combined = QgsGeometry.unaryUnion(parts)
+
+        if combined is None or combined.isEmpty():
+            continue
+
+        footprints.append((designation, combined))
+
+    return footprints
+
+
+def _merged_geometry(footprints):
+
+    """
+    Everything in `footprints` fused into one QgsGeometry, or None if
+    there is nothing. This union is what the whole feature is for:
+    overlapping footprints fuse into a single outer perimeter, while
+    sensors too far apart to overlap simply stay separate parts of the
+    same multipolygon and keep drawing their own outlines.
+    """
+
+    if not footprints:
         return None
 
     return QgsGeometry.unaryUnion(
-        geometries
+        [geometry for _, geometry in footprints]
     )
+
+
+def _perimeter_segments(footprints):
+
+    """
+    [(designation, line geometry)] - each named sensor paired with the
+    stretch of the MERGED perimeter that is its own, so it can label it.
+
+    A sensor's contribution is its own boundary minus every other
+    sensor's footprint: wherever two coverages overlap, the swallowed
+    arc is interior to the merged shape and no longer part of any
+    perimeter, so it must not be labelled. That is the maintainer's own
+    specification - "each sensor label is on its respective perimeter,
+    in case of overlap in the respective segment of the perimeter".
+
+    Sensors with no designation are skipped entirely (nothing to draw),
+    and so is one whose footprint is wholly inside another's: it
+    contributes no perimeter, so labelling it would put a name on a line
+    that is not there.
+    """
+
+    segments = []
+
+    for index, (designation, footprint) in enumerate(footprints):
+
+        if not designation:
+            continue
+
+        # forceRHR() first, so every exterior ring runs clockwise before
+        # it becomes a line. Label side is decided by the direction of
+        # travel along the line - "above" means to the LEFT of it - so
+        # without a consistent ring orientation some sensors' labels
+        # land outside the coverage and others inside it. Confirmed by
+        # render 2026-08-20: three sensors, two labelled outside and one
+        # sitting in the middle of the fill.
+        oriented = QgsGeometry(footprint)
+        oriented = oriented.forceRHR()
+
+        boundary = oriented.convertToType(
+            Qgis.GeometryType.Line
+        )
+
+        if boundary is None or boundary.isEmpty():
+            continue
+
+        others = [
+            other
+            for position, (_, other) in enumerate(footprints)
+            if position != index
+        ]
+
+        if others:
+
+            boundary = boundary.difference(
+                QgsGeometry.unaryUnion(others)
+            )
+
+        if boundary is None or boundary.isEmpty():
+            continue
+
+        segments.append((designation, boundary))
+
+    return segments
 
 
 def generate_sensor_coverage(
@@ -498,7 +755,8 @@ def generate_sensor_coverage(
     points_layer,
     level,
     opacity=DEFAULT_OPACITY,
-    outline_only=DEFAULT_OUTLINE_ONLY
+    outline_only=DEFAULT_OUTLINE_ONLY,
+    color=None
 ):
 
     """
@@ -508,15 +766,34 @@ def generate_sensor_coverage(
     or every sensor outside the DEM - so a caller can leave whatever is
     already drawn alone instead of replacing it with an empty layer.
 
+    `color` (an (r, g, b) tuple) overrides this level's own default;
+    None means "whatever points_layer remembers", which is itself the
+    level default until the user picks something else.
+
     Deliberately does NOT add the layer to the project; see
     core/_layer_utils.py's module docstring.
     """
 
-    merged = _merged_visible_geometry(
+    if color is None:
+
+        color = coverage_color_for(
+            points_layer,
+            level
+        )
+
+    coverage, _ = build_sensor_layers(
         dem_layer,
         points_layer,
-        level
+        level,
+        opacity=opacity,
+        outline_only=outline_only,
+        color=color
     )
+
+    return coverage
+
+
+def _build_coverage_layer(merged, level, opacity, outline_only, color):
 
     if merged is None or merged.isEmpty():
         return None
@@ -542,11 +819,202 @@ def generate_sensor_coverage(
     _apply_polygon_style(
         layer,
         opacity,
-        level.color,
+        color,
         outline_only
     )
 
     return layer
+
+
+def _build_designations_layer(segments, level, color):
+
+    """
+    A line layer holding each named sensor's own stretch of the merged
+    perimeter, labelled just above it. None when no sensor on this level
+    has a designation, so the layer simply does not exist for a laydown
+    that does not use them.
+
+    **Why a separate layer rather than labels on the coverage polygon.**
+    The coverage is deliberately ONE feature holding the merged shape -
+    that is what gives it a single clean outer perimeter with no
+    internal divisions. A label belongs to a feature, so that one
+    feature could only ever carry one label. Splitting the perimeter
+    back out into per-sensor arcs is the only way each sensor can name
+    its own stretch.
+    """
+
+    if not segments:
+        return None
+
+    layer = QgsVectorLayer(
+        f"LineString?crs={WGS84.authid()}",
+        designations_layer_name(level),
+        "memory"
+    )
+
+    layer.dataProvider().addAttributes(
+        [QgsField("unique_designation", QMetaType.Type.QString)]
+    )
+
+    layer.updateFields()
+
+    features = []
+
+    for designation, geometry in segments:
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setGeometry(geometry)
+
+        feature["unique_designation"] = designation
+
+        features.append(feature)
+
+    layer.dataProvider().addFeatures(features)
+
+    layer.updateExtents()
+
+    # The line itself is never drawn: the coverage polygon underneath
+    # already draws this exact perimeter, and a second stroke on top of
+    # it would either double its weight or, worse, show as a slightly
+    # offset ghost. This layer exists purely to carry the labels.
+    layer.renderer().setSymbol(
+        QgsLineSymbol.createSimple({"line_style": "no"})
+    )
+
+    _apply_designation_labels(layer, color)
+
+    return layer
+
+
+def _apply_designation_labels(layer, color):
+
+    """
+    Curved labels riding just above the perimeter, in the laydown's own
+    affiliation colour with a white buffer so they stay readable over
+    any terrain rendering underneath.
+
+    `displayAll` is the important one: PAL's default collision handling
+    silently DROPS labels it cannot place, and these arcs are exactly
+    the case that provokes it - several of them share endpoints and run
+    close together wherever coverages meet. The same setting rescued the
+    nested dose-rate contours (see docs/roadmap.md); the maintainer
+    asked for it here by name.
+    """
+
+    settings = QgsPalLayerSettings()
+
+    settings.fieldName = 'upper("unique_designation")'
+    settings.isExpression = True
+
+    settings.placement = Qgis.LabelPlacement.Line
+
+    line_settings = settings.lineSettings()
+
+    # AboveLine keeps the whole label clear of the perimeter rather than
+    # straddling it. MapOrientation is deliberately NOT set: it makes
+    # "above" mean north-of-the-line instead of left-of-the-direction-of-
+    # travel, which on a closed ring puts roughly half the labels inside
+    # the coverage. _perimeter_segments() orients every ring clockwise
+    # instead, which makes left-of-travel consistently OUTSIDE.
+    line_settings.setPlacementFlags(
+        Qgis.LabelLinePlacementFlag.AboveLine
+    )
+
+    # A perimeter arc can be short - a sensor barely breaking the
+    # surface of a much larger one's footprint - and PAL will not place
+    # a label on a line shorter than the text unless allowed to overrun
+    # its ends.
+    line_settings.setOverrunDistance(DESIGNATION_LABEL_OVERRUN_MM)
+    line_settings.setOverrunDistanceUnit(Qgis.RenderUnit.Millimeters)
+
+    settings.setLineSettings(line_settings)
+
+    settings.dist = DESIGNATION_LABEL_DISTANCE_MM
+    settings.distUnits = Qgis.RenderUnit.Millimeters
+
+    settings.displayAll = True
+
+    red, green, blue = color
+
+    text_format = build_text_format(
+        DESIGNATION_LABEL_FONT_SIZE,
+        bold=True,
+        color=QColor(red, green, blue)
+    )
+
+    buffer_settings = text_format.buffer()
+    buffer_settings.setEnabled(True)
+    buffer_settings.setSize(DESIGNATION_LABEL_BUFFER_MM)
+    buffer_settings.setSizeUnit(Qgis.RenderUnit.Millimeters)
+    buffer_settings.setColor(QColor(255, 255, 255))
+    text_format.setBuffer(buffer_settings)
+
+    settings.setFormat(text_format)
+
+    layer.setLabeling(
+        QgsVectorLayerSimpleLabeling(settings)
+    )
+
+    layer.setLabelsEnabled(True)
+
+
+def build_sensor_layers(
+    dem_layer,
+    points_layer,
+    level,
+    opacity=DEFAULT_OPACITY,
+    outline_only=DEFAULT_OUTLINE_ONLY,
+    color=None
+):
+
+    """
+    (coverage layer, designations layer) for one level, computing every
+    sensor's own footprint exactly ONCE - which is why this exists
+    rather than two independent generate_*() calls: each footprint is a
+    full gdal:viewshed run, and doing that twice per regeneration would
+    double the cost of every edit.
+
+    Either element may be None: coverage when nothing is visible from
+    anywhere, designations when no sensor on this level has been named.
+
+    Deliberately does NOT add either layer to the project; see
+    core/_layer_utils.py's module docstring.
+    """
+
+    if color is None:
+
+        color = coverage_color_for(
+            points_layer,
+            level
+        )
+
+    footprints = _sensor_footprints(
+        dem_layer,
+        points_layer,
+        level
+    )
+
+    coverage = _build_coverage_layer(
+        _merged_geometry(footprints),
+        level,
+        opacity,
+        outline_only,
+        color
+    )
+
+    if coverage is None:
+        # Nothing is drawn at all, so a designations layer would be
+        # labelling a perimeter that does not exist.
+        return None, None
+
+    designations = _build_designations_layer(
+        _perimeter_segments(footprints),
+        level,
+        color
+    )
+
+    return coverage, designations
 
 
 def default_insert_position(project, layer):
