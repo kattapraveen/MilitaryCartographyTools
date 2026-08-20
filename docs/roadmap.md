@@ -11306,6 +11306,66 @@ boundary, and a second stroke would double its weight.
 
 ---
 
+## Sensor Coverage: affiliation moves to the sensor (2026-08-20)
+
+Raised as an open question at the end of the entry above and answered
+immediately: per-level affiliation was wrong, because there are no
+separate friendly and hostile layers to put sensors on. Affiliation is
+now a per-FEATURE field on the points layer, with the standard
+ValueMap dropdown and Friend as the default.
+
+**Merging is confined to one affiliation.** The maintainer's own words:
+"the merge should happen only between same affiliation i.e. friends,
+hostiles etc." Friendly coverage fuses with friendly, hostile with
+hostile, and the two never combine - a single fused blob would claim
+one side holds ground the other actually covers. So a level's coverage
+layer now holds up to four features, one per affiliation present, and
+is styled by a data-defined expression on the "affiliation" field
+rather than one fixed colour.
+
+Data-defined rather than a categorized renderer with four classes: the
+coverage layer is rebuilt from scratch on every edit, so the renderer
+is rebuilt with it, and one symbol carrying an expression is far less
+to reconstruct than four categories whose ordering and fallback would
+have to be maintained. The sensor markers and the designation label
+colour are driven from the same expression, so a mixed laydown shows
+each sensor, its footprint and its name in its own side's colour.
+
+One consequence worth stating because it is easy to get backwards:
+`_perimeter_segments()` subtracts only SAME-affiliation footprints. A
+hostile coverage lying over a friendly one does not erase the friendly
+perimeter - they are separate overlays, the friendly boundary is still
+drawn there, and it still deserves its label. Pinned by test.
+
+The per-level affiliation dropdown is gone from the setup dialog,
+which is back to just a DEM and three checkboxes.
+
+**A crash worth recording**: reading the label colour back in a test as
+`layer.labeling().settings().dataDefinedProperties()` aborted the
+interpreter with "Pure virtual function called!" - the by-value
+temporary trap this project already hit with symbol layers, now
+confirmed for labelling too. Hold each intermediate in a name. Colour
+properties also need `valueAsColor()`, not `valueAsString()`.
+
+Verified by render: two friendly sensors merge into one blue shape and
+two hostile into one red, the two abutting without fusing; and all four
+affiliations draw in their own colour with matching markers and labels.
+
+Coverage is also now drawn OUTLINE ONLY, not filled, and at full
+opacity - the maintainer's own cartographic call the same day: "they
+fill up the entire space without clarity". A laydown is several large
+overlapping shapes stacked over the very terrain being judged against
+them, and even at 65% a fill washes that out; the perimeter is the
+information, the interior is not. Full opacity follows, since an
+outline obscures almost nothing and holding it translucent would only
+grey the line out. This is a deliberate divergence from viewshed.py's
+own filled default, and is pinned by test - nothing else about the
+layer would look wrong if it silently reverted.
+
+1537 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

@@ -17,14 +17,15 @@ from qgis.core import (
     QgsPointXY,
     QgsProject,
     QgsRasterLayer,
+    QgsSymbolLayer,
 )
 
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
 from MilitaryCartographyTools.terrain.sensor_coverage import (
-    affiliation_for,
     AFFILIATION_COLORS,
     build_sensor_points_layer,
+    color_for,
     coverage_layer_name,
     DEFAULT_MAX_DISTANCE_M,
     dem_layer_for,
@@ -113,7 +114,7 @@ class SensorCoverageTestCase(QgisTestCase):
         )
 
 
-    def _add_sensor(self, points_layer, lonlat, max_distance=200.0, designation=""):
+    def _add_sensor(self, points_layer, lonlat, max_distance=200.0, designation="", affiliation="friend"):
 
         """
         Adds one sensor and returns the id the PROVIDER assigned it -
@@ -132,6 +133,7 @@ class SensorCoverageTestCase(QgisTestCase):
         feature["detection_height"] = 1000.0
         feature["max_distance"] = max_distance
         feature["unique_designation"] = designation
+        feature["affiliation"] = affiliation
 
         before = {f.id() for f in points_layer.getFeatures()}
 
@@ -526,86 +528,84 @@ class TestDesignationsLayer(SensorCoverageTestCase):
 
 class TestAffiliation(SensorCoverageTestCase):
 
-    def test_the_dialogs_choice_is_remembered(self):
+    def _set_up_level(self, level=LOW):
 
         apply_dialog_values(
-            self.iface,
-            self.manager,
-            self.dem_layer,
-            ["low"],
-            {"low": "hostile"}
+            self.iface, self.manager, self.dem_layer, [level.key]
+        )
+
+        return self._points_layer_in_project(level)
+
+
+    def test_a_new_sensor_defaults_to_friend(self):
+
+        points = self._set_up_level()
+
+        self.assertEqual(
+            points.fields().at(
+                points.fields().indexOf("affiliation")
+            ).name(),
+            "affiliation"
         )
 
         self.assertEqual(
-            affiliation_for(self._points_layer_in_project(LOW)),
-            "hostile"
+            points.defaultValueDefinition(
+                points.fields().indexOf("affiliation")
+            ).expression(),
+            "'friend'"
         )
 
 
-    def test_it_defaults_to_friend(self):
+    def test_opposing_sides_produce_separate_coverage_features(self):
 
-        apply_dialog_values(
-            self.iface, self.manager, self.dem_layer, ["low"]
+        # The maintainer's own requirement, end to end through the
+        # manager rather than only at the geometry level.
+        points = self._set_up_level()
+
+        self._add_sensor(
+            points, self._lonlat_at(0.48), affiliation="friend"
         )
 
-        self.assertEqual(
-            affiliation_for(self._points_layer_in_project(LOW)),
-            "friend"
+        self._add_sensor(
+            points, self._lonlat_at(0.52), affiliation="hostile"
         )
-
-
-    def test_changing_it_recolours_existing_coverage_immediately(self):
-
-        # Coverage is only rebuilt on an edit, so without an explicit
-        # regenerate a side change would not show until the user
-        # happened to move a sensor.
-        apply_dialog_values(
-            self.iface, self.manager, self.dem_layer, ["low"]
-        )
-
-        points = self._points_layer_in_project(LOW)
-
-        self._add_sensor(points, self._lonlat_at(0.5))
 
         self.manager.regenerate(LOW)
 
-        apply_dialog_values(
-            self.iface,
-            self.manager,
-            self.dem_layer,
-            ["low"],
-            {"low": "hostile"}
+        coverage = self._coverage_layers(LOW)[0]
+
+        self.assertEqual(
+            sorted(f["affiliation"] for f in coverage.getFeatures()),
+            ["friend", "hostile"]
         )
 
-        coverage = QgsProject.instance().mapLayersByName(
-            coverage_layer_name(LOW)
+
+    def test_the_sensor_markers_follow_each_sensors_own_side(self):
+
+        points = self._set_up_level()
+
+        self._add_sensor(
+            points, self._lonlat_at(0.4), affiliation="neutral"
+        )
+
+        # Held, not chained - these are layer-owned objects.
+        renderer = points.renderer()
+        symbol = renderer.symbol()
+        symbol_layer = symbol.symbolLayer(0)
+        properties = symbol_layer.dataDefinedProperties()
+
+        feature = next(points.getFeatures())
+
+        context = points.createExpressionContext()
+        context.setFeature(feature)
+
+        color = properties.valueAsColor(
+            QgsSymbolLayer.Property.FillColor, context
         )[0]
 
-        fill = coverage.renderer().symbol().symbolLayer(0).color()
-
         self.assertEqual(
-            (fill.red(), fill.green(), fill.blue()),
-            tinted(AFFILIATION_COLORS["hostile"], LOW.tint)
-        )
-
-
-    def test_the_sensor_markers_follow_the_same_colour(self):
-
-        apply_dialog_values(
-            self.iface,
-            self.manager,
-            self.dem_layer,
-            ["low"],
-            {"low": "neutral"}
-        )
-
-        points = self._points_layer_in_project(LOW)
-
-        marker = points.renderer().symbol().symbolLayer(0).color()
-
-        self.assertEqual(
-            (marker.red(), marker.green(), marker.blue()),
-            tinted(AFFILIATION_COLORS["neutral"], LOW.tint)
+            (color.red(), color.green(), color.blue()),
+            color_for("neutral", LOW)
         )
 
 

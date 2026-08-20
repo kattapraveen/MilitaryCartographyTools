@@ -18,21 +18,25 @@ from qgis.core import (
     QgsDistanceArea,
     QgsFeature,
     QgsGeometry,
+    QgsPalLayerSettings,
     QgsPointXY,
     QgsProject,
     QgsRasterLayer,
+    QgsSymbolLayer,
     QgsVectorLayer,
 )
+
+from qgis.PyQt.QtGui import QColor
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
 
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
 from MilitaryCartographyTools.terrain.sensor_coverage import (
-    affiliation_for,
     AFFILIATION_COLORS,
-    build_sensor_layers,
     AFFILIATION_LABELS,
+    build_sensor_layers,
+    color_for,
     build_sensor_points_layer,
     coverage_layer_name,
     default_insert_position,
@@ -43,7 +47,6 @@ from MilitaryCartographyTools.terrain.sensor_coverage import (
     level_by_key,
     points_layer_name,
     SENSOR_LEVELS,
-    set_affiliation,
     set_dem_layer,
     tinted,
 )
@@ -188,6 +191,7 @@ class TestSensorPointsLayer(QgisTestCase):
         self.assertEqual(
             [field.name() for field in layer.fields()],
             [
+                "affiliation",
                 "sensor_height",
                 "detection_height",
                 "max_distance",
@@ -460,6 +464,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
             # don't care about it, and the ones that do say so.
             lonlat, sensor_height, detection_height, max_distance = sensor[:4]
             designation = sensor[4] if len(sensor) > 4 else ""
+            affiliation = sensor[5] if len(sensor) > 5 else "friend"
 
             feature = QgsFeature(layer.fields())
 
@@ -471,6 +476,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
             feature["detection_height"] = detection_height
             feature["max_distance"] = max_distance
             feature["unique_designation"] = designation
+            feature["affiliation"] = affiliation
 
             features.append(feature)
 
@@ -658,11 +664,35 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
 
-    def _fill_of(self, layer):
+    def _fill_of(self, layer, feature=None):
 
-        fill = layer.renderer().symbol().symbolLayer(0).color()
+        """
+        The colour actually drawn for one feature - data-defined from
+        its affiliation now, so the symbol's own static colour says
+        nothing. Reads the STROKE, since coverage is outline-only.
+        """
 
-        return (fill.red(), fill.green(), fill.blue())
+        if feature is None:
+            feature = next(layer.getFeatures())
+
+        # Every intermediate is held in a name rather than chained:
+        # renderer()/symbol()/symbolLayer() hand back objects owned by
+        # the layer, and chaining off the temporaries crashes the
+        # interpreter outright (see the by-value-temporary trap this
+        # project already hit with masking).
+        renderer = layer.renderer()
+        symbol = renderer.symbol()
+        symbol_layer = symbol.symbolLayer(0)
+        properties = symbol_layer.dataDefinedProperties()
+
+        context = layer.createExpressionContext()
+        context.setFeature(feature)
+
+        color = properties.valueAsColor(
+            QgsSymbolLayer.Property.StrokeColor, context
+        )[0]
+
+        return (color.red(), color.green(), color.blue())
 
 
     def test_coverage_defaults_to_the_friendly_colour_tinted_for_its_band(self):
@@ -684,14 +714,12 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
     def test_the_chosen_affiliation_drives_the_coverage_colour(self):
 
-        points = self._points_layer(
-            [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0)]
-        )
-
-        set_affiliation(points, "hostile")
-
         layer = generate_sensor_coverage(
-            self.dem_layer, points, LOW
+            self.dem_layer,
+            self._points_layer(
+                [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0, "", "hostile")]
+            ),
+            LOW
         )
 
         self.assertEqual(
@@ -700,19 +728,120 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
 
-    def test_an_explicit_colour_still_overrides_the_affiliation(self):
+    def test_coverage_is_drawn_as_an_outline_not_a_fill(self):
 
-        points = self._points_layer(
-            [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0)]
+        # The maintainer's own cartographic call: a filled coverage
+        # "fills up the entire space without clarity", washing out the
+        # very terrain it is meant to be judged against. Pinned because
+        # nothing else about the layer would look wrong if this silently
+        # reverted to viewshed.py's own filled default.
+        layer = generate_sensor_coverage(
+            self.dem_layer,
+            self._points_layer(
+                [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0)]
+            ),
+            LOW
         )
 
+        renderer = layer.renderer()
+        symbol = renderer.symbol()
+        symbol_layer = symbol.symbolLayer(0)
+
+        self.assertEqual(
+            symbol_layer.brushStyle(),
+            Qt.BrushStyle.NoBrush
+        )
+
+        self.assertNotEqual(
+            symbol_layer.strokeStyle(),
+            Qt.PenStyle.NoPen
+        )
+
+        # An outline hides almost nothing, so holding it translucent
+        # would only grey it out and undo the point of the change.
+        self.assertEqual(layer.opacity(), 1.0)
+
+
+    def test_opposing_sides_do_not_merge_into_one_shape(self):
+
+        # The maintainer's own requirement: merging happens only within
+        # an affiliation. Two sensors on the same ground, different
+        # sides, must stay two features - fusing them would claim one
+        # side holds ground the other actually covers.
         layer = generate_sensor_coverage(
-            self.dem_layer, points, LOW, color=(12, 34, 56)
+            self.dem_layer,
+            self._points_layer(
+                [
+                    (self._lonlat_at(0.48), 5.0, 1000.0, 300.0, "", "friend"),
+                    (self._lonlat_at(0.52), 5.0, 1000.0, 300.0, "", "hostile"),
+                ]
+            ),
+            LOW
+        )
+
+        by_affiliation = {
+            f["affiliation"]: f for f in layer.getFeatures()
+        }
+
+        self.assertEqual(
+            sorted(by_affiliation),
+            ["friend", "hostile"]
+        )
+
+        # And each draws in its own side's colour.
+        for affiliation, feature in by_affiliation.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                self.assertEqual(
+                    self._fill_of(layer, feature),
+                    color_for(affiliation, LOW)
+                )
+
+
+    def test_same_side_sensors_still_merge(self):
+
+        layer = generate_sensor_coverage(
+            self.dem_layer,
+            self._points_layer(
+                [
+                    (self._lonlat_at(0.48), 5.0, 1000.0, 300.0, "", "hostile"),
+                    (self._lonlat_at(0.52), 5.0, 1000.0, 300.0, "", "hostile"),
+                ]
+            ),
+            LOW
+        )
+
+        self.assertEqual(layer.featureCount(), 1)
+
+        # One connected shape, not two touching parts.
+        self.assertEqual(
+            len(next(layer.getFeatures()).geometry().asGeometryCollection()),
+            1
+        )
+
+
+    def test_a_perimeter_is_not_eaten_by_the_opposing_side(self):
+
+        # A hostile footprint lying over a friendly one does not erase
+        # the friendly perimeter - they are separate overlays, so the
+        # friendly boundary is still drawn and still deserves its label.
+        centre = self._lonlat_at(0.5)
+
+        _, designations = build_sensor_layers(
+            self.dem_layer,
+            self._points_layer(
+                [
+                    (centre, 5.0, 1000.0, 120.0, "FRIENDLY", "friend"),
+                    (centre, 5.0, 1000.0, 400.0, "ENEMY", "hostile"),
+                ]
+            ),
+            LOW
         )
 
         self.assertEqual(
-            self._fill_of(layer),
-            (12, 34, 56)
+            sorted(f["unique_designation"] for f in designations.getFeatures()),
+            ["ENEMY", "FRIENDLY"]
         )
 
 
@@ -1111,20 +1240,30 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
     def test_designations_take_the_affiliation_colour(self):
 
-        points = self._points_layer(
-            [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0, "RADAR A")]
-        )
-
-        set_affiliation(points, "hostile")
-
         _, designations = build_sensor_layers(
-            self.dem_layer, points, LOW
+            self.dem_layer,
+            self._points_layer(
+                [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0, "RADAR A", "hostile")]
+            ),
+            LOW
         )
 
-        text_color = designations.labeling().settings().format().color()
+        feature = next(designations.getFeatures())
+
+        context = designations.createExpressionContext()
+        context.setFeature(feature)
+
+        # Held, not chained - see _fill_of()'s own comment.
+        labeling = designations.labeling()
+        settings = labeling.settings()
+        properties = settings.dataDefinedProperties()
+
+        color = properties.valueAsColor(
+            QgsPalLayerSettings.Property.Color, context
+        )[0]
 
         self.assertEqual(
-            (text_color.red(), text_color.green(), text_color.blue()),
+            (color.red(), color.green(), color.blue()),
             tinted(AFFILIATION_COLORS["hostile"], LOW.tint)
         )
 

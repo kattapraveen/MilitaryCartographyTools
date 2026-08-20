@@ -87,11 +87,14 @@ from qgis.core import (
     QgsEditorWidgetSetup,
     QgsFeature,
     QgsField,
+    QgsFillSymbol,
     QgsGeometry,
     QgsLineSymbol,
     QgsMarkerSymbol,
     QgsPalLayerSettings,
     QgsProject,
+    QgsProperty,
+    QgsSymbolLayer,
     QgsVectorLayer,
     QgsVectorLayerSimpleLabeling,
 )
@@ -102,9 +105,7 @@ from qgis.PyQt.QtGui import QColor
 from ..core.coordinate_utils import WGS84
 from ..core.text_format import build_text_format
 from .viewshed import (
-    _apply_polygon_style,
-    DEFAULT_OPACITY,
-    DEFAULT_OUTLINE_ONLY,
+    OUTLINE_WIDTH_MM,
     visible_area_at_altitude,
 )
 
@@ -118,6 +119,21 @@ from .viewshed import (
 # use the radar figure here and leave the other two features optical.
 RADAR_REFRACTION_COEFFICIENT = 0.25
 
+# Outline only, and NOT viewshed.py's own filled default - the
+# maintainer's own call 2026-08-20, on cartographic grounds: "they fill
+# up the entire space without clarity". A sensor laydown is several
+# large overlapping shapes stacked over the very terrain being judged
+# against them (contours, hillshade, unit symbology), and even at 65%
+# a fill washes all of that out. The perimeter is the information here;
+# the interior is not.
+#
+# Full opacity follows from that. Viewshed keeps 0.65 because it is a
+# fill that must be seen through; an outline obscures almost nothing,
+# and holding it at 0.65 only greys the line out and undoes the
+# clarity this is for.
+COVERAGE_OUTLINE_ONLY = True
+COVERAGE_OPACITY = 1.0
+
 
 # Which DEM this layer's coverage is computed against, remembered on
 # the points layer itself rather than re-asked per regeneration. A
@@ -126,13 +142,6 @@ RADAR_REFRACTION_COEFFICIENT = 0.25
 # properties into the project file - so a saved project reopens still
 # knowing its own DEM.
 DEM_LAYER_PROPERTY = "mct/sensor_coverage_dem_layer_id"
-
-# Which side this laydown belongs to, remembered the same way and for
-# the same reason as the DEM: coverage layers are REGENERATED from
-# scratch on every edit, so a colour the user set with QGIS's own layer
-# styling would be thrown away the next time they moved a sensor.
-# Stored on the POINTS layer, which is the thing that survives.
-COVERAGE_AFFILIATION_PROPERTY = "mct/sensor_coverage_affiliation"
 
 # Colour follows AFFILIATION rather than being a free RGB pick, at the
 # maintainer's own request 2026-08-20 ("inline with the affiliation that
@@ -165,6 +174,15 @@ AFFILIATION_COLORS = {
 }
 
 DEFAULT_AFFILIATION = "friend"
+
+# Affiliation is PER SENSOR, not per level - the maintainer's own call
+# 2026-08-20, on the grounds that there are no separate friendly and
+# hostile layers to put them on. **Merging happens strictly within one
+# affiliation**: friendly coverage fuses with friendly, hostile with
+# hostile, and the two never combine into a shape that would claim a
+# single side owns ground it does not. So one level's coverage layer
+# holds up to four features, one per affiliation actually present, and
+# is styled from the "affiliation" field rather than a fixed colour.
 
 POINTS_LAYER_NAME_TEMPLATE = "Sensor Points - {label}"
 COVERAGE_LAYER_NAME_TEMPLATE = "Sensor Coverage - {label}"
@@ -300,49 +318,46 @@ def set_dem_layer(points_layer, dem_layer):
     )
 
 
-def set_affiliation(points_layer, affiliation):
+def color_for(affiliation, level):
 
     """
-    Remember which side this laydown belongs to - one of
-    AFFILIATION_LABELS' own keys. Stored on the POINTS layer, see
-    COVERAGE_AFFILIATION_PROPERTY.
-    """
-
-    points_layer.setCustomProperty(
-        COVERAGE_AFFILIATION_PROPERTY,
-        affiliation
-    )
-
-
-def affiliation_for(points_layer):
-
-    """
-    The remembered affiliation for points_layer, or DEFAULT_AFFILIATION
-    if none was ever set or what was stored is not a value this module
-    knows. A custom property is plain text in the project file, so a
-    hand-edited or stale one has to fall back rather than raise.
-    """
-
-    stored = points_layer.customProperty(
-        COVERAGE_AFFILIATION_PROPERTY
-    )
-
-    if stored in AFFILIATION_COLORS:
-        return stored
-
-    return DEFAULT_AFFILIATION
-
-
-def coverage_color_for(points_layer, level):
-
-    """
-    The colour this level's coverage should be drawn in: the laydown's
-    own affiliation hue, tinted for the band - see SENSOR_LEVELS.
+    The colour one affiliation's coverage is drawn in at one level: the
+    standard affiliation hue, tinted for the band - see SENSOR_LEVELS.
     """
 
     return tinted(
-        AFFILIATION_COLORS[affiliation_for(points_layer)],
+        AFFILIATION_COLORS.get(affiliation, AFFILIATION_COLORS[DEFAULT_AFFILIATION]),
         level.tint
+    )
+
+
+def affiliation_color_expression(level):
+
+    """
+    A QGIS expression mapping the "affiliation" field to this level's
+    own tinted colour, for data-defining a symbol's fill/stroke or a
+    label's text colour.
+
+    Data-defined rather than a categorized renderer with four classes:
+    the coverage layer is rebuilt from scratch on every edit, so the
+    renderer is rebuilt with it, and one symbol carrying an expression
+    is far less to reconstruct (and to get wrong) than four categories
+    whose ordering and fallback would have to be maintained.
+    """
+
+    clauses = " ".join(
+        "WHEN \"affiliation\" = '{key}' THEN color_rgb({r}, {g}, {b})".format(
+            key=key,
+            **dict(zip(("r", "g", "b"), color_for(key, level)))
+        )
+        for key in AFFILIATION_COLORS
+    )
+
+    fallback = color_for(DEFAULT_AFFILIATION, level)
+
+    return (
+        f"CASE {clauses} "
+        f"ELSE color_rgb({fallback[0]}, {fallback[1]}, {fallback[2]}) END"
     )
 
 
@@ -384,6 +399,26 @@ def _configure_attribute_form(layer, level):
     """
 
     fields = layer.fields()
+
+    affiliation_idx = fields.indexOf("affiliation")
+
+    layer.setEditorWidgetSetup(
+        affiliation_idx,
+        QgsEditorWidgetSetup(
+            "ValueMap",
+            {"map": {label: key for key, label in AFFILIATION_LABELS.items()}}
+        )
+    )
+
+    layer.setDefaultValueDefinition(
+        affiliation_idx,
+        QgsDefaultValue(f"'{DEFAULT_AFFILIATION}'")
+    )
+
+    layer.setFieldAlias(
+        affiliation_idx,
+        "Affiliation"
+    )
 
     observer_idx = fields.indexOf("sensor_height")
 
@@ -498,6 +533,10 @@ def build_sensor_points_layer(level):
 
     layer.dataProvider().addAttributes(
         [
+            # Affiliation first, matching every other layer in this
+            # plugin - the standard's own symbol-building order picks a
+            # standard identity before anything else.
+            QgsField("affiliation", QMetaType.Type.QString),
             QgsField("sensor_height", QMetaType.Type.Double),
             QgsField("detection_height", QMetaType.Type.Double),
             QgsField("max_distance", QMetaType.Type.Double),
@@ -512,38 +551,38 @@ def build_sensor_points_layer(level):
         level
     )
 
-    apply_points_style(
-        layer,
-        coverage_color_for(layer, level)
-    )
+    apply_points_style(layer, level)
 
     return layer
 
 
-def apply_points_style(points_layer, color):
+def apply_points_style(points_layer, level):
 
     """
     The sensor marker, in the same colour as the coverage it generates -
-    so a level's points and its footprint read as one thing. Separate
-    from build_sensor_points_layer() because a colour change has to
-    restyle the EXISTING points layer too: unlike the coverage, the
-    points layer is never regenerated (it holds the user's own data),
-    so nothing else would ever repaint it.
+    so a sensor and its footprint read as one thing - and data-defined
+    from the feature's own affiliation, so a laydown with friendly and
+    hostile sets on one layer shows each marker in its own side's
+    colour rather than one colour for the layer.
     """
 
-    red, green, blue = color
+    symbol = QgsMarkerSymbol.createSimple(
+        {
+            "name": "triangle",
+            "outline_color": "0,0,0",
+            "outline_width": "0.3",
+            "size": str(MARKER_SIZE_MM),
+        }
+    )
 
-    points_layer.renderer().setSymbol(
-        QgsMarkerSymbol.createSimple(
-            {
-                "name": "triangle",
-                "color": f"{red},{green},{blue}",
-                "outline_color": "0,0,0",
-                "outline_width": "0.3",
-                "size": str(MARKER_SIZE_MM),
-            }
+    symbol.symbolLayer(0).setDataDefinedProperty(
+        QgsSymbolLayer.Property.FillColor,
+        QgsProperty.fromExpression(
+            affiliation_color_expression(level)
         )
     )
+
+    points_layer.renderer().setSymbol(symbol)
 
     points_layer.triggerRepaint()
 
@@ -586,8 +625,15 @@ def _sensor_observations(points_layer, level):
 
         designation = feature["unique_designation"]
 
+        affiliation = feature["affiliation"]
+
         yield (
             point,
+            (
+                affiliation
+                if affiliation in AFFILIATION_COLORS
+                else DEFAULT_AFFILIATION
+            ),
             "" if designation is None else str(designation).strip(),
             value("sensor_height", DEFAULT_SENSOR_HEIGHT_M),
             value("detection_height", level.ceiling_m),
@@ -598,13 +644,15 @@ def _sensor_observations(points_layer, level):
 def _sensor_footprints(dem_layer, points_layer, level):
 
     """
-    [(designation, footprint)] - one entry per sensor that produced any
-    coverage at all, each footprint a single QgsGeometry in WGS84.
+    [(affiliation, designation, footprint)] - one entry per sensor that
+    produced any coverage at all, each footprint a single QgsGeometry in
+    WGS84.
 
-    Kept PER SENSOR rather than unioned on the spot because the
-    designations need it: each sensor labels its own stretch of the
-    merged perimeter (see _perimeter_segments()), which cannot be
-    recovered once everything has been fused into one shape.
+    Kept PER SENSOR rather than unioned on the spot for two reasons:
+    merging is confined to one affiliation (see this module's own
+    constants), and each sensor labels its own stretch of the perimeter
+    (see _perimeter_segments()) - neither of which can be recovered once
+    everything has been fused into one shape.
 
     Every per-sensor result is reprojected to WGS84 here, before
     anything is combined. That is not incidental tidying:
@@ -619,7 +667,7 @@ def _sensor_footprints(dem_layer, points_layer, level):
 
     footprints = []
 
-    for point, designation, sensor_height, detection_height, max_distance in _sensor_observations(points_layer, level):
+    for point, affiliation, designation, sensor_height, detection_height, max_distance in _sensor_observations(points_layer, level):
 
         visible = visible_area_at_altitude(
             dem_layer,
@@ -664,51 +712,79 @@ def _sensor_footprints(dem_layer, points_layer, level):
         if combined is None or combined.isEmpty():
             continue
 
-        footprints.append((designation, combined))
+        footprints.append((affiliation, designation, combined))
 
     return footprints
 
 
-def _merged_geometry(footprints):
+def _merged_by_affiliation(footprints):
 
     """
-    Everything in `footprints` fused into one QgsGeometry, or None if
-    there is nothing. This union is what the whole feature is for:
+    [(affiliation, merged geometry)] - one entry per affiliation present,
+    in AFFILIATION_COLORS' own order so the output is stable rather than
+    following whatever order the sensors happen to be digitized in.
+
+    The union within each affiliation is what the whole feature is for:
     overlapping footprints fuse into a single outer perimeter, while
     sensors too far apart to overlap simply stay separate parts of the
-    same multipolygon and keep drawing their own outlines.
+    same multipolygon and keep drawing their own outlines. Crucially it
+    stops AT the affiliation boundary - a friendly and a hostile sensor
+    covering the same ground produce two overlapping shapes, not one
+    fused shape implying a single side holds all of it.
     """
 
-    if not footprints:
-        return None
+    merged = []
 
-    return QgsGeometry.unaryUnion(
-        [geometry for _, geometry in footprints]
-    )
+    for affiliation in AFFILIATION_COLORS:
+
+        geometries = [
+            geometry
+            for own_affiliation, _, geometry in footprints
+            if own_affiliation == affiliation
+        ]
+
+        if not geometries:
+            continue
+
+        combined = QgsGeometry.unaryUnion(geometries)
+
+        if combined is None or combined.isEmpty():
+            continue
+
+        merged.append((affiliation, combined))
+
+    return merged
 
 
 def _perimeter_segments(footprints):
 
     """
-    [(designation, line geometry)] - each named sensor paired with the
-    stretch of the MERGED perimeter that is its own, so it can label it.
+    [(affiliation, designation, line geometry)] - each named sensor
+    paired with the stretch of the MERGED perimeter that is its own, so
+    it can label it.
 
     A sensor's contribution is its own boundary minus every other
-    sensor's footprint: wherever two coverages overlap, the swallowed
-    arc is interior to the merged shape and no longer part of any
-    perimeter, so it must not be labelled. That is the maintainer's own
-    specification - "each sensor label is on its respective perimeter,
-    in case of overlap in the respective segment of the perimeter".
+    footprint OF THE SAME AFFILIATION: wherever two same-side coverages
+    overlap, the swallowed arc is interior to their merged shape and no
+    longer part of any perimeter, so it must not be labelled. That is
+    the maintainer's own specification - "each sensor label is on its
+    respective perimeter, in case of overlap in the respective segment
+    of the perimeter".
+
+    Other affiliations are deliberately NOT subtracted. A hostile
+    footprint lying over a friendly one does not erase the friendly
+    perimeter - the two are separate overlays, and the friendly
+    boundary is still drawn there, so it still deserves its label.
 
     Sensors with no designation are skipped entirely (nothing to draw),
-    and so is one whose footprint is wholly inside another's: it
-    contributes no perimeter, so labelling it would put a name on a line
-    that is not there.
+    and so is one whose footprint is wholly inside a same-side
+    neighbour's: it contributes no perimeter, so labelling it would put
+    a name on a line that is not there.
     """
 
     segments = []
 
-    for index, (designation, footprint) in enumerate(footprints):
+    for index, (affiliation, designation, footprint) in enumerate(footprints):
 
         if not designation:
             continue
@@ -732,8 +808,8 @@ def _perimeter_segments(footprints):
 
         others = [
             other
-            for position, (_, other) in enumerate(footprints)
-            if position != index
+            for position, (other_affiliation, _, other) in enumerate(footprints)
+            if position != index and other_affiliation == affiliation
         ]
 
         if others:
@@ -745,7 +821,7 @@ def _perimeter_segments(footprints):
         if boundary is None or boundary.isEmpty():
             continue
 
-        segments.append((designation, boundary))
+        segments.append((affiliation, designation, boundary))
 
     return segments
 
@@ -754,48 +830,43 @@ def generate_sensor_coverage(
     dem_layer,
     points_layer,
     level,
-    opacity=DEFAULT_OPACITY,
-    outline_only=DEFAULT_OUTLINE_ONLY,
-    color=None
+    opacity=COVERAGE_OPACITY,
+    outline_only=COVERAGE_OUTLINE_ONLY
 ):
 
     """
-    Build this level's merged "Sensor Coverage" polygon layer from every
-    sensor on points_layer, against the one shared dem_layer. Returns
-    None when nothing is visible from anywhere - an empty points layer,
-    or every sensor outside the DEM - so a caller can leave whatever is
-    already drawn alone instead of replacing it with an empty layer.
-
-    `color` (an (r, g, b) tuple) overrides this level's own default;
-    None means "whatever points_layer remembers", which is itself the
-    level default until the user picks something else.
+    Build this level's "Sensor Coverage" polygon layer from every sensor
+    on points_layer, against the one shared dem_layer - one feature per
+    affiliation present, each holding that side's own merged coverage.
+    Returns None when nothing is visible from anywhere - an empty points
+    layer, or every sensor outside the DEM - so a caller can leave
+    whatever is already drawn alone instead of replacing it with an
+    empty layer.
 
     Deliberately does NOT add the layer to the project; see
     core/_layer_utils.py's module docstring.
     """
-
-    if color is None:
-
-        color = coverage_color_for(
-            points_layer,
-            level
-        )
 
     coverage, _ = build_sensor_layers(
         dem_layer,
         points_layer,
         level,
         opacity=opacity,
-        outline_only=outline_only,
-        color=color
+        outline_only=outline_only
     )
 
     return coverage
 
 
-def _build_coverage_layer(merged, level, opacity, outline_only, color):
+def _build_coverage_layer(merged, level, opacity, outline_only):
 
-    if merged is None or merged.isEmpty():
+    """
+    One polygon feature per affiliation present, each holding that
+    side's own merged coverage, styled from the "affiliation" field.
+    None when nothing is visible from anywhere.
+    """
+
+    if not merged:
         return None
 
     layer = QgsVectorLayer(
@@ -804,29 +875,86 @@ def _build_coverage_layer(merged, level, opacity, outline_only, color):
         "memory"
     )
 
-    feature = QgsFeature()
-
-    feature.setGeometry(
-        merged
+    layer.dataProvider().addAttributes(
+        [QgsField("affiliation", QMetaType.Type.QString)]
     )
 
-    layer.dataProvider().addFeature(
-        feature
-    )
+    layer.updateFields()
+
+    features = []
+
+    for affiliation, geometry in merged:
+
+        feature = QgsFeature(layer.fields())
+
+        feature.setGeometry(geometry)
+
+        feature["affiliation"] = affiliation
+
+        features.append(feature)
+
+    layer.dataProvider().addFeatures(features)
 
     layer.updateExtents()
 
-    _apply_polygon_style(
+    _apply_coverage_style(
         layer,
+        level,
         opacity,
-        color,
         outline_only
     )
 
     return layer
 
 
-def _build_designations_layer(segments, level, color):
+def _apply_coverage_style(layer, level, opacity, outline_only):
+
+    """
+    viewshed.py's own fill/outline-only convention, except the colour is
+    data-defined from each feature's own affiliation rather than fixed
+    for the whole layer - one level's coverage now holds up to four
+    features, one per side, and they must not all draw the same.
+    """
+
+    color_expression = QgsProperty.fromExpression(
+        affiliation_color_expression(level)
+    )
+
+    if outline_only:
+
+        symbol = QgsFillSymbol.createSimple(
+            {
+                "style": "no",
+                "outline_style": "solid",
+                "outline_width": str(OUTLINE_WIDTH_MM),
+                "outline_width_unit": "MM",
+            }
+        )
+
+        symbol.symbolLayer(0).setDataDefinedProperty(
+            QgsSymbolLayer.Property.StrokeColor,
+            color_expression
+        )
+
+    else:
+
+        symbol = QgsFillSymbol.createSimple(
+            {"outline_style": "no"}
+        )
+
+        symbol.symbolLayer(0).setDataDefinedProperty(
+            QgsSymbolLayer.Property.FillColor,
+            color_expression
+        )
+
+    layer.renderer().setSymbol(symbol)
+
+    layer.setOpacity(opacity)
+
+    layer.triggerRepaint()
+
+
+def _build_designations_layer(segments, level):
 
     """
     A line layer holding each named sensor's own stretch of the merged
@@ -853,19 +981,23 @@ def _build_designations_layer(segments, level, color):
     )
 
     layer.dataProvider().addAttributes(
-        [QgsField("unique_designation", QMetaType.Type.QString)]
+        [
+            QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("unique_designation", QMetaType.Type.QString),
+        ]
     )
 
     layer.updateFields()
 
     features = []
 
-    for designation, geometry in segments:
+    for affiliation, designation, geometry in segments:
 
         feature = QgsFeature(layer.fields())
 
         feature.setGeometry(geometry)
 
+        feature["affiliation"] = affiliation
         feature["unique_designation"] = designation
 
         features.append(feature)
@@ -882,12 +1014,12 @@ def _build_designations_layer(segments, level, color):
         QgsLineSymbol.createSimple({"line_style": "no"})
     )
 
-    _apply_designation_labels(layer, color)
+    _apply_designation_labels(layer, level)
 
     return layer
 
 
-def _apply_designation_labels(layer, color):
+def _apply_designation_labels(layer, level):
 
     """
     Curved labels riding just above the perimeter, in the laydown's own
@@ -935,12 +1067,9 @@ def _apply_designation_labels(layer, color):
 
     settings.displayAll = True
 
-    red, green, blue = color
-
     text_format = build_text_format(
         DESIGNATION_LABEL_FONT_SIZE,
-        bold=True,
-        color=QColor(red, green, blue)
+        bold=True
     )
 
     buffer_settings = text_format.buffer()
@@ -951,6 +1080,16 @@ def _apply_designation_labels(layer, color):
     text_format.setBuffer(buffer_settings)
 
     settings.setFormat(text_format)
+
+    # Text colour follows each segment's own affiliation, the same way
+    # the coverage fill does - a hostile sensor's name has to read as
+    # hostile even where its arc runs alongside a friendly one.
+    settings.dataDefinedProperties().setProperty(
+        QgsPalLayerSettings.Property.Color,
+        QgsProperty.fromExpression(
+            affiliation_color_expression(level)
+        )
+    )
 
     layer.setLabeling(
         QgsVectorLayerSimpleLabeling(settings)
@@ -963,9 +1102,8 @@ def build_sensor_layers(
     dem_layer,
     points_layer,
     level,
-    opacity=DEFAULT_OPACITY,
-    outline_only=DEFAULT_OUTLINE_ONLY,
-    color=None
+    opacity=COVERAGE_OPACITY,
+    outline_only=COVERAGE_OUTLINE_ONLY
 ):
 
     """
@@ -982,13 +1120,6 @@ def build_sensor_layers(
     core/_layer_utils.py's module docstring.
     """
 
-    if color is None:
-
-        color = coverage_color_for(
-            points_layer,
-            level
-        )
-
     footprints = _sensor_footprints(
         dem_layer,
         points_layer,
@@ -996,11 +1127,10 @@ def build_sensor_layers(
     )
 
     coverage = _build_coverage_layer(
-        _merged_geometry(footprints),
+        _merged_by_affiliation(footprints),
         level,
         opacity,
-        outline_only,
-        color
+        outline_only
     )
 
     if coverage is None:
@@ -1010,8 +1140,7 @@ def build_sensor_layers(
 
     designations = _build_designations_layer(
         _perimeter_segments(footprints),
-        level,
-        color
+        level
     )
 
     return coverage, designations

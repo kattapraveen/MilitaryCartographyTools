@@ -492,17 +492,22 @@ answers "what does this whole sensor laydown cover" — several sensors
 plotted together, with their coverage merged into one picture.
 
 Click the two-overlapping-circles icon to open the setup dialog. Pick
-your **DEM layer**, tick which of the three levels you need, and set
-each one's **affiliation**; the plugin creates a **Sensor Points** layer
-for each. That's all the dialog does — everything after this happens on
-the layers themselves.
+your **DEM layer** and tick which of the three levels you need; the
+plugin creates a **Sensor Points** layer for each. That's all the dialog
+does — everything after this happens on the layers themselves.
 
 Colour follows MIL-STD-2525 affiliation rather than being a free choice,
 so a sensor laydown reads the same way as every other symbol in the
 plugin: **friend blue, hostile red, neutral green, unknown yellow**. Each
 band is drawn as a progressively lighter tint of that colour, so the
-three levels stay tellable apart when stacked. Reopen the dialog at any
-time to switch a level to another side.
+three levels stay tellable apart when stacked.
+
+Affiliation is set **per sensor**, in the attribute form, so friendly and
+enemy sets live happily on the same layer. **Coverage merges only between
+sensors on the same side** — two friendly radars fuse into one perimeter,
+but a friendly and a hostile one covering the same ground stay two
+separate overlapping shapes, since one merged blob would claim a single
+side holds ground the other actually covers.
 
 ### The three levels
 
@@ -539,6 +544,7 @@ Each sensor carries its own characteristics:
 
 | Field | Notes |
 |---|---|
+| Affiliation | Friend, Hostile, Neutral or Unknown (default Friend). Sets this sensor's colour, and decides which other sensors its coverage will merge with |
 | Sensor height | Height of the antenna above the ground it stands on, in metres (default 5). The DEM supplies the ground elevation underneath it |
 | Max detection height above sensor | How far above itself this sensor can detect, in metres — limited to that layer's own band, so a point on the Low Level layer can't be given a high-level capability by accident. Defaults to the band's ceiling |
 | Maximum range | That individual sensor's own detection range, in metres (default 30,000) |
@@ -558,6 +564,14 @@ covering everything visible from any sensor on it. Where two sensors'
 coverage overlaps, the two are **merged into a single perimeter** rather
 than drawn on top of each other; sensors too far apart to overlap simply
 keep their own separate outlines.
+
+Coverage is drawn as an **outline only**, not a filled shape. A sensor
+laydown is several large overlapping areas stacked over the very terrain
+you're judging them against — contours, hillshade, unit symbology — and
+a fill washes all of that out even when it's translucent. The perimeter
+is the information; the interior isn't. Set a fill yourself in Layer
+Properties if you want one, but bear in mind the coverage layer is
+rebuilt on every edit, so the styling won't survive.
 
 Each sensor's own footprint accounts for terrain, earth curvature and
 atmospheric refraction, and treats water as sea level rather than seabed
@@ -592,12 +606,17 @@ Give a sensor a **Unique designation** and a third layer appears —
 outside the perimeter, in the laydown's own affiliation colour.
 
 Each sensor labels *its own stretch* of the perimeter. Where two
-coverages overlap, the swallowed arc is no longer part of any boundary,
-so each name sits on the piece of the outline that its own sensor
-actually contributes — two merged radars produce one perimeter with two
-names on their respective halves of it, not one name for the pair. A
-sensor whose footprint falls entirely inside a larger one contributes no
-perimeter and so is not labelled.
+same-side coverages overlap, the swallowed arc is no longer part of any
+boundary, so each name sits on the piece of the outline that its own
+sensor actually contributes — two merged radars produce one perimeter
+with two names on their respective halves of it, not one name for the
+pair. A sensor whose footprint falls entirely inside a larger *same-side*
+one contributes no perimeter and so is not labelled.
+
+An opposing sensor's footprint doesn't take a perimeter away, though.
+A hostile coverage lying over a friendly one leaves the friendly
+boundary drawn exactly as it was — the two are separate overlays — so
+both keep their names.
 
 The layer only exists while at least one sensor on that level is named,
 so a laydown that doesn't use designations never has to manage it. The

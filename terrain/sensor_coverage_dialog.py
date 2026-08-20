@@ -19,27 +19,19 @@ from qgis.gui import QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
-    QHBoxLayout,
     QLabel,
     QVBoxLayout,
-    QWidget,
 )
 
 from ..core._layer_utils import add_layer_at_default_position
 from .sensor_coverage import (
-    affiliation_for,
-    AFFILIATION_LABELS,
     apply_points_style,
     build_sensor_points_layer,
-    coverage_color_for,
-    DEFAULT_AFFILIATION,
     points_layer_name,
     SENSOR_LEVELS,
-    set_affiliation,
     set_dem_layer,
 )
 
@@ -61,9 +53,9 @@ EXPLANATION = (
     "merged into one perimeter. Give a sensor a unique designation and "
     "it is labelled just outside its own stretch of that perimeter.\n\n"
     "Detection height is measured from the antenna, so siting a sensor "
-    "higher raises the whole band it covers. Colour follows the "
-    "MIL-STD-2525 affiliation below, with each band a lighter tint of "
-    "it."
+    "higher raises the whole band it covers. Each sensor also carries "
+    "its own MIL-STD-2525 affiliation, which decides its colour - and "
+    "coverage merges only between sensors on the same side."
 )
 
 
@@ -100,12 +92,6 @@ class SensorCoverageDialog(QDialog):
         # something the dialog can offer to un-create.
         self.level_checkboxes = {}
 
-        # One affiliation dropdown per level, alongside its checkbox.
-        # Seeded from whatever that level's points layer already
-        # remembers, so reopening the dialog shows the side in use
-        # rather than resetting to Friend.
-        self.level_affiliations = {}
-
         form = QFormLayout()
 
         form.addRow("DEM layer", self.dem_combo)
@@ -127,39 +113,7 @@ class SensorCoverageDialog(QDialog):
 
             self.level_checkboxes[level.key] = checkbox
 
-            combo = QComboBox()
-
-            for key, label in AFFILIATION_LABELS.items():
-
-                combo.addItem(label, key)
-
-            current = (
-                affiliation_for(existing)
-                if existing is not None
-                else DEFAULT_AFFILIATION
-            )
-
-            combo.setCurrentIndex(
-                combo.findData(current)
-            )
-
-            combo.setToolTip(
-                "Colour follows MIL-STD-2525 affiliation: friend blue, "
-                "hostile red, neutral green, unknown yellow. Each band "
-                "is drawn as a lighter tint of the same colour."
-            )
-
-            self.level_affiliations[level.key] = combo
-
-            row = QHBoxLayout()
-            row.setContentsMargins(0, 0, 0, 0)
-            row.addWidget(checkbox, 1)
-            row.addWidget(combo)
-
-            container = QWidget()
-            container.setLayout(row)
-
-            form.addRow(container)
+            form.addRow(checkbox)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -187,34 +141,19 @@ class SensorCoverageDialog(QDialog):
         ]
 
 
-    def selected_affiliations(self):
-
-        return {
-            key: combo.currentData()
-            for key, combo in self.level_affiliations.items()
-        }
-
-
     def accept(self):
 
         apply_dialog_values(
             self.iface,
             self.manager,
             self.dem_combo.currentLayer(),
-            self.selected_level_keys(),
-            self.selected_affiliations()
+            self.selected_level_keys()
         )
 
         super().accept()
 
 
-def apply_dialog_values(
-    iface,
-    manager,
-    dem_layer,
-    selected_level_keys,
-    affiliations=None
-):
+def apply_dialog_values(iface, manager, dem_layer, selected_level_keys):
 
     """
     Create whichever selected level layers this project doesn't have
@@ -223,17 +162,13 @@ def apply_dialog_values(
     it's testable without driving an actual QDialog, matching the other
     terrain/ dialogs' own generate_from_dialog_values() convention.
 
-    `affiliations` is an optional {level key: affiliation key} mapping;
-    a level not named in it keeps whatever it already had. Changing one
-    restyles the points layer immediately and regenerates that level's
-    coverage, so the new colour is visible without waiting for the next
-    edit.
+    Affiliation is deliberately NOT set here - it is a per-SENSOR field
+    on the points layer, so it belongs in the attribute form, not in a
+    dialog that can only speak for a whole level at once.
 
     Returns the sensor points layers now set up, newest first - or an
     empty list if there was no DEM to work against.
     """
-
-    affiliations = affiliations or {}
 
     if dem_layer is None:
 
@@ -276,34 +211,12 @@ def apply_dialog_values(
         # different DEM.
         set_dem_layer(points_layer, dem_layer)
 
-        chosen = affiliations.get(level.key)
-
-        changed = (
-            chosen is not None
-            and chosen != affiliation_for(points_layer)
-        )
-
-        if chosen is not None:
-
-            set_affiliation(points_layer, chosen)
-
-        # Restyle unconditionally: a layer just built took the default
-        # affiliation's colour, and an existing one may have just been
-        # switched to another side.
-        apply_points_style(
-            points_layer,
-            coverage_color_for(points_layer, level)
-        )
+        # Restyled even for an existing layer, so a project made before
+        # the marker became affiliation-driven picks the new symbol up
+        # on the next visit to this dialog.
+        apply_points_style(points_layer, level)
 
         manager.wire(points_layer, level)
-
-        if changed:
-
-            # The coverage carries the colour too, and it is only ever
-            # rebuilt on an edit - so without this a side change would
-            # not show on the footprint until the user happened to move
-            # a sensor.
-            manager.regenerate(level)
 
         layers.append(points_layer)
 
