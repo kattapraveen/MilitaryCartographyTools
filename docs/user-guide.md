@@ -642,6 +642,13 @@ sea level:
 | 7,000 m (25,000 ft) | ~354 km |
 | 30,000 m | ~723 km |
 
+**Coverage stops at the edge of your DEM.** Analysis needs terrain
+data, so a sensor whose range reaches past the DEM is bounded by the
+DEM rather than by its range — the plugin will not compute visibility
+over ground it has no elevation for. If a coverage outline looks
+suspiciously like the rectangle of your DEM, that's what has happened,
+and you need a wider DEM to see the sensor's full reach.
+
 Those are unobstructed-atmosphere ceilings, not suggested values —
 terrain cuts real coverage well below them anywhere that isn't open flat
 ground, and at medium and high level a sensor's own range binds long

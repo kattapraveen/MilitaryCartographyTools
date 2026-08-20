@@ -117,6 +117,51 @@ def _observer_extent(observer_lonlat, max_distance_m):
     )
 
 
+def _analysis_extent(dem_layer, observer_lonlat, max_distance):
+
+    """
+    The WGS84 box actually worth analysing: _observer_extent() clipped
+    to the DEM's OWN extent, or None if the two do not meet.
+
+    **This is what stops coverage being invented over ground there is
+    no data for.** gdal:warpreproject happily honours a TARGET_EXTENT
+    larger than its source, padding the difference with NoData - and
+    gdal_viewshed then reports that padding as visible rather than as
+    unknown, so a 30 km sensor on a 9 km DEM drew a full 30 km
+    footprint, six times wider than the data behind it. Reported by
+    the maintainer 2026-08-20 (nothing visible on screen, because with
+    the outline-only style the perimeter was tens of kilometres
+    off-canvas) and measured before being fixed: 0.54 degrees of
+    coverage from 0.08 degrees of DEM.
+
+    Note this bounds the analysis by the DEM's rectangular EXTENT, not
+    by where it actually holds values. A DEM with NoData voids inside
+    that rectangle still has them clamped to sea level by
+    _clamp_to_sea_level() - deliberate, and right for the common case
+    of a coastal DEM whose sea really is at zero.
+    """
+
+    dem_extent_wgs84 = QgsCoordinateTransform(
+        dem_layer.crs(),
+        WGS84,
+        QgsProject.instance()
+    ).transformBoundingBox(
+        dem_layer.extent()
+    )
+
+    wanted = _observer_extent(
+        observer_lonlat,
+        max_distance
+    )
+
+    if not wanted.intersects(dem_extent_wgs84):
+        return None
+
+    return wanted.intersect(
+        dem_extent_wgs84
+    )
+
+
 def _clamp_to_sea_level(clipped_dem):
 
     """
@@ -386,9 +431,18 @@ def visible_area_at_altitude(
     ):
         return None
 
+    analysis_extent = _analysis_extent(
+        dem_layer,
+        observer_lonlat,
+        max_distance
+    )
+
+    if analysis_extent is None:
+        return None
+
     clipped_dem = clip_and_reproject_dem(
         dem_layer,
-        _observer_extent(observer_lonlat, max_distance),
+        analysis_extent,
         WGS84
     )
 
@@ -602,9 +656,18 @@ def visible_area_for_observer(
     ):
         return None
 
+    analysis_extent = _analysis_extent(
+        dem_layer,
+        observer_lonlat,
+        max_distance
+    )
+
+    if analysis_extent is None:
+        return None
+
     clipped_dem = clip_and_reproject_dem(
         dem_layer,
-        _observer_extent(observer_lonlat, max_distance),
+        analysis_extent,
         WGS84
     )
 

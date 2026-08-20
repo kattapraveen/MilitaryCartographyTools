@@ -728,6 +728,50 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
 
+    def test_coverage_never_extends_beyond_the_dem(self):
+
+        # Reported by the maintainer 2026-08-20 as "nothing is drawn":
+        # a sensor at the default 30 km range on a DEM only a few km
+        # across drew a full 30 km footprint, six times wider than the
+        # data behind it, because gdal:warpreproject pads a too-large
+        # TARGET_EXTENT with NoData and gdal_viewshed reports that
+        # padding as visible. With the outline-only style the invented
+        # perimeter sat tens of kilometres off-canvas, so the screen
+        # showed only the sensor marker.
+        #
+        # The range here is deliberately far larger than the fixture
+        # DEM, which is the ordinary case for a first smoke test.
+        layer = generate_sensor_coverage(
+            self.dem_layer,
+            self._points_layer(
+                [(self._lonlat_at(0.5), 5.0, 1000.0, 500000.0)]
+            ),
+            LOW
+        )
+
+        self.assertIsNotNone(layer)
+
+        dem_extent = self.dem_layer.extent()
+        coverage_extent = layer.extent()
+
+        # One pixel of slack for reprojection rounding at the edges.
+        slack = dem_extent.width() / 100.0
+
+        self.assertLessEqual(
+            coverage_extent.width(),
+            dem_extent.width() + slack
+        )
+
+        self.assertLessEqual(
+            coverage_extent.height(),
+            dem_extent.height() + slack
+        )
+
+        self.assertTrue(
+            dem_extent.buffered(slack).contains(coverage_extent)
+        )
+
+
     def test_coverage_is_drawn_as_an_outline_not_a_fill(self):
 
         # The maintainer's own cartographic call: a filled coverage

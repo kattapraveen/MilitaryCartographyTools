@@ -11366,6 +11366,57 @@ layer would look wrong if it silently reverted.
 
 ---
 
+## Coverage was being invented beyond the DEM (2026-08-20)
+
+Found by the maintainer's own smoke test, reported as "nothing is
+drawn except placing a triangle at the point". The symptom and the
+cause were two different things.
+
+**The cause.** `gdal:warpreproject` honours a TARGET_EXTENT larger
+than its own source, padding the difference with NoData - and
+gdal_viewshed then reports that padding as VISIBLE rather than
+unknown. So the analysis box, sized purely from the sensor's maximum
+range, ran far past the edge of the data whenever the range exceeded
+the DEM. Measured before fixing: a sensor at the default 30 km range
+on a 9 km DEM produced 0.54 degrees of coverage from 0.08 degrees of
+DEM - six times wider than the terrain behind it, the rest computed
+over ground the project has no data for at all.
+
+**Why it looked like nothing at all.** With the outline-only style
+adopted the same day, the interior of a coverage polygon is empty. The
+invented perimeter sat tens of kilometres off-canvas, so a user zoomed
+to their own DEM saw an empty screen and one sensor marker. The old
+filled style would have shown a wash of colour and hidden the real
+defect; the cartographic change is what surfaced it.
+
+Fixed with `_analysis_extent()`, which intersects the observer box
+with the DEM's own extent before anything is clipped, so no padding is
+ever created. **The defect was in the shared helper, so Viewshed had
+it too** and is fixed by the same change - a Viewshed at a range
+exceeding its DEM had the same invented footprint.
+
+Bounded by the DEM's rectangular EXTENT, not by where it actually
+holds values: NoData voids inside that rectangle are still clamped to
+sea level by `_clamp_to_sea_level()`, which is deliberate and right
+for the common coastal case.
+
+Two testing lessons, both recorded because they are the reason this
+survived to a smoke test:
+
+  - Every existing test used a range SMALLER than its fixture DEM, so
+    none of them could ever have caught it. The regression tests now
+    deliberately use a range far larger than the DEM, which is the
+    ordinary case for a first smoke test.
+  - `test_defaults_let_a_sensor_be_placed_without_touching_the_form`
+    hardcoded every field value, the exact mistake the unknown-glyph
+    entry already warns about. Reproducing the real digitize path with
+    `QgsVectorLayerUtils.createFeature()` was how the investigation
+    ruled defaults out - and that path is worth using directly.
+
+1539 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

@@ -138,6 +138,52 @@ class TestGenerateViewshed(QgisTestCase):
                 pass
 
 
+    def test_a_viewshed_never_extends_beyond_the_dem(self):
+
+        # Found via Sensor Coverage 2026-08-20, but the defect lives in
+        # the shared clip helper and so applied here too:
+        # gdal:warpreproject pads a TARGET_EXTENT larger than its source
+        # with NoData, and gdal_viewshed reports that padding as
+        # visible - so a max distance exceeding the DEM produced a
+        # footprint over ground with no data behind it at all.
+        observer_lonlat = _lonlat_at_fraction(
+            self.flat_dem_layer,
+            0.5
+        )
+
+        layer = generate_viewshed(
+            self.flat_dem_layer,
+            observer_lonlat,
+            2.0,
+            2.0,
+            50000.0
+        )
+
+        self.assertIsNotNone(layer)
+
+        # generate_viewshed() returns its polygon in whatever local UTM
+        # zone the clip resolved to, NOT in the DEM's own CRS, so the
+        # two extents have to be brought together before comparing.
+        to_dem_crs = QgsCoordinateTransform(
+            layer.crs(),
+            self.flat_dem_layer.crs(),
+            QgsProject.instance()
+        )
+
+        coverage_extent = to_dem_crs.transformBoundingBox(
+            layer.extent()
+        )
+
+        dem_extent = self.flat_dem_layer.extent()
+
+        # Two pixels of slack for reprojection rounding at the edges.
+        slack = 2.0 * self.flat_dem_layer.rasterUnitsPerPixelX()
+
+        self.assertTrue(
+            dem_extent.buffered(slack).contains(coverage_extent)
+        )
+
+
     def test_output_is_a_valid_polygon_layer_of_only_visible_area(self):
 
         observer_lonlat = _lonlat_at_fraction(
