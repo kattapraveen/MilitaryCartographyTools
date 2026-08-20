@@ -24,7 +24,7 @@ level, so the other two bands are left exactly as they were.
 Military Cartography Tools
 """
 
-from qgis.core import QgsProject
+from qgis.core import Qgis, QgsProject
 
 from ..core._layer_utils import replace_named_layer
 from .sensor_coverage import (
@@ -36,6 +36,11 @@ from .sensor_coverage import (
     points_layer_name,
     SENSOR_LEVELS,
 )
+
+
+# Long enough to read a two-line sentence without hunting for it, short
+# enough not to sit over the map for a whole editing session.
+EDIT_HINT_DURATION_SECONDS = 8
 
 
 class SensorCoverageManager:
@@ -64,8 +69,40 @@ class SensorCoverageManager:
             lambda: self.regenerate(level)
         )
 
+        points_layer.editingStarted.connect(
+            lambda: self._remind_to_save(points_layer)
+        )
+
         self._wired_layer_ids.add(
             points_layer.id()
+        )
+
+
+    def _remind_to_save(self, points_layer):
+
+        """
+        Say, at the moment it matters, that coverage only redraws on
+        SAVE. Regenerating on commit rather than continuously is a
+        deliberate decision (see this module's own docstring), but it
+        is not a discoverable one: the maintainer's own smoke test
+        2026-08-20 placed sensors, saw no coverage, and reasonably read
+        that as the feature being broken - "since there is no generate
+        or re-generate button as such, it was not showing up". The
+        setup dialog does say it, but it is read once at setup and not
+        again when a sensor is actually being placed.
+
+        Fired on editingStarted rather than on every feature added, so
+        it appears once per edit session rather than once per sensor,
+        and it expires on its own.
+        """
+
+        self.iface.messageBar().pushMessage(
+            "Military Cartography Tools",
+            f'Coverage for "{points_layer.name()}" redraws when you SAVE '
+            "this layer's edits - placing or moving a sensor on its own "
+            "does not update it.",
+            level=Qgis.MessageLevel.Info,
+            duration=EDIT_HINT_DURATION_SECONDS
         )
 
 

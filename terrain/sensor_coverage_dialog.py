@@ -47,15 +47,19 @@ def _existing_points_layer(level):
 
 EXPLANATION = (
     "Each level gets its own sensor points layer. Digitize a sensor on "
-    "it, set that sensor's own height, detection height and maximum "
-    "range in the form, and save your edits - the coverage for that "
-    "level is drawn from every sensor on it, with overlapping coverage "
-    "merged into one perimeter. Give a sensor a unique designation and "
-    "it is labelled just outside its own stretch of that perimeter.\n\n"
-    "Detection height is measured from the antenna, so siting a sensor "
-    "higher raises the whole band it covers. Each sensor also carries "
-    "its own MIL-STD-2525 affiliation, which decides its colour - and "
-    "coverage merges only between sensors on the same side."
+    "it and set that sensor's own height, detection height and maximum "
+    "range in the form.\n\n"
+    "There is no Generate button: coverage is drawn when you SAVE the "
+    "points layer's edits, and redrawn on every later save. Placing or "
+    "moving a sensor on its own will not update it - saving is what "
+    "recomputes, deliberately, since each sensor is a full viewshed "
+    "run and doing that mid-drag would make dragging unusable.\n\n"
+    "Overlapping coverage merges into one perimeter, but only between "
+    "sensors of the same MIL-STD-2525 affiliation, which each sensor "
+    "carries itself and which decides its colour. Give a sensor a "
+    "unique designation and it is labelled just outside its own stretch "
+    "of the perimeter. Detection height is measured from the antenna, "
+    "so siting a sensor higher raises the whole band it covers."
 )
 
 

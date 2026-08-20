@@ -559,6 +559,14 @@ is shared across the whole laydown.
 
 ### The coverage layer
 
+> **There is no Generate button — you must save the layer.** Coverage
+> is drawn when you save the sensor points layer's edits, and redrawn on
+> every later save. Placing or moving a sensor does *nothing* visible
+> until you save (**Layer ▸ Save Layer Edits**, or toggle the pencil
+> off). If you've placed sensors and see no coverage, this is almost
+> certainly why. The plugin also reminds you in the message bar whenever
+> you start editing a sensor points layer.
+
 Save your edits and a **Sensor Coverage** layer appears for that level,
 covering everything visible from any sensor on it. Where two sensors'
 coverage overlaps, the two are **merged into a single perimeter** rather

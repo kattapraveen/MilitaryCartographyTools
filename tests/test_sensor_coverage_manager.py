@@ -54,11 +54,17 @@ class FakeMessageBar:
     def __init__(self):
 
         self.warnings = []
+        self.messages = []
 
 
     def pushWarning(self, title, message):
 
         self.warnings.append((title, message))
+
+
+    def pushMessage(self, title, message, level=None, duration=None):
+
+        self.messages.append((title, message))
 
 
 class FakeIface:
@@ -607,6 +613,56 @@ class TestAffiliation(SensorCoverageTestCase):
             (color.red(), color.green(), color.blue()),
             color_for("neutral", LOW)
         )
+
+
+class TestSaveReminder(SensorCoverageTestCase):
+
+    def _set_up_level(self, level=LOW):
+
+        apply_dialog_values(
+            self.iface, self.manager, self.dem_layer, [level.key]
+        )
+
+        return self._points_layer_in_project(level)
+
+
+    def test_starting_an_edit_says_coverage_needs_a_save(self):
+
+        # The maintainer's own smoke test placed sensors, saw nothing,
+        # and reasonably read that as the feature being broken -
+        # regeneration on commit is deliberate but not discoverable.
+        points = self._set_up_level()
+
+        points.startEditing()
+
+        self.assertEqual(
+            len(self.iface.messageBar().messages),
+            1
+        )
+
+        title, message = self.iface.messageBar().messages[0]
+
+        self.assertIn("SAVE", message)
+        self.assertIn(points.name(), message)
+
+        points.rollBack()
+
+
+    def test_it_is_once_per_edit_session_not_once_per_sensor(self):
+
+        points = self._set_up_level()
+
+        points.startEditing()
+
+        for fraction in (0.3, 0.5, 0.7):
+            self._add_sensor(points, self._lonlat_at(fraction))
+
+        self.assertEqual(
+            len(self.iface.messageBar().messages),
+            1
+        )
+
+        points.rollBack()
 
 
 class TestWiring(SensorCoverageTestCase):

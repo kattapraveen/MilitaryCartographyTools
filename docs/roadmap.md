@@ -11417,6 +11417,43 @@ survived to a smoke test:
 
 ---
 
+## "Nothing is drawn" was a discoverability failure (2026-08-20)
+
+The real answer to the smoke-test report above, found by the
+maintainer: coverage only appears once the points layer's edits are
+SAVED, and nothing said so at the moment it mattered - "since there is
+no generate or re-generate button as such, it was not showing up".
+
+Worth being clear that the DEM-bounds fix recorded above was a genuine
+defect, measured directly, but it was NOT the cause of this report -
+the sensor sat mid-DEM with ~29 km of margin on every side, and a
+10 km range failed the same way. Diagnosing from a plausible-looking
+cause rather than from the user's actual configuration cost a round
+trip; the configuration ruled it out immediately once stated.
+
+Regenerating on commit rather than continuously stays as it is - it is
+a deliberate decision (a full viewshed run per sensor, and QGIS fires
+geometryChanged throughout a drag), and adding a Generate button would
+contradict the maintainer's own "automatic" requirement. What was
+missing was the telling, so:
+
+  - The manager now hooks `editingStarted` and puts a message in the
+    bar naming the layer and saying coverage redraws on SAVE. Once per
+    edit SESSION, not per sensor, and it expires by itself.
+  - The setup dialog leads with "There is no Generate button", instead
+    of mentioning saving in passing halfway through a paragraph.
+  - The user guide carries the same as a call-out block at the top of
+    the coverage section, including where Save Layer Edits actually is.
+
+The lesson generalises past this feature: an automatic behaviour keyed
+to an event the user does not think of as an event reads as a broken
+feature, and the fix is to say so at the moment of the action rather
+than once at setup time.
+
+1541 tests passing on both QGIS versions.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
