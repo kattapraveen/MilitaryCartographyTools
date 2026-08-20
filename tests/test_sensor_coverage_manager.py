@@ -29,7 +29,6 @@ from MilitaryCartographyTools.terrain.sensor_coverage import (
     coverage_layer_name,
     DEFAULT_MAX_DISTANCE_M,
     dem_layer_for,
-    designations_layer_name,
     level_by_key,
     points_layer_name,
     set_dem_layer,
@@ -43,6 +42,29 @@ from MilitaryCartographyTools.terrain.sensor_coverage_dialog import (
 from MilitaryCartographyTools.terrain.sensor_coverage_manager import (
     SensorCoverageManager,
 )
+
+
+def covered_area(layer):
+
+    """
+    How much ground a coverage layer encloses.
+
+    Coverage is a LINE layer of per-sensor perimeter arcs now, so area
+    has to be recovered by closing those arcs back into polygons -
+    `.area()` on a line is simply zero. Perimeter LENGTH is deliberately
+    not used as a proxy: a large smooth shape can have a shorter
+    perimeter than a small ragged one, which would make the nesting and
+    "covers more ground" assertions meaningless.
+    """
+
+    polygons = QgsGeometry.polygonize(
+        [feature.geometry() for feature in layer.getFeatures()]
+    )
+
+    if polygons is None or polygons.isEmpty():
+        return 0.0
+
+    return polygons.area()
 
 
 LOW = level_by_key("low")
@@ -416,7 +438,7 @@ class TestRegenerate(SensorCoverageTestCase):
 
         sensor_id = self._add_sensor(points, self._lonlat_at(0.5), max_distance=100.0)
 
-        small = self.manager.regenerate(LOW).getFeature(1).geometry().area()
+        small = covered_area(self.manager.regenerate(LOW))
 
         points.dataProvider().changeAttributeValues(
             {
@@ -426,19 +448,12 @@ class TestRegenerate(SensorCoverageTestCase):
             }
         )
 
-        large = self.manager.regenerate(LOW).getFeature(1).geometry().area()
+        large = covered_area(self.manager.regenerate(LOW))
 
         self.assertGreater(large, small)
 
 
-class TestDesignationsLayer(SensorCoverageTestCase):
-
-    def _designation_layers(self, level=LOW):
-
-        return QgsProject.instance().mapLayersByName(
-            designations_layer_name(level)
-        )
-
+class TestDesignations(SensorCoverageTestCase):
 
     def _set_up_level(self, level=LOW):
 
@@ -449,18 +464,32 @@ class TestDesignationsLayer(SensorCoverageTestCase):
         return self._points_layer_in_project(level)
 
 
-    def test_an_unnamed_laydown_gets_no_designations_layer(self):
+    def test_designations_live_on_the_coverage_layer_itself(self):
 
+        # There used to be a third layer per level purely to carry
+        # these. Collapsed 2026-08-20 at the maintainer's request -
+        # "that's too many layers" - which the outline-only decision
+        # made possible, since the per-sensor arcs already draw exactly
+        # the perimeter the polygon had.
         points = self._set_up_level()
 
-        self._add_sensor(points, self._lonlat_at(0.5))
+        self._add_sensor(
+            points, self._lonlat_at(0.5), designation="RADAR A"
+        )
 
         self.manager.regenerate(LOW)
 
-        self.assertEqual(self._designation_layers(), [])
+        coverage = self._coverage_layers(LOW)[0]
+
+        self.assertEqual(
+            [f["unique_designation"] for f in coverage.getFeatures()],
+            ["RADAR A"]
+        )
+
+        self.assertTrue(coverage.labelsEnabled())
 
 
-    def test_naming_a_sensor_creates_the_layer(self):
+    def test_only_two_layers_per_level_exist(self):
 
         points = self._set_up_level()
 
@@ -470,37 +499,38 @@ class TestDesignationsLayer(SensorCoverageTestCase):
 
         self.manager.regenerate(LOW)
 
-        self.assertEqual(len(self._designation_layers()), 1)
+        names = [l.name() for l in QgsProject.instance().mapLayers().values()]
+
+        sensor_layers = [n for n in names if n.startswith("Sensor ")]
+
+        self.assertEqual(
+            sorted(sensor_layers),
+            sorted([points_layer_name(LOW), coverage_layer_name(LOW)])
+        )
 
 
-    def test_clearing_every_designation_removes_the_layer(self):
+    def test_an_unnamed_sensor_still_draws_its_perimeter(self):
 
-        # Otherwise a stale layer would keep labelling a perimeter that
-        # nothing claims any more.
+        # Unnamed sensors used to be skipped, because the layer existed
+        # only for labels. Now the same features ARE the coverage, so
+        # skipping one would leave a hole in the outline.
         points = self._set_up_level()
 
-        sensor_id = self._add_sensor(
-            points, self._lonlat_at(0.5), designation="RADAR A"
+        self._add_sensor(points, self._lonlat_at(0.5), designation="")
+
+        coverage = self.manager.regenerate(LOW)
+
+        self.assertIsNotNone(coverage)
+
+        self.assertEqual(coverage.featureCount(), 1)
+
+        self.assertGreater(
+            next(coverage.getFeatures()).geometry().length(),
+            0.0
         )
 
-        self.manager.regenerate(LOW)
 
-        self.assertEqual(len(self._designation_layers()), 1)
-
-        points.dataProvider().changeAttributeValues(
-            {
-                sensor_id: {
-                    points.fields().indexOf("unique_designation"): ""
-                }
-            }
-        )
-
-        self.manager.regenerate(LOW)
-
-        self.assertEqual(self._designation_layers(), [])
-
-
-    def test_deleting_every_sensor_removes_the_designations_too(self):
+    def test_deleting_every_sensor_removes_the_coverage(self):
 
         points = self._set_up_level()
 
@@ -515,21 +545,7 @@ class TestDesignationsLayer(SensorCoverageTestCase):
 
         self.manager.regenerate(LOW)
 
-        self.assertEqual(self._designation_layers(), [])
-
-
-    def test_regenerating_does_not_stack_up_designation_layers(self):
-
-        points = self._set_up_level()
-
-        self._add_sensor(
-            points, self._lonlat_at(0.5), designation="RADAR A"
-        )
-
-        for _ in range(3):
-            self.manager.regenerate(LOW)
-
-        self.assertEqual(len(self._designation_layers()), 1)
+        self.assertEqual(self._coverage_layers(LOW), [])
 
 
 class TestAffiliation(SensorCoverageTestCase):

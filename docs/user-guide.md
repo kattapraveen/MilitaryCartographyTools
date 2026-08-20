@@ -573,13 +573,25 @@ coverage overlaps, the two are **merged into a single perimeter** rather
 than drawn on top of each other; sensors too far apart to overlap simply
 keep their own separate outlines.
 
-Coverage is drawn as an **outline only**, not a filled shape. A sensor
-laydown is several large overlapping areas stacked over the very terrain
-you're judging them against — contours, hillshade, unit symbology — and
-a fill washes all of that out even when it's translucent. The perimeter
-is the information; the interior isn't. Set a fill yourself in Layer
-Properties if you want one, but bear in mind the coverage layer is
-rebuilt on every edit, so the styling won't survive.
+Coverage is a **perimeter, not a filled shape** — the layer is a line
+layer, so there is no fill to turn on. A sensor laydown is several large
+overlapping areas stacked over the very terrain you're judging them
+against (contours, hillshade, unit symbology), and a fill washes all of
+that out even when translucent. The perimeter is the information; the
+interior isn't. If you do want a filled product for a single sensor, use
+the **Viewshed** tool instead.
+
+Each level is drawn three ways at once, so the bands stay tellable apart
+where their outlines run close together:
+
+| Level | Line | Colour |
+|---|---|---|
+| **Low** | 0.3 mm, short dash | affiliation hue, full strength |
+| **Medium** | 0.5 mm, long dash | one step lighter |
+| **High** | 0.6 mm, solid | two steps lighter |
+
+So each level needs just **two layers** — its sensor points and its
+coverage. Designations ride on the coverage layer itself.
 
 Each sensor's own footprint accounts for terrain, earth curvature and
 atmospheric refraction, and treats water as sea level rather than seabed
@@ -609,9 +621,11 @@ more.
 
 ### Naming sensors on the perimeter
 
-Give a sensor a **Unique designation** and a third layer appears —
-**Sensor Coverage - <Level> (Designations)** — carrying the name just
-outside the perimeter, in the laydown's own affiliation colour.
+Give a sensor a **Unique designation** and its name is drawn just
+outside the perimeter, in that sensor's own affiliation colour. No extra
+layer is involved — the coverage layer holds one feature per sensor,
+each being that sensor's own stretch of the outline, so each carries its
+own name.
 
 Each sensor labels *its own stretch* of the perimeter. Where two
 same-side coverages overlap, the swallowed arc is no longer part of any
@@ -626,11 +640,10 @@ A hostile coverage lying over a friendly one leaves the friendly
 boundary drawn exactly as it was — the two are separate overlays — so
 both keep their names.
 
-The layer only exists while at least one sensor on that level is named,
-so a laydown that doesn't use designations never has to manage it. The
-line itself is invisible — the coverage polygon underneath already draws
-that boundary — and labels are set to display even where they collide,
-so none is silently dropped.
+An unnamed sensor still draws its stretch of the perimeter; it simply
+isn't labelled. Labels are set to display even where they collide, so
+none is silently dropped, and each sits just outside the coverage rather
+than inside it.
 
 ### On maximum ranges
 

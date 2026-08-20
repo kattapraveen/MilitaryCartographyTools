@@ -28,11 +28,10 @@ from qgis.core import Qgis, QgsProject
 
 from ..core._layer_utils import replace_named_layer
 from .sensor_coverage import (
-    build_sensor_layers,
     coverage_layer_name,
     default_insert_position,
     dem_layer_for,
-    designations_layer_name,
+    generate_sensor_coverage,
     points_layer_name,
     SENSOR_LEVELS,
 )
@@ -178,44 +177,26 @@ class SensorCoverageManager:
 
             return None
 
-        # Both layers come out of ONE pass, because each sensor's
-        # footprint is a full gdal:viewshed run and computing them twice
-        # would double the cost of every edit.
-        coverage, designations = build_sensor_layers(
-            dem_layer,
-            points_layer,
-            level
-        )
+        def generate():
 
-        replaced = replace_named_layer(
+            return generate_sensor_coverage(
+                dem_layer,
+                points_layer,
+                level
+            )
+
+        coverage = replace_named_layer(
             coverage_layer_name(level),
-            lambda: coverage,
+            generate,
             default_insert_position
         )
 
-        if replaced is None:
+        if coverage is None:
 
             # Nothing is visible from anywhere on this level any more -
             # every sensor deleted, or all of them off the DEM. Leaving
             # the previous coverage drawn would show ground that is no
-            # longer covered by anything, and its designations would
-            # label a perimeter that is gone.
+            # longer covered by anything.
             self._remove_named(coverage_layer_name(level))
-            self._remove_named(designations_layer_name(level))
 
-            return None
-
-        if designations is None:
-
-            # No sensor on this level carries a designation any more.
-            self._remove_named(designations_layer_name(level))
-
-        else:
-
-            replace_named_layer(
-                designations_layer_name(level),
-                lambda: designations,
-                default_insert_position
-            )
-
-        return replaced
+        return coverage

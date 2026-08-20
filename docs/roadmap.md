@@ -11454,6 +11454,66 @@ than once at setup time.
 
 ---
 
+## Sensor Coverage: one layer per level, and three ways to tell the bands apart (2026-08-20)
+
+Four things from the maintainer's own smoke test, agreed in advance
+rather than built and then debated.
+
+**A popup at setup, not just a message-bar line.** The message-bar
+reminder alone was not enough, so creating the layers now raises a
+modal box naming them and saying coverage is drawn on SAVE. Only when
+a layer is actually created - reopening the dialog to repoint an
+existing laydown at a different DEM stays silent.
+
+**Three layers per level become two.** The maintainer's own words:
+"that's too many layers". The separate designations layer only ever
+existed because coverage was a POLYGON holding one merged feature, and
+a label belongs to a feature - so per-sensor names needed per-sensor
+line features. The outline-only decision earlier the same day made the
+polygon redundant: the per-sensor arcs already ARE the merged
+perimeter, cut per sensor, so drawing them as lines is
+indistinguishable from drawing the polygon's outline. Coverage is now
+a LINE layer carrying its own labels.
+
+Two consequences worth stating. An UNNAMED sensor is no longer skipped
+- its arc still has to be drawn, it simply labels as nothing. And no
+fill is possible here any more, structurally rather than by styling;
+accepted by the maintainer, who noted Viewshed remains available for a
+filled product.
+
+**Width and dash per level.** Tint alone was insufficient - "low level
+and medium level ranges look almost the same, no difference in width
+and colour". Now low is 0.3 mm short-dash, medium 0.5 mm long-dash,
+high 0.6 mm solid, on top of the existing tints. Recorded because it
+is the opposite ordering to the reference text the maintainer supplied
+(which put the thickest line at low level); raised explicitly and left
+as they specified. Dash patterns are [on, off] millimetre runs, since
+Qt's own pen styles offer no long/short distinction.
+
+**The altitude bands were checked and NOT changed.** The maintainer
+asked to adopt SFC-5,000 / 5,000-25,000 / 25,000+ ft on the basis that
+the reference text attributed them to MIL-STD-2525/APP-6, "only if
+verified". Checked directly against reference/MIL-STD-2525D.pdf: the
+standard uses "Low Altitude", "Medium Altitude" and "High Altitude"
+only as NAMES - Land unit sector 2 capability modifiers, Table D-VII,
+symbol set 10 - and attaches no numeric ranges to them anywhere. Its
+only numeric altitude content is 5.3.6.6, the altitude/depth amplifier
+(field X), a free-text field the user fills in with units and a GL/MSL
+reference; the sole "25,000 feet" mentions explain flight-level
+notation. Two further points: in the supplied text the
+"(MIL-STD-2525)" attribution sat on the *text modifiers* heading, not
+on the bands or line weights; and no single doctrinal source fixes the
+numbers either, since engagement zones (LOMEZ, HIMEZ) and system
+categories (SHORAD, HIMAD, THAAD) are defined by weapon capability
+rather than fixed altitudes. So the existing 3,300 m / 7,000 m bands
+stand, and the antenna-relative model with them.
+
+1540 tests passing on both QGIS versions. The count drops by one
+because collapsing the layers removed a test that only made sense
+while two existed.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

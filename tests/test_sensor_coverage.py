@@ -35,7 +35,6 @@ from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 from MilitaryCartographyTools.terrain.sensor_coverage import (
     AFFILIATION_COLORS,
     AFFILIATION_LABELS,
-    build_sensor_layers,
     color_for,
     build_sensor_points_layer,
     coverage_layer_name,
@@ -50,6 +49,44 @@ from MilitaryCartographyTools.terrain.sensor_coverage import (
     set_dem_layer,
     tinted,
 )
+
+
+def covered_polygon(layer):
+
+    """
+    The coverage layer's arcs closed back into the polygon they bound.
+
+    Coverage is a LINE layer of per-sensor perimeter arcs now, so the
+    "shape covered" is not any one feature's geometry - it is what the
+    features enclose between them.
+    """
+
+    return QgsGeometry.polygonize(
+        [feature.geometry() for feature in layer.getFeatures()]
+    )
+
+
+def covered_area(layer):
+
+    """
+    How much ground a coverage layer encloses.
+
+    Coverage is a LINE layer of per-sensor perimeter arcs now, so area
+    has to be recovered by closing those arcs back into polygons -
+    `.area()` on a line is simply zero. Perimeter LENGTH is deliberately
+    not used as a proxy: a large smooth shape can have a shorter
+    perimeter than a small ragged one, which would make the nesting and
+    "covers more ground" assertions meaningless.
+    """
+
+    polygons = QgsGeometry.polygonize(
+        [feature.geometry() for feature in layer.getFeatures()]
+    )
+
+    if polygons is None or polygons.isEmpty():
+        return 0.0
+
+    return polygons.area()
 
 
 LOW = level_by_key("low")
@@ -505,7 +542,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
 
-    def test_a_single_sensor_produces_a_single_coverage_polygon(self):
+    def test_a_single_sensor_produces_one_closed_perimeter(self):
 
         layer = self._coverage(
             [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0)]
@@ -513,13 +550,22 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         self.assertTrue(layer.isValid())
 
+        # A LINE layer since 2026-08-20 - the perimeter IS the product,
+        # and dropping the polygon is what let coverage and designations
+        # collapse into one layer.
         self.assertEqual(
             layer.geometryType(),
-            Qgis.GeometryType.Polygon
+            Qgis.GeometryType.Line
         )
 
         self.assertEqual(
             layer.featureCount(),
+            1
+        )
+
+        # One sensor, one closed ring enclosing real ground.
+        self.assertEqual(
+            len(covered_polygon(layer).asGeometryCollection()),
             1
         )
 
@@ -572,10 +618,8 @@ class TestGenerateSensorCoverage(QgisTestCase):
             (self._lonlat_at(0.92), 5.0, 1000.0, 120.0),
         ]
 
-        geometry = self._coverage(far_apart).getFeature(1).geometry()
-
         self.assertEqual(
-            len(geometry.asGeometryCollection()),
+            len(covered_polygon(self._coverage(far_apart)).asGeometryCollection()),
             2
         )
 
@@ -597,7 +641,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
         def area(layer):
-            return layer.getFeature(1).geometry().area()
+            return covered_area(layer)
 
         self.assertGreater(area(two), area(one))
         self.assertLess(area(two), area(one) * 2)
@@ -620,8 +664,8 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
         self.assertGreater(
-            mixed.getFeature(1).geometry().area(),
-            short.getFeature(1).geometry().area() * 2
+            covered_area(mixed),
+            covered_area(short) * 2
         )
 
 
@@ -787,17 +831,20 @@ class TestGenerateSensorCoverage(QgisTestCase):
             LOW
         )
 
+        # Structural now, not a styling flag: a LINE layer cannot be
+        # filled at all, so this cannot silently revert to a fill the
+        # way an outline-only polygon style could.
+        self.assertEqual(
+            layer.geometryType(),
+            Qgis.GeometryType.Line
+        )
+
         renderer = layer.renderer()
         symbol = renderer.symbol()
         symbol_layer = symbol.symbolLayer(0)
 
-        self.assertEqual(
-            symbol_layer.brushStyle(),
-            Qt.BrushStyle.NoBrush
-        )
-
         self.assertNotEqual(
-            symbol_layer.strokeStyle(),
+            symbol_layer.penStyle(),
             Qt.PenStyle.NoPen
         )
 
@@ -856,11 +903,13 @@ class TestGenerateSensorCoverage(QgisTestCase):
             LOW
         )
 
-        self.assertEqual(layer.featureCount(), 1)
+        # Two sensors, so two arc features - but they bound ONE
+        # connected shape between them, which is what merging means now
+        # that coverage is a perimeter rather than a polygon.
+        self.assertEqual(layer.featureCount(), 2)
 
-        # One connected shape, not two touching parts.
         self.assertEqual(
-            len(next(layer.getFeatures()).geometry().asGeometryCollection()),
+            len(covered_polygon(layer).asGeometryCollection()),
             1
         )
 
@@ -872,7 +921,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
         # friendly boundary is still drawn and still deserves its label.
         centre = self._lonlat_at(0.5)
 
-        _, designations = build_sensor_layers(
+        designations = generate_sensor_coverage(
             self.dem_layer,
             self._points_layer(
                 [
@@ -993,7 +1042,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
                     self._points_layer([(observer, 5.0, 500.0, 400.0)]),
                     LOW
                 )
-                return layer.getFeature(1).geometry().area()
+                return covered_area(layer)
 
             # On the raised block versus on the flat ground beside it.
             on_high_ground = area(at(0.5))
@@ -1029,7 +1078,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
                 level
             )
 
-            areas.append(layer.getFeature(1).geometry().area())
+            areas.append(covered_area(layer))
 
         for lower, higher in zip(areas, areas[1:]):
 
@@ -1086,7 +1135,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
                     transform.transform(at(fraction))
                 )
 
-                return layer.getFeature(1).geometry().contains(probe)
+                return covered_polygon(layer).contains(probe)
 
             self.assertFalse(
                 covers(0.75, 100.0)
@@ -1122,23 +1171,31 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
     def _designations(self, sensors, level=LOW):
 
-        _, designations = build_sensor_layers(
+        # Coverage and designations are one layer now; kept as its own
+        # helper because these tests are about the labelling side of it.
+        return generate_sensor_coverage(
             self.dem_layer,
             self._points_layer(sensors, level),
             level
         )
 
-        return designations
 
+    def test_an_unnamed_sensor_still_draws_its_perimeter(self):
 
-    def test_no_designations_means_no_designations_layer(self):
+        # Unnamed sensors used to be dropped, because their layer
+        # existed only to carry labels. Now those same features ARE the
+        # coverage, so skipping one would leave a hole in the outline.
+        layer = self._designations(
+            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0, "")]
+        )
 
-        # A laydown that doesn't name its sensors shouldn't be given an
-        # empty third layer to manage.
-        self.assertIsNone(
-            self._designations(
-                [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0, "")]
-            )
+        self.assertIsNotNone(layer)
+
+        self.assertEqual(layer.featureCount(), 1)
+
+        self.assertEqual(
+            [f["unique_designation"] for f in layer.getFeatures()],
+            [""]
         )
 
 
@@ -1175,37 +1232,39 @@ class TestGenerateSensorCoverage(QgisTestCase):
             ["RADAR A", "RADAR B"]
         )
 
-        coverage, _ = build_sensor_layers(
-            self.dem_layer,
-            self._points_layer(sensors),
-            LOW
+        # They close into ONE shape between them: that is what merging
+        # means now that coverage is a perimeter rather than a polygon.
+        self.assertEqual(
+            len(covered_polygon(layer).asGeometryCollection()),
+            1
         )
 
-        merged_boundary = coverage.getFeature(1).geometry().convertToType(
-            Qgis.GeometryType.Line
-        )
+        # And each sensor's arc is SHORTER than that same sensor's own
+        # perimeter when it stands alone - the stretch swallowed by its
+        # neighbour belongs to no perimeter at all, so it is neither
+        # drawn nor labelled. Comparing against the standalone case is
+        # what keeps this honest; comparing the arcs against their own
+        # layer would be circular now that they ARE the coverage.
+        for sensor in sensors:
 
-        # Every labelled segment lies ON the merged perimeter, and the
-        # segments together are shorter than the two sensors' own full
-        # boundaries would be - the overlapping arcs are swallowed.
-        for feature in layer.getFeatures():
+            designation = sensor[4]
 
-            with self.subTest(designation=feature["unique_designation"]):
+            with self.subTest(designation=designation):
 
-                self.assertGreater(feature.geometry().length(), 0.0)
+                alone = self._designations([sensor])
 
-                # Within a whisker of the merged outline rather than
-                # floating somewhere inside it.
-                self.assertLess(
-                    feature.geometry().hausdorffDistance(merged_boundary),
-                    merged_boundary.boundingBox().width()
+                alone_length = sum(
+                    f.geometry().length() for f in alone.getFeatures()
                 )
 
-        self.assertAlmostEqual(
-            sum(f.geometry().length() for f in layer.getFeatures()),
-            merged_boundary.length(),
-            places=6
-        )
+                arc = next(
+                    f for f in layer.getFeatures()
+                    if f["unique_designation"] == designation
+                )
+
+                self.assertGreater(arc.geometry().length(), 0.0)
+
+                self.assertLess(arc.geometry().length(), alone_length)
 
 
     def test_a_swallowed_sensor_gets_no_label(self):
@@ -1228,7 +1287,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
         )
 
 
-    def test_unnamed_sensors_are_skipped_but_others_still_labelled(self):
+    def test_an_unnamed_sensor_keeps_its_arc_but_labels_nothing(self):
 
         layer = self._designations(
             [
@@ -1237,9 +1296,10 @@ class TestGenerateSensorCoverage(QgisTestCase):
             ]
         )
 
+        # Both arcs are drawn; only one carries a name.
         self.assertEqual(
-            [f["unique_designation"] for f in layer.getFeatures()],
-            ["NAMED"]
+            sorted(f["unique_designation"] for f in layer.getFeatures()),
+            ["", "NAMED"]
         )
 
 
@@ -1268,23 +1328,53 @@ class TestGenerateSensorCoverage(QgisTestCase):
         self.assertTrue(settings.displayAll)
 
 
-    def test_the_line_itself_is_not_drawn(self):
+    def test_each_level_has_its_own_width_and_dash(self):
 
-        # The coverage polygon underneath already draws this exact
-        # perimeter; a second stroke would double its weight.
-        layer = self._designations(
-            [(self._lonlat_at(0.5), 5.0, 1000.0, 200.0, "RADAR A")]
-        )
+        # The maintainer found tint alone insufficient - "low level and
+        # medium level ranges look almost the same, no difference in
+        # width and colour" - so all three now differ in three ways at
+        # once.
+        widths = []
 
-        self.assertEqual(
-            layer.renderer().symbol().symbolLayer(0).penStyle(),
-            Qt.PenStyle.NoPen
-        )
+        for level in SENSOR_LEVELS:
+
+            with self.subTest(level=level.key):
+
+                layer = generate_sensor_coverage(
+                    self.dem_layer,
+                    self._points_layer(
+                        [(self._lonlat_at(0.5), 5.0, level.ceiling_m, 200.0)],
+                        level
+                    ),
+                    level
+                )
+
+                renderer = layer.renderer()
+                symbol = renderer.symbol()
+                symbol_layer = symbol.symbolLayer(0)
+
+                self.assertAlmostEqual(symbol_layer.width(), level.width_mm)
+
+                widths.append(symbol_layer.width())
+
+                self.assertEqual(
+                    symbol_layer.useCustomDashPattern(),
+                    level.dash_mm is not None
+                )
+
+                if level.dash_mm is not None:
+
+                    self.assertEqual(
+                        tuple(symbol_layer.customDashVector()),
+                        tuple(level.dash_mm)
+                    )
+
+        self.assertEqual(len(set(widths)), len(SENSOR_LEVELS))
 
 
     def test_designations_take_the_affiliation_colour(self):
 
-        _, designations = build_sensor_layers(
+        designations = generate_sensor_coverage(
             self.dem_layer,
             self._points_layer(
                 [(self._lonlat_at(0.5), 5.0, LOW.ceiling_m, 200.0, "RADAR A", "hostile")]

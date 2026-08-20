@@ -23,6 +23,7 @@ from qgis.PyQt.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLabel,
+    QMessageBox,
     QVBoxLayout,
 )
 
@@ -147,6 +148,16 @@ class SensorCoverageDialog(QDialog):
 
     def accept(self):
 
+        # Which levels this project already had, so the popup below can
+        # fire only when a layer is actually CREATED - not every time
+        # the dialog is reopened to repoint an existing laydown at a
+        # different DEM.
+        before = {
+            level.key
+            for level in SENSOR_LEVELS
+            if _points_layer_exists(level)
+        }
+
         apply_dialog_values(
             self.iface,
             self.manager,
@@ -154,7 +165,45 @@ class SensorCoverageDialog(QDialog):
             self.selected_level_keys()
         )
 
+        created = [
+            level
+            for level in SENSOR_LEVELS
+            if level.key not in before and _points_layer_exists(level)
+        ]
+
+        if created:
+
+            self._explain_saving(created)
+
         super().accept()
+
+
+    def _explain_saving(self, created):
+
+        """
+        A modal box, once, when the layers are first created. The
+        message-bar reminder on each later edit session was not enough
+        on its own: the maintainer's own smoke test placed sensors, saw
+        nothing, and reasonably read that as the feature being broken -
+        "since there is no generate or re-generate button as such, it
+        was not showing up". They asked for this popup at setup
+        specifically, with the lighter message-bar hint thereafter.
+        """
+
+        names = "\n".join(
+            "    • %s" % points_layer_name(level)
+            for level in created
+        )
+
+        QMessageBox.information(
+            self,
+            "Sensor Coverage",
+            "Created:\n%s\n\n"
+            "Place your sensors on the layer, then SAVE the layer's "
+            "edits to generate its coverage.\n\n"
+            "There is no Generate button - coverage is drawn when you "
+            "save, and redrawn every time you save again." % names
+        )
 
 
 def apply_dialog_values(iface, manager, dem_layer, selected_level_keys):
