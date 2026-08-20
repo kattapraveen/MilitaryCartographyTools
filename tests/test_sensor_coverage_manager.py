@@ -23,7 +23,6 @@ from qgis.core import (
 from .qgis_test_case import build_synthetic_ridge_dem, QgisTestCase
 
 from MilitaryCartographyTools.terrain.sensor_coverage import (
-    AFFILIATION_COLORS,
     build_sensor_points_layer,
     color_for,
     coverage_layer_name,
@@ -32,7 +31,6 @@ from MilitaryCartographyTools.terrain.sensor_coverage import (
     level_by_key,
     points_layer_name,
     set_dem_layer,
-    tinted,
 )
 
 from MilitaryCartographyTools.terrain.sensor_coverage_dialog import (

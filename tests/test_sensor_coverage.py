@@ -2,7 +2,8 @@
 
 """
 Tests for terrain/sensor_coverage.py - the three per-level sensor point
-layers and the merged multi-sensor coverage polygon built from them.
+layers and the merged multi-sensor coverage perimeter built from
+them.
 
 Military Cartography Tools
 
@@ -26,7 +27,6 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
-from qgis.PyQt.QtGui import QColor
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
 

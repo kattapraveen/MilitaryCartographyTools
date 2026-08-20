@@ -45,9 +45,11 @@ Requires QGIS 3.44 or later.
   Combined (multi-directional) Hillshade, Line of Sight, and Viewshed
   (dead-ground analysis), all generated locally from your own DEM.
 - **Sensor Coverage** — plot several sensors at low, medium or high
-  level, each with its own height and range, and draw each level's
-  combined coverage with overlapping footprints merged into a single
-  perimeter. Updates itself as sensors are moved, added or removed.
+  level, each with its own height, detection ceiling, range, MIL-STD-2525
+  affiliation and designation. Each level's combined coverage is drawn as
+  a single perimeter, merging overlapping footprints on the same side
+  only, with every sensor labelled along its own stretch of the outline.
+  Updates itself as sensors are moved, added or removed.
 
 See the **[User Guide](docs/user-guide.md)** for full usage details,
 including every expression function's exact signature.

@@ -11514,6 +11514,69 @@ while two existed.
 
 ---
 
+## Housekeeping after Sensor Coverage (2026-08-20)
+
+The smoke-test checklist now also lives in the repo, at
+`smoke-tests/sensor-coverage.html`, so it can be worked through with no
+connection at all. Self-contained - no CDN, no external fonts, no
+network of any kind - and deliberately NOT in package_plugin.sh's own
+INCLUDE list: `docs/` ships inside the plugin zip and a QA checklist is
+not something a user wants installed. It mirrors the published
+artifact; regenerate both together.
+
+Hardening found while checking it offline: only the localStorage READS
+were guarded, not the writes. In any context that refuses storage - a
+file:// page under a strict browser policy, a data: URL, private
+browsing - `setItem` threw from inside the click handler and killed
+ticking altogether, rather than merely failing to remember it. Writes
+are now guarded too, and the page says once that ticks will not
+persist instead of silently losing them.
+
+Also in this pass: removed two unused test imports; corrected the
+remaining "Sensor Coverage polygon" wording in plugin.py, the manager's
+own docstring and the test module docstring, all stale since coverage
+became a line layer (viewshed.py's own "polygon" references are left
+alone - Viewshed genuinely still produces one); refreshed the README's
+Sensor Coverage entry, which predated affiliation and designations;
+and deleted a stale 3.8 MB extraction of 1.0.3 sitting in `dist/` since
+the packaging verification on 2026-08-17.
+
+Checked and found clean: no unused imports anywhere in the terrain
+modules, no TODO/FIXME introduced by any of this work (the ten in the
+tree are all pre-existing and third-party - the geomag C port, and
+milsymbol's own "FIX TODO" which this project documents rather than
+owns), no stray branches or worktrees, and both suites green.
+
+**A self-inflicted near-miss worth recording.** Verifying that the
+checklist would not ship meant running `package_plugin.sh`, which
+rebuilds from the CURRENT tree - and since `metadata.txt` still reads
+1.2.0, it overwrote `dist/MilitaryCartographyTools-1.2.0.zip` with a
+zip that carried all nine commits of Sensor Coverage work under a
+1.2.0 label. Four `sensor_coverage` files inside a zip named after a
+release that never contained them. The mislabelled file was deleted.
+
+The deeper problem it exposed: **there were no release tags at all**,
+so there was nothing to rebuild a real 1.2.0 from. `v1.2.0` now tags
+0e919f6, the last commit whose tree is genuinely 1.2.0 content
+(Sensor Coverage starts at 5cc608d). Earlier releases remain untagged;
+worth doing at some point, but not invented here. The practical rule:
+`package_plugin.sh` writes a file named after whatever `metadata.txt`
+currently says, so never run it casually while the version still names
+a release that has already shipped.
+
+**One decision is outstanding and deliberately not taken here.**
+`metadata.txt` still reads `version=1.2.0` with its changelog heading
+at `1.2.0`, while nine commits of Sensor Coverage work now sit on top
+of that released version. This is exactly the trap from 2026-08-19,
+where the heading was left at the shipped version and later work
+silently accumulated under it. The version number is the maintainer's
+call every time, so nothing was changed - but it needs deciding before
+the next package. On the precedent of 1.0.3 -> 1.1.0 and 1.1.0 ->
+1.2.0, a genuine new capability is a MINOR bump, which would make this
+1.3.0.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

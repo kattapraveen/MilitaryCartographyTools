@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Keeps each level's "Sensor Coverage" polygon in step with its own
+Keeps each level's "Sensor Coverage" perimeter in step with its own
 "Sensor Points" layer, so a laydown is edited rather than re-run: drop
 a sensor, drag one to better ground, correct a range in the attribute
 form, and that level's coverage redraws itself.

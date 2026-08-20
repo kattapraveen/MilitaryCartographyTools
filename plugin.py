@@ -242,7 +242,7 @@ class MilitaryCartographyTools:
         self.line_of_sight_tool = None
         self.viewshed_tool = None
 
-        # Keeps each level's Sensor Coverage polygon in step with its
+        # Keeps each level's Sensor Coverage perimeter in step with its
         # own Sensor Points layer - see
         # terrain/sensor_coverage_manager.py. Long-lived (it owns the
         # signal connections), unlike the setup dialog it is passed to.
