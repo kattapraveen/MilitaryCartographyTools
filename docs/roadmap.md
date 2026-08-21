@@ -11044,7 +11044,7 @@ shipped in 1.3.0.
 
 ---
 
-## 1.2.0 — packaged (2026-08-19)
+## 1.2.0 — uploaded, pending moderator approval (2026-08-19)
 
 Everything built since 1.1.0's own upload - the menu polish, the full
 IDX symbol-index pass, U-1 through U-4, and U-2's own rollout across
@@ -11075,6 +11075,16 @@ BOTH the test suite (against the packaged code, not the dev checkout -
 1466/1466, 3 skipped by design) and both scanners re-run against the
 extraction itself. Built as `dist/MilitaryCartographyTools-1.2.0.zip`
 (gitignored, exists only on the maintainer's own machine).
+
+**Uploaded, and still unapproved when 1.3.0 went up on 2026-08-21 -
+deliberately left in place rather than deleted.** Versions are
+approved independently, so a pending 1.2.0 does not block 1.3.0, and
+deleting it is irreversible while gaining nothing: 1.3.0 contains
+every line 1.2.0 did and preserves its changelog verbatim under its
+own `1.2.0` sub-heading, so nothing is lost whichever way the
+moderator handles it. No user ever received 1.2.0 - the repository
+serves only approved versions - so there is no upgrade path to
+protect either.
 
 ---
 
@@ -11687,7 +11697,7 @@ been reworded.
 
 ---
 
-## 1.3.0 — packaged (2026-08-21)
+## 1.3.0 — uploaded to plugins.qgis.org, security checks cleared (2026-08-21)
 
 Sensor Coverage (V-1/V-2), the last planned feature, plus everything
 the smoke test turned up. Version decided by the maintainer on the
@@ -11717,7 +11727,11 @@ clean, run against both the source tree and the extracted package;
 package contents checked against `INCLUDE` - every package present
 including `terrain/`, which once silently shipped missing, and
 `smoke-tests/`, `tests/`, `reference/` and `milsymbol-3.0.4/` all
-correctly absent. Tagged `v1.3.0`.
+correctly absent. Tagged `v1.3.0`. **Uploaded by the maintainer
+2026-08-21, and the repository's own security checks cleared** - which
+is the outcome the local Bandit/detect-secrets runs were adopted for
+after 1.0.1 shipped a scanner fix that had never been through a
+scanner and used the upload round-trip as its test.
 
 A documentation finding worth keeping: sensor points layers are memory
 layers, and memory layer CONTENTS do not survive a project save. The
