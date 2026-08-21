@@ -222,17 +222,31 @@ of no use to anyone reading the history.
   label painted over the finer 100km label. Fixed by giving
   `add_layer_to_group()` an explicit target index instead of blindly
   appending - see `grid/grid_manager.py`'s `generate_mgrs100k()`.
-- `QgsRasterDataProvider.bandStatistics()` emits a `DeprecationWarning`
-  (`QgsRasterInterface.bandStatistics() is deprecated`) on both QGIS
-  3.44.12 and 4.2.0, *regardless* of which overload or argument types are
-  passed - confirmed live by calling it with the modern
-  `Qgis.RasterBandStatistic` enum (both a single flag and a bitwise-OR'd
-  combination) and still getting the warning either way. A binding-level
-  quirk, not something fixable by calling it "correctly" - the values
-  returned are accurate, so `terrain/_dem_utils.py`'s `band_min_max()`
-  (shared by Tanaka Contours and Hypsometric Tint, so both normalise their
-  colour ramp against the same range) accepts the warning rather than
-  working around it.
+- `QgsRasterDataProvider.bandStatistics()` logs a `DeprecationWarning`
+  (`... is deprecated: Since 3.40. Use Qgis.RasterBandStatistic instead
+  of int for `stats``) whenever a `stats` argument is passed **at all** -
+  including the very enum the message asks for. Re-probed 2026-08-21 on
+  QGIS 4.2.1; all of these return identical, correct values:
+
+  | Call | Warns? |
+  |---|---|
+  | `Min \| Max` | yes |
+  | `Qgis.RasterBandStatistics(Min \| Max)` | yes |
+  | `Qgis.RasterBandStatistic.All` | yes |
+  | plain `int` | yes |
+  | **no `stats` argument** | **no** |
+
+  So the warning is not about the argument's *type*: passing one at all
+  selects the deprecated overload, and omitting it is the only way to
+  silence it. `terrain/_dem_utils.py`'s `band_min_max()` keeps the
+  argument anyway, deliberately - without it QGIS computes the whole
+  statistics set (mean, standard deviation) instead of just the min and
+  max wanted here. Measured on a virgin 16-megapixel raster with no
+  cached `.aux.xml` sidecar, both orders: **0.058 s** with `Min|Max`
+  against **0.224 s** without, once per Tanaka Contours or Hypsometric
+  Tint run. A line of log noise is worth less than four times the work,
+  so the warning is accepted. Do not "fix" it by dropping the argument
+  without re-measuring.
 
 ---
 

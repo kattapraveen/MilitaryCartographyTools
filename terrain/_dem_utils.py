@@ -86,13 +86,33 @@ def band_min_max(raster_layer, band=1):
     hypsometric tint used the raw pixel range - a real mismatch,
     confirmed live by the two disagreeing over an identical area.
 
-    QgsRasterDataProvider.bandStatistics() emits a DeprecationWarning
-    ("QgsRasterInterface.bandStatistics() is deprecated") on both
-    QGIS 3.44.12 and 4.2.0 regardless of which overload/argument types
-    are passed - confirmed live before writing this; a binding-level
-    quirk rather than something fixable by calling it differently.
-    Values returned are correct, so accepted as a known, harmless
-    warning rather than a bug (see docs/developer-guide.md).
+    **The DeprecationWarning this logs is deliberate, and the obvious
+    fix for it is a pessimisation.** QgsRasterDataProvider.
+    bandStatistics() logs "QgsRasterInterface.bandStatistics() is
+    deprecated: Since 3.40. Use Qgis.RasterBandStatistic instead of int
+    for `stats`" whenever a `stats` argument is passed AT ALL - including
+    the very enum the message asks for. Re-probed 2026-08-21 on QGIS
+    4.2.1, all four forms returning identical, correct values:
+
+        Min | Max (this call)              warns
+        Qgis.RasterBandStatistics(Min|Max) warns
+        Qgis.RasterBandStatistic.All       warns
+        plain int                          warns
+        NO stats argument                  silent
+
+    So the warning is not about the argument's type; passing one at all
+    selects the deprecated overload. Omitting it is the only way to
+    silence it, and that is why the argument stays: with no argument
+    QGIS computes the whole statistics set (mean, standard deviation)
+    rather than just the two values wanted here. Measured on a virgin
+    16-megapixel raster with no cached .aux.xml sidecar, both orders:
+    0.058 s with Min|Max against 0.224 s without it, roughly four times
+    the work, once per Tanaka Contours or Hypsometric Tint run.
+
+    A logged line of noise is worth less than that, so the argument
+    stays and the warning is accepted. Do not "fix" it by dropping the
+    argument without re-measuring first (see
+    docs/developer-guide.md).
     """
 
     provider = raster_layer.dataProvider()
