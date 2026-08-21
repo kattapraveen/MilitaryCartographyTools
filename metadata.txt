@@ -6,9 +6,41 @@ description=Military cartography, MIL-STD-2525D/E and APP-6D/E tactical graphics
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.2.0
+version=1.3.0
 
-changelog=1.2.0
+changelog=1.3.0
+    - Sensor Coverage: plot several sensors at low, medium or high
+      level and see each level's combined coverage as a single merged
+      perimeter. Every sensor carries its own height, detection
+      ceiling, maximum range, MIL-STD-2525 affiliation and
+      designation, plus its latitude, longitude and MGRS position
+      filled in automatically and kept up to date as it moves.
+    - Detection height is measured from the antenna, not from sea
+      level, so siting a sensor higher raises the whole band of
+      airspace it covers. A target is modelled flying level at a fixed
+      altitude rather than at a fixed height above whatever ground is
+      underneath it, so terrain taller than the target genuinely hides
+      what is behind it.
+    - Coverage merges only between sensors on the same side: two
+      friendly radars fuse into one perimeter, a friendly and a
+      hostile one stay two overlapping shapes. Each sensor is
+      labelled along its own stretch of the outline.
+    - Coverage is drawn as a perimeter rather than a filled shape, so
+      it never washes out the terrain being judged against it. Low,
+      medium and high are told apart by line weight and dash pattern.
+    - Coverage redraws whenever a sensor points layer is saved, and a
+      new Regenerate Sensor Coverage action redraws every level on
+      demand - after reopening a project, say, or after pointing a
+      laydown at a different DEM.
+    - Radar propagation uses the 4/3-earth refraction model rather
+      than the optical coefficient Line of Sight and Viewshed use.
+    - Viewshed's maximum distance raised from 50 km to 500 km.
+    - Fixed: Viewshed and Sensor Coverage both computed visibility
+      past the edge of the DEM, reporting the NoData padding beyond it
+      as visible ground. Both are now bounded by the terrain actually
+      loaded.
+
+    1.2.0
     - Every NATO symbol other than lines and areas can now be rotated
       (a Rotation field, degrees clockwise from north) and resized (a
       Scale field, percent of its own default size) - added to every

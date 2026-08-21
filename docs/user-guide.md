@@ -653,6 +653,35 @@ isn't labelled. Labels are set to display even where they collide, so
 none is silently dropped, and each sits just outside the coverage rather
 than inside it.
 
+### When the DEM runs out before the range does
+
+Analysis is bounded by your DEM. Give a sensor a range larger than the
+terrain you have loaded and its coverage stops at the DEM's edge — often
+tracing the DEM's own rectangle, straight edges and corners included.
+
+That straight edge is the tool telling you it **ran out of terrain**, not
+a coverage limit it worked out. There's no warning for it, deliberately:
+it's visible in the shape itself, and a message on every regeneration
+would quickly become noise. If a perimeter looks suspiciously
+rectangular, check your range against your DEM's extent before reading
+anything into it.
+
+### Sensor points are temporary until you make them permanent
+
+The sensor points layers are **scratch layers**, like every layer this
+plugin creates. Saving the project keeps the layer, its fields, its
+styling and its DEM — but **not the sensors you placed**. Reopen the
+project and you'll find the layer there and empty.
+
+To keep a laydown, right-click each Sensor Points layer ▸ **Make
+Permanent**, save it to GeoPackage, and then save the project. The layer
+keeps working exactly as before — coverage is matched by layer *name*,
+not by how it stores its data — so long as you don't rename it.
+
+The coverage layers need nothing: they're derived output and are rebuilt
+from the points whenever you save an edit, or on demand with
+**Regenerate Sensor Coverage**.
+
 ### On maximum ranges
 
 The maximum range field is that sensor's own detection range — the

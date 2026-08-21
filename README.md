@@ -13,8 +13,12 @@ Requires QGIS 3.44 or later.
 > ever leaves your machine, which makes this plugin suitable for sensitive
 > or classified work.
 
-> **Status: stable.** Bug reports, suggestions, and feedback are very
-> welcome — please [open an issue](https://github.com/kattapraveen/MilitaryCartographyTools/issues).
+> **Status: stable, and feature-complete for now.** Active development
+> is largely finished — the plugin does what it set out to do, and from
+> here it's maintained rather than extended. Fixes and improvements will
+> be driven by what users actually report, so bug reports, suggestions
+> and feedback are very welcome: please
+> [open an issue](https://github.com/kattapraveen/MilitaryCartographyTools/issues).
 
 ## Features
 

@@ -19,6 +19,25 @@ Status key: ✅ done · 🟡 partial · ⬜ not started
 
 ---
 
+## Project status (2026-08-21)
+
+**Active development is largely done.** Every phase in this document is
+complete or explicitly closed, and 1.3.0 finishes the last planned
+feature (Sensor Coverage). From here the plugin is MAINTAINED rather
+than extended: fixes and improvements come from what users actually
+report, not from a forward plan.
+
+There is no roadmap of upcoming features, and this file should not be
+read as one. What follows is a record of what was built and why -
+including the decisions that were closed without building anything,
+which are as much a part of the picture as the code.
+
+Anything further is unscheduled and undocumented by choice. If it
+happens it will be in its own time, and it will appear here once it
+exists rather than beforehand.
+
+---
+
 ## Phase 1 — Finish the MGRS tools
 
 - ✅ MGRS from lat/lon (`mct_mgrs`)
@@ -11020,8 +11039,8 @@ result, per the maintainer's standing "remove cleared items"
 instruction; this entry is the permanent record of the pass.
 
 Every U-series item raised 2026-08-17 (U-1 through U-4) is now closed.
-Only V-1/V-2 (Viewshed) and P-11 (non-NATO symbology, blocked on the
-maintainer's own scope) remain on the tracker.
+Only V-1/V-2 (Viewshed) remained on the tracker at this point, and it
+shipped in 1.3.0.
 
 ---
 
@@ -11665,6 +11684,55 @@ target flies at a fixed altitude; ground standing ABOVE that altitude
 cannot have a target over it, and ground behind it is in its shadow.
 The wording confused two different exclusions and the checklist has
 been reworded.
+
+---
+
+## 1.3.0 — packaged (2026-08-21)
+
+Sensor Coverage (V-1/V-2), the last planned feature, plus everything
+the smoke test turned up. Version decided by the maintainer on the
+same MINOR-bump grounds as 1.1.0 and 1.2.0: genuine new capability.
+
+**The smoke test is complete and every item cleared.** Two faults it
+found were real and both are fixed with regression tests: coincident
+sensors erasing each other's coverage, and - reproduced only after the
+round closed - a single sensor whose visible area breaks into
+disconnected patches drawing nothing at all, because
+`convertToType(Line)` returns an EMPTY geometry for a multipolygon
+rather than failing. The maintainer had written that second one off as
+"not repeated, so I assume it is fixed"; it was worth proving rather
+than assuming, and the proof is now a test.
+
+Decisions taken during the round, all the maintainer's own: no warning
+when coverage is bounded by the DEM rather than by range (it goes in
+the user guide instead), all three levels in one colour since dash and
+width already separate them, full-precision MGRS, and generate-on-save
+kept as the automatic trigger with the new Regenerate action as the
+escape hatch.
+
+**Verification**: 1549 tests on QGIS 4.2.1 and 3.44.12, both from the
+dev checkout and again from the extracted zip (3 skipped by design);
+Bandit 1.9.4 clean (0 findings, 44,184 LOC) and detect-secrets 1.5.0
+clean, run against both the source tree and the extracted package;
+package contents checked against `INCLUDE` - every package present
+including `terrain/`, which once silently shipped missing, and
+`smoke-tests/`, `tests/`, `reference/` and `milsymbol-3.0.4/` all
+correctly absent. Tagged `v1.3.0`.
+
+A documentation finding worth keeping: sensor points layers are memory
+layers, and memory layer CONTENTS do not survive a project save. The
+layer, its fields, styling and remembered DEM all persist; the sensors
+themselves do not. Verified directly - the project XML has no
+`<features>` element. The user guide now says so, and says to use Make
+Permanent. This had been mis-stated as "sensor points survive if you
+save the file"; what survived was the empty layer.
+
+**Also in this release**: active development is declared largely done.
+Every phase is complete or explicitly closed, and the plugin is
+maintained from here rather than extended - see the Project status
+note at the top of this file. Non-NATO symbology has been removed from
+the documentation entirely at the maintainer's request; it is
+unscheduled and will appear here if and when it exists, not before.
 
 ---
 
