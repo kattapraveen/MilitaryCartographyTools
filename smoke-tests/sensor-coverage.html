@@ -223,19 +223,19 @@
     <div class="eyebrow">Military Cartography Tools &mdash; 1.2.0 awaiting approval</div>
     <h1>Sensor Coverage Smoke Test</h1>
     <p class="subhead">
-      <strong>Fresh pass, rebuilt 2026-08-20 for the current build.</strong>
-      Sequential — work straight down it in one session; each section leaves the
-      project set up for the next, and says when to clear something before
-      moving on. Since your last pass: coverage is one LINE layer per level
-      (designations folded in), per-level width and dash, a setup popup, and a
-      fix for coverage being computed past the edge of the DEM. 1540 tests green
-      on both QGIS versions. Items tagged
-      <span class="expect-tag">KEY</span> are the behaviours the feature exists
-      to provide, <span class="expect-tag">HIGH RISK</span> the paths most
-      likely to be wrong, <span class="expect-tag">EDGE</span> the
-      shouldn't-break cases, and <span class="expect-tag">TELL ME</span>
-      things I want your judgement on rather than a pass/fail. State is saved
-      in this browser.
+      <strong>Round two, 2026-08-21 — trimmed to what is still open.</strong>
+      Everything you cleared last round has been removed. What is left is
+      either new since your pass or something you reported that is not yet
+      settled. Section 1 is the bug you found: two of your three sensors were
+      coincident, and coincident sensors were erasing each other's coverage.
+      Two items are explicitly NOT fixed — a single sensor drawing nothing, and
+      Viewshed's patchy fill — because I could not reproduce either and did not
+      want to guess. 1549 tests green on both QGIS versions. Items tagged
+      <span class="expect-tag">KEY</span> are what must work,
+      <span class="expect-tag">HIGH RISK</span> the paths most likely to be
+      wrong, <span class="expect-tag">EDGE</span> the shouldn't-break cases, and
+      <span class="expect-tag">TELL ME</span> things I want your judgement on.
+      State is saved in this browser.
     </p>
   </header>
 
@@ -274,131 +274,146 @@
     {
       "id": "prep",
       "title": "Before you start",
-      "sub": "Five minutes of setup that makes the rest meaningful",
-      "note": "Two of these matter more than they look. A DEM much LARGER than 30 km stops coverage being silently bounded by your data instead of by range; and the Log Messages panel is the only place a swallowed Python error will show.",
+      "sub": "Round two \u2014 only what round one left open",
+      "note": "Everything cleared last time is gone from this list. What is here is either NEW since your last pass, or something you reported that is not yet resolved.",
       "groups": [
         {
           "label": "Project",
           "items": [
             {
-              "text": "Start a FRESH QGIS project \u2014 not one carrying sensor layers from an earlier round."
+              "text": "Fresh QGIS project, your GMRT test DEM loaded, plus contours or hillshade so coverage can be judged over terrain."
             },
             {
-              "text": "Load a DEM. Ideally 100 km+ across, so the default 30 km range is nowhere near its edge.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Note its extent (right-click \u25b8 Properties \u25b8 Information) \u2014 several later checks compare against it."
-            },
-            {
-              "text": "Add a hillshade or contour layer over it. Section 4 judges whether coverage stays readable on top of terrain."
-            },
-            {
-              "text": "Open View \u25b8 Panels \u25b8 Log Messages and leave it docked. If regeneration ever throws, the Python tab is where it appears.",
+              "text": "Dock View \u25b8 Panels \u25b8 Log Messages, Python tab. Two of the open items below may be exceptions rather than logic errors.",
               "tag": "HIGH RISK"
+            },
+            {
+              "text": "Note the DEM's extent \u2014 sections 5 and 6 compare against it."
             }
           ]
         }
       ]
     },
     {
-      "id": "set",
-      "title": "1 \u00b7 Setup dialog",
-      "sub": "Terrain Analysis \u25b8 Sensor Coverage \u2014 creating the layers",
-      "note": "The dialog only creates layers and remembers the DEM. New this round: a popup when layers are actually created.",
+      "id": "coincident",
+      "title": "1 \u00b7 The bug you found",
+      "sub": "Sensors in the same place erasing each other",
+      "note": "Your three high-ground radars: two were coincident, and each sensor's arc was its own boundary minus its neighbours' footprints \u2014 so identical footprints cancelled and coverage vanished. Now the merged perimeter is partitioned instead, attributing each stretch to the sensor that contributed it.",
       "groups": [
         {
-          "label": "First run",
+          "label": "The reported case",
           "items": [
             {
-              "text": "Open the dialog. The DEM combo lists every RASTER in the project \u2014 your hillshade will be in there too. Deliberately pick the real DEM.",
+              "text": "Rebuild your original laydown: three friendly Low Level sensors, two of them at the SAME spot, one offset. Save.",
               "tag": "KEY"
             },
             {
-              "text": "Tick Low Level only, click OK."
-            },
-            {
-              "text": "A POPUP appears, naming \"Sensor Points - Low Level\" and saying to place sensors then SAVE to generate coverage.",
+              "text": "A perimeter is drawn. Previously two of the three contributed nothing.",
               "tag": "KEY"
             },
             {
-              "text": "The layer appears at the top of the Layers panel. No coverage layer yet \u2014 there are no sensors."
+              "text": "Stack a FOURTH sensor exactly on an existing one and save. The picture must not change at all \u2014 no vanishing, no gap.",
+              "tag": "KEY"
             }
           ]
         },
         {
-          "label": "Adding levels later",
+          "label": "Related cases the same fault covered",
           "items": [
             {
-              "text": "Reopen the dialog. Low Level is ticked AND greyed out; Medium and High are still available."
+              "text": "Two sensors far enough apart that their coverage does NOT overlap, saved together: both perimeters drawn. This failed separately, for a different reason.",
+              "tag": "HIGH RISK"
             },
             {
-              "text": "Tick Medium and High, OK. The popup names ONLY the two new layers, not Low.",
-              "tag": "KEY"
+              "text": "Two sensors whose ranges both exceed the DEM, so both clip against the same DEM edge: the shared edge is still drawn, not cancelled.",
+              "tag": "HIGH RISK"
             },
             {
-              "text": "Low is not duplicated \u2014 still exactly one of each."
+              "text": "A small sensor entirely inside a larger SAME-SIDE one: the swallowed one contributes nothing. That is still correct behaviour, not the bug."
             }
           ]
         },
         {
-          "label": "Edge cases",
+          "label": "Still unreproduced \u2014 I need your help here",
           "items": [
             {
-              "text": "Reopen, pick a DIFFERENT raster as the DEM, OK. No popup this time \u2014 nothing was created.",
+              "text": "You also reported a SINGLE sensor on high ground drawing nothing. The coincident fault does not explain that one and I could not reproduce it. If it happens again, run the diagnostic snippet and send the output before changing anything.",
+              "tag": "TELL ME"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colour",
+      "title": "2 \u00b7 One colour for all three levels",
+      "sub": "Changed at your request",
+      "note": "The per-level tint is gone. Every band draws in its affiliation's own full-strength colour; width and dash carry the whole distinction.",
+      "groups": [
+        {
+          "label": "Check",
+          "items": [
+            {
+              "text": "One friendly sensor on each of the three levels, same spot, defaults. All three perimeters are the SAME blue \u2014 no lightening.",
+              "tag": "KEY"
+            },
+            {
+              "text": "Low is thin short-dash, Medium thicker long-dash, High thickest solid.",
+              "tag": "KEY"
+            },
+            {
+              "text": "Switch one to Hostile: it turns red at whatever level it is on."
+            },
+            {
+              "text": "At your working scale, are the three still easy to tell apart now that colour no longer helps?",
+              "tag": "TELL ME"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "regen",
+      "title": "3 \u00b7 Regenerate, and no more opening the dialog",
+      "sub": "Both from your report",
+      "note": "The connections that redraw coverage belong to the layer objects, and a project read builds new ones \u2014 which is why a reopened project was inert until you opened the setup dialog. That is now bound automatically, and there is a Regenerate action for when there is nothing to save.",
+      "groups": [
+        {
+          "label": "Auto-wiring on project load",
+          "items": [
+            {
+              "text": "Build a laydown, save the project, close it, reopen it. Do NOT open the Sensor Coverage dialog.",
+              "tag": "KEY"
+            },
+            {
+              "text": "Move a sensor and save. Coverage redraws \u2014 no dialog visit needed. This is the behaviour you asked to be bound.",
+              "tag": "KEY"
+            }
+          ]
+        },
+        {
+          "label": "The Regenerate action",
+          "items": [
+            {
+              "text": "Terrain Analysis \u25b8 Regenerate Sensor Coverage exists, next to Sensor Coverage, with its own icon."
+            },
+            {
+              "text": "With a reopened project and nothing edited, click it: every level with sensors redraws, and the bar names which.",
+              "tag": "KEY"
+            },
+            {
+              "text": "Delete a coverage layer by hand, then click Regenerate: it comes back without touching the points layer.",
+              "tag": "KEY"
+            },
+            {
+              "text": "Click it in a project with no sensor layers at all: a warning, no crash.",
               "tag": "EDGE"
             },
             {
-              "text": "Set the DEM back to the real one before continuing."
+              "text": "Repoint the laydown at a different DEM in the dialog, then Regenerate: coverage recomputes against the new DEM."
             },
             {
-              "text": "In a scratch project with NO raster at all, open the dialog and click OK: a warning in the message bar, nothing created.",
-              "tag": "EDGE"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "sav",
-      "title": "2 \u00b7 Save to generate",
-      "sub": "There is no Generate button \u2014 this is the one that caught you last time",
-      "note": "Regeneration fires on commit, deliberately: each sensor is a full viewshed run, and QGIS fires geometryChanged throughout a drag, so recomputing live would make dragging unusable.",
-      "groups": [
-        {
-          "label": "The cycle",
-          "items": [
-            {
-              "text": "Toggle editing ON for \"Sensor Points - Low Level\". A message appears in the bar naming that layer and saying coverage redraws on SAVE.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Place one sensor with Add Point. Accept the form defaults. Do NOT save yet."
-            },
-            {
-              "text": "No coverage layer appears. This is correct, not a failure.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Save the layer's edits (Layer \u25b8 Save Layer Edits, or toggle the pencil off). \"Sensor Coverage - Low Level\" appears.",
-              "tag": "KEY"
-            }
-          ]
-        },
-        {
-          "label": "Reminder frequency",
-          "items": [
-            {
-              "text": "Start a SECOND edit session on the same layer: the reminder appears again."
-            },
-            {
-              "text": "Add three sensors within ONE session: the reminder appears once, not three times."
-            },
-            {
-              "text": "Delete those extra sensors and save, leaving one, before continuing."
-            },
-            {
-              "text": "Now that both the popup and the message bar exist \u2014 is this enough, too much, or still not clear?",
+              "text": "Note I did NOT delink saving from generating \u2014 saving is still the automatic trigger, because a viewshed run per sensor cannot hang off a drag. Regenerate is the escape hatch. Tell me if you want it to go further.",
               "tag": "TELL ME"
             }
           ]
@@ -406,313 +421,35 @@
       ]
     },
     {
-      "id": "fld",
-      "title": "3 \u00b7 The per-sensor fields",
-      "sub": "Affiliation \u00b7 Sensor height \u00b7 Detection height \u00b7 Max range \u00b7 Designation",
-      "note": "Only detection height is band-limited. Your own worked case was three radars on the SAME level differing by an order of magnitude in range.",
+      "id": "location",
+      "title": "4 \u00b7 Latitude, longitude and MGRS",
+      "sub": "New fields, your request",
+      "note": "Derived from the sensor's own position by QGIS itself, not written once at creation.",
       "groups": [
         {
-          "label": "Form layout",
+          "label": "Check",
           "items": [
             {
-              "text": "Open a sensor's attribute form. Fields in order: Affiliation, Sensor height, Max detection height above sensor, Maximum range, Unique designation."
-            },
-            {
-              "text": "Affiliation is a dropdown of Friend / Hostile / Neutral / Unknown, defaulting to Friend."
-            },
-            {
-              "text": "Sensor height defaults to 5 m; Maximum range to 30,000 m; Unique designation is blank."
-            }
-          ]
-        },
-        {
-          "label": "Detection height is band-limited",
-          "items": [
-            {
-              "text": "On LOW, detection height defaults to 3300 \u2014 the band's CEILING, because each band is drawn at its top.",
+              "text": "Place a sensor: the form shows Latitude (\u00b0), Longitude (\u00b0) and MGRS, already filled in.",
               "tag": "KEY"
             },
             {
-              "text": "On LOW, it refuses 5000."
+              "text": "The values match where you actually clicked \u2014 cross-check one against the Coordinate Probe."
             },
             {
-              "text": "On MEDIUM, it defaults to 7000, accepts 5000, and refuses both 1000 and 9000."
-            },
-            {
-              "text": "On HIGH, it accepts 9000 and defaults to 30000."
-            }
-          ]
-        },
-        {
-          "label": "Range and height are NOT band-limited",
-          "items": [
-            {
-              "text": "On LOW, Maximum range accepts 180000 \u2014 the radar-C case from your own example.",
+              "text": "Drag the sensor and save. All three FOLLOW it rather than keeping the original position.",
               "tag": "KEY"
             },
             {
-              "text": "Sensor height accepts 15 on any level."
+              "text": "All three are read-only in the form \u2014 the way to change them is to move the sensor."
             },
             {
-              "text": "Set this sensor back to sensible values (5 m, 3300, 30000) before continuing."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "car",
-      "title": "4 \u00b7 Cartography",
-      "sub": "Outline only, and three ways to tell the bands apart",
-      "note": "Changed this round: coverage is a LINE layer, so a fill is now structurally impossible rather than merely switched off. Each level also has its own width and dash.",
-      "groups": [
-        {
-          "label": "Outline, not fill",
-          "items": [
-            {
-              "text": "With the hillshade or contours underneath, the coverage is an OUTLINE \u2014 terrain reads straight through the middle of it.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Open Layer Properties \u25b8 Symbology on the coverage layer: it is a LINE symbol. There is no fill to turn on.",
-              "tag": "KEY"
-            },
-            {
-              "text": "The outline is solid, full-strength colour \u2014 not faded or greyed."
-            }
-          ]
-        },
-        {
-          "label": "The three levels look different",
-          "items": [
-            {
-              "text": "Place one sensor at the SAME spot on all three levels, each with its own default detection height, and save each layer."
-            },
-            {
-              "text": "LOW draws thin (0.3 mm) with a SHORT dash.",
-              "tag": "KEY"
-            },
-            {
-              "text": "MEDIUM draws thicker (0.5 mm) with a LONG dash.",
-              "tag": "KEY"
-            },
-            {
-              "text": "HIGH draws thickest (0.6 mm) and SOLID.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Colour also lightens Low \u2192 Medium \u2192 High."
-            },
-            {
-              "text": "At YOUR normal working scale, are low and medium now clearly distinct? Widths, dashes and tints can each be adjusted.",
-              "tag": "TELL ME"
-            },
-            {
-              "text": "Note: your widths are the opposite ordering to the reference text you supplied (which put the thickest line at LOW). Say if you want them flipped.",
-              "tag": "TELL ME"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "aff",
-      "title": "5 \u00b7 Affiliation and merging",
-      "sub": "Per sensor \u2014 and merging only within one side",
-      "note": "Colour is the MIL-STD-2525 palette: friend blue, hostile red, neutral green, unknown yellow, each band a lighter tint of it.",
-      "groups": [
-        {
-          "label": "The marker follows the sensor",
-          "items": [
-            {
-              "text": "Change one sensor's Affiliation to Hostile and save. Its triangle marker turns red.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Its coverage outline turns red too."
-            },
-            {
-              "text": "Set it back to Friend and save."
-            }
-          ]
-        },
-        {
-          "label": "Same side merges",
-          "items": [
-            {
-              "text": "On the Low layer, place a SECOND friendly sensor close enough to overlap the first. Save."
-            },
-            {
-              "text": "They draw as ONE outer perimeter \u2014 no line running through where they meet.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Move the second far enough away that they no longer overlap, save: two separate perimeters."
-            },
-            {
-              "text": "Bring it back to overlapping before continuing."
-            }
-          ]
-        },
-        {
-          "label": "Opposing sides do NOT merge",
-          "items": [
-            {
-              "text": "Change the second sensor to Hostile and save. They now draw as TWO overlapping perimeters, one blue and one red \u2014 they must NOT fuse.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Both perimeters are drawn in full where they overlap \u2014 neither clips the other.",
-              "tag": "HIGH RISK"
-            }
-          ]
-        },
-        {
-          "label": "All four sides",
-          "items": [
-            {
-              "text": "Place one sensor of each affiliation, well apart, and save. Four perimeters in blue, red, green and yellow, each with a matching marker."
-            },
-            {
-              "text": "Do the same four stay distinct on the Medium and High layers, where the tints are lighter?",
-              "tag": "TELL ME"
-            },
-            {
-              "text": "Delete the extras, leaving two overlapping friendly sensors, before continuing."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "des",
-      "title": "6 \u00b7 Designations",
-      "sub": "Each sensor names its own stretch of the perimeter",
-      "note": "Changed this round: designations no longer have a layer of their own. The coverage layer holds one feature per sensor \u2014 that sensor's own arc \u2014 so each carries its own name.",
-      "groups": [
-        {
-          "label": "Basics",
-          "items": [
-            {
-              "text": "Give one sensor a Unique designation and save. The name is drawn just OUTSIDE the perimeter, in that sensor's affiliation colour.",
-              "tag": "KEY"
-            },
-            {
-              "text": "No extra layer appeared \u2014 the name is on the coverage layer itself.",
-              "tag": "KEY"
-            },
-            {
-              "text": "The other, unnamed sensor still draws its stretch of the perimeter. It is simply not labelled.",
-              "tag": "KEY"
-            }
-          ]
-        },
-        {
-          "label": "Overlap \u2014 your own specification",
-          "items": [
-            {
-              "text": "Name the second sensor too, and save. One merged perimeter, with each name on its own half of it.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Neither name appears on the stretch belonging to the other sensor."
-            },
-            {
-              "text": "Put a small-range sensor entirely INSIDE a larger SAME-SIDE one, both named, and save. The swallowed one gets no label and no arc \u2014 it contributes no perimeter.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Now switch that swallowed sensor to Hostile and save. Its full perimeter and label reappear \u2014 an opposing footprint does not erase a perimeter.",
+              "text": "If your project CRS is not WGS84, the degrees are still degrees and not projected metres.",
               "tag": "HIGH RISK"
             },
             {
-              "text": "Delete it before continuing."
-            }
-          ]
-        },
-        {
-          "label": "Placement",
-          "items": [
-            {
-              "text": "Every label sits OUTSIDE its coverage, never inside the shape. Check several, including on the bottom and left edges \u2014 this was wrong in an earlier build.",
-              "tag": "HIGH RISK"
-            },
-            {
-              "text": "No label is upside down or mirrored."
-            },
-            {
-              "text": "With several sensors close together, no name silently vanishes.",
-              "tag": "HIGH RISK"
-            },
-            {
-              "text": "Judge the label size (8 pt bold) and its distance from the line at your working scale.",
+              "text": "Is full-precision MGRS the right precision here, or would fewer digits read better?",
               "tag": "TELL ME"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "ant",
-      "title": "7 \u00b7 The band is measured FROM THE ANTENNA",
-      "sub": "Your boat-versus-plateau case, on real ground",
-      "note": "A level describes the SENSOR's vertical reach, so siting a set higher lifts its whole band with it. This is the single most counter-intuitive thing in the feature.",
-      "groups": [
-        {
-          "label": "Siting changes the picture",
-          "items": [
-            {
-              "text": "Place a Low Level sensor on LOW ground (valley or coast): 5 m sensor height, 3300 detection height, generous range. Save. Note how much ground it covers.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Place an IDENTICAL sensor (same three numbers) on high ground several hundred metres up. Save. It should cover substantially MORE ground.",
-              "tag": "KEY"
-            }
-          ]
-        },
-        {
-          "label": "Level flight, not terrain-following",
-          "items": [
-            {
-              "text": "Site a Low Level sensor on flat ground near a peak TALLER than its band top (5 m mast + 3300 \u2248 target at 3,305 m, against a 4,000 m peak). The peak itself must NOT be inside the coverage.",
-              "tag": "KEY"
-            },
-            {
-              "text": "The ground BEHIND that peak is excluded too, not just the peak."
-            },
-            {
-              "text": "Put the same sensor on the High Level layer with a detection height above the peak. The peak and much of its shadow reappear.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Clear these test sensors before continuing."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "nst",
-      "title": "8 \u00b7 The three levels together",
-      "sub": "They nest, by design",
-      "note": "Each band is drawn at its own TOP, so for identically sited sensors High contains Medium contains Low.",
-      "groups": [
-        {
-          "label": "Reading them stacked",
-          "items": [
-            {
-              "text": "Place one identically sited, same-affiliation sensor on all three levels, each at its default detection height. Save all three."
-            },
-            {
-              "text": "Everything Low encloses is also inside Medium, and Medium inside High.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Drag Low to the top of the Layers panel \u2014 its outline is still readable over the other two."
-            },
-            {
-              "text": "Untick one level's coverage layer: that whole band disappears, the other two stay."
             }
           ]
         }
@@ -720,131 +457,30 @@
     },
     {
       "id": "rng",
-      "title": "9 \u00b7 Range limits and DEM bounds",
-      "sub": "Two separate limits, both worth one deliberate look",
-      "note": "GDAL silently ignores its own max-distance flag in the mode this uses, so range is imposed separately. And coverage is now bounded by the DEM \u2014 it used to invent terrain past the edge, which is a defect fixed this round.",
+      "title": "5 \u00b7 Range beyond the DEM",
+      "sub": "Your report \u2014 sometimes nothing is drawn at all",
+      "note": "You saw coverage occasionally not drawn at all when the range far exceeds the DEM, instead of being bounded at its edge. One cause of that has been fixed since (two sensors clipping the same DEM edge cancelled each other); whether it was the only one is what this section is for.",
       "groups": [
         {
-          "label": "Maximum range",
+          "label": "Push at it",
           "items": [
             {
-              "text": "One sensor on open, flat ground with a modest range (say 20 km). Save. The coverage edge is a CIRCLE at that range \u2014 not a square or a rounded square.",
+              "text": "ONE sensor, range far larger than the DEM (200 km+). Save. Coverage is drawn and stops at the DEM edge.",
               "tag": "HIGH RISK"
             },
             {
-              "text": "Measure from the sensor to the furthest edge of its coverage: it matches the range you set and does not exceed it.",
-              "tag": "HIGH RISK"
-            }
-          ]
-        },
-        {
-          "label": "DEM bounds",
-          "items": [
-            {
-              "text": "Give a sensor a range far larger than your DEM (say 200 km) and save. Coverage stops at the DEM's edge and does not continue past it.",
+              "text": "TWO sensors, both with ranges beyond the DEM, positioned so both clip the same edge. Both perimeters drawn.",
               "tag": "HIGH RISK"
             },
             {
-              "text": "Where it is data-limited the outline traces your DEM's rectangle. That is the tool saying \"I ran out of terrain\", not a full-range result.",
-              "tag": "KEY"
+              "text": "Same but on three levels at once."
             },
             {
-              "text": "Same check on the VIEWSHED tool \u2014 it shared this defect and the same fix: a max distance larger than the DEM stops at the DEM.",
-              "tag": "HIGH RISK"
-            },
-            {
-              "text": "Do you want an explicit warning when coverage is bounded by data rather than by range? It is an honest-looking outline that actually means the DEM ran out.",
+              "text": "If any combination draws nothing, note the exact ranges and positions before changing anything \u2014 that is the reproduction I could not get.",
               "tag": "TELL ME"
             },
             {
-              "text": "Restore a sensible range before continuing."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "edt",
-      "title": "10 \u00b7 Editing a laydown",
-      "sub": "Move \u00b7 retune \u00b7 delete",
-      "note": "Everything here fires on SAVE. Only the level you edited is recomputed.",
-      "groups": [
-        {
-          "label": "Geometry",
-          "items": [
-            {
-              "text": "Drag a sensor with the Vertex tool to different ground and save. Coverage redraws around its new position.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Coverage does NOT recompute mid-drag \u2014 the drag itself stays smooth.",
-              "tag": "KEY"
-            }
-          ]
-        },
-        {
-          "label": "Attributes",
-          "items": [
-            {
-              "text": "Change one sensor's Maximum range and save. That footprint grows or shrinks; the others are unchanged."
-            },
-            {
-              "text": "Change one sensor's detection height and save. Raising it generally enlarges that sensor's coverage."
-            },
-            {
-              "text": "Change one sensor's Affiliation and save. Its colour changes AND it stops merging with its former neighbours.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Rename a sensor's designation and save. The label follows."
-            }
-          ]
-        },
-        {
-          "label": "Deletion",
-          "items": [
-            {
-              "text": "Delete one of several sensors and save. Coverage shrinks to the remainder."
-            },
-            {
-              "text": "Delete the LAST sensor on a level and save. That level's coverage layer disappears entirely.",
-              "tag": "KEY"
-            }
-          ]
-        },
-        {
-          "label": "Isolation and position",
-          "items": [
-            {
-              "text": "With sensors on both Low and Medium, edit and save the LOW layer only. Medium's coverage is untouched \u2014 not regenerated, not removed, same position in the panel.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Drag the Low coverage layer down the Layers panel, then edit and save its points layer. The regenerated layer stays where you put it."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "lay",
-      "title": "11 \u00b7 Layer count",
-      "sub": "Two per level, down from three",
-      "note": "The separate designations layer is gone this round \u2014 the coverage layer carries the names itself.",
-      "groups": [
-        {
-          "label": "Count them",
-          "items": [
-            {
-              "text": "With all three levels in use and sensors named, the panel holds exactly SIX plugin layers: three \"Sensor Points - \u2026\" and three \"Sensor Coverage - \u2026\".",
-              "tag": "KEY"
-            },
-            {
-              "text": "There is no \"(Designations)\" layer anywhere.",
-              "tag": "KEY"
-            },
-            {
-              "text": "Is six still too many, or is this now acceptable?",
+              "text": "Do you want an explicit warning when coverage is bounded by the DEM rather than by range? Still unanswered from last round.",
               "tag": "TELL ME"
             }
           ]
@@ -852,78 +488,69 @@
       ]
     },
     {
-      "id": "rbs",
-      "title": "12 \u00b7 Things that shouldn't break it",
-      "sub": "Off-DEM sensors \u00b7 missing DEM \u00b7 project reload",
-      "note": "The paths where a naive implementation either crashes or silently throws away your work.",
+      "id": "viewshed",
+      "title": "6 \u00b7 The Viewshed tool",
+      "sub": "Two of your reports, one fixed and one not",
+      "note": "Viewshed is a separate tool from Sensor Coverage but shares the terrain code, so it is worth a pass of its own.",
       "groups": [
         {
-          "label": "Edge cases",
+          "label": "Max range \u2014 fixed",
           "items": [
             {
-              "text": "One sensor ON the DEM and one well OUTSIDE its extent, save. The valid one still draws; the off-DEM one is silently skipped.",
-              "tag": "EDGE"
+              "text": "Open Viewshed. Max distance now accepts up to 500,000 m, not 50,000.",
+              "tag": "KEY"
             },
             {
-              "text": "Move ALL sensors outside the DEM, save. No coverage layer \u2014 and no crash.",
-              "tag": "EDGE"
-            },
-            {
-              "text": "Remove the DEM layer from the project, then edit and save a points layer. A warning appears AND the existing coverage is left alone rather than deleted.",
-              "tag": "HIGH RISK"
-            },
-            {
-              "text": "Re-add the DEM and reopen the dialog to rebind it."
+              "text": "Set something well beyond your DEM and Generate: the result still stops at the DEM edge."
             }
           ]
         },
         {
-          "label": "Project reload",
+          "label": "Non-uniform fill \u2014 NOT yet fixed",
           "items": [
             {
-              "text": "Save the project, close and reopen it. Open the Sensor Coverage dialog once \u2014 this re-establishes the connections.",
+              "text": "Insert a Viewshed as you did before, with a fill (untick Outline only). You reported a small circle plus boundary edges rather than a uniform fill.",
               "tag": "HIGH RISK"
             },
             {
-              "text": "Edit and save a points layer: coverage still regenerates."
-            },
-            {
-              "text": "Check whether your sensor POINTS survived the reload. These are memory layers, like every other layer this plugin builds \u2014 say if you want them written to a real file format.",
+              "text": "If it recurs, note the observer height, target height, max distance and which DEM \u2014 I have not reproduced it and did not want to guess at a fix.",
               "tag": "TELL ME"
-            }
-          ]
-        },
-        {
-          "label": "Throughout",
-          "items": [
-            {
-              "text": "Glance at Log Messages \u25b8 Python. Nothing should have been logged during any of the above.",
-              "tag": "HIGH RISK"
             }
           ]
         }
       ]
     },
     {
-      "id": "prf",
-      "title": "13 \u00b7 Performance",
-      "sub": "The number most likely to disappoint",
-      "note": "Each sensor is a full gdal:viewshed run, and the DEM-mode computation covers the whole clip box.",
+      "id": "regress",
+      "title": "7 \u00b7 Quick regression sweep",
+      "sub": "Things that worked last round and must still work",
+      "note": "Short deliberately \u2014 everything here you already cleared. This is only to catch anything the perimeter rewrite disturbed.",
       "groups": [
         {
-          "label": "Timings",
+          "label": "Spot checks",
           "items": [
             {
-              "text": "With ~5 sensors at realistic ranges on your real DEM, time one save.",
-              "tag": "TELL ME"
+              "text": "Two overlapping same-side sensors still merge into ONE perimeter with no line where they meet.",
+              "tag": "KEY"
             },
             {
-              "text": "A single sensor at very long range (150 km+): does it complete in reasonable time, and does the result look sane?",
-              "tag": "TELL ME"
+              "text": "A friendly and a hostile sensor over the same ground still draw as two separate overlapping perimeters."
             },
             {
-              "text": "Does anything about the wait need a progress indicator, or is it quick enough to ignore?",
-              "tag": "TELL ME"
+              "text": "Named sensors still label their own stretch, just outside the perimeter, never inside it.",
+              "tag": "HIGH RISK"
+            },
+            {
+              "text": "An unnamed sensor still draws its arc without a label."
+            },
+            {
+              "text": "Deleting the last sensor on a level still removes that level's coverage layer."
+            },
+            {
+              "text": "Editing Low still leaves Medium untouched."
+            },
+            {
+              "text": "Still exactly two layers per level."
             }
           ]
         }
@@ -931,8 +558,8 @@
     }
   ];
 
-  var STORAGE_KEY = "mct_smoketest_sensor_coverage_v5";
-  var OPEN_KEY = "mct_smoketest_sensor_coverage_open_v5";
+  var STORAGE_KEY = "mct_smoketest_sensor_coverage_r2";
+  var OPEN_KEY = "mct_smoketest_sensor_coverage_open_r2";
 
   var state = {};
   var open = {};
