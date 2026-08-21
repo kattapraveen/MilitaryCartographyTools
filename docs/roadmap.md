@@ -11577,6 +11577,96 @@ the next package. On the precedent of 1.0.3 -> 1.1.0 and 1.1.0 ->
 
 ---
 
+## Sensor Coverage: first smoke-test round (2026-08-21)
+
+The maintainer worked the whole checklist. SET, SAV, CAR, AFF, FIE,
+DES, EDT, LAY and performance all cleared. What follows is what did
+not, plus what was asked for on the back of it.
+
+**A real bug, and worse than the report suggested.** Two of three
+sensors on high ground drew no perimeter at all. Reproduced
+immediately: the two were COINCIDENT, and each sensor's arc was
+computed as its own boundary MINUS its same-side neighbours'
+footprints. Identical footprints meant each erased the other, and GEOS
+counts boundary points as inside, so `generate_sensor_coverage()`
+returned None outright for two stacked sensors. The same failure
+applies to any two footprints sharing a stretch of boundary - two
+sensors clipped against the same DEM edge, for instance.
+
+Intersecting each boundary with the merged one instead fixed the
+disappearance but was also wrong: GEOS returns each collinear run as
+its own two-point piece (83 fragments per sensor on a two-sensor
+test) and drops slivers where the boundaries are only almost
+coincident, losing ~0.2% of the perimeter. Fragments are not cosmetic
+- PAL would have had 83 candidate places for one label.
+
+Settled on PARTITIONING the merged boundary: walk it once, attribute
+each vertex to whichever sensor contributed it (a union preserves its
+inputs' vertices, so a coordinate lookup settles almost all of them),
+and cut it into runs. The shares now reconstruct the merged perimeter
+exactly, coverage cannot vanish however footprints overlap, and two
+coincident sensors give one of them the whole ring rather than
+cancelling. Three regression tests, including one pinning the
+partition property itself.
+
+**A second latent bug found on the way**: `convertToType(Line)`
+returns an EMPTY geometry rather than failing for a MULTI-polygon, so
+two sensors far enough apart not to overlap produced no coverage at
+all. It needs `destMultipart=True`.
+
+**Colour no longer varies by level.** The maintainer: "keep all three
+with same colour; since we are using dash and solid, it is self
+explanatory". The per-level tint is gone entirely - every band draws
+in its affiliation's own full-strength colour, and width plus dash
+carry the whole distinction.
+
+**Coverage regenerates without opening the dialog.** The connections
+that redraw coverage on save belong to the layer objects, and a
+project read builds new ones - so a reopened project looked complete
+but was inert, and the only cure was opening the setup dialog, which
+called attach_existing() on the way past. The maintainer asked for it
+bound rather than explained: "we are already throwing a lot of
+messages to the user for this use case". The manager now listens on
+`layersAdded` and `readProject`.
+
+**And a Regenerate Sensor Coverage action**, their own suggestion
+after finding a reopened project would not redraw until a sensor was
+nudged far enough to re-enable Save. Deliberately a toolbar action
+rather than a button in the setup dialog, since the point is to avoid
+opening it. Note this does NOT delink saving from generating, which
+was the other half of their suggestion - saving stays the automatic
+trigger, because a full viewshed run per sensor cannot be hung off a
+drag. The action is the escape hatch for when there is nothing to
+save.
+
+**Also done**: Viewshed's max range raised 50,000 -> 500,000 (they hit
+the cap, and Sensor Coverage already allowed 500,000, so the two
+disagreed); and latitude, longitude and MGRS fields added to each
+sensor, derived with QGIS default-value expressions using
+applyOnUpdate so they FOLLOW a dragged sensor rather than recording
+where it was dropped, transformed explicitly to WGS84 since the layer
+takes the project's CRS, and read-only in the form.
+
+**Still open, not yet actioned:**
+
+  - A single sensor on high ground reportedly drawing nothing. Not
+    reproduced - the coincident bug explains the two stacked ones but
+    not this. Needs their diagnostic output.
+  - Coverage sometimes not drawn at all when the range far exceeds the
+    DEM, rather than being bounded at the DEM edge.
+  - Viewshed's fill looking non-uniform when first inserted ("a small
+    circle and then boundary edges").
+
+**Clarified rather than changed**: the level-flight checks in the
+checklist read as contradictory - if a peak is not covered, how is the
+ground behind it excluded? Both are true and for the same reason. The
+target flies at a fixed altitude; ground standing ABOVE that altitude
+cannot have a target over it, and ground behind it is in its shadow.
+The wording confused two different exclusions and the checklist has
+been reworded.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

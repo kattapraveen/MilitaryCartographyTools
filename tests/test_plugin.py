@@ -100,6 +100,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "Line of Sight",
                     "Viewshed",
                     "Sensor Coverage",
+                    "Regenerate Sensor Coverage",
                 ],
                 "waypoints": [
                     "Import Waypoints",

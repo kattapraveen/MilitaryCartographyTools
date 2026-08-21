@@ -549,6 +549,8 @@ Each sensor carries its own characteristics:
 | Max detection height above sensor | How far above itself this sensor can detect, in metres — limited to that layer's own band, so a point on the Low Level layer can't be given a high-level capability by accident. Defaults to the band's ceiling |
 | Maximum range | That individual sensor's own detection range, in metres (default 30,000) |
 | Unique designation | Optional free text naming this sensor. Leave it blank and the sensor simply isn't labelled |
+| Latitude / Longitude | Decimal degrees, filled in for you and updated whenever the sensor moves. Read-only — move the sensor to change them |
+| MGRS | The same position as a full-precision MGRS reference, also updated automatically |
 
 Range and sensor height are deliberately **not** tied to the level.
 Sensors in the same band routinely differ by an order of magnitude — a
@@ -559,13 +561,18 @@ is shared across the whole laydown.
 
 ### The coverage layer
 
-> **There is no Generate button — you must save the layer.** Coverage
-> is drawn when you save the sensor points layer's edits, and redrawn on
-> every later save. Placing or moving a sensor does *nothing* visible
-> until you save (**Layer ▸ Save Layer Edits**, or toggle the pencil
-> off). If you've placed sensors and see no coverage, this is almost
-> certainly why. The plugin also reminds you in the message bar whenever
-> you start editing a sensor points layer.
+> **Coverage is drawn when you save the layer.** Placing or moving a
+> sensor does *nothing* visible until you save (**Layer ▸ Save Layer
+> Edits**, or toggle the pencil off). If you've placed sensors and see
+> no coverage, this is almost certainly why — the plugin reminds you in
+> the message bar whenever you start editing a sensor points layer.
+>
+> Saving is the trigger because each sensor is a full viewshed run, and
+> recomputing continuously while you drag one would make dragging
+> unusable. When you need coverage redrawn without editing anything —
+> after reopening a project, say, or after pointing the laydown at a
+> different DEM — use **Regenerate Sensor Coverage**, next to Sensor
+> Coverage on the Terrain Analysis toolbar.
 
 Save your edits and a **Sensor Coverage** layer appears for that level,
 covering everything visible from any sensor on it. Where two sensors'
@@ -581,14 +588,15 @@ that out even when translucent. The perimeter is the information; the
 interior isn't. If you do want a filled product for a single sensor, use
 the **Viewshed** tool instead.
 
-Each level is drawn three ways at once, so the bands stay tellable apart
-where their outlines run close together:
+Every level draws in its affiliation's own colour — a hostile perimeter
+is the same red whichever band it belongs to — and the bands are told
+apart by their line instead:
 
-| Level | Line | Colour |
-|---|---|---|
-| **Low** | 0.3 mm, short dash | affiliation hue, full strength |
-| **Medium** | 0.5 mm, long dash | one step lighter |
-| **High** | 0.6 mm, solid | two steps lighter |
+| Level | Line |
+|---|---|
+| **Low** | 0.3 mm, short dash |
+| **Medium** | 0.5 mm, long dash |
+| **High** | 0.6 mm, solid |
 
 So each level needs just **two layers** — its sensor points and its
 coverage. Designations ride on the coverage layer itself.

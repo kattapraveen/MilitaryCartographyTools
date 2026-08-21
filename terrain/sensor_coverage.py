@@ -10,11 +10,10 @@ click is a complete standalone analysis that replaces the last one, a
 sensor laydown is several sensors deployed together whose coverage is
 read as one picture: overlapping footprints should fuse into a single
 perimeter, and only genuinely separated ones should draw as separate
-shapes. Each sensor contributes its own stretch of that shared
-perimeter - its own visible-area boundary minus every same-side
-neighbour's footprint - so the result reads as one outline while each
-sensor still labels the part of it that is its own. See
-_perimeter_segments() and generate_sensor_coverage().
+shapes. The merged perimeter is then partitioned back out, each
+stretch attributed to the sensor that contributed it, so the result
+reads as one outline while each sensor still labels the part of it that
+is its own. See _perimeter_segments() and generate_sensor_coverage().
 
 **The bands are measured ABOVE THE ANTENNA, not above sea level.** This
 is the single most counter-intuitive thing in this module and it was
@@ -221,7 +220,7 @@ HIGH_CEILING_M = 30000.0
 
 SensorLevel = namedtuple(
     "SensorLevel",
-    ("key", "label", "floor_m", "ceiling_m", "tint", "width_mm", "dash_mm")
+    ("key", "label", "floor_m", "ceiling_m", "width_mm", "dash_mm")
 )
 
 # Affiliation owns the HUE (see AFFILIATION_COLORS); the level owns how
@@ -234,11 +233,15 @@ SensorLevel = namedtuple(
 # Blending toward white rather than using QColor.lighter(): the
 # affiliation colours are fully saturated primaries, whose HSV value is
 # already maxed, so lighter() is a no-op on every one of them.
-# Width and dash pattern per level, on top of the tint. The maintainer
-# found tint alone insufficient 2026-08-20 - "low level and medium level
-# ranges look almost the same, no difference in width and colour" - so
-# all three bands now differ in three ways at once, which is what makes
-# them readable where their outlines run close together.
+# Width and dash pattern per level. Colour is NOT one of the signals -
+# every level draws in its affiliation's own full-strength colour, so a
+# hostile perimeter is the same red whichever band it belongs to.
+#
+# There was briefly a per-level tint as well, lightening each band in
+# turn. The maintainer removed it 2026-08-21: "keep all three with same
+# colour; since we are using dash and solid, it is self explanatory".
+# The tint also had the awkward consequence that the MIDDLE band came
+# out palest once High was asked to match Low.
 #
 # Widths are the maintainer's own figures (0.3 / 0.5, high left at its
 # original 0.6). Note this is the OPPOSITE ordering to the one their
@@ -249,23 +252,10 @@ SensorLevel = namedtuple(
 # solid high. Expressed as [on, off] millimetre runs rather than Qt's
 # own dash styles, which offer no long/short distinction of their own.
 SENSOR_LEVELS = (
-    SensorLevel("low", "Low Level", 0.0, LOW_CEILING_M, 0.0, 0.3, (2.0, 1.5)),
-    SensorLevel("medium", "Medium Level", LOW_CEILING_M, MEDIUM_CEILING_M, 0.35, 0.5, (6.0, 2.0)),
-    SensorLevel("high", "High Level", MEDIUM_CEILING_M, HIGH_CEILING_M, 0.65, 0.6, None),
+    SensorLevel("low", "Low Level", 0.0, LOW_CEILING_M, 0.3, (2.0, 1.5)),
+    SensorLevel("medium", "Medium Level", LOW_CEILING_M, MEDIUM_CEILING_M, 0.5, (6.0, 2.0)),
+    SensorLevel("high", "High Level", MEDIUM_CEILING_M, HIGH_CEILING_M, 0.6, None),
 )
-
-
-def tinted(color, tint):
-
-    """
-    `color` blended `tint` of the way toward white (0.0 = untouched,
-    1.0 = white).
-    """
-
-    return tuple(
-        round(channel + (255 - channel) * tint)
-        for channel in color
-    )
 
 
 # A light, mobile set sits a few metres up; a mast-mounted one tens of
@@ -319,25 +309,25 @@ def set_dem_layer(points_layer, dem_layer):
     )
 
 
-def color_for(affiliation, level):
+def color_for(affiliation):
 
     """
-    The colour one affiliation's coverage is drawn in at one level: the
-    standard affiliation hue, tinted for the band - see SENSOR_LEVELS.
+    The colour one affiliation's coverage is drawn in - the same at
+    every level, see SENSOR_LEVELS.
     """
 
-    return tinted(
-        AFFILIATION_COLORS.get(affiliation, AFFILIATION_COLORS[DEFAULT_AFFILIATION]),
-        level.tint
+    return AFFILIATION_COLORS.get(
+        affiliation,
+        AFFILIATION_COLORS[DEFAULT_AFFILIATION]
     )
 
 
-def affiliation_color_expression(level):
+def affiliation_color_expression():
 
     """
-    A QGIS expression mapping the "affiliation" field to this level's
-    own tinted colour, for data-defining a symbol's fill/stroke or a
-    label's text colour.
+    A QGIS expression mapping the "affiliation" field to its own
+    colour, for data-defining a symbol's fill/stroke or a label's text
+    colour.
 
     Data-defined rather than a categorized renderer with four classes:
     the coverage layer is rebuilt from scratch on every edit, so the
@@ -349,12 +339,12 @@ def affiliation_color_expression(level):
     clauses = " ".join(
         "WHEN \"affiliation\" = '{key}' THEN color_rgb({r}, {g}, {b})".format(
             key=key,
-            **dict(zip(("r", "g", "b"), color_for(key, level)))
+            **dict(zip(("r", "g", "b"), color_for(key)))
         )
         for key in AFFILIATION_COLORS
     )
 
-    fallback = color_for(DEFAULT_AFFILIATION, level)
+    fallback = color_for(DEFAULT_AFFILIATION)
 
     return (
         f"CASE {clauses} "
@@ -514,6 +504,8 @@ def _configure_attribute_form(layer, level):
         "Unique designation"
     )
 
+    _configure_location_fields(layer)
+
 
 def build_sensor_points_layer(level):
 
@@ -542,6 +534,11 @@ def build_sensor_points_layer(level):
             QgsField("detection_height", QMetaType.Type.Double),
             QgsField("max_distance", QMetaType.Type.Double),
             QgsField("unique_designation", QMetaType.Type.QString),
+            # Derived from the sensor's own position, filled in and kept
+            # up to date by QGIS itself - see _configure_location_fields().
+            QgsField("latitude", QMetaType.Type.Double),
+            QgsField("longitude", QMetaType.Type.Double),
+            QgsField("mgrs", QMetaType.Type.QString),
         ]
     )
 
@@ -552,12 +549,12 @@ def build_sensor_points_layer(level):
         level
     )
 
-    apply_points_style(layer, level)
+    apply_points_style(layer)
 
     return layer
 
 
-def apply_points_style(points_layer, level):
+def apply_points_style(points_layer, level=None):
 
     """
     The sensor marker, in the same colour as the coverage it generates -
@@ -579,7 +576,7 @@ def apply_points_style(points_layer, level):
     symbol.symbolLayer(0).setDataDefinedProperty(
         QgsSymbolLayer.Property.FillColor,
         QgsProperty.fromExpression(
-            affiliation_color_expression(level)
+            affiliation_color_expression()
         )
     )
 
@@ -725,15 +722,51 @@ def _perimeter_segments(footprints):
     paired with the stretch of the MERGED perimeter that is its own, so
     it can label it.
 
-    A sensor's contribution is its own boundary minus every other
-    footprint OF THE SAME AFFILIATION: wherever two same-side coverages
-    overlap, the swallowed arc is interior to their merged shape and no
-    longer part of any perimeter, so it must not be labelled. That is
-    the maintainer's own specification - "each sensor label is on its
-    respective perimeter, in case of overlap in the respective segment
-    of the perimeter".
+    A sensor's contribution is the part of its OWN boundary that lies on
+    the merged perimeter of everything on its side: wherever two
+    same-side coverages overlap, the swallowed arc is interior to their
+    merged shape and no longer part of any perimeter, so it must not be
+    drawn or labelled. That is the maintainer's own specification -
+    "each sensor label is on its respective perimeter, in case of
+    overlap in the respective segment of the perimeter".
 
-    Other affiliations are deliberately NOT subtracted. A hostile
+    **Computed by PARTITIONING the merged boundary, not by subtracting
+    or intersecting.** Both of the obvious formulations were tried and
+    both were wrong:
+
+      - `own boundary MINUS the other footprints` looks right and
+        silently deletes coverage. Two same-side sensors in the same
+        place with the same range have identical footprints, so each
+        one's boundary lies exactly ON the other's polygon, and GEOS
+        counts boundary points as inside - each erased the other and
+        coverage vanished outright. Reported by the maintainer
+        2026-08-21 and reproduced: `generate_sensor_coverage()` returned
+        None for two coincident sensors. It has the same failure
+        wherever two footprints share any stretch of boundary at all,
+        which two sensors clipped against the same DEM edge do.
+      - `own boundary INTERSECTED with the merged boundary` is immune to
+        that, but GEOS returns each collinear run as its own tiny
+        two-point piece - 83 fragments per sensor on a two-sensor test -
+        and quietly drops slivers where the two boundaries are only
+        almost coincident, losing ~0.2% of the perimeter. Fragments are
+        not cosmetic either: PAL would have 83 candidate places to put
+        one sensor's label.
+
+    So the merged boundary is walked once and each of its vertices
+    attributed to whichever sensor contributed it - a union preserves
+    its inputs' vertices, so a lookup from coordinate to sensor settles
+    almost every one, and the handful of new vertices GEOS creates where
+    two boundaries cross simply continue the previous run. Consecutive
+    vertices with the same owner become that sensor's arc.
+
+    That makes the shares a true PARTITION: they reconstruct the merged
+    perimeter exactly, with nothing lost and nothing duplicated, and
+    coverage cannot vanish however the footprints overlap. Two
+    coincident sensors give one of them the whole ring and the other
+    nothing - the perimeter is still drawn in full, which is the part
+    that matters.
+
+    Other affiliations are deliberately NOT merged in. A hostile
     footprint lying over a friendly one does not erase the friendly
     perimeter - the two are separate overlays, and the friendly
     boundary is still drawn there, so it still deserves its label.
@@ -741,57 +774,243 @@ def _perimeter_segments(footprints):
     Together these segments ARE the merged perimeter, cut per sensor -
     which is why coverage needs no polygon layer of its own. Their union
     is exactly the boundary a unioned polygon would have had (pinned by
-    test: the segment lengths sum to the merged boundary's own length),
-    and since coverage is drawn outline-only, drawing them as lines is
-    indistinguishable from drawing that polygon's outline. Collapsing
-    the two into one layer is the maintainer's own request 2026-08-20 -
-    "that's too many layers".
+    test: for sensors that are not coincident, the segment lengths sum
+    to the merged boundary's own length), and since coverage is drawn
+    outline-only, drawing them as lines is indistinguishable from
+    drawing that polygon's outline. Collapsing the two into one layer is
+    the maintainer's own request 2026-08-20 - "that's too many layers".
 
-    A sensor whose footprint is wholly inside a same-side neighbour's is
-    skipped: it contributes no perimeter at all. An UNNAMED sensor is
-    kept, because its stretch of the perimeter still has to be drawn -
-    it simply labels as nothing.
+    A sensor whose footprint is wholly inside a same-side neighbour's
+    contributes nothing and is skipped. An UNNAMED sensor is kept,
+    because its stretch of the perimeter still has to be drawn - it
+    simply labels as nothing.
     """
 
     segments = []
 
-    for index, (affiliation, designation, footprint) in enumerate(footprints):
+    # AFFILIATION_COLORS' own order, so the output is stable rather than
+    # following whatever order the sensors happen to be digitized in.
+    for affiliation in AFFILIATION_COLORS:
 
-        # forceRHR() first, so every exterior ring runs clockwise before
-        # it becomes a line. Label side is decided by the direction of
-        # travel along the line - "above" means to the LEFT of it - so
-        # without a consistent ring orientation some sensors' labels
-        # land outside the coverage and others inside it. Confirmed by
-        # render 2026-08-20: three sensors, two labelled outside and one
-        # sitting in the middle of the fill.
-        oriented = QgsGeometry(footprint)
-        oriented = oriented.forceRHR()
-
-        boundary = oriented.convertToType(
-            Qgis.GeometryType.Line
-        )
-
-        if boundary is None or boundary.isEmpty():
-            continue
-
-        others = [
-            other
-            for position, (other_affiliation, _, other) in enumerate(footprints)
-            if position != index and other_affiliation == affiliation
+        same_side = [
+            (designation, geometry)
+            for own, designation, geometry in footprints
+            if own == affiliation
         ]
 
-        if others:
+        if not same_side:
+            continue
 
-            boundary = boundary.difference(
-                QgsGeometry.unaryUnion(others)
-            )
+        merged = QgsGeometry.unaryUnion(
+            [geometry for _, geometry in same_side]
+        )
+
+        if merged is None or merged.isEmpty():
+            continue
+
+        merged_boundary = _outward_boundary(merged)
+
+        if merged_boundary is None or merged_boundary.isEmpty():
+            continue
+
+        owners = _vertex_owners(same_side)
+
+        for ring in merged_boundary.asGeometryCollection():
+
+            for owner, points in _runs_by_owner(ring.asPolyline(), owners):
+
+                segments.append(
+                    (
+                        affiliation,
+                        same_side[owner][0],
+                        QgsGeometry.fromPolylineXY(points),
+                    )
+                )
+
+    return segments
+
+
+def _outward_boundary(polygon):
+
+    """
+    `polygon` as a line, with every exterior ring running clockwise.
+
+    forceRHR() first because label side is decided by the direction of
+    travel along the line - "above" means to the LEFT of it - so without
+    a consistent ring orientation some sensors' labels land outside the
+    coverage and others inside it. Confirmed by render 2026-08-20: three
+    sensors, two labelled outside and one sitting in the middle of the
+    fill.
+    """
+
+    oriented = QgsGeometry(polygon)
+
+    oriented = oriented.forceRHR()
+
+    # destMultipart=True is not optional here. Converting a MULTI-polygon
+    # with it left False returns an empty geometry rather than failing,
+    # and two sensors far enough apart not to overlap merge into exactly
+    # that - so their coverage silently came out as nothing at all.
+    return oriented.convertToType(
+        Qgis.GeometryType.Line,
+        True
+    )
+
+
+# The sensor's own position, in the two forms this plugin's users read
+# coordinates in. Requested by the maintainer 2026-08-21.
+#
+# Done with QGIS's own default-value expressions rather than in Python,
+# and crucially with applyOnUpdate=True: that makes QGIS recompute them
+# whenever the feature changes, so they FOLLOW the sensor when it is
+# dragged instead of recording where it was first dropped. No signal
+# handling of ours is involved, and they survive a project reload the
+# same way any other field configuration does.
+#
+# transform() to WGS84 explicitly rather than reading $x/$y: the points
+# layer takes the project's CRS, which is very often not WGS84, and
+# $x/$y would then be metres in some projection rather than degrees.
+_LONGITUDE_EXPRESSION = (
+    "x(transform($geometry, layer_property(@layer, 'crs'), 'EPSG:4326'))"
+)
+
+_LATITUDE_EXPRESSION = (
+    "y(transform($geometry, layer_property(@layer, 'crs'), 'EPSG:4326'))"
+)
+
+_MGRS_EXPRESSION = (
+    f"mct_mgrs({_LATITUDE_EXPRESSION}, {_LONGITUDE_EXPRESSION})"
+)
+
+_LOCATION_FIELDS = (
+    ("latitude", _LATITUDE_EXPRESSION, "Latitude (°)"),
+    ("longitude", _LONGITUDE_EXPRESSION, "Longitude (°)"),
+    ("mgrs", _MGRS_EXPRESSION, "MGRS"),
+)
+
+
+def _configure_location_fields(layer):
+
+    """
+    Latitude, longitude and MGRS, derived from the sensor's own position
+    and marked read-only in the form - they describe where the sensor
+    is, so the way to change them is to move the sensor.
+    """
+
+    fields = layer.fields()
+
+    form_config = layer.editFormConfig()
+
+    for name, expression, alias in _LOCATION_FIELDS:
+
+        index = fields.indexOf(name)
+
+        layer.setDefaultValueDefinition(
+            index,
+            QgsDefaultValue(expression, True)
+        )
+
+        layer.setFieldAlias(index, alias)
+
+        form_config.setReadOnly(index, True)
+
+    layer.setEditFormConfig(form_config)
+
+
+def _vertex_key(point):
+
+    # Rounded, because the merged boundary's coordinates come back
+    # through GEOS and need not be bit-identical to the inputs that
+    # produced them. Nine places is far finer than any DEM pixel and far
+    # coarser than the noise.
+    return (round(point.x(), 9), round(point.y(), 9))
+
+
+def _vertex_owners(same_side):
+
+    """
+    {vertex key: index into same_side} for every vertex of every
+    footprint's boundary - the lookup that attributes each stretch of
+    the merged perimeter to the sensor it came from.
+
+    First writer wins, so two sensors that contributed the same vertex
+    (coincident footprints) resolve to the earlier one rather than
+    flickering between them.
+    """
+
+    owners = {}
+
+    for index, (_, geometry) in enumerate(same_side):
+
+        boundary = _outward_boundary(geometry)
 
         if boundary is None or boundary.isEmpty():
             continue
 
-        segments.append((affiliation, designation, boundary))
+        for ring in boundary.asGeometryCollection():
 
-    return segments
+            for point in ring.asPolyline():
+
+                owners.setdefault(_vertex_key(point), index)
+
+    return owners
+
+
+def _runs_by_owner(points, owners):
+
+    """
+    [(owner index, [points])] - `points` cut into consecutive runs
+    belonging to one sensor each.
+
+    A vertex GEOS invented (where two boundaries cross, so it is in no
+    input) continues the run it is in rather than starting one; that
+    keeps a crossing from splitting an arc in two over a single point.
+    Each run carries the vertex that starts the next one, so the arcs
+    meet instead of leaving a pixel-wide gap between them.
+    """
+
+    runs = []
+
+    current = None
+
+    for point in points:
+
+        owner = owners.get(_vertex_key(point), current)
+
+        if owner is None:
+            # Nothing has been attributed yet and this vertex is not in
+            # any input - wait for one that is.
+            continue
+
+        if owner != current:
+
+            if runs:
+                # Close the previous run ON this vertex, so consecutive
+                # arcs share an endpoint.
+                runs[-1][1].append(point)
+
+            runs.append((owner, [point]))
+
+            current = owner
+
+        else:
+
+            runs[-1][1].append(point)
+
+    # A ring's first and last runs are the same stretch of perimeter
+    # when they share an owner; joining them avoids splitting one arc
+    # across the ring's arbitrary start point.
+    if len(runs) > 1 and runs[0][0] == runs[-1][0]:
+
+        runs[0] = (runs[0][0], runs[-1][1] + runs[0][1])
+
+        runs.pop()
+
+    return [
+        (owner, points)
+        for owner, points in runs
+        if len(points) > 1
+    ]
 
 
 def _build_coverage_layer(segments, level, opacity):
@@ -847,7 +1066,7 @@ def _build_coverage_layer(segments, level, opacity):
 
     _apply_coverage_style(layer, level, opacity)
 
-    _apply_designation_labels(layer, level)
+    _apply_designation_labels(layer)
 
     return layer
 
@@ -871,7 +1090,7 @@ def _apply_coverage_style(layer, level, opacity):
     line_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.StrokeColor,
         QgsProperty.fromExpression(
-            affiliation_color_expression(level)
+            affiliation_color_expression()
         )
     )
 
@@ -896,7 +1115,7 @@ def _apply_coverage_style(layer, level, opacity):
     layer.triggerRepaint()
 
 
-def _apply_designation_labels(layer, level):
+def _apply_designation_labels(layer):
 
     """
     Curved labels riding just above the perimeter, in each segment's own
@@ -965,7 +1184,7 @@ def _apply_designation_labels(layer, level):
     settings.dataDefinedProperties().setProperty(
         QgsPalLayerSettings.Property.Color,
         QgsProperty.fromExpression(
-            affiliation_color_expression(level)
+            affiliation_color_expression()
         )
     )
 

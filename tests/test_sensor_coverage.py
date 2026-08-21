@@ -47,7 +47,6 @@ from MilitaryCartographyTools.terrain.sensor_coverage import (
     points_layer_name,
     SENSOR_LEVELS,
     set_dem_layer,
-    tinted,
 )
 
 
@@ -114,37 +113,27 @@ class TestSensorLevels(QgisTestCase):
         )
 
 
-    def test_each_level_is_a_distinguishable_tint(self):
+    def test_the_levels_differ_by_line_not_by_colour(self):
 
-        # The three bands nest by design, so stacked they must still be
-        # tellable apart - which is what the per-level tint is for, now
-        # that affiliation owns the hue.
-        tints = [level.tint for level in SENSOR_LEVELS]
+        # The maintainer's own call 2026-08-21: "keep all three with
+        # same colour; since we are using dash and solid, it is self
+        # explanatory". So colour must NOT vary by level - a hostile
+        # perimeter is the same red in every band - and the width/dash
+        # pair has to carry the whole distinction on its own.
+        widths = [level.width_mm for level in SENSOR_LEVELS]
+        dashes = [level.dash_mm for level in SENSOR_LEVELS]
 
-        self.assertEqual(
-            len(set(tints)),
-            len(tints)
-        )
+        self.assertEqual(len(set(widths)), len(SENSOR_LEVELS))
+        self.assertEqual(len(set(dashes)), len(SENSOR_LEVELS))
 
-        # Ascending, so the higher (larger) band is always the paler one
-        # and never hides the smaller band drawn over it.
-        self.assertEqual(tints, sorted(tints))
+        for affiliation in AFFILIATION_COLORS:
 
+            with self.subTest(affiliation=affiliation):
 
-    def test_every_affiliation_stays_distinguishable_at_every_level(self):
-
-        # The real risk of tinting toward white: push it far enough and
-        # two sides converge. All twelve combinations must stay distinct.
-        swatches = [
-            tinted(color, level.tint)
-            for color in AFFILIATION_COLORS.values()
-            for level in SENSOR_LEVELS
-        ]
-
-        self.assertEqual(
-            len(set(swatches)),
-            len(swatches)
-        )
+                self.assertEqual(
+                    color_for(affiliation),
+                    AFFILIATION_COLORS[affiliation]
+                )
 
 
     def test_affiliation_colours_match_the_rest_of_the_plugin(self):
@@ -233,6 +222,9 @@ class TestSensorPointsLayer(QgisTestCase):
                 "detection_height",
                 "max_distance",
                 "unique_designation",
+                "latitude",
+                "longitude",
+                "mgrs",
             ]
         )
 
@@ -752,7 +744,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         self.assertEqual(
             self._fill_of(layer),
-            tinted(AFFILIATION_COLORS["friend"], MEDIUM.tint)
+            color_for("friend")
         )
 
 
@@ -768,7 +760,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         self.assertEqual(
             self._fill_of(layer),
-            tinted(AFFILIATION_COLORS["hostile"], LOW.tint)
+            color_for("hostile")
         )
 
 
@@ -853,6 +845,105 @@ class TestGenerateSensorCoverage(QgisTestCase):
         self.assertEqual(layer.opacity(), 1.0)
 
 
+    def test_coincident_sensors_do_not_erase_each_other(self):
+
+        # Reported by the maintainer 2026-08-21 and reproduced exactly:
+        # two same-side sensors in the same place with the same range
+        # produced NO coverage at all. Each sensor's arc used to be its
+        # own boundary minus its neighbours' footprints, and with
+        # identical footprints each one erased the other.
+        centre = self._lonlat_at(0.5)
+
+        alone = self._coverage(
+            [(centre, 5.0, 1000.0, 200.0)]
+        )
+
+        together = self._coverage(
+            [
+                (centre, 5.0, 1000.0, 200.0),
+                (centre, 5.0, 1000.0, 200.0),
+            ]
+        )
+
+        self.assertIsNotNone(together)
+
+        # The perimeter is drawn in full - the same ring one sensor
+        # would have drawn on its own.
+        self.assertAlmostEqual(
+            sum(f.geometry().length() for f in together.getFeatures()),
+            sum(f.geometry().length() for f in alone.getFeatures()),
+            places=6
+        )
+
+
+    def test_three_sensors_with_two_coincident_keep_the_whole_perimeter(self):
+
+        # The maintainer's own laydown: three friendly sensors, two of
+        # them stacked. Most of the perimeter went missing.
+        centre = self._lonlat_at(0.45)
+        offset = self._lonlat_at(0.55)
+
+        without_duplicate = self._coverage(
+            [(centre, 5.0, 1000.0, 300.0), (offset, 5.0, 1000.0, 300.0)]
+        )
+
+        with_duplicate = self._coverage(
+            [
+                (centre, 5.0, 1000.0, 300.0),
+                (centre, 5.0, 1000.0, 300.0),
+                (offset, 5.0, 1000.0, 300.0),
+            ]
+        )
+
+        self.assertIsNotNone(with_duplicate)
+
+        # Stacking a duplicate on top of an existing sensor must not
+        # change the picture at all.
+        self.assertAlmostEqual(
+            sum(f.geometry().length() for f in with_duplicate.getFeatures()),
+            sum(f.geometry().length() for f in without_duplicate.getFeatures()),
+            places=6
+        )
+
+
+    def test_the_arcs_are_a_partition_of_the_merged_perimeter(self):
+
+        # The property the whole design rests on: the per-sensor arcs
+        # reconstruct the merged outline exactly - nothing lost at the
+        # joins, nothing counted twice. An earlier formulation that
+        # intersected each boundary with the merged one dropped ~0.2%
+        # in slivers and shattered each arc into dozens of fragments.
+        sensors = [
+            (self._lonlat_at(0.42), 5.0, 1000.0, 300.0),
+            (self._lonlat_at(0.52), 5.0, 1000.0, 300.0),
+            (self._lonlat_at(0.62), 5.0, 1000.0, 300.0),
+        ]
+
+        layer = self._coverage(sensors)
+
+        # Part by part: convertToType rejects the mixed collection
+        # polygonize hands back.
+        merged_perimeter = sum(
+            part.convertToType(Qgis.GeometryType.Line, True).length()
+            for part in covered_polygon(layer).asGeometryCollection()
+        )
+
+        self.assertAlmostEqual(
+            sum(f.geometry().length() for f in layer.getFeatures()),
+            merged_perimeter,
+            places=6
+        )
+
+        # And no arc is a scatter of two-point fragments - PAL would
+        # otherwise have one label candidate per fragment.
+        for feature in layer.getFeatures():
+
+            self.assertLessEqual(
+                len(feature.geometry().asGeometryCollection()),
+                2
+            )
+
+
     def test_opposing_sides_do_not_merge_into_one_shape(self):
 
         # The maintainer's own requirement: merging happens only within
@@ -886,7 +977,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
                 self.assertEqual(
                     self._fill_of(layer, feature),
-                    color_for(affiliation, LOW)
+                    color_for(affiliation)
                 )
 
 
@@ -1398,7 +1489,7 @@ class TestGenerateSensorCoverage(QgisTestCase):
 
         self.assertEqual(
             (color.red(), color.green(), color.blue()),
-            tinted(AFFILIATION_COLORS["hostile"], LOW.tint)
+            color_for("hostile")
         )
 
 

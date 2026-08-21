@@ -50,7 +50,13 @@ MGRS_PRECISION = 5
 MAX_HEIGHT_M = 9999.0
 
 MIN_DISTANCE_M = 50.0
-MAX_DISTANCE_M = 50000.0
+
+# Raised from 50,000 on 2026-08-21: the maintainer hit the cap on a real
+# DEM and Sensor Coverage already allowed 500,000, so the two features
+# disagreed about how far a sightline may be asked to reach. Nothing
+# here is wasted on an over-large figure - the analysis is bounded by
+# the DEM's own extent regardless (see viewshed._analysis_extent()).
+MAX_DISTANCE_M = 500000.0
 
 
 def _rgb(color):

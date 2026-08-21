@@ -105,6 +105,96 @@ class SensorCoverageManager:
         )
 
 
+    def install(self):
+
+        """
+        Listen for layers arriving, so a laydown is live without the
+        user having to open the setup dialog first.
+
+        Signal connections do not survive a project load - they belong
+        to the layer objects, and reading a project builds new ones -
+        so until 2026-08-21 a reopened project looked complete (points
+        and coverage both there) but was inert: moving a sensor and
+        saving did nothing, and the only way to revive it was to open
+        the Sensor Coverage dialog, which called attach_existing() on
+        the way past. The maintainer found that during smoke testing
+        and asked for it bound rather than explained - "we are already
+        throwing a lot of messages to the user for this use case".
+
+        `layersAdded` covers both cases at once: layers restored by a
+        project read, and a points layer added at any other time.
+        attach_existing() is idempotent, so the extra calls cost
+        nothing.
+        """
+
+        project = QgsProject.instance()
+
+        project.layersAdded.connect(self._on_layers_added)
+
+        # Layer ids are new after a project read, so anything remembered
+        # from the previous project would keep a dead id alive and stop
+        # its replacement being wired.
+        project.readProject.connect(self._on_project_read)
+
+
+    def uninstall(self):
+
+        project = QgsProject.instance()
+
+        for signal, slot in (
+            (project.layersAdded, self._on_layers_added),
+            (project.readProject, self._on_project_read),
+        ):
+
+            try:
+                signal.disconnect(slot)
+            except (TypeError, RuntimeError):
+                # Never connected, or the project object is already
+                # gone during shutdown - neither is worth failing over.
+                pass
+
+
+    def _on_layers_added(self, layers):
+
+        self.attach_existing()
+
+
+    def _on_project_read(self, *args):
+
+        self._wired_layer_ids.clear()
+
+        self.attach_existing()
+
+
+    def regenerate_all(self):
+
+        """
+        Rebuild every level this project has a points layer for, and
+        return the levels actually regenerated.
+
+        This is what the Regenerate action calls. The maintainer asked
+        for it 2026-08-21 after finding that a reopened project would
+        not redraw coverage until a sensor was nudged far enough to
+        re-enable Save: "I think we need to delink saving the point and
+        generating coverage but rather give a generate sensor coverage
+        button".
+        """
+
+        self.attach_existing()
+
+        regenerated = []
+
+        for level in SENSOR_LEVELS:
+
+            if self._points_layer(level) is None:
+                continue
+
+            if self.regenerate(level) is not None:
+                regenerated.append(level)
+
+        return regenerated
+
+
     def attach_existing(self):
 
         """

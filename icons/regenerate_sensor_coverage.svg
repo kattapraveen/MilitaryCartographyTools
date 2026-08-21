@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Regenerate every level's sensor coverage.
+
+       A refresh ring wrapped AROUND sensor_coverage.svg's own
+       two-overlapping-circles silhouette, so the pair reads as one
+       family on the toolbar while this one still says "redo it".
+
+       Enclosing rather than sitting alongside: a toolbar icon is read
+       at 24px, and two motifs side by side inside that box leaves each
+       too small to resolve. The ring and its arrowhead are computed
+       rather than hand-placed, and the generator asserts every drawn
+       extreme stays inside the viewBox - an early attempt put the
+       arrowhead off its own tangent and partly outside the box, which
+       read as a blob stuck to the ring with a slice missing. -->
+
+  <!-- refresh ring, ~300 degrees with the gap at the top -->
+  <path d="M 16.55 4.72 A 9.1 9.1 0 1 1 7.45 4.72"
+        fill="none" stroke="#1f3a5f" stroke-width="2.6"
+        stroke-linecap="round"/>
+  <path d="M 10.57 2.92 L 8.44 7.03 L 5.94 2.70 Z" fill="#1f3a5f"/>
+
+  <!-- the sensor-coverage family mark, inside the ring -->
+  <g fill="#1f3a5f">
+    <circle cx="9.4" cy="13.4" r="3.6"/>
+    <circle cx="14.6" cy="13.4" r="3.6"/>
+  </g>
+  <circle cx="9.4" cy="13.4" r="1.15" fill="#ffffff"/>
+  <circle cx="14.6" cy="13.4" r="1.15" fill="#ffffff"/>
+</svg>

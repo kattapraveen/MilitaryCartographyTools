@@ -625,7 +625,7 @@ class TestAffiliation(SensorCoverageTestCase):
 
         self.assertEqual(
             (color.red(), color.green(), color.blue()),
-            color_for("neutral", LOW)
+            color_for("neutral")
         )
 
 
@@ -677,6 +677,134 @@ class TestSaveReminder(SensorCoverageTestCase):
         )
 
         points.rollBack()
+
+
+class TestRegenerateAll(SensorCoverageTestCase):
+
+    def test_it_rebuilds_every_level_that_has_sensors(self):
+
+        apply_dialog_values(
+            self.iface, self.manager, self.dem_layer, ["low", "medium"]
+        )
+
+        for level in (LOW, MEDIUM):
+            self._add_sensor(
+                self._points_layer_in_project(level), self._lonlat_at(0.5)
+            )
+
+        regenerated = self.manager.regenerate_all()
+
+        self.assertEqual(
+            [level.key for level in regenerated],
+            ["low", "medium"]
+        )
+
+        self.assertEqual(len(self._coverage_layers(LOW)), 1)
+        self.assertEqual(len(self._coverage_layers(MEDIUM)), 1)
+
+
+    def test_a_level_with_no_sensors_is_skipped_not_failed(self):
+
+        apply_dialog_values(
+            self.iface, self.manager, self.dem_layer, ["low", "medium"]
+        )
+
+        self._add_sensor(
+            self._points_layer_in_project(LOW), self._lonlat_at(0.5)
+        )
+
+        self.assertEqual(
+            [level.key for level in self.manager.regenerate_all()],
+            ["low"]
+        )
+
+
+    def test_nothing_set_up_at_all_returns_nothing(self):
+
+        self.assertEqual(self.manager.regenerate_all(), [])
+
+
+    def test_it_works_without_the_dialog_being_opened(self):
+
+        # The whole point: a reopened project has its layers but no
+        # connections, and the maintainer found the only way to revive
+        # it was to nudge a sensor until Save lit up.
+        apply_dialog_values(
+            self.iface, self.manager, self.dem_layer, ["low"]
+        )
+
+        points = self._points_layer_in_project(LOW)
+
+        self._add_sensor(points, self._lonlat_at(0.5))
+
+        # A manager that has never seen this project, standing in for
+        # the one a freshly-loaded project would have.
+        fresh = SensorCoverageManager(self.iface)
+
+        self.assertTrue(fresh.regenerate_all())
+
+        self.assertEqual(len(self._coverage_layers(LOW)), 1)
+
+
+class TestAutoWiring(SensorCoverageTestCase):
+
+    def test_a_layer_added_to_the_project_is_wired_without_the_dialog(self):
+
+        # Until 2026-08-21 the connections were only made when the setup
+        # dialog was opened, so a reopened project looked complete but
+        # was inert - saving an edit did nothing at all.
+        fresh = SensorCoverageManager(self.iface)
+
+        fresh.install()
+
+        try:
+
+            layer = build_sensor_points_layer(LOW)
+
+            set_dem_layer(layer, self.dem_layer)
+
+            QgsProject.instance().addMapLayer(layer)
+
+            self.assertIn(layer.id(), fresh._wired_layer_ids)
+
+            # And it really regenerates on a commit, with no dialog and
+            # no explicit wire() call anywhere.
+            layer.startEditing()
+
+            self._add_sensor(layer, self._lonlat_at(0.5))
+
+            layer.commitChanges()
+
+            self.assertEqual(len(self._coverage_layers(LOW)), 1)
+
+        finally:
+
+            fresh.uninstall()
+
+
+    def test_uninstall_stops_it_listening(self):
+
+        fresh = SensorCoverageManager(self.iface)
+
+        fresh.install()
+        fresh.uninstall()
+
+        layer = build_sensor_points_layer(LOW)
+
+        QgsProject.instance().addMapLayer(layer)
+
+        self.assertNotIn(layer.id(), fresh._wired_layer_ids)
+
+
+    def test_uninstalling_twice_is_harmless(self):
+
+        # unload() calls it, and a project teardown can leave the
+        # signals already gone.
+        fresh = SensorCoverageManager(self.iface)
+
+        fresh.install()
+        fresh.uninstall()
+        fresh.uninstall()
 
 
 class TestWiring(SensorCoverageTestCase):

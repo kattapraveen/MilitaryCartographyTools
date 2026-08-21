@@ -186,6 +186,7 @@ class MilitaryCartographyTools:
         self.hillshade_combination_action = None
         self.viewshed_action = None
         self.sensor_coverage_action = None
+        self.regenerate_sensor_coverage_action = None
         self.import_waypoints_action = None
         self.export_waypoints_action = None
         self.map_sheet_series_action = None
@@ -856,6 +857,24 @@ class MilitaryCartographyTools:
             standalone=False
         )
 
+        # A separate action rather than a button inside the setup
+        # dialog: the whole point is to redraw coverage WITHOUT having
+        # to open that dialog - see regenerate_sensor_coverage().
+        self.regenerate_sensor_coverage_action = self._build_action(
+            "regenerate_sensor_coverage.svg",
+            "Regenerate Sensor Coverage",
+            tooltip=(
+                "Redraw every level's sensor coverage from its own "
+                "sensor points, without waiting for the next save"
+            ),
+            callback=self.regenerate_sensor_coverage,
+            standalone=False
+        )
+
+        # Bind the points layers as they arrive - including on a project
+        # load, where the connections made in this session are gone.
+        self.sensor_coverage_manager.install()
+
 
     def _setup_import_waypoints_action(self):
 
@@ -1515,6 +1534,7 @@ class MilitaryCartographyTools:
                     self.line_of_sight_action,
                     self.viewshed_action,
                     self.sensor_coverage_action,
+                    self.regenerate_sensor_coverage_action,
                 ],
             ),
             (
@@ -1829,6 +1849,15 @@ class MilitaryCartographyTools:
         self.viewshed_action = None
         self.viewshed_tool = None
         self.sensor_coverage_action = None
+        self.regenerate_sensor_coverage_action = None
+
+        if self.sensor_coverage_manager is not None:
+
+            # Its project-level connections outlive the plugin object
+            # otherwise, and would fire into a dead manager on the next
+            # project load.
+            self.sensor_coverage_manager.uninstall()
+
         self.sensor_coverage_manager = None
         self.import_waypoints_action = None
         self.export_waypoints_action = None
@@ -2108,6 +2137,39 @@ class MilitaryCartographyTools:
 
             self.iface.mapCanvas().unsetMapTool(
                 self.viewshed_tool
+            )
+
+
+    def regenerate_sensor_coverage(self):
+
+        """
+        Redraw every level's coverage from its own sensor points.
+
+        Coverage normally redraws when a points layer is saved, which
+        is deliberate - each sensor is a full viewshed run. But a
+        reopened project, or a laydown whose DEM has just changed, has
+        nothing to trigger that, and the maintainer found the only way
+        out was to nudge a sensor until Save lit up. This is the way
+        out.
+        """
+
+        regenerated = self.sensor_coverage_manager.regenerate_all()
+
+        if regenerated:
+
+            self.iface.messageBar().pushInfo(
+                "Military Cartography Tools",
+                "Regenerated sensor coverage: %s."
+                % ", ".join(level.label for level in regenerated)
+            )
+
+        else:
+
+            self.iface.messageBar().pushWarning(
+                "Military Cartography Tools",
+                "No sensor coverage to regenerate - add a sensor points "
+                "layer with Sensor Coverage, and place at least one "
+                "sensor on it."
             )
 
 
