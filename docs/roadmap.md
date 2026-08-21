@@ -11516,20 +11516,21 @@ while two existed.
 
 ## Housekeeping after Sensor Coverage (2026-08-20)
 
-The smoke-test checklist now also lives in the repo, at
-`smoke-tests/sensor-coverage.html`, so it can be worked through with no
-connection at all. Self-contained - no CDN, no external fonts, no
-network of any kind - and deliberately NOT in package_plugin.sh's own
-INCLUDE list: `docs/` ships inside the plugin zip and a QA checklist is
-not something a user wants installed. It mirrors the published
-artifact; regenerate both together.
+An offline copy of the smoke-test checklist was added to the repo at
+`smoke-tests/sensor-coverage.html` in this pass, and REMOVED again on
+2026-08-21 once the maintainer said an offline copy was no longer
+needed. Checklists now stay outside the repo: they are rewritten after
+every round, dropping what has cleared and adding what has changed, so
+versioning them alongside the code buys nothing and leaves the history
+full of superseded QA lists.
 
-Hardening found while checking it offline: only the localStorage READS
-were guarded, not the writes. In any context that refuses storage - a
-file:// page under a strict browser policy, a data: URL, private
-browsing - `setItem` threw from inside the click handler and killed
-ticking altogether, rather than merely failing to remember it. Writes
-are now guarded too, and the page says once that ticks will not
+One fix from that work is worth keeping even though the file is gone,
+since the same checklist is still published as an artifact: only the
+localStorage READS were guarded, not the writes. In any context that
+refuses storage - a file:// page under a strict browser policy, a data:
+URL, private browsing - `setItem` threw from inside the click handler
+and killed ticking altogether, rather than merely failing to remember
+it. Writes are guarded now, and the page says once that ticks will not
 persist instead of silently losing them.
 
 Also in this pass: removed two unused test imports; corrected the

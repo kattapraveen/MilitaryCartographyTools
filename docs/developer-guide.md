@@ -120,20 +120,11 @@ shared `FakeIface`:
 Some things only a human in front of real QGIS with real terrain can
 judge — whether a label sits where it should, whether two shades are
 distinguishable at working scale, whether a wait is tolerable. Those
-live in `smoke-tests/` as self-contained HTML: open one in any browser,
-with no connection at all, and tick your way down it. Ticks are kept in
-that browser's local storage, so they survive a reload but are
-per-machine; where a browser refuses storage the page still works and
-says so rather than dropping ticks silently.
-
-They are deliberately **not** in `package_plugin.sh`'s `INCLUDE` list —
-`docs/` ships inside the plugin zip, and a QA checklist is not something
-a user wants installed. They live in the repo so they stay versioned
-alongside the code they test.
-
-- `smoke-tests/sensor-coverage.html` — Sensor Coverage. 14 sections,
-  sequential: each leaves the project set up for the next, and says when
-  to clear something before moving on.
+checklists are kept outside the repo and shared with the maintainer
+directly, rather than versioned here: they churn far faster than the
+code, being rewritten after every round to drop what has been cleared
+and add what has changed, and a checklist that has served its round is
+of no use to anyone reading the history.
 
 ## PyQGIS / QGIS 4.x gotchas
 
