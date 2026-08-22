@@ -11697,7 +11697,7 @@ been reworded.
 
 ---
 
-## 1.3.0 — uploaded to plugins.qgis.org, security checks cleared (2026-08-21)
+## 1.3.0 — moderator approved, live on plugins.qgis.org (2026-08-22)
 
 Sensor Coverage (V-1/V-2), the last planned feature, plus everything
 the smoke test turned up. Version decided by the maintainer on the
@@ -11731,7 +11731,10 @@ correctly absent. Tagged `v1.3.0`. **Uploaded by the maintainer
 2026-08-21, and the repository's own security checks cleared** - which
 is the outcome the local Bandit/detect-secrets runs were adopted for
 after 1.0.1 shipped a scanner fix that had never been through a
-scanner and used the upload round-trip as its test.
+scanner and used the upload round-trip as its test. **Moderator
+approved and live 2026-08-22**, confirmed by the maintainer. This is
+the release that carries the last planned feature, so it is also the
+one the plugin is expected to sit on until user feedback moves it.
 
 A documentation finding worth keeping: sensor points layers are memory
 layers, and memory layer CONTENTS do not survive a project save. The
