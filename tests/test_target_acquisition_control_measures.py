@@ -112,7 +112,7 @@ class TestCreateTargetAcquisitionControlMeasuresAreasLayer(QgisTestCase):
         self.assertEqual(
             field_names,
             [
-                "measure_type", "affiliation", "status",
+                "affiliation", "measure_type", "status",
                 "unique_designation", "area_km2", "perimeter_km",
             ]
         )

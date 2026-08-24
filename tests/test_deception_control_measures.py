@@ -81,7 +81,7 @@ class TestCreateDeceptionControlMeasuresLinesLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["measure_type", "affiliation", "length_km"]
+            ["affiliation", "measure_type", "length_km"]
         )
 
 

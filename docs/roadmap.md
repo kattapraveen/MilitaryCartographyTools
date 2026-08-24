@@ -11753,6 +11753,86 @@ unscheduled and will appear here if and when it exists, not before.
 
 ---
 
+## Attribute-form field order made consistent, plugin-wide (2026-08-24)
+
+Raised by the maintainer as a housekeeping/UI check: every dialog that
+pops up when placing a symbol, line or area had a slightly different
+sequencing of the standard fields, and the request was uniformity -
+entity, then echelon where applicable, then affiliation, then the
+rest.
+
+**Checked the actual mechanism first**: none of these layers define a
+custom attribute form, so the popup a user sees when digitizing a
+feature just follows `addAttributes()`'s own field order - confirmed
+by grepping for any `editFormConfig`/`QgsAttributeEditorContainer`
+usage across `military_symbology/` and finding none. Field-definition
+order genuinely is dialog order here, so this was a real UI
+consistency question, not a cosmetic one.
+
+**Found three internally-consistent but mutually different
+conventions**, not "slightly different" - a real three-way split:
+
+- **Line/area control measures** (~24 layers, 15 files): `measure_type
+  (entity) → affiliation → status → [echelon] → unique_designation →
+  ...`. Entity led, but the two layers that carry echelon
+  (`c2_measures.py`, `defensive_control_measures.py`) buried it 4th,
+  after status.
+- **Control-measure point icons** (7 files, inline field lists):
+  `affiliation → entity → status → [colour/group] →
+  unique_designation → ...`. No echelon field anywhere in this group.
+- **Unit/equipment/installation symbols**, the shared builder in
+  `_point_symbol_layer.py` feeding 8 domain modules (land, air,
+  sea_surface, subsurface, space, cyberspace, sigint, activities):
+  `affiliation → [dimension] → entity → [echelon] → status → ...`.
+  This one has a documented reason for affiliation leading - its own
+  docstring: the "Dimension" field sits "right after Affiliation,
+  before Entity, matching the standard's own symbol-building order of
+  choosing dimension/standard-identity before the icon", since
+  Standard Identity and Symbol Set are genuinely encoded before the
+  Entity code in a real SIDC.
+
+**First direction from the maintainer was to make everything
+entity-first**, overriding that documented SIDC-mirroring rationale
+too. Before doing that, this rationale was surfaced explicitly rather
+than silently overridden - the maintainer then chose the opposite
+resolution instead: **keep the shared builder's affiliation-first
+order as the reference, and bring the other two groups in line with
+it**, for consistency across the board rather than entity-first
+everywhere.
+
+**What actually needed to change, once compared field-by-field against
+that reference order**: only the line/area group. The point-icon group
+was already an exact match (affiliation, entity, status, then the same
+optional-field slots the reference uses - `group` sits in the
+reference's `dimension` slot, `colour` sits in its `headquarters`
+slot). The shared builder itself needed no change at all, being the
+reference. So the fix was narrower than "three groups, one pass" - 28
+`addAttributes()` blocks across 17 files in the line/area group,
+mechanically: swap the first two fields so affiliation leads, and
+where echelon exists, move it to immediately after entity (3rd
+position) instead of after status.
+
+**Verified no hidden risk before touching anything**: grepped the
+whole tree for positional field access (`fields()[N]`,
+`attributes()[N]`, `feature[N]`, `setAttribute(N, ...)` with a literal
+index) - none exists, every caller looks fields up by name via
+`fields().indexOf(...)`, so reordering could not silently break
+default values, editor widget setup, or expressions. Applied via a
+small script matching each block by its literal field-name sequence
+rather than by line number, specifically to avoid drift from the
+unused-import cleanup earlier the same day.
+
+**One real catch from running the suite**: 20 tests across 13 files
+pin the exact field order via `field_names = [field.name() for field
+in layer.fields()]` / `assertEqual(field_names, [...])` - these are
+legitimate behaviour pins, not incidental, so they were updated to the
+new order rather than loosened. 1549/1549 on both QGIS 3.44.12 and
+4.2.1 after the update. 30 files changed in total (17 source + 13
+tests), 52 insertions/82 deletions - a small, mechanical diff for a
+plugin-wide consistency fix.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

@@ -854,10 +854,7 @@ class TestSustainmentAreasLayer(QgisTestCase):
 
         self.assertEqual(
             [field.name() for field in layer.fields()],
-            [
-                "measure_type", "affiliation", "status",
-                "unique_designation", "area_km2",
-            ]
+            ["affiliation", "measure_type", "status", "unique_designation", "area_km2"]
         )
 
 

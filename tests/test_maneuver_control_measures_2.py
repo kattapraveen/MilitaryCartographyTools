@@ -97,7 +97,7 @@ class TestCreateManeuverControlMeasures2LinesLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["measure_type", "affiliation", "status", "length_km"]
+            ["affiliation", "measure_type", "status", "length_km"]
         )
 
 
@@ -917,7 +917,7 @@ class TestCreateManeuverControlMeasures2AreasLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["measure_type", "affiliation", "status", "area_km2", "perimeter_km"]
+            ["affiliation", "measure_type", "status", "area_km2", "perimeter_km"]
         )
 
 

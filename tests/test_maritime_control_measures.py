@@ -148,13 +148,7 @@ class TestCreateMaritimeControlMeasuresLinesLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            [
-                "measure_type",
-                "affiliation",
-                "status",
-                "unique_designation",
-                "length_km",
-            ]
+            ["affiliation", "measure_type", "status", "unique_designation", "length_km"]
         )
 
 

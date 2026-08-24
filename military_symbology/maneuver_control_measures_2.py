@@ -999,8 +999,8 @@ def create_maneuver_control_measures_2_lines_layer(name=LINES_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),
         ]
@@ -1074,8 +1074,8 @@ def create_maneuver_control_measures_2_areas_layer(name=AREAS_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("area_km2", QMetaType.Type.Double),
             QgsField("perimeter_km", QMetaType.Type.Double),

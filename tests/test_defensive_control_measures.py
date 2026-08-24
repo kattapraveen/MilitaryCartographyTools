@@ -173,7 +173,7 @@ class TestCreateDefensiveControlMeasuresAreasLayer(QgisTestCase):
         self.assertEqual(
             field_names,
             [
-                "measure_type", "affiliation", "status", "echelon",
+                "affiliation", "measure_type", "echelon", "status",
                 "prepared", "unique_designation", "area_km2",
                 "perimeter_km",
             ]

@@ -118,7 +118,7 @@ class TestCreateC2MeasuresLinesLayer(QgisTestCase):
         self.assertEqual(
             field_names,
             [
-                "measure_type", "affiliation", "status", "echelon",
+                "affiliation", "measure_type", "echelon", "status",
                 "unique_designation", "far_designation", "length_km",
             ]
         )
@@ -721,7 +721,7 @@ class TestCreateC2MeasuresAreasLayer(QgisTestCase):
         self.assertEqual(
             field_names,
             [
-                "measure_type", "affiliation", "status",
+                "affiliation", "measure_type", "status",
                 "unique_designation", "area_km2", "perimeter_km",
             ]
         )

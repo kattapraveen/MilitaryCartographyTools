@@ -229,8 +229,8 @@ def create_intelligence_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),

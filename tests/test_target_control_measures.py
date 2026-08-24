@@ -136,10 +136,7 @@ class TestCreateTargetControlMeasuresLinesLayer(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            [
-                "measure_type", "affiliation", "status",
-                "unique_designation", "length_km",
-            ]
+            ["affiliation", "measure_type", "status", "unique_designation", "length_km"]
         )
 
 
@@ -438,7 +435,7 @@ class TestCreateTargetControlMeasuresAreasLayer(QgisTestCase):
         self.assertEqual(
             field_names,
             [
-                "measure_type", "affiliation", "status",
+                "affiliation", "measure_type", "status",
                 "unique_designation", "area_km2", "perimeter_km",
             ]
         )

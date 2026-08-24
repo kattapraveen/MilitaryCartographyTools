@@ -153,8 +153,8 @@ def create_deception_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),
         ]
     )

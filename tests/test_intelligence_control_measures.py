@@ -124,13 +124,7 @@ class TestIntelligenceLinesLayer(QgisTestCase):
 
         self.assertEqual(
             [field.name() for field in layer.fields()],
-            [
-                "measure_type",
-                "affiliation",
-                "status",
-                "unique_designation",
-                "length_km",
-            ]
+            ["affiliation", "measure_type", "status", "unique_designation", "length_km"]
         )
 
 

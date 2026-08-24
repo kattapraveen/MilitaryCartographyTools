@@ -752,10 +752,10 @@ def create_c2_measures_lines_layer(name=LINES_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
-            QgsField("status", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("echelon", QMetaType.Type.QString),
+            QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("far_designation", QMetaType.Type.QString),
             QgsField("length_km", QMetaType.Type.Double),
@@ -834,8 +834,8 @@ def create_c2_measures_areas_layer(name=AREAS_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("area_km2", QMetaType.Type.Double),

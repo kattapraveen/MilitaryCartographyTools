@@ -558,8 +558,8 @@ def create_target_acquisition_control_measures_areas_layer(name=AREAS_LAYER_NAME
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("area_km2", QMetaType.Type.Double),

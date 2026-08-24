@@ -399,8 +399,8 @@ def create_sustainment_areas_layer(name=AREAS_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
             QgsField("area_km2", QMetaType.Type.Double),
@@ -1013,8 +1013,8 @@ def create_supply_routes_lines_layer(name=LINES_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
             # Fields V, H and the W/W1 pair - the convoys' own

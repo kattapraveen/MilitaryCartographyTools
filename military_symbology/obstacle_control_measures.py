@@ -1747,8 +1747,8 @@ def create_obstacle_control_measures_areas_layer(name=AREAS_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("colour", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
@@ -2390,8 +2390,8 @@ def create_obstacle_control_measures_minefields_layer(
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("colour", QMetaType.Type.QString),
             QgsField("mine_type", QMetaType.Type.QString),
@@ -4475,8 +4475,8 @@ def create_obstacle_control_measures_lines_layer(name=LINES_LAYER_NAME):
 
     layer.dataProvider().addAttributes(
         [
-            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("affiliation", QMetaType.Type.QString),
+            QgsField("measure_type", QMetaType.Type.QString),
             QgsField("status", QMetaType.Type.QString),
             QgsField("colour", QMetaType.Type.QString),
             QgsField("unique_designation", QMetaType.Type.QString),
