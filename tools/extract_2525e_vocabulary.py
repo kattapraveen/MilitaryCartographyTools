@@ -138,15 +138,42 @@ def read_table(path):
     code_at = header.index("Code")
     out = []
 
+    # The source tables print a hierarchy level's own name only once,
+    # leaving every row beneath it blank in that column - an ordinary
+    # merged-cell spreadsheet export, not an absent value. Forward-fill
+    # each column from the last row that populated it, clearing every
+    # DEEPER column when a shallower one changes, so a leaf like "Light"
+    # under Recoilless Gun carries its own parent rather than reading as
+    # the exact same bare "Light" as every other weapon's own Light
+    # variant. Found 2026-08-24: taken at face value, ~105 entities
+    # across 7 symbol sets collided down to a bare, unqualified name
+    # shared with unrelated siblings ("Light" answered for 18 different
+    # Land Equipment weapons alone), which unique_keys()/label_for() then
+    # had no real context left to tell apart. Modifier tables (First
+    # Modifier/Category) are unaffected in practice - they print both
+    # columns on every row, so there is nothing to fill.
+    last = [""] * code_at
+
     for row in rows[1:]:
 
         if len(row) <= code_at or not row[code_at].strip():
             continue
 
-        parts = [cell.strip() for cell in row[:code_at] if cell.strip()]
+        cells = [cell.strip() for cell in row[:code_at]]
 
-        if not parts or any(PLACEHOLDER.search(cell) for cell in parts):
+        if not any(cells) or any(PLACEHOLDER.search(cell) for cell in cells):
             continue
+
+        for i, cell in enumerate(cells):
+
+            if cell:
+                last[i] = cell
+                for j in range(i + 1, code_at):
+                    last[j] = ""
+            else:
+                cells[i] = last[i]
+
+        parts = [cell for cell in cells if cell]
 
         remarks = row[code_at + 1].strip() if len(row) > code_at + 1 else ""
 
@@ -199,14 +226,21 @@ def unique_keys(entries, specific_first=False):
     return keys
 
 
-def label_for(parts, specific_first, hierarchical=False):
+def label_for(parts, specific_first, hierarchical=False, ambiguous=False):
 
     """
     The text a user reads in a dropdown. Entity tables run general to
     specific, so the last column is the name and any earlier ones are its
     group; modifier tables run the other way. Either way the NAME is what
-    is shown, with its group appended in parentheses only when the name
-    alone would be ambiguous out of context ("Light", "Other").
+    is shown, with its immediate parent appended in parentheses only when
+    the name alone would be ambiguous out of context ("Light", "Other") -
+    `ambiguous` says whether THIS name is shared with another entry in
+    the same table (see emit_labels()), rather than guessing from length.
+    A length check (`len(name) > 3`) stood in for this originally, which
+    is why "Light"/"Medium"/"Heavy" - this docstring's own examples of
+    what should be disambiguated - never actually were: fixed 2026-08-24
+    alongside read_table()'s forward-fill, which is what first gives this
+    function real parent context to append.
     """
 
     name = parts[0] if specific_first else parts[-1]
@@ -223,10 +257,18 @@ def label_for(parts, specific_first, hierarchical=False):
     if hierarchical:
         return "%s (Generic)" % name
 
-    if len(name) > 3 or not rest:
+    if not ambiguous or not rest:
         return name
 
-    return "%s (%s)" % (name, rest[0])
+    # The IMMEDIATE parent, not the topmost ancestor - modifier tables
+    # (specific_first) list it first (name, parent, ...); entity tables
+    # list it last (..., parent, name), so rest's own last element is the
+    # parent adjacent to the name, not rest[0]'s often much more generic
+    # top-level ancestor ("Weapon/Weapon System" would swamp every
+    # widened label otherwise).
+    parent = rest[0] if specific_first else rest[-1]
+
+    return "%s (%s)" % (name, parent)
 
 
 def emit_labels(title, tables, specific_first=False):
@@ -244,12 +286,26 @@ def emit_labels(title, tables, specific_first=False):
 
         keys = unique_keys(entries, specific_first)
 
+        # A name is ambiguous exactly when more than one entry in THIS
+        # table shares it - the same collision unique_keys() widens a
+        # key for, checked here directly rather than inferred from
+        # whether the key ended up widened (a key can widen for reasons
+        # unrelated to this specific name, e.g. two-deep collisions).
+        name_counts = {}
+
+        for parts, code, remarks in entries:
+
+            name = parts[0] if specific_first else parts[-1]
+            name_counts[name] = name_counts.get(name, 0) + 1
+
         for parts, code, remarks in entries:
 
             key = keys[code]
             hierarchical = "hierarchical" in remarks.lower()
+            name = parts[0] if specific_first else parts[-1]
+            ambiguous = name_counts[name] > 1
             text = label_for(
-                parts, specific_first, hierarchical
+                parts, specific_first, hierarchical, ambiguous
             ).replace('"', "'")
             suppress = (
                 "  # nosec B105 # pragma: allowlist secret"
