@@ -11858,6 +11858,81 @@ reused for a future UI smoke test.
 
 ---
 
+## APP-6E entity vocabulary: ~105 entities were losing their parent name (2026-08-24)
+
+Raised by the maintainer: APP-6D's Land Equipment offers Recoilless Gun
+in plain/Light/Medium/Heavy variants; APP-6E only seemed to offer plain
+Recoilless Gun, "same with many others". Asked to check.
+
+**The standard has all four codes** - checked the actual source table
+(`reference/milstandard-e/tsv-tables/Land equipment.tsv`) directly:
+Recoilless Gun 110800, Light 110801, Medium 110802, Heavy 110803, all
+present. They ARE in the generated `sidc_2525e.py` too. What was
+missing was any indication of WHICH weapon they belonged to: the three
+sub-codes were keyed `"light_110801"`/`"medium_110802"`/
+`"heavy_110803"` and labelled just `"Light"`/`"Medium"`/`"Heavy"` -
+indistinguishable from Direct Fire Gun's own Light/Medium/Heavy, or
+Howitzer's, or fifteen other weapons', all sharing the exact same three
+bare labels in the same dropdown.
+
+**Root cause, in `tools/extract_2525e_vocabulary.py`'s `read_table()`**:
+the source TSVs print a parent name once and leave every row beneath it
+blank - an ordinary merged-cell spreadsheet export ("", "Recoilless
+Gun", "", "110800" then "", "", "Light", "110801"). `read_table()`
+stripped blank cells when building each row's `parts`, which silently
+discarded the parent context before `unique_keys()`/`label_for()` ever
+saw it - both functions only had `["Light"]` to work with, never
+`["Recoilless Gun", "Light"]`.
+
+**Scope, checked by replaying the exact key-generation logic against
+every source table the plugin actually uses**: 105 entities across 7
+of the plugin's domains, not just weapons - Land equipment (52, worst
+hit), Land unit (22 - Motorized, Reconnaissance, Radio, Missile,
+Analysis, Jamming, Search, ...), Space (13 - Satellite family,
+Capsule, Orbiter Shuttle, ...), Air (7 - Fixed Wing, Rotary Wing,
+Medical Evacuation, ...), Sea surface (7), Land installation (2),
+Sea subsurface (2).
+
+**Fix**: `read_table()` now forward-fills each blank leading column
+from the last row that populated it, clearing every DEEPER column when
+a shallower one changes - so "Light" under Recoilless Gun correctly
+carries `["Weapon/Weapon System", "Recoilless Gun", "Light"]`, not
+`["Light"]` alone. `label_for()`'s disambiguation was ALSO fixed
+alongside this, not left to the forward-fill alone: it previously
+appended "(parent)" only when `len(name) <= 3`, a heuristic for short
+abbreviations that this function's own docstring already named "Light"
+as an example of what SHOULD be disambiguated, yet never was, since
+"Light" is 5 characters. Replaced with genuine ambiguity - `emit_labels()`
+now counts how many entries in the SAME table share a bare name and
+passes that down - and fixed which ancestor gets appended: the
+IMMEDIATE parent (`rest[-1]` for entity tables, general-to-specific
+order), not `rest[0]` (the topmost, often generic, ancestor - would
+have made every widened label read "(Weapon/Weapon System)"). Result:
+`"recoilless_gun_light": "110801"` labelled `"Light (Recoilless Gun)"`,
+`"civilian_fixed_wing"` labelled `"Fixed Wing (Civilian)"` next to
+`"fixed_wing"` labelled `"Fixed Wing (Military)"`, `"signal_radio"`
+labelled `"Radio (Signal)"` next to plain `"radio"` labelled
+`"Radio (Command and Control)"`.
+
+**Verified before touching the shipped file**: regenerated into a
+scratch copy first and compared against the committed one - entity
+count unchanged at 978 (same rows, better keys/labels, nothing added
+or dropped), no duplicate dict keys (would silently drop an entry), and
+duplicate LABEL text within one table's dropdown collapsed from ~50
+groups (every Light/Medium/Heavy family, every Fixed Wing/Rotary
+Wing/Medical Evacuation Military-vs-Civilian pair, ...) down to
+exactly one remaining pair - `land_equipment`'s two "Vehicle (Generic)"
+entries, a DIFFERENT, smaller, pre-existing mechanism (the
+"Reserved for hierarchical purposes" → "(Generic)" convention, not
+this forward-fill), noted here rather than fixed since it wasn't what
+was asked and is out of scope for this pass. Grepped the whole tree
+first for any hardcoded reference to the old ambiguous-style keys
+(`"light_110801"` etc.) - none exist outside the generated file itself,
+so nothing else needed updating. 1549/1549 on both QGIS 3.44.12 and
+4.2.1 after regenerating the shipped `sidc_2525e.py`.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
