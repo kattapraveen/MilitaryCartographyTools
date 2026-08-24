@@ -89,8 +89,6 @@ from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QColor
 
 from ._control_measure_shared import (
-    AFFILIATION_LABELS,
-    STATUS_LABELS,
     _STATUS_LINE_STYLE_EXPRESSION,
     _apply_affiliation_color,
     _build_pal_layer_settings,

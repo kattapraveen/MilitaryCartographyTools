@@ -36,7 +36,7 @@ from ._control_measure_shared import (
     POINT_AFFILIATION_LABELS,
 )
 from .edition import current_edition
-from .sidc import SYMBOL_SETS, build_sidc, entities_for_edition
+from .sidc import build_sidc, entities_for_edition
 
 # Every SYMBOL_SETS key gets an explicit label here, checked by
 # tests/test_layout_symbol_dialog.py against SYMBOL_SETS itself - so a

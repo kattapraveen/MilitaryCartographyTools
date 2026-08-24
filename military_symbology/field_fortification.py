@@ -80,7 +80,6 @@ from qgis.core import Qgis
 from qgis.PyQt.QtCore import QMetaType
 
 from ._control_measure_shared import (
-    _AFFILIATION_COLOR_EXPRESSION,
     _STATUS_LINE_STYLE_EXPRESSION,
     _apply_affiliation_color,
     _build_rule_based_renderer,
