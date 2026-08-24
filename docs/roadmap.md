@@ -11831,6 +11831,31 @@ new order rather than loosened. 1549/1549 on both QGIS 3.44.12 and
 tests), 52 insertions/82 deletions - a small, mechanical diff for a
 plugin-wide consistency fix.
 
+**Smoke-tested against the real popup, not just field-order
+assertions**, on the maintainer's own request: a standalone headless
+script built one representative layer from each group - C2 Measures
+Lines (Group A, the group that actually changed, chosen for carrying
+echelon), Airspace Control Measures Points (Group B, chosen as
+already-matching), and Land Unit (Group C, the reference, chosen for
+carrying echelon/headquarters/both sector modifiers together) - added
+one feature to each, and constructed the real `QgsAttributeForm` in
+`AddFeatureMode`, the exact widget QGIS shows when digitizing a
+feature, then grabbed each as a PNG. All three render fully populated
+with real dropdowns and sensible defaults, confirming the field order
+live rather than by field-name list alone: affiliation leads, then
+entity, then echelon where the layer carries one, then status, then
+the rest, consistently across all three.
+
+One real gap surfaced along the way, unrelated to the plugin itself:
+building a `QgsAttributeForm` in a bare headless script (outside
+`run_tests.sh`'s own test harness, which never needed this) fails
+every field widget with "Failed to create widget with type 'ValueMap'"
+etc. until `QgsGui.editorWidgetRegistry().initEditors()` is called
+explicitly - `QgsApplication.initQgis()` alone does not register
+QGIS's core editor widget factories in a standalone script the way a
+normal QGIS Desktop launch does. Worth knowing if this technique is
+reused for a future UI smoke test.
+
 ---
 
 ## Suggested near-term order
