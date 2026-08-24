@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Non-NATO Symbology rules tracker - working document for the
+  maintainer to lay out rules category by category and domain by
+  domain, and check off as each is specified.
+
+  Self-contained: no network, no external fonts, no CDN. Open it in
+  any browser with no connection at all. Tick state is kept in that
+  browser's localStorage, so it survives a reload but is per-browser
+  and per-machine; where a browser refuses storage the page still
+  works and says so, rather than silently dropping ticks.
+
+  Same design/mechanics as the Sensor Coverage smoke-test tracker this
+  project used during 1.3.0 (see docs/roadmap.md and git history for
+  smoke-tests/sensor-coverage.html, since removed once that round
+  closed) - reused here because the maintainer asked for "a tracker
+  like the smoke test trackers of the main branch".
+
+  Lives on the non-nato-symbology branch. See
+  docs/non-nato-symbology-tracker.md for the same content as a plain
+  durable record - this HTML is for actively checking things off,
+  the markdown is the backup if the browser state is ever lost.
+-->
+<style>
+  /* Minimal reset, matching what the artifact host supplies. */
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  img, svg { max-width: 100%; }
+</style>
+<title>Non-NATO Symbology Rules Tracker</title>
+<style>
+  :root {
+    --paper: #eeece3; --surface: #fbfaf4; --surface-2: #f3f1e7;
+    --ink: #20241d; --ink-soft: #5c6153; --ink-faint: #8b8f7f;
+    --line: #cdc8b6; --line-soft: #ddd9c9;
+    --accent: #93641c; --accent-ink: #ffffff;
+    --done: #3f7d4c; --done-bg: #e3ede4;
+    --warn: #a83e2a; --warn-bg: #f3e0da;
+    --pending-bg: #e7e4d5;
+    --shadow: 0 1px 2px rgba(32,36,29,.06), 0 1px 1px rgba(32,36,29,.04);
+    --radius: 3px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d2846; --surface: #123457; --surface-2: #0f2e4e;
+      --ink: #e2ecf4; --ink-soft: #a3bbcf; --ink-faint: #6f8aa3;
+      --line: #2a5480; --line-soft: #1d436b;
+      --accent: #f0b93e; --accent-ink: #17293f;
+      --done: #7ed49a; --done-bg: #143a2c;
+      --warn: #ff9273; --warn-bg: #45231c;
+      --pending-bg: #173a5c;
+      --shadow: 0 1px 3px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0d2846; --surface: #123457; --surface-2: #0f2e4e;
+    --ink: #e2ecf4; --ink-soft: #a3bbcf; --ink-faint: #6f8aa3;
+    --line: #2a5480; --line-soft: #1d436b;
+    --accent: #f0b93e; --accent-ink: #17293f;
+    --done: #7ed49a; --done-bg: #143a2c;
+    --warn: #ff9273; --warn-bg: #45231c;
+    --pending-bg: #173a5c;
+    --shadow: 0 1px 3px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+
+  body {
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14.5px; line-height: 1.5;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 28px 28px; background-attachment: local;
+  }
+
+  .wrap { max-width: 840px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  .eyebrow {
+    font-family: "Arial Narrow", "Roboto Condensed", sans-serif;
+    font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    font-size: 11.5px; color: var(--accent);
+  }
+
+  h1 {
+    font-family: "Arial Narrow", "Roboto Condensed", sans-serif;
+    font-weight: 700; text-transform: uppercase; font-size: 25px;
+    margin: 4px 0 6px; text-wrap: balance;
+  }
+
+  .subhead { color: var(--ink-soft); max-width: 68ch; font-size: 13.5px; }
+  .subhead strong { color: var(--ink); }
+
+  .summary-bar {
+    position: sticky; top: 0; z-index: 5; margin: 18px 0 22px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px;
+  }
+  .summary-top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+  }
+  .summary-count {
+    font-family: "Arial Narrow", "Roboto Condensed", sans-serif;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    font-size: 12.5px; color: var(--ink-soft);
+  }
+  .summary-count b {
+    font-family: ui-monospace, "SF Mono", monospace; color: var(--ink);
+    font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .bar-track {
+    height: 8px; border-radius: 5px; background: var(--pending-bg);
+    border: 1px solid var(--line); overflow: hidden; margin-top: 9px;
+  }
+  .bar-seg { height: 100%; background: var(--done); }
+  .no-storage {
+    margin-top: 10px; padding: 8px 10px; border-radius: var(--radius);
+    background: var(--warn-bg); color: var(--warn); font-size: 12.5px;
+    border: 1px solid var(--warn);
+  }
+  .filters { display: flex; gap: 6px; margin-top: 11px; flex-wrap: wrap; }
+  .chip {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 11.5px;
+    padding: 4px 9px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--surface-2); color: var(--ink-soft); cursor: pointer;
+    user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--ink); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .chip.reset { margin-left: auto; color: var(--warn); border-color: transparent; background: transparent; }
+  .chip:focus-visible, .item:focus-visible, .card-head:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  .section-card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 11px; padding: 11px 13px;
+    cursor: pointer; background: var(--surface); width: 100%;
+    border: 0; text-align: left; color: inherit; font: inherit;
+  }
+  .card-head:hover { background: var(--surface-2); }
+  .sec-num {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 11.5px;
+    font-weight: 600; color: var(--accent-ink); background: var(--accent);
+    padding: 3px 7px; border-radius: 3px; white-space: nowrap;
+  }
+  .card-titles { flex: 1; min-width: 0; }
+  .card-title { font-weight: 600; font-size: 14.5px; text-wrap: balance; }
+  .card-sub { font-size: 12px; color: var(--ink-faint); margin-top: 1px; }
+  .mini-track {
+    width: 54px; height: 6px; border-radius: 4px; background: var(--pending-bg);
+    border: 1px solid var(--line); overflow: hidden; flex-shrink: 0;
+  }
+  .mini-seg { height: 100%; background: var(--done); }
+  .count-label {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 11.5px;
+    color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .card-body { border-top: 1px solid var(--line-soft); padding: 4px 0 10px; }
+
+  .sec-note {
+    font-size: 12.5px; color: var(--ink-soft); padding: 10px 14px;
+    border-bottom: 1px solid var(--line-soft); background: var(--surface-2);
+  }
+  .sec-note strong { color: var(--ink); }
+  .sec-note code {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 11.5px;
+    background: var(--pending-bg); padding: 1px 4px; border-radius: 3px;
+  }
+
+  .group-label {
+    font-family: "Arial Narrow", "Roboto Condensed", sans-serif;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    font-size: 11px; color: var(--ink-faint);
+    padding: 12px 14px 5px;
+  }
+
+  .item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 14px; border-top: 1px solid var(--line-soft);
+    cursor: pointer; user-select: none;
+  }
+  .item:first-of-type { border-top: 0; }
+  .item:hover { background: var(--surface-2); }
+
+  .box {
+    width: 17px; height: 17px; border-radius: 3px; border: 1.5px solid var(--line);
+    background: var(--surface); flex-shrink: 0; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .item.checked .box { background: var(--done); border-color: var(--done); }
+  .box svg { width: 11px; height: 11px; opacity: 0; }
+  .item.checked .box svg { opacity: 1; }
+
+  .item-main { flex: 1; min-width: 0; }
+  .item-text { font-size: 13.5px; }
+  .item.checked .item-text { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: var(--line); }
+  .item-note { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+
+  .expect-tag {
+    display: inline-block; font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 10px; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px;
+    background: var(--warn-bg); color: var(--warn); margin-left: 6px;
+    vertical-align: 1px; white-space: nowrap;
+  }
+  .expect-tag.settled { background: var(--done-bg); color: var(--done); }
+
+  footer.page-foot {
+    margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  @media (max-width: 560px) {
+    .item { flex-wrap: wrap; }
+  }
+</style>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Military Cartography Tools &mdash; non-nato-symbology branch</div>
+    <h1>Non-NATO Symbology Rules Tracker</h1>
+    <p class="subhead">
+      <strong>Working document, not a smoke test.</strong> The maintainer
+      lays out non-NATO symbology rules category by category and domain
+      by domain; each item here is one rule to specify, checked off once
+      it has been stated. Items tagged
+      <span class="expect-tag settled">SETTLED</span> already have a rule
+      recorded (see the note under each) &mdash; everything else is open.
+      State is saved in this browser. See
+      <code>docs/non-nato-symbology-tracker.md</code> for the same
+      content as plain text.
+    </p>
+  </header>
+
+  <div class="summary-bar">
+    <div class="summary-top">
+      <div class="summary-count" id="summary"></div>
+      <div class="count-label" id="remaining"></div>
+    </div>
+    <div class="bar-track"><div class="bar-seg" id="bar"></div></div>
+    <div class="no-storage" id="no-storage" hidden>
+      This browser will not let the page save anything, so your ticks
+      will be lost when you close it. Opening the file from a normal
+      window (rather than a preview or private session) usually fixes it.
+    </div>
+    <div class="filters">
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="todo">Unspecified</button>
+      <button class="chip" data-filter="done">Specified</button>
+      <button class="chip reset" id="reset">Reset all</button>
+    </div>
+  </div>
+
+  <div id="sections"></div>
+
+  <footer class="page-foot">
+    Design/rules record: <code>docs/non-nato-symbology-tracker.md</code>.
+    Once a section here is settled, its rule should be written there in
+    full (this page is for tracking progress, not for holding the only
+    copy of a decision). This branch is kept separate from
+    <code>main</code> on purpose &mdash; see <code>docs/roadmap.md</code>'s
+    note on why &mdash; so nothing here ships until this work is ready
+    to integrate.
+  </footer>
+</div>
+
+<script>
+  var SECTIONS = [
+    {
+      "id": "general",
+      "title": "A · General symbol-category rules",
+      "sub": "Apply across every domain in section B unless a domain is called out as an exception",
+      "note": "Each item is one symbol CATEGORY (unit, equipment, ...), not one domain. A settled item's note is the rule as given, close to verbatim.",
+      "groups": [
+        {
+          "label": "Specified",
+          "items": [
+            {
+              "text": "Units",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "One frame shape only (rectangle), for every affiliation — no diamond/circle/square/quatrefoil shape-switching like NATO. Affiliation is coded by the rectangle's OUTLINE colour, not by shape. No fill — interior stays empty, unlike NATO's solid affiliation-colour fill."
+            },
+            {
+              "text": "Equipment",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "No frame at all — no filled-circle container like NATO. Just the bare icon glyph, drawn directly, no fill. Affiliation is coded by the colour of the glyph's own outline/stroke lines, same mechanism as Units."
+            }
+          ]
+        },
+        {
+          "label": "Open",
+          "items": [
+            { "text": "Installations" },
+            { "text": "Civilians" },
+            { "text": "Any other general category not covered above" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "domains",
+      "title": "B · Per-domain confirmation",
+      "sub": "Whether section A's rules apply as-is, or a domain needs its own exception",
+      "note": "Land already covers Unit/Civilian/Equipment/Installation as its own four sub-categories in section A — this section is about whether OTHER domains (Air, Sea, Space, ...) follow the same rules or diverge.",
+      "groups": [
+        {
+          "label": "Domains",
+          "items": [
+            { "text": "Land" },
+            { "text": "Air" },
+            { "text": "Sea Surface" },
+            { "text": "Subsurface" },
+            { "text": "Space" },
+            { "text": "Cyberspace" },
+            { "text": "SIGINT" },
+            { "text": "Activities" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "control-measures",
+      "title": "C · Control measures (Appendix H tactical graphics)",
+      "sub": "Lines/areas/points — not physical units or equipment, likely needs its own rules",
+      "note": "16 modules, ~44 layers in the NATO build. These already use affiliation-by-line-colour in the NATO version — confirm whether that part carries over unchanged or needs its own non-NATO treatment.",
+      "groups": [
+        {
+          "label": "Modules",
+          "items": [
+            { "text": "Airspace Control Measures (Lines, Areas, Points)" },
+            { "text": "C2 Measures (Lines, Areas, Points)" },
+            { "text": "CBRN Defense (Points, Areas, Dose Rate Contours, Safe Distance Zones)" },
+            { "text": "Deception Control Measures (Lines)" },
+            { "text": "Defensive Control Measures (Areas, Lines, Points)" },
+            { "text": "Field Fortification (Points, Lines)" },
+            { "text": "Fire Support Coordination Measures (Lines, Areas)" },
+            { "text": "Intelligence Control Measures (Lines)" },
+            { "text": "Maneuver Control Measures + II (Lines, Areas)" },
+            { "text": "Maritime Control Measures (Lines, Points)" },
+            { "text": "Mission Task (Lines, Points)" },
+            { "text": "Obstacle Control Measures (Minefields, Lines, Points, Areas)" },
+            { "text": "Offensive Control Measures (Lines, Areas, Points)" },
+            { "text": "Supply/Sustainment (Supply Points, Supply Routes, Sustainment Areas, Sustainment Points)" },
+            { "text": "Target Acquisition Control Measures (Areas, Weapon/Sensor Range Fans)" },
+            { "text": "Target Control Measures (Lines, Areas, Points)" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mechanics",
+      "title": "D · Cross-cutting mechanics",
+      "sub": "Meta-questions likely to come up regardless of category or domain",
+      "note": "",
+      "groups": [
+        {
+          "label": "To settle",
+          "items": [
+            { "text": "Affiliation colour palette — exact colours per affiliation, and whether it matches or diverges from the NATO palette already in use" },
+            { "text": "Icon source — reuse milsymbol.js glyphs as-is, a modified subset, or a separate icon set entirely" },
+            { "text": "Echelon / amplifier conventions, if any carry over" },
+            { "text": "Line weight / stroke width conventions" },
+            { "text": "Status (present/planned/...) convention — still dashed vs solid?" },
+            { "text": "Designation / label placement conventions" },
+            { "text": "Anything else that surfaces while specifying the above" }
+          ]
+        }
+      ]
+    }
+  ];
+
+  var STORAGE_KEY = "mct_nonnato_symbology_tracker";
+  var OPEN_KEY = "mct_nonnato_symbology_tracker_open";
+
+  var state = {};
+  var open = {};
+  try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { state = {}; }
+  try { open = JSON.parse(localStorage.getItem(OPEN_KEY)) || {}; } catch (e) { open = {}; }
+
+  // Seed items marked `initial: true` as already checked, but only on
+  // a genuinely first load (no saved state at all) - otherwise a user
+  // who deliberately unchecked a settled item would have it silently
+  // re-checked on every reload.
+  var firstLoad = Object.keys(state).length === 0;
+  if (firstLoad) {
+    SECTIONS.forEach(function (section) {
+      section.groups.forEach(function (group, groupIdx) {
+        group.items.forEach(function (item, itemIdx) {
+          if (item.initial) {
+            state[itemKeyStandalone(section.id, groupIdx, itemIdx)] = true;
+          }
+        });
+      });
+    });
+  }
+
+  function itemKeyStandalone(secId, groupIdx, itemIdx) {
+    return secId + ":" + groupIdx + ":" + itemIdx;
+  }
+
+  var filter = "all";
+
+  // Writes have to be guarded, not just reads. Some contexts allow
+  // neither - a file:// page under a strict Chrome policy, a data: URL,
+  // private browsing with storage disabled - and an unguarded setItem
+  // throws SecurityError from inside the click handler, which kills the
+  // tick entirely rather than merely failing to remember it. Degrade to
+  // working-but-not-persisting, and say so once rather than silently
+  // losing an hour of ticking.
+  var storageWorks = true;
+
+  try {
+    localStorage.setItem(STORAGE_KEY + "__probe", "1");
+    localStorage.removeItem(STORAGE_KEY + "__probe");
+  } catch (e) {
+    storageWorks = false;
+  }
+
+  function save() {
+    if (!storageWorks) return;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) { storageWorks = false; }
+  }
+
+  function saveOpen() {
+    if (!storageWorks) return;
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(open)); }
+    catch (e) { storageWorks = false; }
+  }
+
+  if (!storageWorks) {
+    var warnEl = document.getElementById("no-storage");
+    if (warnEl) warnEl.hidden = false;
+  } else if (firstLoad) {
+    save();
+  }
+
+  function esc(text) {
+    return String(text).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function itemKey(secId, groupIdx, itemIdx) {
+    return secId + ":" + groupIdx + ":" + itemIdx;
+  }
+
+  var CHECK_SVG = '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function matches(key) {
+    if (filter === "all") return true;
+    var checked = !!state[key];
+    if (filter === "todo") return !checked;
+    if (filter === "done") return checked;
+    return true;
+  }
+
+  function render() {
+    var host = document.getElementById("sections");
+    var html = "";
+    var totals = { n: 0, done: 0 };
+
+    SECTIONS.forEach(function (section) {
+      var rows = "";
+      var sn = 0, sd = 0;
+
+      section.groups.forEach(function (group, groupIdx) {
+        var visible = "";
+
+        group.items.forEach(function (item, itemIdx) {
+          var key = itemKey(section.id, groupIdx, itemIdx);
+          var checked = !!state[key];
+          sn++; if (checked) sd++;
+          if (!matches(key)) return;
+
+          visible +=
+            '<div class="item' + (checked ? " checked" : "") + '" data-key="' + key + '" role="checkbox" aria-checked="' + (checked ? "true" : "false") + '" tabindex="0">'
+            + '<span class="box">' + CHECK_SVG + '</span>'
+            + '<span class="item-main">'
+            + '<span class="item-text">' + esc(item.text)
+            + (item.tag ? '<span class="expect-tag' + (item.tag === "SETTLED" ? " settled" : "") + '">' + esc(item.tag) + '</span>' : '')
+            + '</span>'
+            + (item.note ? '<div class="item-note">' + esc(item.note) + '</div>' : '')
+            + '</span>'
+            + '</div>';
+        });
+
+        if (visible) {
+          rows += '<div class="group-label">' + esc(group.label) + '</div>' + visible;
+        }
+      });
+
+      totals.n += sn; totals.done += sd;
+
+      var isOpen = open[section.id] !== false;
+      var pct = sn ? (sd / sn) * 100 : 0;
+
+      html +=
+        '<section class="section-card">'
+        + '<button class="card-head" data-sec="' + section.id + '" aria-expanded="' + (isOpen ? "true" : "false") + '">'
+        + '<span class="sec-num">' + esc(section.id.slice(0, 3).toUpperCase()) + '</span>'
+        + '<span class="card-titles">'
+        + '<span class="card-title">' + esc(section.title) + '</span>'
+        + '<span class="card-sub">' + esc(section.sub) + ' &middot; ' + sn + ' items</span>'
+        + '</span>'
+        + '<span class="mini-track"><span class="mini-seg" style="width:' + pct + '%"></span></span>'
+        + '<span class="count-label">' + sd + '/' + sn + '</span>'
+        + '</button>'
+        + (isOpen
+            ? '<div class="card-body">' + (section.note ? '<div class="sec-note">' + section.note + '</div>' : '') + rows + '</div>'
+            : "")
+        + '</section>';
+    });
+
+    host.innerHTML = html;
+
+    document.getElementById("summary").innerHTML =
+      "<b>" + totals.done + "</b> of <b>" + totals.n + "</b> specified";
+    document.getElementById("remaining").textContent =
+      (totals.n - totals.done) + " left";
+    document.getElementById("bar").style.width =
+      (totals.n ? (totals.done / totals.n) * 100 : 0) + "%";
+  }
+
+  document.addEventListener("click", function (event) {
+    var item = event.target.closest(".item");
+    if (item) {
+      var key = item.dataset.key;
+      state[key] = !state[key];
+      save();
+      render();
+      return;
+    }
+
+    var head = event.target.closest(".card-head");
+    if (head) {
+      var id = head.dataset.sec;
+      open[id] = open[id] === false;
+      saveOpen();
+      render();
+      return;
+    }
+
+    var chip = event.target.closest(".chip");
+    if (chip && chip.id === "reset") {
+      if (confirm("Clear every checked item?")) {
+        state = {};
+        save();
+        render();
+      }
+      return;
+    }
+    if (chip) {
+      filter = chip.dataset.filter;
+      document.querySelectorAll(".chip[data-filter]").forEach(function (c) {
+        c.classList.toggle("active", c === chip);
+      });
+      render();
+    }
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    var item = event.target.closest(".item");
+    if (!item) return;
+    event.preventDefault();
+    var key = item.dataset.key;
+    state[key] = !state[key];
+    save();
+    render();
+  });
+
+  render();
+</script>
+
+</html>
