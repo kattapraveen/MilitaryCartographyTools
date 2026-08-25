@@ -11948,8 +11948,23 @@ detect-secrets 1.5.13 clean, run against both the source tree and the
 extracted package; package contents checked against `INCLUDE` -
 `terrain/` present, `smoke-tests/`, `tests/`, `reference/` and
 `milsymbol-3.0.4/` all correctly absent, no `__pycache__`/`.pyc`/
-`.DS_Store` cruft. Tagged `v1.3.1`. Packaged, not yet uploaded - that
-step is the maintainer's own, by hand.
+`.DS_Store` cruft. Tagged `v1.3.1`.
+
+**First upload attempt failed to parse**: "Errors parsing
+MilitaryCartographyTools/metadata.txt ... '' [line 17]: '1.3.0\n'".
+The older `1.3.0` changelog heading had been added flush-left with a
+blank line above it; `configparser` treats a blank line as ending the
+continuation of `changelog=`'s multi-line value, so the next line -
+unindented and with no `=` - fails to parse as anything. Older version
+headings inside `changelog=` must stay indented and butt directly
+against the newer entry's last line, no blank line between them - the
+same convention already used for 1.1.0 inside 1.2.0's changelog.
+Fixed, verified by parsing `metadata.txt` directly with `configparser`
+before rebuilding, and the `v1.3.1` tag moved to the corrected commit
+since the first tag's tree was never a working package.
+
+**Uploaded by the maintainer, security checks cleared.** Awaiting
+moderator approval.
 
 ---
 
