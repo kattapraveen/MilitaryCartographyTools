@@ -11933,6 +11933,20 @@ so nothing else needed updating. 1549/1549 on both QGIS 3.44.12 and
 
 ---
 
+## 1.3.1 — patch for the APP-6E vocabulary fix (packaging)
+
+Both fixes above (attribute-form field order, and the APP-6E entity
+vocabulary bug affecting ~105 entities) landed on `main` after 1.3.0
+had already been approved and gone live on 2026-08-22, so neither one
+is in the zip a user would currently download. Patch bump rather than
+minor: no new capability, both changes are bug fixes to existing
+features.
+
+**Verification before packaging**: full suite - 1549/1549 - run clean
+immediately before the version bump, no local modifications since.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

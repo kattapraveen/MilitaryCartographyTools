@@ -6,9 +6,15 @@ description=Military cartography, MIL-STD-2525D/E and APP-6D/E tactical graphics
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.3.0
+version=1.3.1
 
-changelog=1.3.0
+changelog=1.3.1
+    - Fixed APP-6E (MIL-STD-2525E) entity dropdowns losing their
+      parent name for ~105 entities across 7 domains, e.g. Recoilless
+      Gun's Light/Medium/Heavy variants collapsing into bare "Light",
+      "Medium", "Heavy" with no indication of what they belonged to.
+
+1.3.0
     - Sensor Coverage: plot several sensors at low, medium or high
       level and see each level's combined coverage as a single merged
       perimeter. Every sensor carries its own height, detection
