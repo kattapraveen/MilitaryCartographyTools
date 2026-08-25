@@ -11942,8 +11942,14 @@ is in the zip a user would currently download. Patch bump rather than
 minor: no new capability, both changes are bug fixes to existing
 features.
 
-**Verification before packaging**: full suite - 1549/1549 - run clean
-immediately before the version bump, no local modifications since.
+**Verification**: full suite - 1549/1549 - run clean immediately before
+the version bump; Bandit 1.9.4 clean (0 findings, 44,181 LOC) and
+detect-secrets 1.5.13 clean, run against both the source tree and the
+extracted package; package contents checked against `INCLUDE` -
+`terrain/` present, `smoke-tests/`, `tests/`, `reference/` and
+`milsymbol-3.0.4/` all correctly absent, no `__pycache__`/`.pyc`/
+`.DS_Store` cruft. Tagged `v1.3.1`. Packaged, not yet uploaded - that
+step is the maintainer's own, by hand.
 
 ---
 
