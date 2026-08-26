@@ -241,6 +241,13 @@
       <code>docs/non-nato-symbology-tracker.md</code> for the same
       content as plain text.
     </p>
+    <p class="subhead">
+      <strong>Current scope (2026-08-26): Land only.</strong> Air,
+      Maritime and the other domains are deliberately deferred to a
+      later pass. Rules are being worked out against two reference
+      documents kept locally, gitignored, in
+      <code>reference/non-nato/</code>.
+    </p>
   </header>
 
   <div class="summary-bar">
@@ -297,14 +304,24 @@
               "tag": "SETTLED",
               "initial": true,
               "note": "No frame at all — no filled-circle container like NATO. Just the bare icon glyph, drawn directly, no fill. Affiliation is coded by the colour of the glyph's own outline/stroke lines, same mechanism as Units."
+            },
+            {
+              "text": "Civilians",
+              "tag": "NOT REQUIRED",
+              "initial": true,
+              "note": "Land Civilian symbols are out of scope for non-NATO symbology — no non-NATO Civilian layer will be built for Land. Other domains that also carry a Civilian layer (Air, Sea Surface, Space, Subsurface) not yet addressed; this was stated for Land specifically, not assumed to generalize."
+            },
+            {
+              "text": "Installations",
+              "tag": "NOT REQUIRED",
+              "initial": true,
+              "note": "Land Installation symbols are out of scope for non-NATO symbology — no non-NATO Installation layer will be built for Land. Subsurface also carries an Installation layer, not yet addressed; stated for Land specifically, not assumed to generalize."
             }
           ]
         },
         {
           "label": "Open",
           "items": [
-            { "text": "Installations" },
-            { "text": "Civilians" },
             { "text": "Any other general category not covered above" }
           ]
         }
@@ -317,16 +334,58 @@
       "note": "Land already covers Unit/Civilian/Equipment/Installation as its own four sub-categories in section A — this section is about whether OTHER domains (Air, Sea, Space, ...) follow the same rules or diverge.",
       "groups": [
         {
-          "label": "Domains",
+          "label": "Specified",
           "items": [
-            { "text": "Land" },
-            { "text": "Air" },
-            { "text": "Sea Surface" },
-            { "text": "Subsurface" },
-            { "text": "Space" },
-            { "text": "Cyberspace" },
-            { "text": "SIGINT" },
-            { "text": "Activities" }
+            {
+              "text": "Air",
+              "tag": "NOT REQUIRED",
+              "initial": true,
+              "note": "Including Air-Missile."
+            },
+            {
+              "text": "Sea Surface",
+              "tag": "NOT REQUIRED",
+              "initial": true
+            },
+            {
+              "text": "Subsurface",
+              "tag": "NOT REQUIRED",
+              "initial": true
+            },
+            {
+              "text": "Space",
+              "tag": "NOT REQUIRED",
+              "initial": true,
+              "note": "Including Space-Missile."
+            },
+            {
+              "text": "Cyberspace",
+              "tag": "NOT REQUIRED",
+              "initial": true
+            },
+            {
+              "text": "SIGINT",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "Air, Space, Sea Surface and Subsurface SIGINT: not required. Land SIGINT: only Jammer and Radar are required, following the same rules as Land Equipment (no frame, bare glyph, affiliation by the glyph's own outline colour)."
+            },
+            {
+              "text": "Activities",
+              "tag": "NOT REQUIRED",
+              "initial": true
+            },
+            {
+              "text": "Mine Warfare",
+              "tag": "NOT REQUIRED",
+              "initial": true,
+              "note": "Catalog section not previously in this list — added from the PDF's own structure."
+            }
+          ]
+        },
+        {
+          "label": "Open",
+          "items": [
+            { "text": "Land" }
           ]
         }
       ]
@@ -335,7 +394,7 @@
       "id": "control-measures",
       "title": "C · Control measures (Appendix H tactical graphics)",
       "sub": "Lines/areas/points — not physical units or equipment, likely needs its own rules",
-      "note": "16 modules, ~44 layers in the NATO build. These already use affiliation-by-line-colour in the NATO version — confirm whether that part carries over unchanged or needs its own non-NATO treatment.",
+      "note": "Mechanism settled: affiliation is coded the same way as NATO — line colour indicates affiliation, carrying over unchanged. Scope: not every module/icon below is required, only some are, and which ones will be decided and built incrementally as work proceeds. The list stays as the full NATO inventory for reference, not a commitment to build all of it.",
       "groups": [
         {
           "label": "Modules",
@@ -367,11 +426,26 @@
       "note": "",
       "groups": [
         {
-          "label": "To settle",
+          "label": "Specified",
           "items": [
-            { "text": "Affiliation colour palette — exact colours per affiliation, and whether it matches or diverges from the NATO palette already in use" },
-            { "text": "Icon source — reuse milsymbol.js glyphs as-is, a modified subset, or a separate icon set entirely" },
-            { "text": "Echelon / amplifier conventions, if any carry over" },
+            {
+              "text": "Affiliation colour palette",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "Blue — Friendly. Red — Hostile. Brown — Friendly Paramilitary. Purple — Non-state actors, hostile. Green — Neutral. Amber — Unknown."
+            },
+            {
+              "text": "Echelon / amplifier conventions",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "Carried over, drawn on the same rectangle frame (no fill, line colour = affiliation), but renamed and pruned from the NATO list. Unspecified — included, unchanged. Team/Crew — renamed Detachment; glyph changed from NATO's circle-with-a-crossed-line to a plain hollow circle. Squad — renamed Section. NATO's own Section — not required (name reused above, for Squad). Platoon — renamed Platoon/Troop. Company — renamed Company/Battery/Flight/Squadron. Battalion — renamed Battalion/Regiment/Squadron. NATO's own Regiment — not required (name reused above, for Battalion). Brigade, Division, Corps — retained as-is. Army — renamed Command. Army Group — retained as-is. Theater and Command — not required."
+            }
+          ]
+        },
+        {
+          "label": "Open",
+          "items": [
+            { "text": "Icon source — reuse milsymbol.js glyphs as-is, a modified subset, or a separate icon set entirely", "note": "Not yet a decision: quite a few additional symbols beyond the existing catalog will be needed; the maintainer will indicate which ones as each module is developed, rather than listing them all now." },
             { "text": "Line weight / stroke width conventions" },
             { "text": "Status (present/planned/...) convention — still dashed vs solid?" },
             { "text": "Designation / label placement conventions" },
@@ -491,7 +565,7 @@
             + '<span class="box">' + CHECK_SVG + '</span>'
             + '<span class="item-main">'
             + '<span class="item-text">' + esc(item.text)
-            + (item.tag ? '<span class="expect-tag' + (item.tag === "SETTLED" ? " settled" : "") + '">' + esc(item.tag) + '</span>' : '')
+            + (item.tag ? '<span class="expect-tag' + (item.tag === "SETTLED" || item.tag === "NOT REQUIRED" ? " settled" : "") + '">' + esc(item.tag) + '</span>' : '')
             + '</span>'
             + (item.note ? '<div class="item-note">' + esc(item.note) + '</div>' : '')
             + '</span>'

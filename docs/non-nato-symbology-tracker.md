@@ -9,6 +9,17 @@ separate branch).
 This is a rules record, not a design doc — capture what the maintainer
 says here verbatim/close to verbatim, not an interpretation of it.
 
+**Current scope (as of 2026-08-26): Land, plus a Land-scoped slice of
+SIGINT (Jammer/Radar only) and a yet-to-be-picked subset of Control
+Measures.** Every other domain (Air, Sea Surface, Subsurface, Space,
+Cyberspace, Activities, Mine Warfare, and the rest of SIGINT) has been
+reviewed against the catalog and marked not required outright — not
+deferred, genuinely out of scope for this work. Rules below are being
+worked out against two reference documents the maintainer supplied —
+`reference/non-nato/MIL-STD-2525D_Symbol_Catalog.pdf` and
+`reference/non-nato/symbol_check_sheets.html` (both gitignored, kept
+locally only, same as the rest of `reference/`).
+
 ---
 
 ## Part A — General symbol-category rules
@@ -25,8 +36,17 @@ later called out as an exception.
       NATO). Just the bare icon glyph, drawn directly, no fill.
       Affiliation is coded by the colour of the glyph's own
       outline/stroke lines, same mechanism as Units.
-- [ ] **Installations**
-- [ ] **Civilians**
+- [x] **Installations** — not required. Land Installation symbols are
+      out of scope for non-NATO symbology; no non-NATO Installation
+      layer will be built for Land. (Subsurface also carries an
+      Installation layer - not yet addressed; stated for Land
+      specifically, not assumed to generalize.)
+- [x] **Civilians** — not required. Land Civilian symbols are out of
+      scope for non-NATO symbology; no non-NATO Civilian layer will be
+      built for Land. (Other domains that also carry a Civilian layer
+      - Air, Sea Surface, Space, Subsurface - not yet addressed; this
+      decision was stated for Land specifically, not assumed to
+      generalize.)
 - [ ] Any other general category not covered by the above
 
 ## Part B — Per-domain confirmation
@@ -36,19 +56,32 @@ exception. (Land already covers Unit/Civilian/Equipment/Installation
 as its own four sub-categories above.)
 
 - [ ] Land
-- [ ] Air
-- [ ] Sea Surface
-- [ ] Subsurface
-- [ ] Space
-- [ ] Cyberspace
-- [ ] SIGINT
-- [ ] Activities
+- [x] **Air** (including Air-Missile) — not required
+- [x] **Sea Surface** — not required
+- [x] **Subsurface** — not required
+- [x] **Space** (including Space-Missile) — not required
+- [x] **Cyberspace** — not required
+- [x] **SIGINT** — Air, Space, Sea Surface and Subsurface SIGINT: not
+      required. Land SIGINT: only Jammer and Radar are required,
+      following the same rules as Land Equipment (no frame, bare
+      glyph, affiliation by the glyph's own outline colour).
+- [x] **Activities** — not required
+- [x] **Mine Warfare** — not required *(catalog section not
+      previously in this list — added from the PDF's own structure)*
 
 ## Part C — Control measures (Appendix H tactical graphics)
 
 Lines/areas/points for boundaries, objectives, obstacles, fire
 support, etc. — structurally different from units/equipment, likely
 needs its own rules rather than inheriting Part A.
+
+**Mechanism settled**: affiliation is coded the same way as NATO —
+line colour indicates affiliation, carrying over unchanged, no
+non-NATO-specific treatment needed for that part. **Scope**: not every
+module/icon below is required; only some are, and which ones will be
+decided and built incrementally as work proceeds rather than specified
+all at once up front. The list below stays as the full NATO inventory
+for reference, not a commitment to build all of it.
 
 - [ ] Airspace Control Measures (Lines, Areas, Points)
 - [ ] C2 Measures (Lines, Areas, Points)
@@ -71,12 +104,36 @@ needs its own rules rather than inheriting Part A.
 
 Meta-questions likely to come up regardless of category/domain.
 
-- [ ] Affiliation colour palette — exact colours per affiliation
-      (friend/hostile/neutral/unknown/...), and whether it matches or
-      diverges from the NATO palette already in use
+- [x] **Affiliation colour palette**:
+      - Blue — Friendly
+      - Red — Hostile
+      - Brown — Friendly Paramilitary
+      - Purple — Non-state actors, hostile
+      - Green — Neutral
+      - Amber — Unknown
 - [ ] Icon source — reuse milsymbol.js glyphs as-is, a modified subset,
-      or an entirely separate icon set for non-NATO
-- [ ] Echelon / amplifier conventions (if any carry over)
+      or an entirely separate icon set for non-NATO. **Note (not yet a
+      decision):** quite a few additional symbols beyond the existing
+      catalog will be needed; the maintainer will indicate which ones
+      as each module is developed, rather than listing them all now.
+- [x] **Echelon / amplifier conventions** — carried over, drawn on the
+      same rectangle frame (no fill, line colour = affiliation), but
+      renamed and pruned from the NATO list:
+      - Unspecified — included, unchanged.
+      - Team/Crew — renamed **Detachment**; glyph changed from NATO's
+        circle-with-a-crossed-line to a plain **hollow circle** (no
+        crossing line).
+      - Squad — renamed **Section**.
+      - (NATO's) Section — not required (name reused above, for Squad).
+      - Platoon — renamed **Platoon/Troop**.
+      - Company — renamed **Company/Battery/Flight/Squadron**.
+      - Battalion — renamed **Battalion/Regiment/Squadron**.
+      - (NATO's) Regiment — not required (name reused above, for
+        Battalion).
+      - Brigade, Division, Corps — retained as-is, unchanged.
+      - Army — renamed **Command**.
+      - Army Group — retained as-is, unchanged.
+      - Theater and Command — not required.
 - [ ] Line weight / stroke width conventions
 - [ ] Status (present/planned/etc.) convention — still dashed vs solid?
 - [ ] Designation / label placement conventions
