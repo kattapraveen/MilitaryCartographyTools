@@ -55,7 +55,10 @@ Whether Part A's rules apply as-is, or a domain needs its own
 exception. (Land already covers Unit/Civilian/Equipment/Installation
 as its own four sub-categories above.)
 
-- [ ] Land
+- [x] **Land** — confirmed via its own four sub-categories in Part A
+      (Units and Equipment settled; Installations and Civilians not
+      required) plus Land-scoped SIGINT (Jammer/Radar only). No
+      separate domain-level exception beyond those.
 - [x] **Air** (including Air-Missile) — not required
 - [x] **Sea Surface** — not required
 - [x] **Subsurface** — not required
@@ -80,8 +83,10 @@ line colour indicates affiliation, carrying over unchanged, no
 non-NATO-specific treatment needed for that part. **Scope**: not every
 module/icon below is required; only some are, and which ones will be
 decided and built incrementally as work proceeds rather than specified
-all at once up front. The list below stays as the full NATO inventory
-for reference, not a commitment to build all of it.
+all at once up front — going through each module's own Points, Lines
+and Areas in turn, the same sequence the NATO build already follows.
+The list below stays as the full NATO inventory for reference, not a
+commitment to build all of it.
 
 - [ ] Airspace Control Measures (Lines, Areas, Points)
 - [ ] C2 Measures (Lines, Areas, Points)
@@ -111,11 +116,11 @@ Meta-questions likely to come up regardless of category/domain.
       - Purple — Non-state actors, hostile
       - Green — Neutral
       - Amber — Unknown
-- [ ] Icon source — reuse milsymbol.js glyphs as-is, a modified subset,
-      or an entirely separate icon set for non-NATO. **Note (not yet a
-      decision):** quite a few additional symbols beyond the existing
-      catalog will be needed; the maintainer will indicate which ones
-      as each module is developed, rather than listing them all now.
+- [x] **Icon source** — maximum reuse of milsymbol.js glyphs as-is;
+      for whatever it doesn't already have, build a new icon or modify
+      an existing milsymbol one, decided case by case. Which specific
+      symbols need building/modifying will be indicated as each module
+      is developed, rather than listed all now.
 - [x] **Echelon / amplifier conventions** — carried over, drawn on the
       same rectangle frame (no fill, line colour = affiliation), but
       renamed and pruned from the NATO list:
@@ -134,7 +139,12 @@ Meta-questions likely to come up regardless of category/domain.
       - Army — renamed **Command**.
       - Army Group — retained as-is, unchanged.
       - Theater and Command — not required.
-- [ ] Line weight / stroke width conventions
-- [ ] Status (present/planned/etc.) convention — still dashed vs solid?
-- [ ] Designation / label placement conventions
+- [x] **Line weight / stroke width** — same as the existing NATO
+      symbology, unchanged.
+- [x] **Status convention** — changed from NATO's Present/Planned
+      labelling to naming the states directly after the line style
+      itself: **Solid** and **Dashed**. The underlying visual
+      mechanism (solid vs dashed line) is unchanged from NATO.
+- [ ] Designation / label placement conventions — to be specified
+      later.
 - [ ] Anything else that surfaces while specifying the above

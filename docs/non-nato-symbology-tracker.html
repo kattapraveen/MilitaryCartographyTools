@@ -242,11 +242,13 @@
       content as plain text.
     </p>
     <p class="subhead">
-      <strong>Current scope (2026-08-26): Land only.</strong> Air,
-      Maritime and the other domains are deliberately deferred to a
-      later pass. Rules are being worked out against two reference
-      documents kept locally, gitignored, in
-      <code>reference/non-nato/</code>.
+      <strong>Current scope (2026-08-26): Land, plus a Land-scoped
+      slice of SIGINT (Jammer/Radar only) and a yet-to-be-picked
+      subset of Control Measures.</strong> Every other domain has been
+      reviewed against the catalog and marked not required outright —
+      not deferred, genuinely out of scope for this work. Rules are
+      being worked out against two reference documents kept locally,
+      gitignored, in <code>reference/non-nato/</code>.
     </p>
   </header>
 
@@ -337,6 +339,12 @@
           "label": "Specified",
           "items": [
             {
+              "text": "Land",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "Confirmed via its own four sub-categories in section A (Units and Equipment settled; Installations and Civilians not required) plus Land-scoped SIGINT (Jammer/Radar only). No separate domain-level exception beyond those."
+            },
+            {
               "text": "Air",
               "tag": "NOT REQUIRED",
               "initial": true,
@@ -384,9 +392,7 @@
         },
         {
           "label": "Open",
-          "items": [
-            { "text": "Land" }
-          ]
+          "items": []
         }
       ]
     },
@@ -394,7 +400,7 @@
       "id": "control-measures",
       "title": "C · Control measures (Appendix H tactical graphics)",
       "sub": "Lines/areas/points — not physical units or equipment, likely needs its own rules",
-      "note": "Mechanism settled: affiliation is coded the same way as NATO — line colour indicates affiliation, carrying over unchanged. Scope: not every module/icon below is required, only some are, and which ones will be decided and built incrementally as work proceeds. The list stays as the full NATO inventory for reference, not a commitment to build all of it.",
+      "note": "Mechanism settled: affiliation is coded the same way as NATO — line colour indicates affiliation, carrying over unchanged. Scope: not every module/icon below is required, only some are, decided and built incrementally as work proceeds — going through each module's own Points, Lines and Areas in turn, the same sequence the NATO build already follows. The list stays as the full NATO inventory for reference, not a commitment to build all of it.",
       "groups": [
         {
           "label": "Modules",
@@ -439,16 +445,31 @@
               "tag": "SETTLED",
               "initial": true,
               "note": "Carried over, drawn on the same rectangle frame (no fill, line colour = affiliation), but renamed and pruned from the NATO list. Unspecified — included, unchanged. Team/Crew — renamed Detachment; glyph changed from NATO's circle-with-a-crossed-line to a plain hollow circle. Squad — renamed Section. NATO's own Section — not required (name reused above, for Squad). Platoon — renamed Platoon/Troop. Company — renamed Company/Battery/Flight/Squadron. Battalion — renamed Battalion/Regiment/Squadron. NATO's own Regiment — not required (name reused above, for Battalion). Brigade, Division, Corps — retained as-is. Army — renamed Command. Army Group — retained as-is. Theater and Command — not required."
+            },
+            {
+              "text": "Icon source",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "Maximum reuse of milsymbol.js glyphs as-is; for whatever it doesn't already have, build a new icon or modify an existing milsymbol one, decided case by case. Which specific symbols need building/modifying will be indicated as each module is developed, rather than listed all now."
+            },
+            {
+              "text": "Line weight / stroke width",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "Same as the existing NATO symbology, unchanged."
+            },
+            {
+              "text": "Status convention",
+              "tag": "SETTLED",
+              "initial": true,
+              "note": "Changed from NATO's Present/Planned labelling to naming the states directly after the line style itself: Solid and Dashed. The underlying visual mechanism (solid vs dashed line) is unchanged from NATO."
             }
           ]
         },
         {
           "label": "Open",
           "items": [
-            { "text": "Icon source — reuse milsymbol.js glyphs as-is, a modified subset, or a separate icon set entirely", "note": "Not yet a decision: quite a few additional symbols beyond the existing catalog will be needed; the maintainer will indicate which ones as each module is developed, rather than listing them all now." },
-            { "text": "Line weight / stroke width conventions" },
-            { "text": "Status (present/planned/...) convention — still dashed vs solid?" },
-            { "text": "Designation / label placement conventions" },
+            { "text": "Designation / label placement conventions", "note": "To be specified later." },
             { "text": "Anything else that surfaces while specifying the above" }
           ]
         }
