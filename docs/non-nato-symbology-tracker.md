@@ -36,6 +36,16 @@ later called out as an exception.
       by affiliation like NATO. Affiliation is coded by the
       rectangle's OUTLINE colour, not by shape. **No fill** — interior
       stays empty, unlike NATO's solid affiliation-colour fill.
+      - **Combined Arms indicator (Land Unit only)**: a new checkbox
+        in the layer's dialog. When checked, draw a rectangle whose
+        bottom edge touches the top of the milsymbol Land Unit icon.
+        If an echelon is selected, size the rectangle to cover the
+        echelon symbol. If no echelon is selected, size it to 1/4 the
+        glyph's width and 1/3 the glyph's height instead. *(Not yet
+        specified: the rectangle's own fill/line colour/weight -
+        presumed to follow the same no-fill, affiliation-outline-
+        colour convention as the rest of this scheme unless the
+        maintainer says otherwise when this is built.)*
 - [x] **Equipment** — no frame at all (no filled-circle container like
       NATO). Just the bare icon glyph, drawn directly, no fill.
       Affiliation is coded by the colour of the glyph's own
