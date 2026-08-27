@@ -80,9 +80,15 @@ later called out as an exception.
           (width widened, height floored), Company 37.5x37 (width
           floored, height widened), Battalion 37.5x37 (width floored,
           height widened), Brigade 37.5x37 (width floored, height
-          widened). Division, Corps, Command and Army Group not yet
-          measured precisely - likely wider X-cross variants similar
-          to Brigade's, to confirm when this is actually built.
+          widened). **Completed 2026-08-26** - Division, Corps,
+          Command and Army Group are wider X-cross variants of
+          Brigade's mark (2/3/4/5 repeated crosses): Division 64x37,
+          Corps 99x37, Command 134x37, Army Group 169x37 (none hit the
+          floor - all already wider than 37.5). Note Army Group's own
+          rectangle (169) comes out WIDER than the unit frame itself
+          (150) - not treated as a problem, just the natural result
+          for the largest echelon tier; flag if it looks wrong once
+          actually drawn. All ten in-scope echelons now measured.
 - [x] **Equipment** — no frame at all (no filled-circle container like
       NATO). Just the bare icon glyph, drawn directly, no fill.
       Affiliation is coded by the colour of the glyph's own
@@ -200,6 +206,14 @@ Meta-questions likely to come up regardless of category/domain.
       labelling to naming the states directly after the line style
       itself: **Solid** and **Dashed**. The underlying visual
       mechanism (solid vs dashed line) is unchanged from NATO.
+      - **Scope confirmed 2026-08-26**: applies to Units only.
+        milsymbol only dashes the FRAME's own stroke for Planned
+        status, and Equipment has no frame (`frame: false`) - tested
+        directly, status=planned vs status=present produced
+        byte-identical SVG for a Tank. Rather than post-processing the
+        glyph's own lines to fake a dash, Equipment simply doesn't
+        carry a Solid/Dashed distinction at all - matches the idea
+        that "planned" is more naturally a unit-level concept.
 - [x] **Symbology standard edition** — APP-6E (MIL-STD-2525E) entity
       vocabulary only; APP-6D/2525D is not used for non-NATO symbology.
 - [ ] Designation / label placement conventions — to be specified
