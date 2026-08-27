@@ -54,6 +54,21 @@ later called out as an exception.
         presumed to follow the same no-fill, affiliation-outline-
         colour convention as the rest of this scheme unless the
         maintainer says otherwise when this is built.)*
+        - **Sizing refined 2026-08-26**: a literal tight bounding box
+          per echelon swings wildly - Company's single tick is 4
+          units wide, Platoon/Troop's three spread dots need 79
+          (frame is 150 wide) - so use the echelon's real bounding box
+          but **clamp to a minimum width/height matching the
+          no-echelon fallback** (37.5 x 33.3), rather than either a
+          hairline rectangle or one fixed size regardless of echelon.
+          Measured so far (frame is 150 wide x 100 tall, bottom always
+          at the frame's own top edge): Detachment 44x37, Section
+          19x29.5 (clamps to 37.5 wide), Platoon/Troop 79x27.5 (clamps
+          to 33.3 tall), Company 4x37 (clamps to 37.5 wide), Battalion
+          24x37 (clamps to 37.5 wide), Brigade 29x37 (clamps to 37.5
+          wide). Division, Corps, Command and Army Group not yet
+          measured precisely - likely wider X-cross variants similar
+          to Brigade's, to confirm when this is actually built.
 - [x] **Equipment** — no frame at all (no filled-circle container like
       NATO). Just the bare icon glyph, drawn directly, no fill.
       Affiliation is coded by the colour of the glyph's own
