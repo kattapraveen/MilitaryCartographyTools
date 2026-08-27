@@ -36,6 +36,14 @@ later called out as an exception.
       by affiliation like NATO. Affiliation is coded by the
       rectangle's OUTLINE colour, not by shape. **No fill** — interior
       stays empty, unlike NATO's solid affiliation-colour fill.
+      - **Exception, confirmed 2026-08-26**: a handful of entities
+        (e.g. Field Artillery's dot, Reconnaissance and Surveillance's
+        triangle) have a solid-fill shape hardcoded into milsymbol's
+        own icon drawing, not controlled by its `fill` option.
+        Deliberate exception, not a bug to fix: these keep their solid
+        shape as part of what makes the entity recognizable. "No fill"
+        applies to the frame/background, not to every sub-shape of
+        every glyph. Catalog further ones as they turn up.
       - **Combined Arms indicator (Land Unit only)**: a new checkbox
         in the layer's dialog. When checked, draw a rectangle whose
         bottom edge touches the top of the milsymbol Land Unit icon.
