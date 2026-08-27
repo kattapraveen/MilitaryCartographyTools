@@ -55,40 +55,27 @@ later called out as an exception.
         per-entity review pass. Individual entities get sorted out
         only if/when a specific one causes a real problem while
         building, not upfront.
-      - **Combined Arms indicator (Land Unit only)**: a new checkbox
-        in the layer's dialog. When checked, draw a rectangle whose
-        bottom edge touches the top of the milsymbol Land Unit icon.
-        If an echelon is selected, size the rectangle to cover the
-        echelon symbol. If no echelon is selected, size it to 1/4 the
-        glyph's width and 1/3 the glyph's height instead. *(Not yet
-        specified: the rectangle's own fill/line colour/weight -
-        presumed to follow the same no-fill, affiliation-outline-
-        colour convention as the rest of this scheme unless the
-        maintainer says otherwise when this is built.)*
-        - **Sizing refined 2026-08-26**: a literal tight bounding box
-          per echelon swings wildly - Company's single tick is 4
-          units wide, Platoon/Troop's three spread dots need 79
-          (frame is 150 wide) - not a consistent look. Settled: **the
-          no-echelon size (37.5 x 33.3) is the floor.** Width and
-          height each independently widen beyond that floor only when
-          the echelon's own glyph needs more room - never shrink below
-          it. Measured so far (frame is 150 wide x 100 tall, bottom
-          always at the frame's own top edge; each width/height below
-          is the LARGER of the measured glyph size and the 37.5/33.3
-          floor): Detachment 44x37 (both widened), Section 37.5x29.5
-          (width floored, height widened), Platoon/Troop 79x33.3
-          (width widened, height floored), Company 37.5x37 (width
-          floored, height widened), Battalion 37.5x37 (width floored,
-          height widened), Brigade 37.5x37 (width floored, height
-          widened). **Completed 2026-08-26** - Division, Corps,
-          Command and Army Group are wider X-cross variants of
-          Brigade's mark (2/3/4/5 repeated crosses): Division 64x37,
-          Corps 99x37, Command 134x37, Army Group 169x37 (none hit the
-          floor - all already wider than 37.5). Note Army Group's own
-          rectangle (169) comes out WIDER than the unit frame itself
-          (150) - not treated as a problem, just the natural result
-          for the largest echelon tier; flag if it looks wrong once
-          actually drawn. All ten in-scope echelons now measured.
+      - **Combined Arms indicator (Land Unit only) - settled
+        2026-08-26, geometry fully worked out standalone before any
+        plugin code:** a new checkbox in the layer's dialog. When
+        checked, draw a rectangle whose bottom edge touches the top of
+        the milsymbol Land Unit icon (frame is 150 wide x 100 tall in
+        milsymbol's own path-space; frame's top edge = the rectangle's
+        bottom). **Styling confirmed**: same affiliation colour and
+        line weight as the unit frame, no fill - visually confirmed as
+        one cohesive glyph rather than a bolt-on. **Sizing**: no
+        echelon selected -> fixed 37.5 wide x 33.3 tall (1/4 x 1/3 of
+        the glyph), centered. Echelon selected -> take that echelon's
+        own glyph bounding box, add a 5-unit margin on every side for
+        breathing room (confirmed visually - without it, e.g.
+        Detachment's circle touches the rectangle's edge), then widen
+        past the 37.5 x 33.3 floor only on whichever axis the result
+        exceeds it - never shrink below the floor. Final size per
+        echelon (width x height): Detachment 54x40, Section 37.5x34.5,
+        Platoon/Troop 89x34.5, Company 37.5x42, Battalion 37.5x42,
+        Brigade 39x42, Division 74x42, Corps 109x42, Command 144x42,
+        Army Group 179x42 (wider than the 150-wide frame itself - not
+        a problem, just the natural result for the largest tier).
 - [x] **Equipment** — no frame at all (no filled-circle container like
       NATO). Just the bare icon glyph, drawn directly, no fill.
       Affiliation is coded by the colour of the glyph's own
