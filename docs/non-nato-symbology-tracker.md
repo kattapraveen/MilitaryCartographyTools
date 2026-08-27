@@ -57,16 +57,19 @@ later called out as an exception.
         - **Sizing refined 2026-08-26**: a literal tight bounding box
           per echelon swings wildly - Company's single tick is 4
           units wide, Platoon/Troop's three spread dots need 79
-          (frame is 150 wide) - so use the echelon's real bounding box
-          but **clamp to a minimum width/height matching the
-          no-echelon fallback** (37.5 x 33.3), rather than either a
-          hairline rectangle or one fixed size regardless of echelon.
-          Measured so far (frame is 150 wide x 100 tall, bottom always
-          at the frame's own top edge): Detachment 44x37, Section
-          19x29.5 (clamps to 37.5 wide), Platoon/Troop 79x27.5 (clamps
-          to 33.3 tall), Company 4x37 (clamps to 37.5 wide), Battalion
-          24x37 (clamps to 37.5 wide), Brigade 29x37 (clamps to 37.5
-          wide). Division, Corps, Command and Army Group not yet
+          (frame is 150 wide) - not a consistent look. Settled: **the
+          no-echelon size (37.5 x 33.3) is the floor.** Width and
+          height each independently widen beyond that floor only when
+          the echelon's own glyph needs more room - never shrink below
+          it. Measured so far (frame is 150 wide x 100 tall, bottom
+          always at the frame's own top edge; each width/height below
+          is the LARGER of the measured glyph size and the 37.5/33.3
+          floor): Detachment 44x37 (both widened), Section 37.5x29.5
+          (width floored, height widened), Platoon/Troop 79x33.3
+          (width widened, height floored), Company 37.5x37 (width
+          floored, height widened), Battalion 37.5x37 (width floored,
+          height widened), Brigade 37.5x37 (width floored, height
+          widened). Division, Corps, Command and Army Group not yet
           measured precisely - likely wider X-cross variants similar
           to Brigade's, to confirm when this is actually built.
 - [x] **Equipment** — no frame at all (no filled-circle container like
