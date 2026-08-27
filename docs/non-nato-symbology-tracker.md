@@ -145,6 +145,8 @@ Meta-questions likely to come up regardless of category/domain.
       labelling to naming the states directly after the line style
       itself: **Solid** and **Dashed**. The underlying visual
       mechanism (solid vs dashed line) is unchanged from NATO.
+- [x] **Symbology standard edition** — APP-6E (MIL-STD-2525E) entity
+      vocabulary only; APP-6D/2525D is not used for non-NATO symbology.
 - [ ] Designation / label placement conventions — to be specified
       later.
 - [ ] Anything else that surfaces while specifying the above
