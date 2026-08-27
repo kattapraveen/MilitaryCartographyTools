@@ -89,7 +89,11 @@ as its own four sub-categories above.)
 - [x] **SIGINT** — Air, Space, Sea Surface and Subsurface SIGINT: not
       required. Land SIGINT: only Jammer and Radar are required,
       following the same rules as Land Equipment (no frame, bare
-      glyph, affiliation by the glyph's own outline colour).
+      glyph, affiliation by the glyph's own outline colour). Radar's
+      APP-6E icon is proper line art and renders cleanly under those
+      rules. Jammer's APP-6E icon is a bare letter "J" (a font glyph,
+      not a pictogram) — confirmed 2026-08-26 to accept as-is, same
+      as milsymbol provides, rather than building a custom icon.
 - [x] **Activities** — not required
 - [x] **Mine Warfare** — not required *(catalog section not
       previously in this list — added from the PDF's own structure)*
