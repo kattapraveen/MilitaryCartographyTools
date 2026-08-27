@@ -1,10 +1,14 @@
-# Non-NATO Symbology — Rules Tracker
+# Non-NATO Symbology — Rules Record
 
-Working tracker for the maintainer to lay out non-NATO symbology rules
-rule-by-rule, and check off as each is specified. Lives on the
-`non-nato-symbology` branch; not part of `main` until this work is
-ready to integrate (see `docs/roadmap.md`'s note on why this is a
-separate branch).
+**Frozen reference, not an active checklist.** This started as a
+rule-by-rule tracker (with a companion interactive HTML checklist,
+since dropped once its job was done - the rules that mattered are
+captured here). From this point on, remaining rules are worked out
+directly during implementation rather than specified upfront; this
+file stays as the record of what was already settled before that
+switch. Lives on the `non-nato-symbology` branch; not part of `main`
+until this work is ready to integrate (see `docs/roadmap.md`'s note on
+why this is a separate branch).
 
 This is a rules record, not a design doc — capture what the maintainer
 says here verbatim/close to verbatim, not an interpretation of it.
