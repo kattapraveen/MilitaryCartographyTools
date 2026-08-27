@@ -43,7 +43,18 @@ later called out as an exception.
         Deliberate exception, not a bug to fix: these keep their solid
         shape as part of what makes the entity recognizable. "No fill"
         applies to the frame/background, not to every sub-shape of
-        every glyph. Catalog further ones as they turn up.
+        every glyph.
+      - **Full sweep, 2026-08-26**: rendered all 187 Land Unit and 189
+        Land Equipment APP-6E entities under the settled non-NATO
+        options (0 render errors). Hardcoded-fill glyphs or text-based
+        icons (like Jammer's bare "J", see SIGINT below) turn out to
+        be common, not rare: **121 of 187 Land Unit entities (65%)**
+        and **59 of 189 Land Equipment entities (31%)** have one or
+        the other. **Blanket policy confirmed**: accept every one of
+        these as-is, same as Field Artillery/Jammer above - no
+        per-entity review pass. Individual entities get sorted out
+        only if/when a specific one causes a real problem while
+        building, not upfront.
       - **Combined Arms indicator (Land Unit only)**: a new checkbox
         in the layer's dialog. When checked, draw a rectangle whose
         bottom edge touches the top of the milsymbol Land Unit icon.
