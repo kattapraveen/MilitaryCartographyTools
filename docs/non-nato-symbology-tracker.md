@@ -81,8 +81,7 @@ label only):
 - `maintenance` "Maintenance" -> **EME**
 - `reconnaissance_cavalry_scout` "Reconnaissance Cavalry Scout" ->
   **Light Armour/Recce & Support (Tracked)** *(the maintainer wrote
-  "Armout" - read as a typo for "Armour" and corrected; flag if that's
-  wrong)*
+  "Armout" - confirmed 2026-08-31 as a typo for "Armour")*
 - `aviation_fixed_wing` "Aviation Fixed Wing" -> **Army Aviation**
   *(newly added, replacing the entity below)*
 
@@ -103,8 +102,7 @@ Recoilless Gun, Single Rocket Launcher, Tank, Vehicle.
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
   **Antipersonnel Fragmentation Mine**
 - `land_mine` "Land Mine" -> **Antipersonnel Mine** *(a different key
-  from the one above - not a collision, but similar enough names that
-  it's worth double-checking this is the intended pairing)*
+  from the one above, confirmed 2026-08-31 as the intended pairing)*
 - `direct_fire_gun` "Direct Fire Gun" -> **Field Gun**
 
 **Collision resolved 2026-08-31**: the original `machine_gun` entity
@@ -337,10 +335,13 @@ Meta-questions likely to come up regardless of category/domain.
       ("recognizable" -> "recognisable", "catalog section" ->
       "catalogue section" - prose only, not literal filenames). Entity
       keys/SIDCs are unchanged - this is display text only. **Excluded
-      on purpose**: Part C's control-measures list and the Echelon
-      list's dropped "Theater" both quote the existing NATO/plugin
-      catalog's own names for reference - not new non-NATO labels, so
-      left in their original spelling; flag if that reads wrong.
+      on purpose, confirmed 2026-08-31**: Part C's control-measures
+      list (the 16 NATO Appendix H module names - Airspace Control
+      Measures, C2 Measures, CBRN Defense, etc., see the list itself
+      further down) and the Echelon list's dropped "Theater" both
+      quote the existing NATO/plugin catalog's own names for reference
+      - not new non-NATO labels - so both stay in their original
+      spelling.
 - [x] **Weapon light/medium/heavy tier renaming (2026-08-31)** — for
       weapons that carry a light/medium/heavy size class as a sector
       modifier (drawn as 1/2/3 horizontal lines across the base icon,
