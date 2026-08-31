@@ -690,3 +690,44 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
         )
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+
+
+# --- SIGINT (Land only) -------------------------------------------------
+
+def render_nonnato_sigint_svg(affiliation, entity, designation=None):
+
+    """
+    The full non-NATO Land SIGINT render - Jammer and Radar only (see
+    the rules record's Part B: "Land SIGINT: only Jammer and Radar are
+    required, following the same rules as Land Equipment (no frame,
+    bare glyph, affiliation by the glyph's own outline colour)"), so
+    this mirrors render_nonnato_equipment_svg() exactly minus the mine
+    handling - SIGINT has no mine family. Checked live: Radar's icon is
+    proper line art (affiliation via `stroke`); Jammer's is milsymbol's
+    own bare-letter "J" glyph (affiliation via `fill`, since text has
+    no stroke) - confirmed 2026-08-26 to accept both as-is, no fixup
+    needed for either. `symbol_set` is always "sigint_land" - the
+    non-NATO scope never needed the NATO SIGINT layer's own
+    Space/Air/Land/Sea Surface/Subsurface dimension field, since only
+    the Land dimension is in scope at all.
+    """
+
+    sidc = build_sidc(
+        affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
+        entity=entity,
+        symbol_set="sigint_land",
+        edition="2525E",
+    )
+
+    colour = AFFILIATION_COLOURS.get(
+        affiliation, AFFILIATION_COLOURS["friend"]
+    )
+
+    options = {"frame": False, "fill": False, "monoColor": colour}
+
+    if designation:
+        options["uniqueDesignation"] = str(designation).upper()
+
+    svg = render_symbol_svg(sidc, options)
+
+    return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)

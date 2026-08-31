@@ -22,6 +22,7 @@ from qgis.core import QgsExpression, qgsfunction
 
 from ..military_symbology.nonnato_symbol_engine import (
     render_nonnato_equipment_svg,
+    render_nonnato_sigint_svg,
     render_nonnato_unit_svg,
 )
 
@@ -129,9 +130,50 @@ def mct_nonnato_equipment_svg(values, feature=None, parent=None):
     return "base64:" + encoded
 
 
+@qgsfunction(
+    'mct_nonnato_sigint_svg',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_sigint_svg(values, feature=None, parent=None):
+
+    """
+    "base64:<...>" for a non-NATO Land SIGINT feature - mirrors
+    mct_nonnato_equipment_svg()'s own role but built around
+    render_nonnato_sigint_svg() instead: no echelon/status/
+    combined_arms, same reasoning as Equipment (see that function's own
+    docstring), and no dimension field either, since Land is the only
+    dimension in scope.
+
+    Arguments, the second optional: affiliation, entity, designation
+    (default none).
+    """
+
+    if len(values) < 2:
+        return "Need at least an affiliation and an entity"
+
+    affiliation = str(values[0])
+    entity = str(values[1])
+    designation = values[2] if len(values) > 2 else None
+
+    try:
+
+        svg = render_nonnato_sigint_svg(
+            affiliation, entity, designation=designation
+        )
+
+    except KeyError as error:
+
+        return str(error)
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
 _FUNCTIONS = [
     mct_nonnato_unit_svg,
     mct_nonnato_equipment_svg,
+    mct_nonnato_sigint_svg,
 ]
 
 

@@ -595,3 +595,60 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
                 svg = nse.render_nonnato_equipment_svg("friend", entity)
 
                 self.assertTrue(svg.startswith("<svg"))
+
+
+class TestRenderNonnatoSigintSvg(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_radar_renders_line_art_with_no_frame(self):
+
+        svg = nse.render_nonnato_sigint_svg("friend", "radar")
+
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertNotIn("M25,50", svg)
+        self.assertIn(_FRIEND, svg)
+
+
+    def test_jammer_renders_the_bare_letter_glyph(self):
+
+        svg = nse.render_nonnato_sigint_svg("friend", "jammer")
+
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertIn(">J<", svg)
+        self.assertIn(_FRIEND, svg)
+
+
+    def test_every_affiliation_renders_the_same_shape(self):
+
+        shapes = set()
+
+        for affiliation in nse.AFFILIATION_COLOURS:
+
+            svg = nse.render_nonnato_sigint_svg(affiliation, "radar")
+
+            colour = nse.AFFILIATION_COLOURS[affiliation]
+            self.assertIn(colour, svg)
+
+            shapes.add(svg.replace(colour, ""))
+
+        self.assertEqual(len(shapes), 1)
+
+
+    def test_designation_reaches_the_render(self):
+
+        svg = nse.render_nonnato_sigint_svg("hostile", "radar", designation="a1")
+
+        self.assertIn("A1", svg)
+
+
+    def test_an_invalid_entity_raises_a_key_error(self):
+
+        with self.assertRaises(KeyError):
+
+            nse.render_nonnato_sigint_svg("friend", "not_a_real_entity")
