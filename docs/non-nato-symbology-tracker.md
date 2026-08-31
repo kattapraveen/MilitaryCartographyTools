@@ -126,18 +126,18 @@ against actual before/after SVGs):
   weight unchanged from NATO" rule rather than shrinking along with
   the shape.
 
-**Land Equipment (29 of 189, four with no APP-6E equivalent - see
+**Land Equipment (30 of 189, five with no APP-6E equivalent - see
 below):** Air Defence Gun, Air Defence Missile Launcher, Antennae,
 Antipersonnel Fragmentation Mine, Antipersonnel Mine, Antitank Gun,
 **Antitank Mine Booby Trapped** *(new, no entity key)*, Antitank Mine,
 Antitank Missile Launcher, Antitank Rocket Launcher, Armoured
-Protected Vehicle, Machine Gun, Bridge, Field Gun, Flame Thrower,
-Grenade Launcher, Howitzer, **Influence Mine (Anti Personnel)** *(new,
-no entity key)*, **Influence Mine (Anti Tank)** *(new, no entity
-key)*, Improvised Explosives Device, Missile Launcher, Mortar, Pack
-Animals, Radar, Recoilless Gun, Single Rocket Launcher, Tank,
-**Unknown Mine** *(new, no entity key - see Icon modifications
-below)*, Vehicle.
+Protected Vehicle, **Bar Mine** *(new, no entity key)*, Machine Gun,
+Bridge, Field Gun, Flame Thrower, Grenade Launcher, Howitzer,
+**Influence Mine (Anti Personnel)** *(new, no entity key)*,
+**Influence Mine (Anti Tank)** *(new, no entity key)*, Improvised
+Explosives Device, Missile Launcher, Mortar, Pack Animals, Radar,
+Recoilless Gun, Single Rocket Launcher, Tank, **Unknown Mine** *(new,
+no entity key - see Icon modifications below)*, Vehicle.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
@@ -207,6 +207,18 @@ rules before changing anything:
   horns, unchanged - except the circle is **hollow** instead of solid,
   the same solid/hollow distinction already used to tell Antitank Mine
   and Antipersonnel Mine apart. Confirmed against a rendered SVG.
+- **Bar Mine** - **no APP-6E equivalent** (checked Land Equipment and
+  Control Measure Point vocabularies - the closest name match is an
+  unrelated `barra_sonobuoy`). Antitank Mine's solid circle, with a
+  hollow rectangle placed directly below it (top edge touching the
+  circle's bottom edge, centred horizontally): height = circle
+  diameter / 3, width = **2x** the circle's diameter (revised down
+  from an initial 2.5x after review). A dashed horizontal line runs
+  through the rectangle's own vertical centre, full width, with a
+  dash length **twice** the standard dash unit used elsewhere in this
+  scheme (8 vs the usual 4) while the gap stays at the standard 3 -
+  only the dash itself was asked to lengthen, not the gap. Confirmed
+  against a rendered SVG comparing both draft and final versions.
 
 **Mine colour (2026-08-31)**: all mine icons above default to
 **green** rather than affiliation colour - confirmed to match an
@@ -218,8 +230,8 @@ module's own "obstacles are GREEN, not affiliation-coloured" rule.
 Reused the exact same shade here for consistency rather than picking
 a new green. Applies to Antipersonnel Mine, Antitank Mine, Influence
 Mine (Anti Tank), Influence Mine (Anti Personnel), Antitank Mine
-Booby Trapped, Antipersonnel Fragmentation Mine, Unknown Mine, and
-Booby Trap (the Control Measure Point, see below) alike.
+Booby Trapped, Bar Mine, Antipersonnel Fragmentation Mine, Unknown
+Mine, and Booby Trap (the Control Measure Point, see below) alike.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
 already the entire in-scope SIGINT list, so no narrowing needed here.
