@@ -126,16 +126,17 @@ against actual before/after SVGs):
   weight unchanged from NATO" rule rather than shrinking along with
   the shape.
 
-**Land Equipment (27 of 189, two with no APP-6E equivalent - see
+**Land Equipment (28 of 189, three with no APP-6E equivalent - see
 below):** Air Defence Gun, Air Defence Missile Launcher, Antennae,
 Antipersonnel Fragmentation Mine, Antipersonnel Mine, Antitank Gun,
-Antitank Mine, Antitank Missile Launcher, Antitank Rocket Launcher,
-Armoured Protected Vehicle, Machine Gun, Bridge, Field Gun, Flame
-Thrower, Grenade Launcher, Howitzer, **Influence Mine (Anti Tank)**
-*(new, no entity key)*, Improvised Explosives Device, Missile
-Launcher, Mortar, Pack Animals, Radar, Recoilless Gun, Single Rocket
-Launcher, Tank, **Unknown Mine** *(new, no entity key - see Icon
-modifications below)*, Vehicle.
+**Antitank Mine Booby Trapped** *(new, no entity key)*, Antitank Mine,
+Antitank Missile Launcher, Antitank Rocket Launcher, Armoured
+Protected Vehicle, Machine Gun, Bridge, Field Gun, Flame Thrower,
+Grenade Launcher, Howitzer, **Influence Mine (Anti Tank)** *(new, no
+entity key)*, Improvised Explosives Device, Missile Launcher, Mortar,
+Pack Animals, Radar, Recoilless Gun, Single Rocket Launcher, Tank,
+**Unknown Mine** *(new, no entity key - see Icon modifications
+below)*, Vehicle.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
@@ -188,6 +189,18 @@ rules before changing anything:
   tip out and up, mirrored left/right) - but as plain **unfilled
   lines**, not filled triangles, each ending in a small **arrowhead**
   at the tip. Confirmed against a rendered SVG before recording.
+- **Antitank Mine Booby Trapped** - **no APP-6E equivalent**. Starts
+  from Influence Mine's solid circle and its two top horns, but with
+  the arrowheads removed (plain lines) and two more horns added at the
+  bottom as a vertical mirror of the top pair - four horns total,
+  symmetric top/bottom. **Corrected after the first render**: the
+  horns were initially left at the angle inherited from the
+  Antipersonnel Fragmentation Mine's horns (~54 degrees from
+  horizontal) - confirmed instead to sit at **exactly 45/135/225/315
+  degrees** (a clean X of diagonals through the circle) **and 25%
+  shorter** than that first draft (length 30.8 -> 23.1 in milsymbol's
+  path-space, measured from the circle's own edge outward). Confirmed
+  against a rendered SVG comparing both versions before recording.
 
 **Mine colour (2026-08-31)**: all mine icons above default to
 **green** rather than affiliation colour - confirmed to match an
@@ -197,9 +210,9 @@ fixed green (`OBSTACLE_GREEN_EXPRESSION`, `rgb(0,155,0)` / `#009b00`)
 as an overridable default rather than affiliation-coloured, per that
 module's own "obstacles are GREEN, not affiliation-coloured" rule.
 Reused the exact same shade here for consistency rather than picking
-a new green. Applies to Antipersonnel Mine, Antitank Mine,
-Influence Mine (Anti Tank),
-Antipersonnel Fragmentation Mine and Unknown Mine alike.
+a new green. Applies to Antipersonnel Mine, Antitank Mine, Influence
+Mine (Anti Tank), Antitank Mine Booby Trapped, Antipersonnel
+Fragmentation Mine and Unknown Mine alike.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
 already the entire in-scope SIGINT list, so no narrowing needed here.
