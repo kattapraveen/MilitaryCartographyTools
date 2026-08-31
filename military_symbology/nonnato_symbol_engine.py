@@ -73,6 +73,197 @@ DEFAULT_STROKE_SCALE = 1.3
 # .py's own OBSTACLE_GREEN_EXPRESSION shade for consistency.
 MINE_GREEN = "#009b00"
 
+# --- Mine family (Land Equipment) -------------------------------------
+#
+# Three real APP-6E entities (already render correctly with no fixup,
+# see the rules record's "Mine icons" note) plus five synthetic icons
+# with no SIDC at all - the whole family defaults to MINE_GREEN
+# regardless of the feature's own affiliation, same as obstacle_
+# control_measures.py's own NATO-side convention for the same reason.
+#
+# Synthetic keys are outside APP-6E's own numbering on purpose (a
+# leading "nonnato_" prefix), so they can never collide with a real
+# entity key sidc_2525e.py might add later.
+UNKNOWN_MINE_ENTITY = "nonnato_unknown_mine"
+INFLUENCE_MINE_ANTI_TANK_ENTITY = "nonnato_influence_mine_anti_tank"
+INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY = "nonnato_influence_mine_anti_personnel"
+ANTITANK_MINE_BOOBY_TRAPPED_ENTITY = "nonnato_antitank_mine_booby_trapped"
+BAR_MINE_ENTITY = "nonnato_bar_mine"
+
+# Every mine-family entity, real or synthetic - checked by
+# render_nonnato_equipment_svg() to apply the green-not-affiliation
+# rule regardless of which of the two groups an entity is in.
+MINE_ENTITIES = frozenset({
+    "land_mine",                    # Antipersonnel Mine
+    "antitank_mine",                # Antitank Mine
+    "antipersonnel_land_mine",      # Antipersonnel Fragmentation Mine
+    UNKNOWN_MINE_ENTITY,
+    INFLUENCE_MINE_ANTI_TANK_ENTITY,
+    INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
+    ANTITANK_MINE_BOOBY_TRAPPED_ENTITY,
+    BAR_MINE_ENTITY,
+})
+
+_MINE_R = 22
+_MINE_CX, _MINE_CY = 100, 100
+
+
+def _mine_circle(colour, filled):
+
+    fill = colour if filled else "none"
+
+    return (
+        f'<circle cx="{_MINE_CX}" cy="{_MINE_CY}" r="{_MINE_R}" '
+        f'stroke-width="3" stroke="{colour}" fill="{fill}"></circle>'
+    )
+
+
+def unfilled_antipersonnel_fragmentation_mine(svg):
+
+    """
+    antipersonnel_land_mine renders with its circle AND its two horns
+    both filled (hardcoded, like every other exception the full sweep
+    catalogued). Confirmed 2026-08-31: only the circle is overridden
+    to hollow here, to distinguish it from Antitank Mine's solid
+    circle - the two horns stay filled exactly as milsymbol draws
+    them.
+    """
+
+    return re.sub(
+        r'<circle cx="100" cy="100" r="22" stroke-width="3" '
+        r'stroke="([^"]+)" fill="[^"]+"',
+        r'<circle cx="100" cy="100" r="22" stroke-width="3" '
+        r'stroke="\1" fill="none"',
+        svg,
+        count=1,
+    )
+
+
+def unknown_mine_svg(colour):
+
+    """No APP-6E equivalent - a hollow circle with a plain vertical diameter line."""
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="46 46 108 108">'
+        + _mine_circle(colour, filled=False)
+        + f'<path d="M{_MINE_CX},78 L{_MINE_CX},122" stroke-width="3" '
+        f'stroke="{colour}" fill="none"></path>'
+        '</svg>'
+    )
+
+
+def _influence_mine_svg(colour, filled):
+
+    # Horn shaft + arrowhead geometry, both sides - confirmed 2026-08-
+    # 31 against a rendered comparison. Base points sit on the circle's
+    # own edge; arrowhead wings are 9 units back from the tip, 6 units
+    # either side of the shaft's own line.
+    horns = (
+        f'<path d="M119,89 L137,64" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M136.6,74.8 L137,64 L126.9,67.8" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M81,89 L63,64" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M73.1,67.8 L63,64 L63.4,74.8" stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="46 46 108 108">'
+        + _mine_circle(colour, filled=filled)
+        + horns
+        + '</svg>'
+    )
+
+
+def influence_mine_anti_tank_svg(colour):
+
+    """No APP-6E equivalent - Antitank Mine's solid circle plus two arrow-tipped horns."""
+
+    return _influence_mine_svg(colour, filled=True)
+
+
+def influence_mine_anti_personnel_svg(colour):
+
+    """No APP-6E equivalent - identical to Influence Mine (Anti Tank), hollow circle instead."""
+
+    return _influence_mine_svg(colour, filled=False)
+
+
+def antitank_mine_booby_trapped_svg(colour):
+
+    """
+    No APP-6E equivalent - Antitank Mine's solid circle with four
+    plain (no arrowhead) horns at exactly 45/135/225/315 degrees,
+    25% shorter than Influence Mine's own horn length (30.8 -> 23.1,
+    measured from the circle's own edge outward) - confirmed 2026-08-
+    31 against a rendered comparison of both the first draft (which
+    reused Influence Mine's ~54 degree angle at full length) and this
+    corrected version.
+    """
+
+    horns = (
+        f'<path d="M115.6,84.4 L131.9,68.1" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M84.4,84.4 L68.1,68.1" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M84.4,115.6 L68.1,131.9" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M115.6,115.6 L131.9,131.9" stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="46 46 108 108">'
+        + _mine_circle(colour, filled=True)
+        + horns
+        + '</svg>'
+    )
+
+
+def bar_mine_svg(colour):
+
+    """
+    No APP-6E equivalent - Antitank Mine's solid circle with a hollow
+    rectangle below it (top edge touching the circle's own bottom
+    edge, centred): height = circle diameter / 3, width = 2x the
+    diameter (revised down from an initial 2.5x). A dashed horizontal
+    line runs through the rectangle's own vertical centre, full width;
+    dash length is double the standard dash unit used elsewhere in
+    this scheme (8 vs 4) while the gap stays at the standard 3 - only
+    the dash itself was asked to lengthen, not the gap.
+    """
+
+    diameter = _MINE_R * 2
+    rect_w = diameter * 2
+    rect_h = diameter / 3
+    rect_x = _MINE_CX - rect_w / 2
+    rect_y = _MINE_CY + _MINE_R
+    mid_y = rect_y + rect_h / 2
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="20 46 160 100">'
+        + _mine_circle(colour, filled=True)
+        + f'<rect x="{rect_x:g}" y="{rect_y:g}" width="{rect_w:g}" '
+        f'height="{rect_h:g}" stroke-width="3" stroke="{colour}" fill="none"></rect>'
+        + f'<path d="M{rect_x:g},{mid_y:g} L{rect_x + rect_w:g},{mid_y:g}" '
+        f'stroke-width="3" stroke="{colour}" stroke-dasharray="8,3" fill="none"></path>'
+        '</svg>'
+    )
+
+
+_SYNTHETIC_MINE_SVG = {
+    UNKNOWN_MINE_ENTITY: unknown_mine_svg,
+    INFLUENCE_MINE_ANTI_TANK_ENTITY: influence_mine_anti_tank_svg,
+    INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY: influence_mine_anti_personnel_svg,
+    ANTITANK_MINE_BOOBY_TRAPPED_ENTITY: antitank_mine_booby_trapped_svg,
+    BAR_MINE_ENTITY: bar_mine_svg,
+}
+
+
+def is_synthetic_entity(entity):
+
+    """True for any entity with no SIDC/milsymbol render at all - Enemy (Info Unknown) or one of the five synthetic mines."""
+
+    return entity == ENEMY_INFO_UNKNOWN_ENTITY or entity in _SYNTHETIC_MINE_SVG
+
 # Enemy (Info Unknown) has no APP-6E entity at all - a standalone frame
 # variant (two concentric rectangles, no icon glyph inside), always
 # hostile red regardless of the feature's own affiliation field, per
@@ -433,6 +624,69 @@ def render_nonnato_unit_svg(
 
         svg = _inject_before_closing_svg(
             svg, combined_arms_rect_svg(echelon, combined_arms_colour)
+        )
+
+    return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+
+
+# --- Land Equipment ----------------------------------------------------
+
+_EQUIPMENT_ENTITY_FIXUPS = {
+    "antipersonnel_land_mine": unfilled_antipersonnel_fragmentation_mine,
+}
+
+
+def apply_nonnato_equipment_fixups(svg, entity):
+
+    """Every post-render fixup a Land Equipment icon might need - just the one mine fixup so far."""
+
+    fixup = _EQUIPMENT_ENTITY_FIXUPS.get(entity)
+
+    return fixup(svg) if fixup else svg
+
+
+def render_nonnato_equipment_svg(affiliation, entity, designation=None):
+
+    """
+    The full non-NATO Land Equipment render, mirroring render_nonnato_
+    unit_svg()'s own structure but simpler: no frame, no echelon
+    (Equipment never carried one, same as the NATO layer), no status
+    (settled as Units-only - see Part D), no Combined Arms (Land Unit
+    only). The mine family (real and synthetic alike, see
+    MINE_ENTITIES) is green regardless of `affiliation`, same as
+    obstacle_control_measures.py's own NATO-side convention - checked
+    live that Equipment's own icon glyph does not vary by SIDC
+    affiliation at all (unlike the Unit frame's shape), so unlike
+    render_nonnato_unit_svg() there is no shape-forcing concern here,
+    only colour.
+    """
+
+    is_mine = entity in MINE_ENTITIES
+    colour = (
+        MINE_GREEN if is_mine
+        else AFFILIATION_COLOURS.get(affiliation, AFFILIATION_COLOURS["friend"])
+    )
+
+    if entity in _SYNTHETIC_MINE_SVG:
+
+        svg = _SYNTHETIC_MINE_SVG[entity](colour)
+
+    else:
+
+        sidc = build_sidc(
+            affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
+            entity=entity,
+            symbol_set="land_equipment",
+            edition="2525E",
+        )
+
+        options = {"frame": False, "fill": False, "monoColor": colour}
+
+        if designation:
+            options["uniqueDesignation"] = str(designation).upper()
+
+        svg = apply_nonnato_equipment_fixups(
+            render_symbol_svg(sidc, options), entity
         )
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)

@@ -405,3 +405,193 @@ class TestRenderNonnatoUnitSvg(QgisTestCase):
         )
 
         self.assertEqual(svg.count("<rect"), 3)
+
+
+class TestMineFamily(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_antipersonnel_mine_is_already_a_plain_hollow_circle(self):
+
+        # land_mine - no fixup needed, matches the rule as-is.
+        sidc = build_sidc(
+            affiliation="friend", entity="land_mine",
+            symbol_set="land_equipment", edition="2525E",
+        )
+        svg = nse.apply_nonnato_equipment_fixups(
+            symbol_engine.render_symbol_svg(
+                sidc, {"frame": False, "fill": False, "monoColor": nse.MINE_GREEN}
+            ),
+            "land_mine",
+        )
+
+        self.assertIn(f'fill="none"', svg)
+        self.assertNotIn(f'fill="{nse.MINE_GREEN}"', svg)
+
+
+    def test_antitank_mine_is_already_solid(self):
+
+        # antitank_mine - hardcoded-fill exception, matches the rule
+        # as-is (no fixup).
+        sidc = build_sidc(
+            affiliation="friend", entity="antitank_mine",
+            symbol_set="land_equipment", edition="2525E",
+        )
+        svg = nse.apply_nonnato_equipment_fixups(
+            symbol_engine.render_symbol_svg(
+                sidc, {"frame": False, "fill": False, "monoColor": nse.MINE_GREEN}
+            ),
+            "antitank_mine",
+        )
+
+        self.assertIn(f'fill="{nse.MINE_GREEN}"', svg)
+
+
+    def test_antipersonnel_fragmentation_mine_circle_becomes_hollow(self):
+
+        sidc = build_sidc(
+            affiliation="friend", entity="antipersonnel_land_mine",
+            symbol_set="land_equipment", edition="2525E",
+        )
+        raw = symbol_engine.render_symbol_svg(
+            sidc, {"frame": False, "fill": False, "monoColor": nse.MINE_GREEN}
+        )
+
+        # Confirms the fixture assumption: both the circle and the
+        # horns render filled by default, so there is something real
+        # to fix.
+        self.assertEqual(raw.count(f'fill="{nse.MINE_GREEN}"'), 2)
+
+        fixed = nse.apply_nonnato_equipment_fixups(
+            raw, "antipersonnel_land_mine"
+        )
+
+        # Circle hollow, horns still filled - exactly one fill left.
+        self.assertEqual(fixed.count(f'fill="{nse.MINE_GREEN}"'), 1)
+        self.assertIn(
+            '<circle cx="100" cy="100" r="22" stroke-width="3" '
+            f'stroke="{nse.MINE_GREEN}" fill="none"',
+            fixed,
+        )
+
+
+    def test_unknown_mine_is_a_hollow_circle_with_a_vertical_line(self):
+
+        svg = nse.unknown_mine_svg(nse.MINE_GREEN)
+
+        self.assertEqual(svg.count("<circle"), 1)
+        self.assertNotIn(f'fill="{nse.MINE_GREEN}"', svg)
+        self.assertIn("M100,78 L100,122", svg)
+
+
+    def test_influence_mine_anti_tank_is_solid_with_arrow_horns(self):
+
+        svg = nse.influence_mine_anti_tank_svg(nse.MINE_GREEN)
+
+        self.assertIn(f'fill="{nse.MINE_GREEN}"', svg)  # solid circle
+        self.assertEqual(svg.count("<path"), 4)  # 2 shafts + 2 arrowheads
+
+
+    def test_influence_mine_anti_personnel_is_hollow_with_arrow_horns(self):
+
+        svg = nse.influence_mine_anti_personnel_svg(nse.MINE_GREEN)
+
+        self.assertNotIn(f'fill="{nse.MINE_GREEN}"', svg)
+        self.assertEqual(svg.count("<path"), 4)
+
+
+    def test_antitank_mine_booby_trapped_has_four_horns_no_arrowheads(self):
+
+        svg = nse.antitank_mine_booby_trapped_svg(nse.MINE_GREEN)
+
+        self.assertIn(f'fill="{nse.MINE_GREEN}"', svg)  # solid circle
+        self.assertEqual(svg.count("<path"), 4)  # 4 plain horn lines
+        self.assertNotIn("L131.9,68.1 L", svg)  # no arrowhead chevrons
+
+
+    def test_bar_mine_geometry(self):
+
+        svg = nse.bar_mine_svg(nse.MINE_GREEN)
+
+        self.assertIn('width="88" height="14.6667"', svg)
+        self.assertIn('stroke-dasharray="8,3"', svg)
+
+
+class TestRenderNonnatoEquipmentSvg(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_a_real_equipment_entity_has_no_frame(self):
+
+        svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        self.assertNotIn("M25,50", svg)
+        self.assertIn(_FRIEND, svg)
+
+
+    def test_designation_reaches_the_render(self):
+
+        svg = nse.render_nonnato_equipment_svg(
+            "hostile", "tank", designation="a1"
+        )
+
+        self.assertIn("A1", svg)
+
+
+    def test_mine_entities_are_always_green_regardless_of_affiliation(self):
+
+        for affiliation in nse.AFFILIATION_COLOURS:
+
+            with self.subTest(affiliation=affiliation):
+
+                svg = nse.render_nonnato_equipment_svg(affiliation, "antitank_mine")
+
+                self.assertIn(nse.MINE_GREEN, svg)
+                for colour in nse.AFFILIATION_COLOURS.values():
+                    if colour != nse.MINE_GREEN:
+                        self.assertNotIn(colour, svg)
+
+
+    def test_synthetic_mine_entities_render_with_no_sidc_call(self):
+
+        for entity in (
+            nse.UNKNOWN_MINE_ENTITY,
+            nse.INFLUENCE_MINE_ANTI_TANK_ENTITY,
+            nse.INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
+            nse.ANTITANK_MINE_BOOBY_TRAPPED_ENTITY,
+            nse.BAR_MINE_ENTITY,
+        ):
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                self.assertTrue(svg.startswith("<svg"))
+                self.assertIn(nse.MINE_GREEN, svg)
+
+
+    def test_weapon_tier_siblings_all_render(self):
+
+        # Spot-check a few of the newly-required Light/Medium/Heavy
+        # siblings actually resolve - not exhaustive (that belongs to
+        # the layer-level test), just confirms the plumbing works for
+        # more than one hand-picked entity.
+        for entity in (
+            "tank", "tank_light", "tank_medium",
+            "howitzer", "howitzer_light", "howitzer_medium",
+            "single_shot_rifle", "semiautomatic_rifle", "automatic_rifle",
+        ):
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                self.assertTrue(svg.startswith("<svg"))
