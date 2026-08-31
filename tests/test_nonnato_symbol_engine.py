@@ -208,3 +208,117 @@ class TestEnemyInfoUnknown(QgisTestCase):
         # Inner rectangle inset 15 units on every side of the outer.
         self.assertIn('x="25" y="50" width="150" height="100"', svg)
         self.assertIn('x="40" y="65" width="120" height="70"', svg)
+
+
+class TestRenderNonnatoUnitSvg(QgisTestCase):
+
+    """
+    End-to-end: the one function land_unit_layer_nonnato.py's renderer
+    actually calls, exercising the real milsymbol.js render, both
+    fixups, the affiliation colour map, and the Combined Arms overlay
+    together - not just each piece in isolation.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_plain_infantry_is_framed_unfilled_and_stroke_scaled(self):
+
+        svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        self.assertIn(f'stroke="{_FRIEND}"', svg)
+        self.assertIn("M25,50 l150,0", svg)  # the frame itself
+
+        # DEFAULT_STROKE_SCALE (1.3) applied on top of milsymbol's own
+        # stroke-width="4"/"3" - not left at the raw, unscaled values.
+        self.assertIn('stroke-width="5.2"', svg)  # 4 * 1.3
+        self.assertIn('stroke-width="3.9"', svg)  # 3 * 1.3
+
+
+    def test_all_six_affiliation_colours_reach_the_render(self):
+
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            svg = nse.render_nonnato_unit_svg(affiliation, "infantry")
+
+            self.assertIn(
+                colour, svg, f"expected {colour} for {affiliation}"
+            )
+
+
+    def test_team_crew_echelon_gets_the_stripped_slash(self):
+
+        svg = nse.render_nonnato_unit_svg(
+            "friend", "infantry", echelon="team_crew"
+        )
+
+        self.assertNotIn("M80,40L120,20", svg)
+        self.assertIn('<circle cx="100" cy="30" r="15"', svg)
+
+
+    def test_aviation_fixed_wing_propeller_is_hollow(self):
+
+        svg = nse.render_nonnato_unit_svg("hostile", "aviation_fixed_wing")
+
+        self.assertNotIn('stroke="none"', svg)
+
+
+    def test_designation_is_uppercased_and_drawn(self):
+
+        svg = nse.render_nonnato_unit_svg(
+            "friend", "infantry", designation="1st bn"
+        )
+
+        self.assertIn("1ST BN", svg)
+
+
+    def test_combined_arms_adds_a_rectangle_sized_for_the_echelon(self):
+
+        without = nse.render_nonnato_unit_svg("friend", "infantry")
+        with_ca = nse.render_nonnato_unit_svg(
+            "friend", "infantry", combined_arms=True
+        )
+
+        self.assertEqual(without.count("<rect"), 0)
+        self.assertEqual(with_ca.count("<rect"), 1)
+
+        # No echelon -> the fixed floor size, same colour as the icon.
+        self.assertIn('width="37.5" height="33.3333"', with_ca)
+        self.assertIn(f'stroke="{_FRIEND}"', with_ca)
+
+
+    def test_combined_arms_on_the_widest_echelon(self):
+
+        svg = nse.render_nonnato_unit_svg(
+            "hostile", "infantry", echelon="army_group", combined_arms=True
+        )
+
+        # 179 x 42 pre-scale, then DEFAULT_STROKE_SCALE only touches
+        # stroke-width, not the rect's own geometry.
+        self.assertIn('width="179" height="42"', svg)
+
+
+    def test_enemy_info_unknown_ignores_the_entity_specific_pipeline(self):
+
+        svg = nse.render_nonnato_unit_svg(
+            "friend", nse.ENEMY_INFO_UNKNOWN_ENTITY
+        )
+
+        # Always hostile red, regardless of the affiliation passed in -
+        # confirmed as the settled rule, not a bug.
+        self.assertIn(nse.AFFILIATION_COLOURS["hostile"], svg)
+        self.assertNotIn(_FRIEND, svg)
+        self.assertEqual(svg.count("<rect"), 2)
+
+
+    def test_enemy_info_unknown_combined_arms_still_works(self):
+
+        svg = nse.render_nonnato_unit_svg(
+            "friend", nse.ENEMY_INFO_UNKNOWN_ENTITY, combined_arms=True
+        )
+
+        self.assertEqual(svg.count("<rect"), 3)

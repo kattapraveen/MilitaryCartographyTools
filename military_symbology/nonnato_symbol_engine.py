@@ -22,6 +22,9 @@ Military Cartography Tools
 
 import re
 
+from .sidc import build_sidc
+from .symbol_engine import render_symbol_svg, scale_svg_stroke_width
+
 
 # Part D's settled affiliation colour palette - six affiliations, not
 # milsymbol's own four, so this is never derived from milsymbol's
@@ -35,6 +38,30 @@ AFFILIATION_COLOURS = {
     "friendly_paramilitary": "#8b5a2b",
     "nonstate_hostile": "#8020a0",
 }
+
+# The SIDC format itself only encodes four standard-identity values
+# (friend/hostile/neutral/unknown) - Friendly Paramilitary and
+# Non-state Hostile are non-NATO's OWN colour choices, layered on top
+# via monoColor, with no real SIDC digit of their own. This maps each
+# of the six to whichever real SIDC affiliation is closest, purely so
+# build_sidc() has a valid value to encode - it has no effect on what
+# actually renders, since monoColor overrides milsymbol's own
+# affiliation-driven colour entirely.
+SIDC_AFFILIATION_FOR = {
+    "friend": "friend",
+    "hostile": "hostile",
+    "neutral": "neutral",
+    "unknown": "unknown",
+    "friendly_paramilitary": "friend",
+    "nonstate_hostile": "hostile",
+}
+
+# Same stroke thickening every NATO render already gets by default
+# (expressions/military_symbology_functions.py's DEFAULT_STROKE_SCALE)
+# - the settled "line weight unchanged from NATO" rule means non-NATO
+# should match it exactly, not fall back to milsymbol's own unscaled
+# stroke-width="3".
+DEFAULT_STROKE_SCALE = 1.3
 
 # Mines default to this green rather than affiliation colour - see the
 # rules record's "Mine colour" note, reusing obstacle_control_measures
@@ -260,3 +287,66 @@ def apply_nonnato_unit_fixups(svg, entity, echelon):
         svg = fixup(svg)
 
     return svg
+
+
+def render_nonnato_unit_svg(
+    affiliation,
+    entity,
+    echelon="unspecified",
+    status="present",
+    designation=None,
+    combined_arms=False,
+):
+
+    """
+    The full non-NATO Land Unit render, as one SVG string (not yet
+    base64-encoded - see land_unit_layer_nonnato.py's own renderer for
+    that step, and for why it isn't done here: the expression function
+    needs the plain SVG to also compute the stabilised icon size from,
+    same as every other point-symbol layer's own renderer already
+    does).
+
+    Enemy (Info Unknown) short-circuits everything else - it has no
+    APP-6E entity, so there is no SIDC to build and no milsymbol call
+    to make at all.
+    """
+
+    if is_enemy_info_unknown(entity):
+
+        svg = enemy_info_unknown_svg()
+        combined_arms_colour = _ENEMY_INFO_UNKNOWN_COLOUR
+
+    else:
+
+        sidc = build_sidc(
+            affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
+            entity=entity,
+            symbol_set="ground_unit",
+            echelon=echelon,
+            status=status,
+            headquarters=False,
+            edition="2525E",
+        )
+
+        colour = AFFILIATION_COLOURS.get(
+            affiliation, AFFILIATION_COLOURS["friend"]
+        )
+
+        options = {"frame": True, "fill": False, "monoColor": colour}
+
+        if designation:
+            options["uniqueDesignation"] = str(designation).upper()
+
+        svg = apply_nonnato_unit_fixups(
+            render_symbol_svg(sidc, options), entity, echelon
+        )
+
+        combined_arms_colour = colour
+
+    if combined_arms:
+
+        svg = _inject_before_closing_svg(
+            svg, combined_arms_rect_svg(echelon, combined_arms_colour)
+        )
+
+    return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
