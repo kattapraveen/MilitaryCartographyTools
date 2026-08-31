@@ -90,6 +90,42 @@ no longer required. `aviation_fixed_wing` added in its place and
 renamed to Army Aviation (above) - the "Army Aviation" name moves from
 the rotary-wing entity to the fixed-wing one. Count stays at 20.
 
+**Icon modifications 2026-08-31** (glyph changes, not just relabelling
+- verified by standalone rendering, both confirmed by the maintainer
+against actual before/after SVGs):
+
+- **Army Aviation** (`aviation_fixed_wing`): its icon is a filled
+  bowtie/propeller shape - one of the hardcoded-fill exceptions from
+  the full sweep above, where `fill:false` has no effect. **This one
+  is a deliberate carve-out from that blanket accept-as-is policy**:
+  swap it to stroke-only (`fill="none"`, same stroke colour/width it
+  already carries) instead of leaving it filled. Visually this turns
+  the solid bowtie into a hollow figure-of-8 outline. Mechanically:
+  the fix is a straight fill/stroke swap on that one `<path>`, nothing
+  else about the icon changes.
+- **Parachute Rigger** (`parachute_rigger`): composite icon. Add the
+  Infantry glyph's own frame content (the rectangle's two diagonals,
+  crossing at the centroid) as a base layer, then take the existing
+  parachute glyph (a dome + two lines converging to a point, bounding
+  box roughly 40 wide x 38.75 tall in milsymbol's internal path-space,
+  centered close to the frame's own centroid already) and place a
+  shrunk copy of it entirely in the lower wedge - the triangular
+  region below the centroid, bounded by the two diagonals and the
+  frame's bottom edge. Shrink factor: 20% (scale 0.8) around the
+  glyph's own bounding-box center. Verified with the real geometry
+  before rendering: the wedge's width at height y (in path-space,
+  centroid at y=100, frame bottom at y=150) is `3*(y-100)`, so the
+  shrunk shape's top edge needs to sit no higher than y~110.67 to
+  clear the wedge - the confirmed placement (top edge at y=114.5,
+  transform `translate(20, 49.5) scale(0.8)` relative to the original
+  path) sits comfortably inside that, wedge width 43.5 against a
+  32-wide shape at the shape's own narrowest (top) point, growing
+  wider below. Stroke width compensated inside the scaled group
+  (3.75 pre-scale -> 3 effective) so the parachute's lines stay the
+  same visual weight as the rest of the icon, per the settled "line
+  weight unchanged from NATO" rule rather than shrinking along with
+  the shape.
+
 **Land Equipment (25 of 189):** Air Defence Gun, Air Defence Missile
 Launcher, Antennae, Antipersonnel Fragmentation Mine, Antipersonnel
 Mine, Antitank Gun, Antitank Mine, Antitank Missile Launcher, Antitank
