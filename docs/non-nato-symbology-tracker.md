@@ -13,16 +13,78 @@ why this is a separate branch).
 This is a rules record, not a design doc — capture what the maintainer
 says here verbatim/close to verbatim, not an interpretation of it.
 
-**Current scope (as of 2026-08-26): Land, plus a Land-scoped slice of
-SIGINT (Jammer/Radar only) and a yet-to-be-picked subset of Control
-Measures.** Every other domain (Air, Sea Surface, Subsurface, Space,
-Cyberspace, Activities, Mine Warfare, and the rest of SIGINT) has been
-reviewed against the catalog and marked not required outright — not
-deferred, genuinely out of scope for this work. Rules below are being
-worked out against two reference documents the maintainer supplied —
+**Current scope (as of 2026-08-31): Land, plus a Land-scoped slice of
+SIGINT (Jammer/Radar only), narrowed to a reviewed, final list of
+entities per category** (see "Required entities" below) **and a
+reviewed, final list of Control Measure Points.** Every other domain
+(Air, Sea Surface, Subsurface, Space, Cyberspace, Activities, Mine
+Warfare, and the rest of SIGINT) has been reviewed against the catalog
+and marked not required outright — not deferred, genuinely out of
+scope for this work. Rules below were worked out against two reference
+documents the maintainer supplied —
 `reference/non-nato/MIL-STD-2525D_Symbol_Catalog.pdf` and
 `reference/non-nato/symbol_check_sheets.html` (both gitignored, kept
 locally only, same as the rest of `reference/`).
+
+---
+
+## Required entities (reviewed 2026-08-31)
+
+Generated a checkbox-per-icon HTML check sheet (`nonnato_check_sheet.html`,
+built standalone from milsymbol.js, not committed - see the "Complete
+non-NATO symbol check sheet" note further down) covering every Land
+Unit, Land Equipment, SIGINT Land and Control Measure Point APP-6E
+entity. Sent out for review by email (checkbox state round-trips
+through the file itself via the `checked` content attribute, not
+browser storage, specifically so it survives a save-and-email-back).
+Two reviewed copies came back and were parsed for which boxes ended up
+checked - one covering the original 393-icon sheet, a second covering
+just the Control Measure Points section added afterward. Zero overlap
+in what each touched (the second file had nothing checked outside its
+own new section), so there was nothing to reconcile - just a plain
+union.
+
+**This supersedes the earlier "accept every entity as a candidate"
+framing** (the fill-exception/blanket-policy notes under Units below)
+**with a concrete, final build list.** Only the entities below get
+built for non-NATO symbology; everything else in APP-6E's Land
+Unit/Land Equipment/Control Measure vocabulary is excluded. The
+maintainer said there will be further changes communicated as the
+build proceeds - this list is the reviewed starting point, not
+necessarily the last word.
+
+**Land Unit (20 of 187):** Air Defense, Ammunition, Amphibious, Armor
+Mechanized, Armored Mechanized Tracked, Army Aviation Aviation Rotary
+Wing, Counterintelligence, Electronic Warfare, Engineer, Field
+Artillery, Infantry, Maintenance, Mechanized, Medical, Military
+Intelligence, Military Police, Parachute Rigger, Reconnaissance
+Cavalry Scout, Signal, Special Operations Forces.
+
+**Land Equipment (26 of 189):** Air Defense Gun, Air Defense Missile
+Launcher, Antennae, Antipersonnel Land Mine, Antitank Gun, Antitank
+Mine, Antitank Missile Launcher, Antitank Rocket Launcher, Armored
+Protected Vehicle, Automatic Rifle, Bridge, Direct Fire Gun, Flame
+Thrower, Grenade Launcher, Howitzer, Improvised Explosives Device,
+Land Mine, Machine Gun, Missile Launcher, Mortar, Pack Animals, Radar,
+Recoilless Gun, Single Rocket Launcher, Tank, Vehicle.
+
+**SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
+already the entire in-scope SIGINT list, so no narrowing needed here.
+
+**Control Measure Points (11 of 241):** Booby Trap, Decision Point,
+Fort, Impact Point, Observation Post, Observation Post Forward
+Observer, Point Of Interest, Shelter, Shelter Above Ground, Shelter
+Below Ground, Target Reference Point.
+
+**Echelons and the Combined Arms indicator are unaffected by this
+review** - all 11 echelons were checked in the reviewed sheet
+(matching the already-settled full list exactly, nothing pruned), and
+only 2 of the 4 Combined Arms examples were checked, but that section
+was illustrative of the sizing RULE (which applies uniformly to
+whichever echelon is present), not a per-echelon feature to
+individually enable - so this is read as "these examples were looked
+at and confirmed correct," not a scope change to the Combined Arms
+rule itself.
 
 ---
 
