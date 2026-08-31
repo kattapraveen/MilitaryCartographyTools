@@ -275,24 +275,22 @@ Meta-questions likely to come up regardless of category/domain.
       displays as "Air Defence Gun"). Applies to every entity label
       wherever it appears, not just the ones already required. Entity
       keys/SIDCs are unchanged - this is display text only.
-- [ ] **Weapon light/medium/heavy tier renaming (2026-08-31, not yet
-      confirmed generalized)** — for weapons that carry a light/
-      medium/heavy size class as a sector modifier (drawn as 1/2/3
-      horizontal lines across the base icon, e.g. Air Defense Gun),
-      each tier shifts up one name for non-NATO: the plain/unmarked
-      base icon (0 lines) is labelled **Light**, NATO's own **Light**
-      (1 line) becomes **Medium**, and NATO's own **Medium** (2 lines)
-      becomes **Heavy**. Given verbatim for Air Defense [sic - see
-      spelling rule above, so "Air Defence"] Gun as the example.
-      **Open, not yet confirmed** - the maintainer's message cut off
-      mid-sentence ("same rules for all the"): (1) does this shift
-      apply to every weapon in the required Land Equipment list that
-      carries this same light/medium/heavy modifier, not just Air
-      Defence Gun? (2) following the exact pattern already set for
+- [ ] **Weapon light/medium/heavy tier renaming (2026-08-31)** — for
+      weapons that carry a light/medium/heavy size class as a sector
+      modifier (drawn as 1/2/3 horizontal lines across the base icon,
+      e.g. Air Defence Gun), each tier shifts up one name for
+      non-NATO: the plain/unmarked base icon (0 lines) is labelled
+      **Light**, NATO's own **Light** (1 line) becomes **Medium**, and
+      NATO's own **Medium** (2 lines) becomes **Heavy**. **Confirmed
+      2026-08-31 to apply to every weapon in scope that carries this
+      light/medium/heavy modifier**, not just Air Defence Gun - one
+      general rule, not a per-entity exception.
+      **Still open**: following the exact pattern already set for
       Echelons (Squad's rename left NATO's own Section unclaimed, and
       it was marked not required) - does NATO's own 3-line **Heavy**
       tier become not required, since its name is now taken by the
-      old Medium tier, with nothing to shift it up into?
+      old Medium tier, with nothing to shift it up into? Not yet
+      confirmed either way.
 - [ ] Designation / label placement conventions — to be specified
       later.
 - [ ] Anything else that surfaces while specifying the above
