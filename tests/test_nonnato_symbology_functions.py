@@ -281,3 +281,34 @@ class TestMctNonnatoSigintSvg(QgisTestCase):
         self.assertEqual(
             result, "Need at least an affiliation and an entity"
         )
+
+
+class TestMctNonnatoBoobyTrapSvg(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+        nonnato_symbology_functions.register()
+
+        self.addCleanup(nonnato_symbology_functions.unregister)
+
+
+    def test_evaluates_through_a_real_qgs_expression(self):
+
+        expression = QgsExpression("mct_nonnato_booby_trap_svg()")
+
+        result = expression.evaluate(QgsExpressionContext())
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        self.assertTrue(result.startswith("base64:"))
+
+        svg = base64.b64decode(result[len("base64:"):]).decode("utf-8")
+
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertIn("#009b00", svg)

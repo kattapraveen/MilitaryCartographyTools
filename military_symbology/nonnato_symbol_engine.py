@@ -731,3 +731,78 @@ def render_nonnato_sigint_svg(affiliation, entity, designation=None):
     svg = render_symbol_svg(sidc, options)
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+
+
+# --- Control Measure Points ---------------------------------------------
+#
+# Part C's own settled mechanism: "affiliation is coded the same way as
+# NATO... no non-NATO-specific treatment needed for that part." Unlike
+# Unit/Equipment/SIGINT above, the ten other required entities (Decision
+# Point, Fort, Impact Point, Observation Post, Artillery Observation
+# Post, Point Of Interest, Pill Box, Shelter Above Ground, Shelter Below
+# Ground, Target) get NO new rendering logic at all here - they render
+# through the plain existing mct_sidc_svg()/mct_build_sidc() pipeline,
+# same as every other NATO control-measure-points layer, with milsymbol's
+# own real 4-value affiliation colouring and no monoColor override. See
+# control_measure_points_layer_nonnato.py's own renderer for that half.
+#
+# Booby Trap is the one exception needing code here: "fully replaces its
+# current NATO glyph (an ellipse with a triangular peak over it), rather
+# than a tweak to the existing icon" (rules record, 2026-08-31), coloured
+# MINE_GREEN regardless of affiliation - confirmed against
+# obstacle_control_measures.py's own existing green-obstacle default, so
+# this is "carrying over unchanged", not a new non-NATO deviation.
+
+def booby_trap_control_measure_svg(colour=MINE_GREEN):
+
+    """
+    Control Measure Point's own Booby Trap (280700) - NOT the Land
+    Equipment mine family's own, structurally distinct, Antitank Mine
+    Booby Trapped synthetic entity (ANTITANK_MINE_BOOBY_TRAPPED_ENTITY
+    above) - the two happen to share a visual starting point (this one's
+    circle-plus-horns geometry is lifted from that one's), nothing more.
+
+    Built from that shape's own solid circle and 45/135/225/315-degree
+    horn coordinates (see antitank_mine_booby_trapped_svg()), then
+    revised per the rules record: the two bottom horns (225/315 degrees)
+    dropped; the two top horns (45/135 degrees) each made dashed, with a
+    second, parallel dashed line of the same length alongside it (offset
+    5 units, perpendicular to the horn's own direction, sitting outward -
+    away from the OTHER horn - rather than the pair straddling the
+    original's centreline symmetrically). Dash pattern "4,3" is this
+    scheme's own standard dash unit (see bar_mine_svg()'s own comment on
+    why IT doubles the dash length instead - this icon does not).
+
+    This was never actually built before now - the rules record's own
+    "confirmed against a render before recording" note describes an
+    exploration this function's own author could not find any surviving
+    code for, so the exact horn/offset numbers below are a fresh,
+    from-the-spec derivation, re-confirmed against a real render when
+    this function was written rather than assumed correct.
+    """
+
+    offset = 5 / (2 ** 0.5)  # perpendicular unit vector at 45 degrees, times 5
+
+    top_right = (
+        f'<path d="M115.6,84.4 L131.9,68.1" stroke-width="3" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'<path d="M{115.6 + offset:g},{84.4 + offset:g} '
+        f'L{131.9 + offset:g},{68.1 + offset:g}" stroke-width="3" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+    )
+
+    top_left = (
+        f'<path d="M84.4,84.4 L68.1,68.1" stroke-width="3" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'<path d="M{84.4 - offset:g},{84.4 + offset:g} '
+        f'L{68.1 - offset:g},{68.1 + offset:g}" stroke-width="3" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="46 46 108 108">'
+        + _mine_circle(colour, filled=True)
+        + top_right + top_left
+        + '</svg>'
+    )

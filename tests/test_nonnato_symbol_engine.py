@@ -652,3 +652,41 @@ class TestRenderNonnatoSigintSvg(QgisTestCase):
         with self.assertRaises(KeyError):
 
             nse.render_nonnato_sigint_svg("friend", "not_a_real_entity")
+
+
+class TestBoobyTrapControlMeasureSvg(QgisTestCase):
+
+    def test_renders_a_solid_circle_with_two_dashed_horn_pairs(self):
+
+        svg = nse.booby_trap_control_measure_svg()
+
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertEqual(svg.count("<circle"), 1)
+        self.assertEqual(svg.count("<path"), 4)
+        self.assertEqual(svg.count("stroke-dasharray"), 4)
+
+
+    def test_defaults_to_mine_green(self):
+
+        svg = nse.booby_trap_control_measure_svg()
+
+        self.assertIn(nse.MINE_GREEN, svg)
+
+
+    def test_bottom_horns_are_not_present(self):
+
+        # The dropped 225/315-degree horns from Antitank Mine Booby
+        # Trapped's own four-horn shape - see that function's own
+        # coordinates for the pair this must NOT contain.
+        svg = nse.booby_trap_control_measure_svg()
+
+        self.assertNotIn("84.4,115.6", svg)
+        self.assertNotIn("115.6,115.6", svg)
+
+
+    def test_accepts_a_colour_override(self):
+
+        svg = nse.booby_trap_control_measure_svg("#000000")
+
+        self.assertIn("#000000", svg)
+        self.assertNotIn(nse.MINE_GREEN, svg)

@@ -21,6 +21,7 @@ import base64
 from qgis.core import QgsExpression, qgsfunction
 
 from ..military_symbology.nonnato_symbol_engine import (
+    booby_trap_control_measure_svg,
     render_nonnato_equipment_svg,
     render_nonnato_sigint_svg,
     render_nonnato_unit_svg,
@@ -170,10 +171,34 @@ def mct_nonnato_sigint_svg(values, feature=None, parent=None):
     return "base64:" + encoded
 
 
+@qgsfunction(
+    'mct_nonnato_booby_trap_svg',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_booby_trap_svg(values, feature=None, parent=None):
+
+    """
+    "base64:<...>" for the Control Measure Point's own Booby Trap - a
+    fully custom icon (see booby_trap_control_measure_svg()'s own
+    docstring), not routed through mct_sidc_svg()/milsymbol at all.
+    Fixed MINE_GREEN, no arguments needed - unlike every other
+    mct_nonnato_*_svg() function, this one entity's colour never varies
+    by affiliation, matching every other mine-family icon's own
+    convention.
+    """
+
+    svg = booby_trap_control_measure_svg()
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
 _FUNCTIONS = [
     mct_nonnato_unit_svg,
     mct_nonnato_equipment_svg,
     mct_nonnato_sigint_svg,
+    mct_nonnato_booby_trap_svg,
 ]
 
 
