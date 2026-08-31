@@ -250,6 +250,29 @@ class TestRenderNonnatoUnitSvg(QgisTestCase):
             )
 
 
+    def test_the_frame_stays_a_rectangle_for_every_affiliation(self):
+
+        # Regression test: milsymbol does NOT treat frame:true as "draw
+        # a rectangle" - it draws whichever frame SHAPE the SIDC's own
+        # affiliation digit selects (hostile -> diamond, neutral ->
+        # square, unknown -> quatrefoil), confirmed live and caught by
+        # an actual rendered smoke test, not by any of the tests above
+        # (which only ever checked that a colour string was present,
+        # never the frame's own path). SIDC_AFFILIATION_FOR exists
+        # specifically to prevent this; this test is what would fail if
+        # that mapping regressed back to a same-name one.
+        rectangle_frame = "M25,50 l150,0 0,100 -150,0 z"
+
+        for affiliation in nse.AFFILIATION_COLOURS:
+
+            svg = nse.render_nonnato_unit_svg(affiliation, "infantry")
+
+            self.assertIn(
+                rectangle_frame, svg,
+                f"{affiliation} did not render a plain rectangle frame"
+            )
+
+
     def test_team_crew_echelon_gets_the_stripped_slash(self):
 
         svg = nse.render_nonnato_unit_svg(
@@ -300,6 +323,66 @@ class TestRenderNonnatoUnitSvg(QgisTestCase):
         # 179 x 42 pre-scale, then DEFAULT_STROKE_SCALE only touches
         # stroke-width, not the rect's own geometry.
         self.assertIn('width="179" height="42"', svg)
+
+
+    def _assert_rect_within_viewbox(self, svg, rect_x, rect_y, rect_w, rect_h):
+
+        import re
+
+        # A small tolerance, not exact <=/>=: the SVG's own numbers are
+        # formatted with %g (6 significant digits), so a value can
+        # round UP by a fraction of a unit versus the full-precision
+        # float this test computes independently - invisible on any
+        # actual render, and not the clipping bug this test exists to
+        # catch (which was off by whole units, not thousandths).
+        tolerance = 0.01
+
+        vb = re.search(
+            r'viewBox="([\d.\-]+) ([\d.\-]+) ([\d.\-]+) ([\d.\-]+)"', svg
+        )
+        self.assertIsNotNone(vb, "no viewBox found")
+
+        vb_x, vb_y, vb_w, vb_h = (float(v) for v in vb.groups())
+
+        self.assertLessEqual(vb_x, rect_x + tolerance, "rect clipped on the left")
+        self.assertLessEqual(vb_y, rect_y + tolerance, "rect clipped on the top")
+        self.assertGreaterEqual(
+            vb_x + vb_w, rect_x + rect_w - tolerance, "rect clipped on the right"
+        )
+        self.assertGreaterEqual(
+            vb_y + vb_h, rect_y + rect_h - tolerance, "rect clipped on the bottom"
+        )
+
+
+    def test_combined_arms_rect_is_never_clipped_by_the_viewbox(self):
+
+        # Regression test: found via an actual rendered smoke test, not
+        # by any test above - the Combined Arms rectangle was being
+        # drawn correctly but clipped clean out of the visible picture
+        # whenever it extended past whatever viewBox the base render
+        # already had (milsymbol's own echelon-driven widening isn't
+        # generous enough for Army Group's 179-wide rectangle, and
+        # Enemy Info Unknown's hand-built SVG has no echelon-awareness
+        # in its viewBox at all).
+        for entity, echelon in (
+            ("infantry", "unspecified"),
+            ("infantry", "army_group"),
+            (nse.ENEMY_INFO_UNKNOWN_ENTITY, "unspecified"),
+            (nse.ENEMY_INFO_UNKNOWN_ENTITY, "army_group"),
+        ):
+            with self.subTest(entity=entity, echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", entity, echelon=echelon, combined_arms=True
+                )
+
+                rect_x, rect_y, rect_w, rect_h = nse.combined_arms_bounds(
+                    echelon
+                )
+
+                self._assert_rect_within_viewbox(
+                    svg, rect_x, rect_y, rect_w, rect_h
+                )
 
 
     def test_enemy_info_unknown_ignores_the_entity_specific_pipeline(self):

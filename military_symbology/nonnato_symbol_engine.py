@@ -39,21 +39,26 @@ AFFILIATION_COLOURS = {
     "nonstate_hostile": "#8020a0",
 }
 
-# The SIDC format itself only encodes four standard-identity values
-# (friend/hostile/neutral/unknown) - Friendly Paramilitary and
-# Non-state Hostile are non-NATO's OWN colour choices, layered on top
-# via monoColor, with no real SIDC digit of their own. This maps each
-# of the six to whichever real SIDC affiliation is closest, purely so
-# build_sidc() has a valid value to encode - it has no effect on what
-# actually renders, since monoColor overrides milsymbol's own
-# affiliation-driven colour entirely.
+# Every one of the six maps to the SIDC's own "friend" affiliation,
+# and this is NOT a cosmetic default - it is load-bearing. Confirmed
+# live: passing `frame: true` to milsymbol does not force a rectangle,
+# it only means "draw whichever frame shape this SIDC's own
+# affiliation digit selects" - hostile is a diamond, neutral a square,
+# unknown a quatrefoil, and only friend is a rectangle. The settled
+# rule is ONE frame shape for every affiliation, so the SIDC's own
+# affiliation digit must always resolve to friend regardless of which
+# of the six the feature actually has - the real colour is entirely
+# monoColor's job (see AFFILIATION_COLOURS above), decoupled from this
+# on purpose. Do not "simplify" this back to a same-name mapping for
+# friend/hostile/neutral/unknown - that reintroduces per-affiliation
+# frame shapes, exactly the bug this comment exists to prevent.
 SIDC_AFFILIATION_FOR = {
     "friend": "friend",
-    "hostile": "hostile",
-    "neutral": "neutral",
-    "unknown": "unknown",
+    "hostile": "friend",
+    "neutral": "friend",
+    "unknown": "friend",
     "friendly_paramilitary": "friend",
-    "nonstate_hostile": "hostile",
+    "nonstate_hostile": "friend",
 }
 
 # Same stroke thickening every NATO render already gets by default
@@ -239,6 +244,18 @@ _COMBINED_ARMS_SIZES = {
 _FRAME_TOP = 50
 
 
+def combined_arms_bounds(echelon):
+
+    """(x, y, width, height) for the Combined Arms rectangle - see combined_arms_rect_svg()."""
+
+    width, height = _COMBINED_ARMS_SIZES.get(echelon, _COMBINED_ARMS_FLOOR)
+
+    x = 100 - width / 2
+    y = _FRAME_TOP - height
+
+    return x, y, width, height
+
+
 def combined_arms_rect_svg(echelon, colour):
 
     """
@@ -251,10 +268,7 @@ def combined_arms_rect_svg(echelon, colour):
     rather than raising, so a future echelon addition here fails soft.
     """
 
-    width, height = _COMBINED_ARMS_SIZES.get(echelon, _COMBINED_ARMS_FLOOR)
-
-    x = 100 - width / 2
-    y = _FRAME_TOP - height
+    x, y, width, height = combined_arms_bounds(echelon)
 
     return (
         f'<rect x="{x:g}" y="{y:g}" width="{width:g}" height="{height:g}" '
@@ -265,6 +279,74 @@ def combined_arms_rect_svg(echelon, colour):
 def _inject_before_closing_svg(svg, addition):
 
     return svg.replace("</svg>", addition + "</svg>", 1)
+
+
+_VIEWBOX_PATTERN = re.compile(
+    r'viewBox="([\d.\-]+) ([\d.\-]+) ([\d.\-]+) ([\d.\-]+)"'
+)
+_WIDTH_HEIGHT_PATTERN = re.compile(
+    r'width="([\d.]+)" height="([\d.]+)"'
+)
+
+
+def _expand_viewbox_for_rect(svg, rect_x, rect_y, rect_width, rect_height):
+
+    """
+    Widens `svg`'s own viewBox (and width/height, if it declares them)
+    just enough to include a rect at (rect_x, rect_y, rect_width,
+    rect_height) - never shrinks it. Needed because the Combined Arms
+    rectangle can extend past whatever bounds the base render already
+    has: milsymbol widens its own viewBox for an echelon amplifier, but
+    not by enough to also fit a WIDE Combined Arms rectangle on top of
+    it (Army Group's is 179 wide, wider than milsymbol's own
+    army_group-echelon viewBox), and Enemy (Info Unknown)'s hand-built
+    SVG has no echelon-awareness in its viewBox at all - confirmed live
+    that without this, the rectangle is genuinely drawn but clipped
+    clean out of the visible picture, not just visually cramped.
+
+    QGIS sizes an SVG marker by its own declared WIDTH attribute (see
+    stabilised_point_size_expression()'s own docstring for the general
+    principle), so viewBox alone is not enough when width/height are
+    present - both are rescaled together, preserving whatever uniform
+    scale factor the original render already used. Enemy (Info
+    Unknown)'s own SVG declares neither attribute at all; left absent
+    here too; a marker with no width/height falls back to the
+    viewBox's own units directly, which is how it already rendered
+    correctly before Combined Arms was ever added to it.
+    """
+
+    match = _VIEWBOX_PATTERN.search(svg)
+
+    if not match:
+        return svg
+
+    vb_x, vb_y, vb_w, vb_h = (float(value) for value in match.groups())
+
+    new_x = min(vb_x, rect_x)
+    new_y = min(vb_y, rect_y)
+    new_w = max(vb_x + vb_w, rect_x + rect_width) - new_x
+    new_h = max(vb_y + vb_h, rect_y + rect_height) - new_y
+
+    if (new_x, new_y, new_w, new_h) == (vb_x, vb_y, vb_w, vb_h):
+        return svg
+
+    svg = _VIEWBOX_PATTERN.sub(
+        f'viewBox="{new_x:g} {new_y:g} {new_w:g} {new_h:g}"', svg, count=1
+    )
+
+    wh_match = _WIDTH_HEIGHT_PATTERN.search(svg)
+
+    if wh_match:
+
+        scale = float(wh_match.group(1)) / vb_w
+
+        svg = _WIDTH_HEIGHT_PATTERN.sub(
+            f'width="{new_w * scale:g}" height="{new_h * scale:g}"',
+            svg,
+            count=1,
+        )
+
+    return svg
 
 
 def apply_nonnato_unit_fixups(svg, entity, echelon):
@@ -344,6 +426,10 @@ def render_nonnato_unit_svg(
         combined_arms_colour = colour
 
     if combined_arms:
+
+        svg = _expand_viewbox_for_rect(
+            svg, *combined_arms_bounds(echelon)
+        )
 
         svg = _inject_before_closing_svg(
             svg, combined_arms_rect_svg(echelon, combined_arms_colour)
