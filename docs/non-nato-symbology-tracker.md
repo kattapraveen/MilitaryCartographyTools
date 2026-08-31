@@ -126,13 +126,15 @@ against actual before/after SVGs):
   weight unchanged from NATO" rule rather than shrinking along with
   the shape.
 
-**Land Equipment (25 of 189):** Air Defence Gun, Air Defence Missile
-Launcher, Antennae, Antipersonnel Fragmentation Mine, Antipersonnel
-Mine, Antitank Gun, Antitank Mine, Antitank Missile Launcher, Antitank
-Rocket Launcher, Armoured Protected Vehicle, Machine Gun, Bridge,
-Field Gun, Flame Thrower, Grenade Launcher, Howitzer, Improvised
-Explosives Device, Missile Launcher, Mortar, Pack Animals, Radar,
-Recoilless Gun, Single Rocket Launcher, Tank, Vehicle.
+**Land Equipment (26 of 189, one with no APP-6E equivalent - see
+below):** Air Defence Gun, Air Defence Missile Launcher, Antennae,
+Antipersonnel Fragmentation Mine, Antipersonnel Mine, Antitank Gun,
+Antitank Mine, Antitank Missile Launcher, Antitank Rocket Launcher,
+Armoured Protected Vehicle, Machine Gun, Bridge, Field Gun, Flame
+Thrower, Grenade Launcher, Howitzer, Improvised Explosives Device,
+Missile Launcher, Mortar, Pack Animals, Radar, Recoilless Gun, Single
+Rocket Launcher, Tank, **Unknown Mine** *(new, no entity key - see
+Icon modifications below)*, Vehicle.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
@@ -152,7 +154,42 @@ pair** - `automatic_rifle` was already one of the original 26 (it's
 not a new addition, just relabelled), so dropping `machine_gun`
 without adding anything back takes the true count to 25. The header
 above was corrected to match during a 2026-08-31 housekeeping pass -
-it had been left at 26.
+it had been left at 26. *(Count moved back to 26 the same day once
+Unknown Mine was added - see below - a coincidence, not a reversal of
+this correction.)*
+
+**Mine icons (2026-08-31)** - checked milsymbol's actual current
+render for all three real mine entities against the maintainer's
+rules before changing anything:
+- **Antipersonnel Mine** (`land_mine`) - already renders as a plain
+  hollow circle by default. Matches the rule exactly; no change.
+- **Antitank Mine** (`antitank_mine`) - already renders as a solid/
+  filled circle by default (one of the hardcoded-fill exceptions,
+  same class as Field Artillery's dot). Matches the rule exactly - the
+  existing exception is kept as-is here, not overridden.
+- **Antipersonnel Fragmentation Mine** (`antipersonnel_land_mine`) -
+  currently a filled circle plus two filled triangular "horns", both
+  hardcoded fills. **Confirmed 2026-08-31: the circle becomes hollow
+  (overriding that exception, to distinguish it from Antitank Mine's
+  solid circle), the two horns stay filled** as they already render.
+- **Unknown Mine** - **no APP-6E equivalent exists** in Land
+  Equipment's vocabulary (checked - only the three real entities above
+  exist). Built as a new custom icon per the "Icon source" rule (Part
+  D): a hollow circle, same size/style as the other three mines, with
+  a plain vertical diameter line through it. No entity key/SIDC yet -
+  needs one assigned when this is actually implemented, most likely a
+  synthetic key outside APP-6E's own numbering.
+
+**Mine colour (2026-08-31)**: all four mine icons above default to
+**green** rather than affiliation colour - confirmed to match an
+existing NATO-side convention already in this codebase:
+`obstacle_control_measures.py` already draws obstacles/mines in a
+fixed green (`OBSTACLE_GREEN_EXPRESSION`, `rgb(0,155,0)` / `#009b00`)
+as an overridable default rather than affiliation-coloured, per that
+module's own "obstacles are GREEN, not affiliation-coloured" rule.
+Reused the exact same shade here for consistency rather than picking
+a new green. Applies to Antipersonnel Mine, Antitank Mine,
+Antipersonnel Fragmentation Mine and Unknown Mine alike.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
 already the entire in-scope SIGINT list, so no narrowing needed here.
