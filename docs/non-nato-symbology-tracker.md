@@ -63,10 +63,12 @@ maintainer said there will be further changes communicated as the
 build proceeds - this list is the reviewed starting point, not
 necessarily the last word.
 
-**Land Unit (20 of 187):** Air Defence, Ammunition, Amphibious, Armour,
-Armoured/Assault Engineers, Army Aviation, Artillery,
-Counterintelligence, EME, Electronic Warfare, Engineer, Infantry,
-Light Armour/Recce & Support (Tracked), Medical, Mechanised Infantry,
+**Land Unit (21 of 187, one with no APP-6E equivalent - see below):**
+Air Defence, Ammunition, Amphibious, Armour, Armoured/Assault
+Engineers, Army Aviation, Artillery, Counterintelligence, EME,
+Electronic Warfare, **Enemy (Info Unknown)** *(new, no entity key -
+see Icon modifications below)*, Engineer, Infantry, Light
+Armour/Recce & Support (Tracked), Medical, Mechanised Infantry,
 Military Intelligence, Military Police, Parachute Rigger, Signal,
 Special Operations Forces. *(Displayed with British spelling per the
 rule below - these are the same APP-6E entities, keys unchanged.)*
@@ -335,6 +337,18 @@ later called out as an exception.
         Brigade 39x42, Division 74x42, Corps 109x42, Command 144x42,
         Army Group 179x42 (wider than the 150-wide frame itself - not
         a problem, just the natural result for the largest tier).
+      - **Enemy (Info Unknown) - added 2026-08-31, no APP-6E
+        equivalent** (checked - no generic/blank "unit" entity exists
+        in the ground_unit vocabulary either). Not tied to a specific
+        entity's icon at all - a standalone frame variant: **two
+        concentric rectangles** instead of the usual single frame, no
+        icon glyph inside. **Judgment calls made without an explicit
+        spec, confirmed against a render before recording**: coloured
+        hostile red (`#c02020`) per "Enemy" rather than a neutral/
+        generic colour; inner rectangle set 15 units in from the outer
+        frame on every side (outer stays the standard 150x100, inner
+        is 120x70, centred) - an arbitrary but reasonable margin, not
+        derived from any other measurement in this scheme.
 - [x] **Equipment** — no frame at all (no filled-circle container like
       NATO). Just the bare icon glyph, drawn directly, no fill.
       Affiliation is coded by the colour of the glyph's own
