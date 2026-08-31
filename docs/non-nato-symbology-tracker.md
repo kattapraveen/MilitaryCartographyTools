@@ -126,15 +126,16 @@ against actual before/after SVGs):
   weight unchanged from NATO" rule rather than shrinking along with
   the shape.
 
-**Land Equipment (28 of 189, three with no APP-6E equivalent - see
+**Land Equipment (29 of 189, four with no APP-6E equivalent - see
 below):** Air Defence Gun, Air Defence Missile Launcher, Antennae,
 Antipersonnel Fragmentation Mine, Antipersonnel Mine, Antitank Gun,
 **Antitank Mine Booby Trapped** *(new, no entity key)*, Antitank Mine,
 Antitank Missile Launcher, Antitank Rocket Launcher, Armoured
 Protected Vehicle, Machine Gun, Bridge, Field Gun, Flame Thrower,
-Grenade Launcher, Howitzer, **Influence Mine (Anti Tank)** *(new, no
-entity key)*, Improvised Explosives Device, Missile Launcher, Mortar,
-Pack Animals, Radar, Recoilless Gun, Single Rocket Launcher, Tank,
+Grenade Launcher, Howitzer, **Influence Mine (Anti Personnel)** *(new,
+no entity key)*, **Influence Mine (Anti Tank)** *(new, no entity
+key)*, Improvised Explosives Device, Missile Launcher, Mortar, Pack
+Animals, Radar, Recoilless Gun, Single Rocket Launcher, Tank,
 **Unknown Mine** *(new, no entity key - see Icon modifications
 below)*, Vehicle.
 
@@ -201,6 +202,11 @@ rules before changing anything:
   shorter** than that first draft (length 30.8 -> 23.1 in milsymbol's
   path-space, measured from the circle's own edge outward). Confirmed
   against a rendered SVG comparing both versions before recording.
+- **Influence Mine (Anti Personnel)** - **no APP-6E equivalent**.
+  Identical to Influence Mine (Anti Tank) - same two arrow-tipped
+  horns, unchanged - except the circle is **hollow** instead of solid,
+  the same solid/hollow distinction already used to tell Antitank Mine
+  and Antipersonnel Mine apart. Confirmed against a rendered SVG.
 
 **Mine colour (2026-08-31)**: all mine icons above default to
 **green** rather than affiliation colour - confirmed to match an
@@ -211,8 +217,9 @@ as an overridable default rather than affiliation-coloured, per that
 module's own "obstacles are GREEN, not affiliation-coloured" rule.
 Reused the exact same shade here for consistency rather than picking
 a new green. Applies to Antipersonnel Mine, Antitank Mine, Influence
-Mine (Anti Tank), Antitank Mine Booby Trapped, Antipersonnel
-Fragmentation Mine and Unknown Mine alike.
+Mine (Anti Tank), Influence Mine (Anti Personnel), Antitank Mine
+Booby Trapped, Antipersonnel Fragmentation Mine, Unknown Mine, and
+Booby Trap (the Control Measure Point, see below) alike.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
 already the entire in-scope SIGINT list, so no narrowing needed here.
