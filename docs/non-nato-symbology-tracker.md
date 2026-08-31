@@ -53,18 +53,18 @@ maintainer said there will be further changes communicated as the
 build proceeds - this list is the reviewed starting point, not
 necessarily the last word.
 
-**Land Unit (20 of 187):** Air Defence, Ammunition, Amphibious, Armor
-Mechanized, Armored Mechanized Tracked, Army Aviation Aviation Rotary
+**Land Unit (20 of 187):** Air Defence, Ammunition, Amphibious, Armour
+Mechanized, Armoured Mechanized Tracked, Army Aviation Aviation Rotary
 Wing, Counterintelligence, Electronic Warfare, Engineer, Field
 Artillery, Infantry, Maintenance, Mechanized, Medical, Military
 Intelligence, Military Police, Parachute Rigger, Reconnaissance
-Cavalry Scout, Signal, Special Operations Forces. *(Displayed as "Air
-Defence" per the defense->defence spelling rule below - this is the
-same APP-6E entity, key unchanged.)*
+Cavalry Scout, Signal, Special Operations Forces. *(Displayed with
+British spelling per the rule below - these are the same APP-6E
+entities, keys unchanged.)*
 
 **Land Equipment (26 of 189):** Air Defence Gun, Air Defence Missile
 Launcher, Antennae, Antipersonnel Land Mine, Antitank Gun, Antitank
-Mine, Antitank Missile Launcher, Antitank Rocket Launcher, Armored
+Mine, Antitank Missile Launcher, Antitank Rocket Launcher, Armoured
 Protected Vehicle, Automatic Rifle, Bridge, Direct Fire Gun, Flame
 Thrower, Grenade Launcher, Howitzer, Improvised Explosives Device,
 Land Mine, Machine Gun, Missile Launcher, Mortar, Pack Animals, Radar,
@@ -105,7 +105,7 @@ later called out as an exception.
         triangle) have a solid-fill shape hardcoded into milsymbol's
         own icon drawing, not controlled by its `fill` option.
         Deliberate exception, not a bug to fix: these keep their solid
-        shape as part of what makes the entity recognizable. "No fill"
+        shape as part of what makes the entity recognisable. "No fill"
         applies to the frame/background, not to every sub-shape of
         every glyph.
       - **Full sweep, 2026-08-26**: rendered all 187 Land Unit and 189
@@ -181,7 +181,7 @@ as its own four sub-categories above.)
       not a pictogram) — confirmed 2026-08-26 to accept as-is, same
       as milsymbol provides, rather than building a custom icon.
 - [x] **Activities** — not required
-- [x] **Mine Warfare** — not required *(catalog section not
+- [x] **Mine Warfare** — not required *(catalogue section not
       previously in this list — added from the PDF's own structure)*
 
 ## Part C — Control measures (Appendix H tactical graphics)
@@ -269,28 +269,34 @@ Meta-questions likely to come up regardless of category/domain.
         that "planned" is more naturally a unit-level concept.
 - [x] **Symbology standard edition** — APP-6E (MIL-STD-2525E) entity
       vocabulary only; APP-6D/2525D is not used for non-NATO symbology.
-- [x] **Spelling convention (2026-08-31)** — American spellings in the
-      APP-6E vocabulary are displayed with British spelling instead,
-      starting with "defense" -> "defence" (e.g. "Air Defense Gun"
-      displays as "Air Defence Gun"). Applies to every entity label
-      wherever it appears, not just the ones already required. Entity
-      keys/SIDCs are unchanged - this is display text only.
-- [ ] **Weapon light/medium/heavy tier renaming (2026-08-31)** — for
+- [x] **Spelling convention (2026-08-31, broadened same day)** —
+      general rule: wherever the APP-6E vocabulary (or this record's
+      own prose) uses an American spelling with a standard British
+      equivalent, use the British one. Confirmed examples so far:
+      "defense" -> "defence" (e.g. "Air Defence Gun"), "armor" ->
+      "armour" and "armored" -> "armoured" (e.g. "Armour Mechanized",
+      "Armoured Protected Vehicle"). Swept the whole record for other
+      American/British spelling pairs and fixed what applied
+      ("recognizable" -> "recognisable", "catalog section" ->
+      "catalogue section" - prose only, not literal filenames). Entity
+      keys/SIDCs are unchanged - this is display text only. **Excluded
+      on purpose**: Part C's control-measures list and the Echelon
+      list's dropped "Theater" both quote the existing NATO/plugin
+      catalog's own names for reference - not new non-NATO labels, so
+      left in their original spelling; flag if that reads wrong.
+- [x] **Weapon light/medium/heavy tier renaming (2026-08-31)** — for
       weapons that carry a light/medium/heavy size class as a sector
       modifier (drawn as 1/2/3 horizontal lines across the base icon,
       e.g. Air Defence Gun), each tier shifts up one name for
       non-NATO: the plain/unmarked base icon (0 lines) is labelled
       **Light**, NATO's own **Light** (1 line) becomes **Medium**, and
-      NATO's own **Medium** (2 lines) becomes **Heavy**. **Confirmed
-      2026-08-31 to apply to every weapon in scope that carries this
-      light/medium/heavy modifier**, not just Air Defence Gun - one
-      general rule, not a per-entity exception.
-      **Still open**: following the exact pattern already set for
-      Echelons (Squad's rename left NATO's own Section unclaimed, and
-      it was marked not required) - does NATO's own 3-line **Heavy**
-      tier become not required, since its name is now taken by the
-      old Medium tier, with nothing to shift it up into? Not yet
-      confirmed either way.
+      NATO's own **Medium** (2 lines) becomes **Heavy**. Confirmed to
+      apply to every weapon in scope that carries this modifier, not
+      just Air Defence Gun - one general rule, not a per-entity
+      exception. **NATO's own 3-line Heavy tier is confirmed not
+      required** - same pattern as Squad's rename orphaning NATO's own
+      Section: its name is now taken by the old Medium tier, and
+      there's nothing to shift it up into.
 - [ ] Designation / label placement conventions — to be specified
       later.
 - [ ] Anything else that surfaces while specifying the above
