@@ -7,8 +7,11 @@ captured here). From this point on, remaining rules are worked out
 directly during implementation rather than specified upfront; this
 file stays as the record of what was already settled before that
 switch. Lives on the `non-nato-symbology` branch; not part of `main`
-until this work is ready to integrate (see `docs/roadmap.md`'s note on
-why this is a separate branch).
+until this work is ready to integrate - not merged piecemeal, so as
+not to ship a half-specified symbology scheme, and not until it
+reaches roughly 80-90% complete (the maintainer's own bar). *(This
+branch's own `docs/roadmap.md` predates that explanation - it was
+never written there; this paragraph is the record of it instead.)*
 
 This is a rules record, not a design doc — capture what the maintainer
 says here verbatim/close to verbatim, not an interpretation of it.
@@ -30,13 +33,20 @@ locally only, same as the rest of `reference/`).
 
 ## Required entities (reviewed 2026-08-31)
 
-Generated a checkbox-per-icon HTML check sheet (`nonnato_check_sheet.html`,
-built standalone from milsymbol.js, not committed - see the "Complete
-non-NATO symbol check sheet" note further down) covering every Land
-Unit, Land Equipment, SIGINT Land and Control Measure Point APP-6E
-entity. Sent out for review by email (checkbox state round-trips
-through the file itself via the `checked` content attribute, not
-browser storage, specifically so it survives a save-and-email-back).
+Generated a checkbox-per-icon HTML check sheet (`nonnato_check_sheet.html`)
+covering every Land Unit, Land Equipment, SIGINT Land and Control
+Measure Point APP-6E entity, built standalone from milsymbol.js
+directly (real SIDCs via the plugin's own `build_sidc()`, no plugin
+UI/QGIS involved) - the generating script and the sheet itself live
+only in an ephemeral scratchpad, not committed anywhere in this repo,
+so regenerating one later means rebuilding that script from this
+description rather than finding it on disk. Sent out for review by
+email: each checkbox's toggle writes the actual `checked` CONTENT
+ATTRIBUTE, not just the DOM property, specifically because a plain
+property change is invisible to a browser's "Save Page As" and would
+have silently lost every tick on the way back - verified this
+round-trips correctly even with the browser's own storage completely
+disabled.
 Two reviewed copies came back and were parsed for which boxes ended up
 checked - one covering the original 393-icon sheet, a second covering
 just the Control Measure Points section added afterward. Zero overlap
@@ -81,7 +91,7 @@ no longer required. `aviation_fixed_wing` added in its place and
 renamed to Army Aviation (above) - the "Army Aviation" name moves from
 the rotary-wing entity to the fixed-wing one. Count stays at 20.
 
-**Land Equipment (26 of 189):** Air Defence Gun, Air Defence Missile
+**Land Equipment (25 of 189):** Air Defence Gun, Air Defence Missile
 Launcher, Antennae, Antipersonnel Fragmentation Mine, Antipersonnel
 Mine, Antitank Gun, Antitank Mine, Antitank Missile Launcher, Antitank
 Rocket Launcher, Armoured Protected Vehicle, Machine Gun, Bridge,
@@ -103,7 +113,12 @@ that drop. `automatic_rifle` renamed to **Machine Gun** in its place
 (row above), and is confirmed to carry its own light/medium/heavy
 tiers per the general weapon-tier renaming rule (Part D) - those
 variants are included in scope, not dropped, unlike the entity whose
-name it took over.
+name it took over. **This is a net loss of one entity, not a rename
+pair** - `automatic_rifle` was already one of the original 26 (it's
+not a new addition, just relabelled), so dropping `machine_gun`
+without adding anything back takes the true count to 25. The header
+above was corrected to match during a 2026-08-31 housekeeping pass -
+it had been left at 26.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
 already the entire in-scope SIGINT list, so no narrowing needed here.
