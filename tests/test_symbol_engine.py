@@ -159,6 +159,59 @@ class TestMctSidcSvgFunction(QgisTestCase):
         self.assertTrue(result.startswith("base64:"))
 
 
+    def test_frame_and_fill_are_untouched_when_omitted(self):
+
+        # Every existing NATO caller omits the eighth/ninth arguments -
+        # confirms milsymbol's own affiliation-driven frame/fill still
+        # apply exactly as before this pair was added. Compared against
+        # render_symbol_base64_path() called with the SAME stroke_scale
+        # mct_sidc_svg() applies by default (DEFAULT_STROKE_SCALE) -
+        # not the engine's own no-scaling default, which the two were
+        # never equal to in the first place.
+        sidc = build_sidc(affiliation="friend", entity="infantry")
+
+        with_args = QgsExpression(f"mct_sidc_svg('{sidc}')")
+        without_args = symbol_engine.render_symbol_base64_path(
+            sidc, stroke_scale=military_symbology_functions.DEFAULT_STROKE_SCALE
+        )
+
+        result = with_args.evaluate(QgsExpressionContext())
+
+        self.assertFalse(with_args.hasEvalError(), with_args.evalErrorString())
+        self.assertEqual(result, without_args)
+
+
+    def test_frame_false_and_fill_false_are_passed_through(self):
+
+        # monoColor is set alongside frame/fill here because it must
+        # be, not because the test wants it: probed directly, milsymbol
+        # falls back to an undocumented cyan when frame/fill are
+        # overridden with no monoColor given - the same gotcha found
+        # standalone earlier in the non-NATO symbology work. This test
+        # is about frame/fill actually reaching milsymbol, not about
+        # that separate, already-known interaction.
+        sidc = build_sidc(affiliation="friend", entity="infantry")
+
+        expression = QgsExpression(
+            f"mct_sidc_svg('{sidc}', '', '', '#3060c0', '', '', '', false, false)"
+        )
+
+        result = expression.evaluate(QgsExpressionContext())
+
+        self.assertFalse(expression.hasEvalError(), expression.evalErrorString())
+
+        svg = base64.b64decode(result[len("base64:"):]).decode("utf-8")
+
+        # frame:false means no frame rectangle path at all.
+        self.assertNotIn("M25,50 l150,0", svg)
+
+        # The requested colour actually reached the render, rather
+        # than milsymbol falling back to its own cyan default.
+        self.assertIn("#3060c0", svg)
+        self.assertNotIn("cyan", svg.lower())
+        self.assertNotIn("rgb(0, 255, 255)", svg)
+
+
     def _svg_for(self, sidc, stroke_scale_arg):
 
         expression = QgsExpression(

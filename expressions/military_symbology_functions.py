@@ -169,6 +169,14 @@ def mct_sidc_svg(values, feature=None, parent=None):
     through (confirmed live: an empty option value still reserves the
     text's own layout space in some icons, drawing a subtle empty box/
     line where nothing should be).
+
+    Optional EIGHTH/NINTH arguments (`frame`/`fill`, booleans): milsymbol's
+    own options of the same name, passed through only when explicitly
+    given - every existing caller omits both and gets milsymbol's own
+    affiliation-driven default, unchanged. Added for the non-NATO
+    symbology work (military_symbology/land_unit_layer_nonnato.py),
+    whose rules need a framed-but-unfilled rectangle for Units and no
+    frame at all for Equipment.
     """
 
     if len(values) < 1:
@@ -214,6 +222,17 @@ def mct_sidc_svg(values, feature=None, parent=None):
     extra_text = values[5] if len(values) > 5 else None
     extra_slot = str(values[6]) if len(values) > 6 and values[6] else None
 
+    # Optional EIGHTH and NINTH arguments: milsymbol's own `frame`/`fill`
+    # options, passed through only when explicitly given (None leaves
+    # milsymbol's own affiliation-driven default untouched, exactly like
+    # mono_color above). Added for the non-NATO symbology work, whose
+    # rules call for a rectangle frame with NO fill for Units and NO
+    # frame at all for Equipment - neither of which milsymbol's own
+    # affiliation-based defaults produce. Every existing NATO caller
+    # omits both and is unaffected.
+    frame = bool(values[7]) if len(values) > 7 and values[7] is not None else None
+    fill = bool(values[8]) if len(values) > 8 and values[8] is not None else None
+
     options = {}
 
     if text:
@@ -224,6 +243,12 @@ def mct_sidc_svg(values, feature=None, parent=None):
 
     if mono_color:
         options["monoColor"] = mono_color
+
+    if frame is not None:
+        options["frame"] = frame
+
+    if fill is not None:
+        options["fill"] = fill
 
     return render_symbol_base64_path(
         sidc, options or None, stroke_scale
