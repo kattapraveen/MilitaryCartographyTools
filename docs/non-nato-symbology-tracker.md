@@ -242,7 +242,9 @@ Meta-questions likely to come up regardless of category/domain.
       - (NATO's) Section — not required (name reused above, for Squad).
       - Platoon — renamed **Platoon/Troop**.
       - Company — renamed **Company/Battery/Flight/Squadron**.
-      - Battalion — renamed **Battalion/Regiment/Squadron**.
+      - Battalion — renamed **Battalion/Regiment/Avn Squadron**
+        *(changed from "Squadron" 2026-08-31, to disambiguate from
+        Company's own "...Squadron" rename above)*.
       - (NATO's) Regiment — not required (name reused above, for
         Battalion).
       - Brigade, Division, Corps — retained as-is, unchanged.
