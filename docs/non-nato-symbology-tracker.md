@@ -54,13 +54,12 @@ build proceeds - this list is the reviewed starting point, not
 necessarily the last word.
 
 **Land Unit (20 of 187):** Air Defence, Ammunition, Amphibious, Armour,
-Armoured/Assault Engineers, Army Aviation Aviation Rotary Wing,
-Artillery, Counterintelligence, EME, Electronic Warfare, Engineer,
-Infantry, Light Armour/Recce & Support (Tracked), Medical, Mechanised
-Infantry, Military Intelligence, Military Police, Parachute Rigger,
-Signal, Special Operations Forces. *(Displayed with British spelling
-per the rule below - these are the same APP-6E entities, keys
-unchanged.)*
+Armoured/Assault Engineers, Army Aviation, Artillery,
+Counterintelligence, EME, Electronic Warfare, Engineer, Infantry,
+Light Armour/Recce & Support (Tracked), Medical, Mechanised Infantry,
+Military Intelligence, Military Police, Parachute Rigger, Signal,
+Special Operations Forces. *(Displayed with British spelling per the
+rule below - these are the same APP-6E entities, keys unchanged.)*
 
 **Renamed 2026-08-31** (entity key unchanged in every case, display
 label only):
@@ -74,15 +73,21 @@ label only):
   **Light Armour/Recce & Support (Tracked)** *(the maintainer wrote
   "Armout" - read as a typo for "Armour" and corrected; flag if that's
   wrong)*
+- `aviation_fixed_wing` "Aviation Fixed Wing" -> **Army Aviation**
+  *(newly added, replacing the entity below)*
+
+**Swapped 2026-08-31**: `army_aviation_aviation_rotary_wing` dropped -
+no longer required. `aviation_fixed_wing` added in its place and
+renamed to Army Aviation (above) - the "Army Aviation" name moves from
+the rotary-wing entity to the fixed-wing one. Count stays at 20.
 
 **Land Equipment (26 of 189):** Air Defence Gun, Air Defence Missile
 Launcher, Antennae, Antipersonnel Fragmentation Mine, Antipersonnel
 Mine, Antitank Gun, Antitank Mine, Antitank Missile Launcher, Antitank
-Rocket Launcher, Armoured Protected Vehicle, Automatic Rifle *(rename
-pending - see note below)*, Bridge, Field Gun, Flame Thrower, Grenade
-Launcher, Howitzer, Improvised Explosives Device, Machine Gun, Missile
-Launcher, Mortar, Pack Animals, Radar, Recoilless Gun, Single Rocket
-Launcher, Tank, Vehicle.
+Rocket Launcher, Armoured Protected Vehicle, Machine Gun, Bridge,
+Field Gun, Flame Thrower, Grenade Launcher, Howitzer, Improvised
+Explosives Device, Missile Launcher, Mortar, Pack Animals, Radar,
+Recoilless Gun, Single Rocket Launcher, Tank, Vehicle.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
@@ -92,16 +97,13 @@ Launcher, Tank, Vehicle.
   it's worth double-checking this is the intended pairing)*
 - `direct_fire_gun` "Direct Fire Gun" -> **Field Gun**
 
-**Not yet applied - naming collision**: `automatic_rifle` was to be
-renamed to "Machine Gun", but `machine_gun` is a SEPARATE required
-entity already carrying that exact name. Renaming Automatic Rifle to
-match would give two different SIDCs the identical display label.
-Following the pattern already set for Echelons (a rename can leave the
-name's previous holder without one, and that holder then drops out of
-scope) and the weapon tiers (same logic) - is the intent that the
-existing `machine_gun` entity is no longer required, with Automatic
-Rifle taking over the "Machine Gun" name entirely? Left both entities
-under their original names until this is confirmed.
+**Collision resolved 2026-08-31**: the original `machine_gun` entity
+is dropped - no longer required, medium/heavy variants included in
+that drop. `automatic_rifle` renamed to **Machine Gun** in its place
+(row above), and is confirmed to carry its own light/medium/heavy
+tiers per the general weapon-tier renaming rule (Part D) - those
+variants are included in scope, not dropped, unlike the entity whose
+name it took over.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
 already the entire in-scope SIGINT list, so no narrowing needed here.
