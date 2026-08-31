@@ -20,7 +20,10 @@ import base64
 
 from qgis.core import QgsExpression, qgsfunction
 
-from ..military_symbology.nonnato_symbol_engine import render_nonnato_unit_svg
+from ..military_symbology.nonnato_symbol_engine import (
+    render_nonnato_equipment_svg,
+    render_nonnato_unit_svg,
+)
 
 
 @qgsfunction(
@@ -86,8 +89,49 @@ def mct_nonnato_unit_svg(values, feature=None, parent=None):
     return "base64:" + encoded
 
 
+@qgsfunction(
+    'mct_nonnato_equipment_svg',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_equipment_svg(values, feature=None, parent=None):
+
+    """
+    "base64:<...>" for a non-NATO Land Equipment feature - mirrors
+    mct_nonnato_unit_svg()'s own role but built around render_nonnato_
+    equipment_svg() instead: no echelon/status/combined_arms arguments,
+    since none of the three apply to Equipment (no frame to carry an
+    echelon or Combined Arms indicator, and Status is settled as
+    Units-only).
+
+    Arguments, the second optional: affiliation, entity, designation
+    (default none).
+    """
+
+    if len(values) < 2:
+        return "Need at least an affiliation and an entity"
+
+    affiliation = str(values[0])
+    entity = str(values[1])
+    designation = values[2] if len(values) > 2 else None
+
+    try:
+
+        svg = render_nonnato_equipment_svg(
+            affiliation, entity, designation=designation
+        )
+
+    except KeyError as error:
+
+        return str(error)
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
 _FUNCTIONS = [
     mct_nonnato_unit_svg,
+    mct_nonnato_equipment_svg,
 ]
 
 
