@@ -126,15 +126,16 @@ against actual before/after SVGs):
   weight unchanged from NATO" rule rather than shrinking along with
   the shape.
 
-**Land Equipment (26 of 189, one with no APP-6E equivalent - see
+**Land Equipment (27 of 189, two with no APP-6E equivalent - see
 below):** Air Defence Gun, Air Defence Missile Launcher, Antennae,
 Antipersonnel Fragmentation Mine, Antipersonnel Mine, Antitank Gun,
 Antitank Mine, Antitank Missile Launcher, Antitank Rocket Launcher,
 Armoured Protected Vehicle, Machine Gun, Bridge, Field Gun, Flame
-Thrower, Grenade Launcher, Howitzer, Improvised Explosives Device,
-Missile Launcher, Mortar, Pack Animals, Radar, Recoilless Gun, Single
-Rocket Launcher, Tank, **Unknown Mine** *(new, no entity key - see
-Icon modifications below)*, Vehicle.
+Thrower, Grenade Launcher, Howitzer, **Influence Mine (Anti Tank)**
+*(new, no entity key)*, Improvised Explosives Device, Missile
+Launcher, Mortar, Pack Animals, Radar, Recoilless Gun, Single Rocket
+Launcher, Tank, **Unknown Mine** *(new, no entity key - see Icon
+modifications below)*, Vehicle.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
@@ -179,8 +180,16 @@ rules before changing anything:
   a plain vertical diameter line through it. No entity key/SIDC yet -
   needs one assigned when this is actually implemented, most likely a
   synthetic key outside APP-6E's own numbering.
+- **Influence Mine (Anti Tank)** - **no APP-6E equivalent** (checked
+  both Land Equipment and the Control Measure Point vocabulary,
+  neither has it). Built on the Antitank Mine's solid circle, with two
+  horns reusing the exact same attachment/tip points as the
+  Antipersonnel Fragmentation Mine's horns (base near the circle edge,
+  tip out and up, mirrored left/right) - but as plain **unfilled
+  lines**, not filled triangles, each ending in a small **arrowhead**
+  at the tip. Confirmed against a rendered SVG before recording.
 
-**Mine colour (2026-08-31)**: all four mine icons above default to
+**Mine colour (2026-08-31)**: all mine icons above default to
 **green** rather than affiliation colour - confirmed to match an
 existing NATO-side convention already in this codebase:
 `obstacle_control_measures.py` already draws obstacles/mines in a
@@ -189,6 +198,7 @@ as an overridable default rather than affiliation-coloured, per that
 module's own "obstacles are GREEN, not affiliation-coloured" rule.
 Reused the exact same shade here for consistency rather than picking
 a new green. Applies to Antipersonnel Mine, Antitank Mine,
+Influence Mine (Anti Tank),
 Antipersonnel Fragmentation Mine and Unknown Mine alike.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
