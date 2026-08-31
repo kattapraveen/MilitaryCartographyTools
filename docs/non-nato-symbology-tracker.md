@@ -237,15 +237,29 @@ Ground, Target.
   Observer" -> **Artillery Observation Post**
 
 **Icon replacement 2026-08-31 - `booby_trap`**: fully replaces its
-current NATO glyph (an ellipse with a triangular peak over it) with
-the same shape as Land Equipment's Antitank Mine Booby Trapped
-(hollow circle + four 45/135/225/315-degree horns), rather than a
-tweak to the existing icon. **Colour**: green, not affiliation-based -
-checked `obstacle_control_measures.py` directly, and `booby_trap`
-already defaults to green there too (`colour=GREEN` is that module's
-own default for every entry unless overridden, and this entry has no
-override), so this is "carrying over unchanged" per Part C's own
-settled affiliation rule, not a new deviation from it.
+current NATO glyph (an ellipse with a triangular peak over it), rather
+than a tweak to the existing icon. **Colour**: green, not
+affiliation-based - checked `obstacle_control_measures.py` directly,
+and `booby_trap` already defaults to green there too (`colour=GREEN`
+is that module's own default for every entry unless overridden, and
+this entry has no override), so this is "carrying over unchanged" per
+Part C's own settled affiliation rule, not a new deviation from it.
+
+**Shape, first draft**: started from Land Equipment's Antitank Mine
+Booby Trapped shape (hollow circle + four 45/135/225/315-degree
+horns).
+
+**Shape, revised same day - this is the final version**: the two
+bottom horns (225/315 degrees) are removed. The two top horns
+(45/135 degrees) become **dashed**, and each gets a **second, parallel
+dashed line of the same length** alongside it (offset 5 units,
+perpendicular to the horn's own direction) - four short dashed strokes
+total, arranged as two parallel pairs rather than four single lines.
+**Three judgment calls made without an explicit spec, confirmed
+against a render before recording**: the new parallel line is dashed
+too, not just the original; the offset is 5 units; the new line sits
+outward/above the original rather than the pair straddling the
+original's centreline symmetrically.
 
 **Echelons and the Combined Arms indicator are unaffected by this
 review** - all 11 echelons were checked in the reviewed sheet
