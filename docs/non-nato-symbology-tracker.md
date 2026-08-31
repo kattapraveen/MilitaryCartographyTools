@@ -128,18 +128,30 @@ against actual before/after SVGs):
   weight unchanged from NATO" rule rather than shrinking along with
   the shape.
 
-**Land Equipment (30 of 189, five with no APP-6E equivalent - see
-below):** Air Defence Gun, Air Defence Missile Launcher, Antennae,
-Antipersonnel Fragmentation Mine, Antipersonnel Mine, Antitank Gun,
+**Land Equipment (58 of 189, five with no APP-6E equivalent - see
+below):** Air Defence Gun (Light), Air Defence Gun (Medium), Air
+Defence Gun (Heavy), Air Defence Missile Launcher (Light), Air Defence
+Missile Launcher (Medium), Air Defence Missile Launcher (Heavy),
+Antennae, Antipersonnel Fragmentation Mine, Antipersonnel Mine,
+Antitank Gun (Light), Antitank Gun (Medium), Antitank Gun (Heavy),
 **Antitank Mine Booby Trapped** *(new, no entity key)*, Antitank Mine,
-Antitank Missile Launcher, Antitank Rocket Launcher, Armoured
-Protected Vehicle, **Bar Mine** *(new, no entity key)*, Machine Gun,
-Bridge, Field Gun, Flame Thrower, Grenade Launcher, Howitzer,
-**Influence Mine (Anti Personnel)** *(new, no entity key)*,
-**Influence Mine (Anti Tank)** *(new, no entity key)*, Improvised
-Explosives Device, Missile Launcher, Mortar, Pack Animals, Radar,
-Recoilless Gun, Single Rocket Launcher, Tank, **Unknown Mine** *(new,
-no entity key - see Icon modifications below)*, Vehicle.
+Antitank Missile Launcher (Light), Antitank Missile Launcher (Medium),
+Antitank Missile Launcher (Heavy), Antitank Rocket Launcher (Light),
+Antitank Rocket Launcher (Medium), Antitank Rocket Launcher (Heavy),
+Armoured Protected Vehicle, **Bar Mine** *(new, no entity key)*,
+Bridge, Field Gun (Light), Field Gun (Medium), Field Gun (Heavy),
+Flame Thrower, Grenade Launcher (Light), Grenade Launcher (Medium),
+Grenade Launcher (Heavy), Howitzer (Light), Howitzer (Medium),
+Howitzer (Heavy), **Influence Mine (Anti Personnel)** *(new, no entity
+key)*, **Influence Mine (Anti Tank)** *(new, no entity key)*,
+Improvised Explosives Device, Machine Gun (Light), Machine Gun
+(Medium), Machine Gun (Heavy), Missile Launcher (Light), Missile
+Launcher (Medium), Missile Launcher (Heavy), Mortar (Light), Mortar
+(Medium), Mortar (Heavy), Pack Animals, Radar, Recoilless Gun (Light),
+Recoilless Gun (Medium), Recoilless Gun (Heavy), Single Rocket
+Launcher (Light), Single Rocket Launcher (Medium), Single Rocket
+Launcher (Heavy), Tank (Light), Tank (Medium), Tank (Heavy), **Unknown
+Mine** *(new, no entity key - see Icon modifications below)*, Vehicle.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
@@ -148,20 +160,55 @@ no entity key - see Icon modifications below)*, Vehicle.
   from the one above, confirmed 2026-08-31 as the intended pairing)*
 - `direct_fire_gun` "Direct Fire Gun" -> **Field Gun**
 
-**Collision resolved 2026-08-31**: the original `machine_gun` entity
-is dropped - no longer required, medium/heavy variants included in
-that drop. `automatic_rifle` renamed to **Machine Gun** in its place
-(row above), and is confirmed to carry its own light/medium/heavy
-tiers per the general weapon-tier renaming rule (Part D) - those
-variants are included in scope, not dropped, unlike the entity whose
-name it took over. **This is a net loss of one entity, not a rename
-pair** - `automatic_rifle` was already one of the original 26 (it's
-not a new addition, just relabelled), so dropping `machine_gun`
-without adding anything back takes the true count to 25. The header
-above was corrected to match during a 2026-08-31 housekeeping pass -
-it had been left at 26. *(Count moved back to 26 the same day once
-Unknown Mine was added - see below - a coincidence, not a reversal of
-this correction.)*
+**Weapon light/medium/heavy tiers actually applied, 2026-09-01** - the
+general rule (Part D) required checking, per family, which real APP-6E
+sibling keys exist and applying the settled shift (base -> Light,
+NATO's own Light -> Medium, NATO's own Medium -> Heavy, NATO's own
+Heavy dropped) to each. **This surfaced a real blocker first**: this
+branch had forked from `main` before `main`'s own APP-6E vocabulary
+fix (105 entities losing their parent name/tier siblings to a
+forward-fill bug, fixed and shipped in 1.3.1) - so several of these
+families' Light/Medium/Heavy siblings were silently missing from this
+branch's own `sidc_2525e.py` until that one commit was cherry-picked
+in specifically for this. Full test suite re-run clean after
+(1588/1588) before continuing.
+
+**13 real weapon families confirmed tiered** in APP-6E (checked every
+one of the 25 real Land Equipment entities individually, not assumed -
+this caught 2 more than the maintainer's own first pass named): Air
+Defence Gun, Air Defence Missile Launcher, Antitank Gun, Antitank
+Missile Launcher, Antitank Rocket Launcher, Field Gun, **Grenade
+Launcher**, Howitzer, Missile Launcher, Mortar, Recoilless Gun, Single
+Rocket Launcher, Tank (the two in bold were not in the maintainer's
+own original candidate list, found only by checking every entity
+rather than the assumed set). Each becomes three required entities
+(its own Light/Medium/Heavy), replacing the single line each held
+before - **13 families x 3 = 39 entities, a net +26** over treating
+them as single, untiered entities.
+
+**Machine Gun is NOT one of the 13** - checked directly against both
+`sidc_2525e.py` and the raw MIL-STD-2525E source table: `automatic_
+rifle` has no Light/Medium/Heavy siblings at all. It is one of three
+RIFLE FIRE-MODE variants instead (Single Shot/Semiautomatic/Automatic
+Rifle, siblings under a generic "Rifle" parent that is itself not
+used here) - a genuinely different kind of family, not a weight class.
+**An earlier note in this record claiming "confirmed to carry its own
+light/medium/heavy tiers" was wrong** - never actually checked against
+the vocabulary at the time, corrected here. **Settled instead**: reuse
+the rifle fire-mode family creatively for the same three-tier shape
+every other weapon gets - `single_shot_rifle` -> **Machine Gun
+(Light)**, `semiautomatic_rifle` -> **Machine Gun (Medium)**,
+`automatic_rifle` -> **Machine Gun (Heavy)**. `automatic_rifle` no
+longer sits alone as bare "Machine Gun" - it is now specifically the
+Heavy tier, with two more real entities added to complete the set (a
+further +2, on top of the +26 above).
+
+**Collision resolved 2026-08-31 (for context, superseded by the above
+2026-09-01 entry)**: the original `machine_gun` entity was dropped -
+no longer required - and `automatic_rifle` took over the "Machine Gun"
+name. That name now belongs specifically to the Heavy tier per the
+rifle-family repurposing above, not to `automatic_rifle` alone as a
+single untiered entity.
 
 **Mine icons (2026-08-31)** - checked milsymbol's actual current
 render for all three real mine entities against the maintainer's
