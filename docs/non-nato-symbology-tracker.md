@@ -229,6 +229,17 @@ Ground, Target.
 - `observation_post_forward_observer` "Observation Post Forward
   Observer" -> **Artillery Observation Post**
 
+**Icon replacement 2026-08-31 - `booby_trap`**: fully replaces its
+current NATO glyph (an ellipse with a triangular peak over it) with
+the same shape as Land Equipment's Antitank Mine Booby Trapped
+(hollow circle + four 45/135/225/315-degree horns), rather than a
+tweak to the existing icon. **Colour**: green, not affiliation-based -
+checked `obstacle_control_measures.py` directly, and `booby_trap`
+already defaults to green there too (`colour=GREEN` is that module's
+own default for every entry unless overridden, and this entry has no
+override), so this is "carrying over unchanged" per Part C's own
+settled affiliation rule, not a new deviation from it.
+
 **Echelons and the Combined Arms indicator are unaffected by this
 review** - all 11 echelons were checked in the reviewed sheet
 (matching the already-settled full list exactly, nothing pruned), and
