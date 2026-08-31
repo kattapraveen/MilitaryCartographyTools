@@ -53,14 +53,16 @@ maintainer said there will be further changes communicated as the
 build proceeds - this list is the reviewed starting point, not
 necessarily the last word.
 
-**Land Unit (20 of 187):** Air Defense, Ammunition, Amphibious, Armor
+**Land Unit (20 of 187):** Air Defence, Ammunition, Amphibious, Armor
 Mechanized, Armored Mechanized Tracked, Army Aviation Aviation Rotary
 Wing, Counterintelligence, Electronic Warfare, Engineer, Field
 Artillery, Infantry, Maintenance, Mechanized, Medical, Military
 Intelligence, Military Police, Parachute Rigger, Reconnaissance
-Cavalry Scout, Signal, Special Operations Forces.
+Cavalry Scout, Signal, Special Operations Forces. *(Displayed as "Air
+Defence" per the defense->defence spelling rule below - this is the
+same APP-6E entity, key unchanged.)*
 
-**Land Equipment (26 of 189):** Air Defense Gun, Air Defense Missile
+**Land Equipment (26 of 189):** Air Defence Gun, Air Defence Missile
 Launcher, Antennae, Antipersonnel Land Mine, Antitank Gun, Antitank
 Mine, Antitank Missile Launcher, Antitank Rocket Launcher, Armored
 Protected Vehicle, Automatic Rifle, Bridge, Direct Fire Gun, Flame
@@ -267,6 +269,30 @@ Meta-questions likely to come up regardless of category/domain.
         that "planned" is more naturally a unit-level concept.
 - [x] **Symbology standard edition** — APP-6E (MIL-STD-2525E) entity
       vocabulary only; APP-6D/2525D is not used for non-NATO symbology.
+- [x] **Spelling convention (2026-08-31)** — American spellings in the
+      APP-6E vocabulary are displayed with British spelling instead,
+      starting with "defense" -> "defence" (e.g. "Air Defense Gun"
+      displays as "Air Defence Gun"). Applies to every entity label
+      wherever it appears, not just the ones already required. Entity
+      keys/SIDCs are unchanged - this is display text only.
+- [ ] **Weapon light/medium/heavy tier renaming (2026-08-31, not yet
+      confirmed generalized)** — for weapons that carry a light/
+      medium/heavy size class as a sector modifier (drawn as 1/2/3
+      horizontal lines across the base icon, e.g. Air Defense Gun),
+      each tier shifts up one name for non-NATO: the plain/unmarked
+      base icon (0 lines) is labelled **Light**, NATO's own **Light**
+      (1 line) becomes **Medium**, and NATO's own **Medium** (2 lines)
+      becomes **Heavy**. Given verbatim for Air Defense [sic - see
+      spelling rule above, so "Air Defence"] Gun as the example.
+      **Open, not yet confirmed** - the maintainer's message cut off
+      mid-sentence ("same rules for all the"): (1) does this shift
+      apply to every weapon in the required Land Equipment list that
+      carries this same light/medium/heavy modifier, not just Air
+      Defence Gun? (2) following the exact pattern already set for
+      Echelons (Squad's rename left NATO's own Section unclaimed, and
+      it was marked not required) - does NATO's own 3-line **Heavy**
+      tier become not required, since its name is now taken by the
+      old Medium tier, with nothing to shift it up into?
 - [ ] Designation / label placement conventions — to be specified
       later.
 - [ ] Anything else that surfaces while specifying the above
