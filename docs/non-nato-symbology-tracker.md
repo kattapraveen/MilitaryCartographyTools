@@ -53,14 +53,27 @@ maintainer said there will be further changes communicated as the
 build proceeds - this list is the reviewed starting point, not
 necessarily the last word.
 
-**Land Unit (20 of 187):** Air Defence, Ammunition, Amphibious, Armour
-Mechanized, Armoured Mechanized Tracked, Army Aviation Aviation Rotary
-Wing, Counterintelligence, Electronic Warfare, Engineer, Field
-Artillery, Infantry, Maintenance, Mechanized, Medical, Military
-Intelligence, Military Police, Parachute Rigger, Reconnaissance
-Cavalry Scout, Signal, Special Operations Forces. *(Displayed with
-British spelling per the rule below - these are the same APP-6E
-entities, keys unchanged.)*
+**Land Unit (20 of 187):** Air Defence, Ammunition, Amphibious, Armour,
+Armoured/Assault Engineers, Army Aviation Aviation Rotary Wing,
+Artillery, Counterintelligence, EME, Electronic Warfare, Engineer,
+Infantry, Light Armour/Recce & Support (Tracked), Medical, Mechanised
+Infantry, Military Intelligence, Military Police, Parachute Rigger,
+Signal, Special Operations Forces. *(Displayed with British spelling
+per the rule below - these are the same APP-6E entities, keys
+unchanged.)*
+
+**Renamed 2026-08-31** (entity key unchanged in every case, display
+label only):
+- `armor_mechanized` "Armour Mechanized" -> **Armour**
+- `armored_mechanized_tracked` "Armoured Mechanized Tracked" ->
+  **Mechanised Infantry**
+- `field_artillery` "Field Artillery" -> **Artillery**
+- `mechanized` "Mechanized" -> **Armoured/Assault Engineers**
+- `maintenance` "Maintenance" -> **EME**
+- `reconnaissance_cavalry_scout` "Reconnaissance Cavalry Scout" ->
+  **Light Armour/Recce & Support (Tracked)** *(the maintainer wrote
+  "Armout" - read as a typo for "Armour" and corrected; flag if that's
+  wrong)*
 
 **Land Equipment (26 of 189):** Air Defence Gun, Air Defence Missile
 Launcher, Antennae, Antipersonnel Land Mine, Antitank Gun, Antitank
