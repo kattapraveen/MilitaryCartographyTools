@@ -79,6 +79,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "waypoints",
                     "print_production",
                     "nato_symbols",
+                    "non_nato_symbols",
                 }
             )
 
@@ -122,6 +123,14 @@ class TestPluginLifecycle(QgisTestCase):
                     "SIGINT",
                     "Space",
                     "Subsurface",
+                ],
+                # Not alphabetical - "Land" first mirrors NATO Symbols'
+                # own bundling order (Land bundles two sub-layers, the
+                # other two are single actions), not a UI request.
+                "non_nato_symbols": [
+                    "Land",
+                    "SIGINT",
+                    "Control Measure Points",
                 ],
             }
 
@@ -239,6 +248,9 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_activities_action)
         self.assertIsNone(plugin.tactical_graphics_sigint_action)
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
+        self.assertIsNone(plugin.nonnato_land_action)
+        self.assertIsNone(plugin.nonnato_sigint_action)
+        self.assertIsNone(plugin.nonnato_control_measure_points_action)
         self.assertIsNone(plugin.c2_measures_action)
         self.assertIsNone(plugin.maneuver_control_measures_action)
         self.assertIsNone(plugin.defensive_control_measures_action)

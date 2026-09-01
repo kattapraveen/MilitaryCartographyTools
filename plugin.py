@@ -52,6 +52,13 @@ from .military_symbology.subsurface_layer import add_subsurface_layers
 from .military_symbology.activities_layer import add_activities_layer
 from .military_symbology.sigint_layer import add_sigint_layer
 from .military_symbology.cyberspace_layer import add_cyberspace_layer
+from .military_symbology.nonnato_layers import add_nonnato_land_layers
+from .military_symbology.land_sigint_layer_nonnato import (
+    add_land_sigint_layer_nonnato,
+)
+from .military_symbology.control_measure_points_layer_nonnato import (
+    add_control_measure_points_layer_nonnato,
+)
 from .military_symbology.sustainment_control_measures import (
     add_sustainment_points_layer,
 )
@@ -200,6 +207,20 @@ class MilitaryCartographyTools:
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
 
+        # Non-NATO symbology (military_symbology/nonnato_symbol_engine.py)
+        # - a separate rendering scheme layered on the same milsymbol.js
+        # pipeline, not part of MIL-STD-2525D/E or APP-6D/E proper. Kept
+        # in its own toolbar group (see _setup_toolbar_groups()) rather
+        # than folded into "NATO Symbols", so the two schemes are never
+        # visually conflated. "Land" bundles Unit+Equipment in one click,
+        # mirroring tactical_graphics_land_action's own bundling of
+        # NATO's four Land sub-layers - see nonnato_layers.py. SIGINT and
+        # Control Measure Points each stay their own single action, same
+        # granularity as their NATO counterparts.
+        self.nonnato_land_action = None
+        self.nonnato_sigint_action = None
+        self.nonnato_control_measure_points_action = None
+
         # "Control Measures" nests as its own flyout submenu (like Sub
         # Grid below) rather than a single QAction, since Appendix H's
         # ~17 H.5.x logical groups (C2 Measures, Maneuver, Defensive,
@@ -332,6 +353,9 @@ class MilitaryCartographyTools:
         self._setup_tactical_graphics_activities_action()
         self._setup_tactical_graphics_sigint_action()
         self._setup_tactical_graphics_cyberspace_action()
+        self._setup_nonnato_land_action()
+        self._setup_nonnato_sigint_action()
+        self._setup_nonnato_control_measure_points_action()
         self._setup_control_measures_menu()
 
         # Assembles every action built above (all built with
@@ -1070,6 +1094,60 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_nonnato_land_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/nonnato_layers.py. Adds both Land Unit
+        # (Non-NATO) and Land Equipment (Non-NATO) in one click,
+        # mirroring _setup_tactical_graphics_land_action()'s own
+        # bundling of NATO's four Land sub-layers.
+        self.nonnato_land_action = self._build_action(
+            "nonnato_land.svg",
+            "Land",
+            tooltip=(
+                "Add Land Unit/Land Equipment (Non-NATO) layers that "
+                "render each point's own symbol automatically from its "
+                "attributes"
+            ),
+            callback=self.create_nonnato_land,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_sigint_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/land_sigint_layer_nonnato.py.
+        self.nonnato_sigint_action = self._build_action(
+            "nonnato_sigint.svg",
+            "SIGINT",
+            tooltip=(
+                "Add a SIGINT (Non-NATO) layer, Land-scoped (Jammer/"
+                "Radar only), that renders each point's own symbol "
+                "automatically from its attributes"
+            ),
+            callback=self.create_nonnato_sigint,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_control_measure_points_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/control_measure_points_layer_nonnato.py.
+        self.nonnato_control_measure_points_action = self._build_action(
+            "nonnato_control_measure_points.svg",
+            "Control Measure Points",
+            tooltip=(
+                "Add a Control Measure Points (Non-NATO) layer (11 "
+                "entities) that renders each point's own symbol "
+                "automatically from its attributes"
+            ),
+            callback=self.create_nonnato_control_measure_points,
+            standalone=False
+        )
+
+
     def _setup_control_measures_menu(self):
 
         # "Control Measures" nests as its own flyout submenu (same
@@ -1574,6 +1652,23 @@ class MilitaryCartographyTools:
                     self.tactical_graphics_subsurface_action,
                 ],
             ),
+            (
+                "non_nato_symbols",
+                "group_nonnato_symbols.svg",
+                "Non-NATO Symbols",
+                (
+                    "A separate non-NATO tactical symbology scheme "
+                    "(own affiliation colours, entity renames, custom "
+                    "icons): Land, SIGINT, and Control Measure Points - "
+                    "not part of MIL-STD-2525D/E or APP-6D/E, and not "
+                    "yet merged into this plugin's released symbology"
+                ),
+                [
+                    self.nonnato_land_action,
+                    self.nonnato_sigint_action,
+                    self.nonnato_control_measure_points_action,
+                ],
+            ),
             # Print Production stays last, always (2026-08-09, at the
             # maintainer's request) - "creating print layouts" is the
             # natural final step of a mapping workflow, so its own group
@@ -1873,6 +1968,9 @@ class MilitaryCartographyTools:
         self.tactical_graphics_activities_action = None
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
+        self.nonnato_land_action = None
+        self.nonnato_sigint_action = None
+        self.nonnato_control_measure_points_action = None
         self.c2_measures_action = None
         self.maneuver_control_measures_action = None
         self.defensive_control_measures_action = None
@@ -2318,6 +2416,40 @@ class MilitaryCartographyTools:
         """
 
         add_cyberspace_layer(
+            self.iface
+        )
+
+
+    def create_nonnato_land(self):
+        """
+        Add "Land Unit (Non-NATO)"/"Land Equipment (Non-NATO)" layers,
+        ready for placing symbols with QGIS's own native point editing
+        tools.
+        """
+
+        add_nonnato_land_layers(
+            self.iface
+        )
+
+
+    def create_nonnato_sigint(self):
+        """
+        Add a "SIGINT (Non-NATO)" layer, ready for placing symbols with
+        QGIS's own native point editing tools.
+        """
+
+        add_land_sigint_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_control_measure_points(self):
+        """
+        Add a "Control Measure Points (Non-NATO)" layer, ready for
+        placing symbols with QGIS's own native point editing tools.
+        """
+
+        add_control_measure_points_layer_nonnato(
             self.iface
         )
 
