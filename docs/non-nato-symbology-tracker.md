@@ -310,17 +310,30 @@ Part C's own settled affiliation rule, not a new deviation from it.
 Booby Trapped shape (hollow circle + four 45/135/225/315-degree
 horns).
 
-**Shape, revised same day - this is the final version**: the two
-bottom horns (225/315 degrees) are removed. The two top horns
-(45/135 degrees) become **dashed**, and each gets a **second, parallel
-dashed line of the same length** alongside it (offset 5 units,
-perpendicular to the horn's own direction) - four short dashed strokes
-total, arranged as two parallel pairs rather than four single lines.
-**Three judgment calls made without an explicit spec, confirmed
-against a render before recording**: the new parallel line is dashed
-too, not just the original; the offset is 5 units; the new line sits
+**Shape, revised same day - superseded, see below**: the two bottom
+horns (225/315 degrees) are removed. The two top horns (45/135
+degrees) become **dashed**, and each gets a **second, parallel dashed
+line of the same length** alongside it (offset 5 units, perpendicular
+to the horn's own direction) - four short dashed strokes total,
+arranged as two parallel pairs rather than four single lines. **Three
+judgment calls made without an explicit spec, confirmed against a
+render before recording**: the new parallel line is dashed too, not
+just the original; the offset is 5 units; the new line sits
 outward/above the original rather than the pair straddling the
-original's centreline symmetrically.
+original's centreline symmetrically. **This description was never
+actually implemented in code** - when the layer was finally built
+(2026-09-01/02), no surviving implementation of this shape could be
+found, so it was re-derived fresh from this prose and shipped, then
+immediately corrected below once the maintainer saw it live.
+
+**Shape, corrected 2026-09-02 - this is the actual final version**:
+reported live, against a rendered screenshot, as simply wrong -
+"booby trap is incorrect - it should be same as antitank mine but with
+the circle only, no fill". The dashed-horn design above is dropped
+entirely. The icon is now Antitank Mine's own real circle geometry
+(checked live: cx=100, cy=100, r=22, stroke-width 3 - Land Equipment's
+own `_mine_circle()` helper), hollow rather than that icon's own
+filled circle, and nothing else - no horns at all.
 
 **Echelons and the Combined Arms indicator are unaffected by this
 review** - all 11 echelons were checked in the reviewed sheet
@@ -331,6 +344,32 @@ whichever echelon is present), not a per-echelon feature to
 individually enable - so this is read as "these examples were looked
 at and confirmed correct," not a scope change to the Combined Arms
 rule itself.
+
+**Pill Box (`shelter`) - no fill, added 2026-09-02**: reported live,
+against a rendered screenshot - "pillbox is rendering as filled
+rectangle, it should be just the outline, no fill". Confirmed live
+that milsymbol's own `fill: false` option does nothing for this icon
+(a hardcoded fill, same defect class Part A's own "blanket policy"
+note already catalogues elsewhere), so this needed a post-render fixup
+rather than an options change. A genuine non-NATO-specific deviation
+from Part C's own default "no non-NATO-specific treatment" rule for
+Control Measure Points - narrow, one entity, not a broadening of that
+rule. Affiliation colouring is otherwise untouched (still NATO's own
+real colours, still the "friend/neutral/unknown render black, only
+hostile renders red" quirk). Also confirmed live: `shelter` defines no
+designation slot in milsymbol at all - a typed designation is accepted
+without error but never actually appears on the icon, independent of
+this fix and not something this fix could address.
+
+**SIGINT designation position, corrected 2026-09-02**: reported live,
+against a rendered screenshot - "in both sigint glyphs - the unique
+designator is too far from the icon - get it closer similar to other
+land unit glyphs". Confirmed live that milsymbol places a designation
+at a fixed y="160" regardless of how far down the icon's own artwork
+actually reaches - fine for a full Unit frame (drawn to y=150, a
+10-unit gap) but far too distant for SIGINT's own compact bare glyphs
+(Jammer's "J", Radar's hook - both drawn no lower than ~y=120). Moved
+to y="130" for both Jammer and Radar.
 
 ---
 
