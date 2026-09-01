@@ -4,10 +4,12 @@
 Bundles Land Unit (Non-NATO) and Land Equipment (Non-NATO) into one
 toolbar action - the non-NATO counterpart to land_layer.py's own
 add_land_layers(), which bundles NATO's four Land sub-layers the same
-way. SIGINT (Non-NATO) and Control Measure Points (Non-NATO) each stay
-their own single toolbar action instead, mirroring how NATO's own
-SIGINT is a single action while Land bundles multiple sub-layers -
-neither has a second non-NATO sibling layer to bundle with.
+way. Control Measure Points (Non-NATO) stays its own single toolbar
+action instead, mirroring NATO's own single-action SIGINT/Sea
+Surface/etc. Land Equipment's own entity list also covers Jammer/Radar
+(Land-scoped SIGINT) since 2026-09-02 - merged in once a two-entity
+layer stopped justifying its own module/action, so there is no
+separate SIGINT bundling to speak of any more.
 
 Military Cartography Tools
 """

@@ -15,6 +15,9 @@ from qgis.core import QgsExpression, QgsExpressionContext
 from .qgis_test_case import QgisTestCase
 
 from MilitaryCartographyTools.military_symbology import symbol_engine
+from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
+    SIGINT_RADAR_ENTITY,
+)
 from MilitaryCartographyTools.expressions import nonnato_symbology_functions
 
 
@@ -204,83 +207,38 @@ class TestMctNonnatoEquipmentSvg(QgisTestCase):
         )
 
 
-class TestMctNonnatoSigintSvg(QgisTestCase):
+    def test_jammer_and_sigint_radar_render_too(self):
 
-    def setUp(self):
-
-        super().setUp()
-
-        symbol_engine._svg_cache.clear()
-
-        nonnato_symbology_functions.register()
-
-        self.addCleanup(nonnato_symbology_functions.unregister)
-
-
-    def _evaluate(self, expression_text):
-
-        expression = QgsExpression(expression_text)
-
-        result = expression.evaluate(QgsExpressionContext())
-
-        self.assertFalse(
-            expression.hasEvalError(), expression.evalErrorString()
+        # Merged in from the retired standalone SIGINT layer,
+        # 2026-09-02 ("merge sigint glyphs (since there are only two)
+        # with land equipment") - same function, same no-frame rule,
+        # just a different SIDC symbol_set under the hood
+        # (nonnato_symbol_engine._EQUIPMENT_SYMBOL_SET_OVERRIDES).
+        # SIGINT's own Radar is stored as SIGINT_RADAR_ENTITY, not the
+        # literal "radar" - that key is already Land Equipment's own
+        # distinct "Radar" entity (see _EQUIPMENT_ENTITY_KEY_ALIASES).
+        radar_svg = self._svg_for(
+            f"mct_nonnato_equipment_svg('friend', '{SIGINT_RADAR_ENTITY}')"
         )
+        jammer_svg = self._svg_for("mct_nonnato_equipment_svg('hostile', 'jammer')")
 
-        return result
-
-
-    def _svg_for(self, expression_text):
-
-        result = self._evaluate(expression_text)
-
-        self.assertTrue(result.startswith("base64:"))
-
-        return base64.b64decode(result[len("base64:"):]).decode("utf-8")
+        self.assertTrue(radar_svg.startswith("<svg"))
+        self.assertIn("#3060c0", radar_svg)
+        self.assertNotIn("M25,50", radar_svg)  # no frame at all
+        self.assertIn(">J<", jammer_svg)
 
 
-    def test_evaluates_through_a_real_qgs_expression(self):
+    def test_jammer_and_sigint_radar_designation_sits_close_to_the_icon(self):
 
-        svg = self._svg_for("mct_nonnato_sigint_svg('friend', 'radar')")
-
-        self.assertTrue(svg.startswith("<svg"))
-        self.assertIn("#3060c0", svg)
-        self.assertNotIn("M25,50", svg)  # no frame at all for SIGINT
-
-
-    def test_jammer_renders_too(self):
-
-        svg = self._svg_for("mct_nonnato_sigint_svg('hostile', 'jammer')")
-
-        self.assertIn(">J<", svg)
-
-
-    def test_designation_reaches_the_render(self):
-
+        # The SIGINT designation-position fixup (y="130", not
+        # milsymbol's own far-away y="160") must still apply now that
+        # these two render through mct_nonnato_equipment_svg().
         svg = self._svg_for(
-            "mct_nonnato_sigint_svg('hostile', 'radar', 'a1')"
+            f"mct_nonnato_equipment_svg('friend', '{SIGINT_RADAR_ENTITY}', 'a1')"
         )
 
-        self.assertIn("A1", svg)
-
-
-    def test_an_invalid_entity_returns_readable_error_text_not_a_crash(self):
-
-        result = self._evaluate(
-            "mct_nonnato_sigint_svg('friend', 'not_a_real_entity')"
-        )
-
-        self.assertNotIn("base64:", result)
-        self.assertIn("not_a_real_entity", result)
-
-
-    def test_missing_required_arguments(self):
-
-        result = self._evaluate("mct_nonnato_sigint_svg('friend')")
-
-        self.assertEqual(
-            result, "Need at least an affiliation and an entity"
-        )
+        self.assertIn('y="130"', svg)
+        self.assertNotIn('y="160"', svg)
 
 
 class TestMctNonnatoBoobyTrapSvg(QgisTestCase):
@@ -374,13 +332,18 @@ class TestNonnatoWidthFunctions(QgisTestCase):
         self.assertGreater(amplified, plain)
 
 
-    def test_sigint_width_grows_with_a_designation(self):
+    def test_equipment_width_grows_with_a_designation_for_sigint_radar_too(self):
 
+        # Jammer/Radar merged into mct_nonnato_equipment_svg_width()
+        # 2026-09-02 - same width function every other Equipment entity
+        # uses, just a different SIDC symbol_set under the hood. SIGINT's
+        # own Radar is stored as SIGINT_RADAR_ENTITY, not "radar" (see
+        # _EQUIPMENT_ENTITY_KEY_ALIASES).
         plain = self._evaluate(
-            "mct_nonnato_sigint_svg_width('friend','radar','')"
+            f"mct_nonnato_equipment_svg_width('friend','{SIGINT_RADAR_ENTITY}','')"
         )
         amplified = self._evaluate(
-            "mct_nonnato_sigint_svg_width('friend','radar','HQ 3')"
+            f"mct_nonnato_equipment_svg_width('friend','{SIGINT_RADAR_ENTITY}','HQ 3')"
         )
 
         self.assertGreater(amplified, plain)

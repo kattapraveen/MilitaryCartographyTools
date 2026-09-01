@@ -19,10 +19,14 @@ family's own tier renamed up one per the settled weapon-tier rule),
 Machine Gun's own three tiers (repurposed from the Rifle family's
 fire-mode variants, not a real weight-class family - see the rules
 record's 2026-09-01 correction), and five synthetic mine icons with no
-APP-6E entity at all. Not the full 189-entity NATO vocabulary.
+APP-6E entity at all - plus Jammer and Radar (Land-scoped SIGINT),
+merged in here 2026-09-02 once a two-entity layer stopped justifying
+its own module ("merge sigint glyphs (since there are only two) with
+land equipment"). Not the full 189-entity NATO vocabulary.
 
-No toolbar action yet, same as Land Unit - reachable only by calling
-add_land_equipment_layer_nonnato(iface) directly.
+Reachable via the "Land" entry in the toolbar's "Non-NATO Symbols"
+group (see plugin.py), or directly via
+add_land_equipment_layer_nonnato(iface).
 
 Military Cartography Tools
 """
@@ -51,6 +55,7 @@ from .nonnato_symbol_engine import (
     BAR_MINE_ENTITY,
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
     INFLUENCE_MINE_ANTI_TANK_ENTITY,
+    SIGINT_RADAR_ENTITY,
     UNKNOWN_MINE_ENTITY,
     stabilised_nonnato_size_expression,
 )
@@ -139,6 +144,20 @@ ENTITY_LABELS = {
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY: "Influence Mine (Anti Personnel)",
     ANTITANK_MINE_BOOBY_TRAPPED_ENTITY: "Antitank Mine Booby Trapped",
     BAR_MINE_ENTITY: "Bar Mine",
+
+    # --- SIGINT, Land-scoped (2), merged in 2026-09-02 - real APP-6E
+    # entities, but under symbol_set "sigint_land" rather than
+    # "land_equipment" (see nonnato_symbol_engine.
+    # _EQUIPMENT_SYMBOL_SET_OVERRIDES). SIGINT's own Radar is stored as
+    # SIGINT_RADAR_ENTITY, NOT the literal "radar" key - that key is
+    # already taken by the "Radar" entry above (a genuinely different,
+    # already-confirmed real Land Equipment entity - a physical radar
+    # system, not a SIGINT platform). See nonnato_symbol_engine.
+    # _EQUIPMENT_ENTITY_KEY_ALIASES for how the stored key still
+    # resolves to the real APP-6E entity "radar" at SIDC-build time,
+    # just under the other symbol_set.
+    "jammer": "Jammer",
+    SIGINT_RADAR_ENTITY: "Radar (SIGINT)",
 }
 
 

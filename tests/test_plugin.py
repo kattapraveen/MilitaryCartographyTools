@@ -124,12 +124,11 @@ class TestPluginLifecycle(QgisTestCase):
                     "Space",
                     "Subsurface",
                 ],
-                # Not alphabetical - "Land" first mirrors NATO Symbols'
-                # own bundling order (Land bundles two sub-layers, the
-                # other two are single actions), not a UI request.
+                # SIGINT used to be its own third entry here, merged
+                # into "Land" (Land Equipment) 2026-09-02 - only two
+                # entities stopped justifying a separate action.
                 "non_nato_symbols": [
                     "Land",
-                    "SIGINT",
                     "Control Measure Points",
                 ],
             }
@@ -249,7 +248,6 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_sigint_action)
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
         self.assertIsNone(plugin.nonnato_land_action)
-        self.assertIsNone(plugin.nonnato_sigint_action)
         self.assertIsNone(plugin.nonnato_control_measure_points_action)
         self.assertIsNone(plugin.c2_measures_action)
         self.assertIsNone(plugin.maneuver_control_measures_action)

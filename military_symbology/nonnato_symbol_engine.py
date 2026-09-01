@@ -675,16 +675,77 @@ def render_nonnato_unit_svg(
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 
 
-# --- Land Equipment ----------------------------------------------------
+# --- Land Equipment (also holds SIGINT, merged in 2026-09-02) ----------
+#
+# SIGINT used to be its own layer/module - retired once the maintainer
+# pointed out it only ever had two entities ("merge sigint glyphs
+# (since there are only two) with land equipment"). Jammer and Radar
+# keep their own SIDC symbol_set ("sigint_land", not "land_equipment"
+# - see _EQUIPMENT_SYMBOL_SET_OVERRIDES) and their own designation-
+# position fixup, but otherwise render through the exact same pipeline
+# as every other Land Equipment entity - same six-affiliation colour
+# map, same no-frame/no-fill options, same designation handling.
+
+# milsymbol places uniqueDesignation at a FIXED y="160" regardless of
+# how far down the icon's own artwork actually reaches - confirmed live
+# by comparing Jammer/Radar's own rendered SVG (glyph drawn no lower
+# than ~y=120, viewBox 126 units tall) against a framed Unit icon's
+# (drawn to y=150 in the same 126-unit viewBox): both get the exact
+# same y="160" text position, so the framed icon reads as "just below
+# the frame" while these two compact bare glyphs read as "text floating
+# well below the icon" - reported live against a screenshot: "in both
+# sigint glyphs - the unique designator is too far from the icon".
+# Moved to y="130" instead - the same ~10-unit gap below the icon's own
+# actual bottom edge the framed case already gets "for free" from the
+# fixed constant. A plain string replace, not a regex: "160" never
+# appears anywhere else in either icon's own SVG.
+_SIGINT_DESIGNATION_Y_FIX = (('y="160"', 'y="130"'),)
+
+
+def _tighten_sigint_designation(svg):
+
+    for old, new in _SIGINT_DESIGNATION_Y_FIX:
+        svg = svg.replace(old, new)
+
+    return svg
+
+
+# Jammer is a real APP-6E entity, but under symbol_set "sigint_land",
+# not "land_equipment". Radar needs the same treatment - EXCEPT Land
+# Equipment already has its OWN, genuinely different, real "radar"
+# entity (a physical radar system, symbol_set "land_equipment" - one
+# of the originally reviewed 26 base entities, confirmed against the
+# maintainer's own check sheet). The two cannot share one stored entity
+# key, so SIGINT's own Radar is stored as SIGINT_RADAR_ENTITY instead -
+# still resolved to the real APP-6E key "radar" at SIDC-build time (see
+# _EQUIPMENT_ENTITY_KEY_ALIASES), just under "sigint_land". Caught only
+# because the layer's own entity-count test moved by one instead of two
+# when this was first merged in.
+SIGINT_RADAR_ENTITY = "sigint_radar"
+
+_EQUIPMENT_ENTITY_KEY_ALIASES = {
+    SIGINT_RADAR_ENTITY: "radar",
+}
+
+# This is the SAME small-number-of-entities-need-a-different-
+# symbol_set case _point_symbol_layer.py's own entity_symbol_set_
+# overrides mechanism exists for on the NATO side, just reimplemented
+# here directly since this module has no equivalent shared helper.
+_EQUIPMENT_SYMBOL_SET_OVERRIDES = {
+    "jammer": "sigint_land",
+    SIGINT_RADAR_ENTITY: "sigint_land",
+}
 
 _EQUIPMENT_ENTITY_FIXUPS = {
     "antipersonnel_land_mine": unfilled_antipersonnel_fragmentation_mine,
+    "jammer": _tighten_sigint_designation,
+    SIGINT_RADAR_ENTITY: _tighten_sigint_designation,
 }
 
 
 def apply_nonnato_equipment_fixups(svg, entity):
 
-    """Every post-render fixup a Land Equipment icon might need - just the one mine fixup so far."""
+    """Every post-render fixup a Land Equipment icon might need."""
 
     fixup = _EQUIPMENT_ENTITY_FIXUPS.get(entity)
 
@@ -704,7 +765,13 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
     live that Equipment's own icon glyph does not vary by SIDC
     affiliation at all (unlike the Unit frame's shape), so unlike
     render_nonnato_unit_svg() there is no shape-forcing concern here,
-    only colour.
+    only colour. Jammer/SIGINT_RADAR_ENTITY (see
+    _EQUIPMENT_SYMBOL_SET_OVERRIDES) render through this same path too,
+    just against symbol_set "sigint_land" instead of "land_equipment" -
+    and SIGINT_RADAR_ENTITY's own STORED key is resolved to the real
+    APP-6E key "radar" via _EQUIPMENT_ENTITY_KEY_ALIASES before it ever
+    reaches build_sidc(), since "radar" itself is already taken by Land
+    Equipment's own distinct entity of the same name.
     """
 
     is_mine = entity in MINE_ENTITIES
@@ -721,8 +788,10 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
 
         sidc = build_sidc(
             affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
-            entity=entity,
-            symbol_set="land_equipment",
+            entity=_EQUIPMENT_ENTITY_KEY_ALIASES.get(entity, entity),
+            symbol_set=_EQUIPMENT_SYMBOL_SET_OVERRIDES.get(
+                entity, "land_equipment"
+            ),
             edition="2525E",
         )
 
@@ -734,71 +803,6 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
         svg = apply_nonnato_equipment_fixups(
             render_symbol_svg(sidc, options), entity
         )
-
-    return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
-
-
-# --- SIGINT (Land only) -------------------------------------------------
-
-# milsymbol places uniqueDesignation at a FIXED y="160" regardless of
-# how far down the icon's own artwork actually reaches - confirmed live
-# by comparing Jammer/Radar's own rendered SVG (glyph drawn no lower
-# than ~y=120, viewBox 126 units tall) against a framed Unit icon's
-# (drawn to y=150 in the same 126-unit viewBox): both get the exact
-# same y="160" text position, so the framed icon reads as "just below
-# the frame" while SIGINT's own compact bare glyphs read as "text
-# floating well below the icon" - reported live against a screenshot,
-# 2026-09-0X: "in both sigint glyphs - the unique designator is too far
-# from the icon". Moved to y="130" instead - the same ~10-unit gap
-# below the icon's own actual bottom edge the framed case already gets
-# "for free" from the fixed constant. A plain string replace, not a
-# regex: "160" never appears anywhere else in either icon's own SVG.
-_SIGINT_DESIGNATION_Y_FIX = (('y="160"', 'y="130"'),)
-
-
-def _tighten_sigint_designation(svg):
-
-    for old, new in _SIGINT_DESIGNATION_Y_FIX:
-        svg = svg.replace(old, new)
-
-    return svg
-
-
-def render_nonnato_sigint_svg(affiliation, entity, designation=None):
-
-    """
-    The full non-NATO Land SIGINT render - Jammer and Radar only (see
-    the rules record's Part B: "Land SIGINT: only Jammer and Radar are
-    required, following the same rules as Land Equipment (no frame,
-    bare glyph, affiliation by the glyph's own outline colour)"), so
-    this mirrors render_nonnato_equipment_svg() exactly minus the mine
-    handling - SIGINT has no mine family. Checked live: Radar's icon is
-    proper line art (affiliation via `stroke`); Jammer's is milsymbol's
-    own bare-letter "J" glyph (affiliation via `fill`, since text has
-    no stroke) - confirmed 2026-08-26 to accept both as-is, no fixup
-    needed for either. `symbol_set` is always "sigint_land" - the
-    non-NATO scope never needed the NATO SIGINT layer's own
-    Space/Air/Land/Sea Surface/Subsurface dimension field, since only
-    the Land dimension is in scope at all.
-    """
-
-    sidc = build_sidc(
-        affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
-        entity=entity,
-        symbol_set="sigint_land",
-        edition="2525E",
-    )
-
-    colour = AFFILIATION_COLOURS.get(
-        affiliation, AFFILIATION_COLOURS["friend"]
-    )
-
-    options = {"frame": False, "fill": False, "monoColor": colour}
-
-    if designation:
-        options["uniqueDesignation"] = str(designation).upper()
-
-    svg = _tighten_sigint_designation(render_symbol_svg(sidc, options))
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 

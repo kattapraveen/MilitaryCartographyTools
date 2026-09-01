@@ -597,40 +597,63 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
                 self.assertTrue(svg.startswith("<svg"))
 
 
-class TestRenderNonnatoSigintSvg(QgisTestCase):
+    def test_an_invalid_entity_raises_a_key_error(self):
 
-    def setUp(self):
+        with self.assertRaises(KeyError):
 
-        super().setUp()
-
-        symbol_engine._svg_cache.clear()
+            nse.render_nonnato_equipment_svg("friend", "not_a_real_entity")
 
 
-    def test_radar_renders_line_art_with_no_frame(self):
+    def test_sigint_radar_renders_line_art_with_no_frame(self):
 
-        svg = nse.render_nonnato_sigint_svg("friend", "radar")
+        # Jammer/Radar (Land-scoped SIGINT) merged in 2026-09-02 -
+        # "merge sigint glyphs (since there are only two) with land
+        # equipment" - now render through this same function, just
+        # against symbol_set "sigint_land" under the hood (see
+        # _EQUIPMENT_SYMBOL_SET_OVERRIDES). SIGINT's own Radar is stored
+        # as SIGINT_RADAR_ENTITY, not the literal "radar" - that key is
+        # already Land Equipment's own, genuinely different, real
+        # "Radar" entity (a physical radar system) - see
+        # _EQUIPMENT_ENTITY_KEY_ALIASES for how the alias resolves.
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", nse.SIGINT_RADAR_ENTITY
+        )
 
         self.assertTrue(svg.startswith("<svg"))
         self.assertNotIn("M25,50", svg)
         self.assertIn(_FRIEND, svg)
 
 
+    def test_sigint_radar_is_distinct_from_land_equipments_own_radar(self):
+
+        sigint_radar_svg = nse.render_nonnato_equipment_svg(
+            "friend", nse.SIGINT_RADAR_ENTITY
+        )
+        land_equipment_radar_svg = nse.render_nonnato_equipment_svg(
+            "friend", "radar"
+        )
+
+        self.assertNotEqual(sigint_radar_svg, land_equipment_radar_svg)
+
+
     def test_jammer_renders_the_bare_letter_glyph(self):
 
-        svg = nse.render_nonnato_sigint_svg("friend", "jammer")
+        svg = nse.render_nonnato_equipment_svg("friend", "jammer")
 
         self.assertTrue(svg.startswith("<svg"))
         self.assertIn(">J<", svg)
         self.assertIn(_FRIEND, svg)
 
 
-    def test_every_affiliation_renders_the_same_shape(self):
+    def test_jammer_and_sigint_radar_every_affiliation_renders_the_same_shape(self):
 
         shapes = set()
 
         for affiliation in nse.AFFILIATION_COLOURS:
 
-            svg = nse.render_nonnato_sigint_svg(affiliation, "radar")
+            svg = nse.render_nonnato_equipment_svg(
+                affiliation, nse.SIGINT_RADAR_ENTITY
+            )
 
             colour = nse.AFFILIATION_COLOURS[affiliation]
             self.assertIn(colour, svg)
@@ -640,18 +663,17 @@ class TestRenderNonnatoSigintSvg(QgisTestCase):
         self.assertEqual(len(shapes), 1)
 
 
-    def test_designation_reaches_the_render(self):
+    def test_jammer_and_sigint_radar_designation_sits_close_to_the_icon(self):
 
-        svg = nse.render_nonnato_sigint_svg("hostile", "radar", designation="a1")
+        # The SIGINT designation-position fixup (y="130", not
+        # milsymbol's own far-away y="160") must still apply.
+        svg = nse.render_nonnato_equipment_svg(
+            "hostile", nse.SIGINT_RADAR_ENTITY, designation="a1"
+        )
 
         self.assertIn("A1", svg)
-
-
-    def test_an_invalid_entity_raises_a_key_error(self):
-
-        with self.assertRaises(KeyError):
-
-            nse.render_nonnato_sigint_svg("friend", "not_a_real_entity")
+        self.assertIn('y="130"', svg)
+        self.assertNotIn('y="160"', svg)
 
 
 class TestBoobyTrapControlMeasureSvg(QgisTestCase):

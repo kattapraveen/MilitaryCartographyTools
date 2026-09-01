@@ -25,7 +25,6 @@ from ..military_symbology.nonnato_symbol_engine import (
     booby_trap_control_measure_svg,
     render_nonnato_equipment_svg,
     render_nonnato_pillbox_svg,
-    render_nonnato_sigint_svg,
     render_nonnato_unit_svg,
 )
 
@@ -197,7 +196,11 @@ def mct_nonnato_equipment_svg(values, feature=None, parent=None):
     equipment_svg() instead: no echelon/status/combined_arms arguments,
     since none of the three apply to Equipment (no frame to carry an
     echelon or Combined Arms indicator, and Status is settled as
-    Units-only).
+    Units-only). Also covers Jammer/Radar (SIGINT, Land-scoped) since
+    2026-09-02 - merged in here rather than kept as its own function,
+    at the maintainer's own request, once a two-entity layer stopped
+    justifying its own module. render_nonnato_equipment_svg() itself
+    handles the different SIDC symbol_set those two need.
 
     Arguments, the second optional: affiliation, entity, designation
     (default none). See mct_nonnato_equipment_svg_width() below for the
@@ -223,75 +226,6 @@ def mct_nonnato_equipment_svg_width(values, feature=None, parent=None):
     """The rendered WIDTH of exactly the symbol mct_nonnato_equipment_svg() would return - see mct_nonnato_unit_svg_width()'s own docstring for the full reasoning and the 2026-09-02 fix this belongs to."""
 
     svg, error = _render_equipment(values)
-
-    if error is not None:
-        return 0.0
-
-    return _viewbox_width(svg)
-
-
-def _render_sigint(values):
-
-    """Shared argument parsing for mct_nonnato_sigint_svg()/_width() - see _render_unit()'s own docstring for why this is factored out."""
-
-    if len(values) < 2:
-        return None, "Need at least an affiliation and an entity"
-
-    affiliation = str(values[0])
-    entity = str(values[1])
-    designation = values[2] if len(values) > 2 else None
-
-    try:
-
-        svg = render_nonnato_sigint_svg(
-            affiliation, entity, designation=designation
-        )
-
-    except KeyError as error:
-
-        return None, str(error)
-
-    return svg, None
-
-
-@qgsfunction(
-    'mct_nonnato_sigint_svg',
-    group='Military Cartography Tools'
-)
-def mct_nonnato_sigint_svg(values, feature=None, parent=None):
-
-    """
-    "base64:<...>" for a non-NATO Land SIGINT feature - mirrors
-    mct_nonnato_equipment_svg()'s own role but built around
-    render_nonnato_sigint_svg() instead: no echelon/status/
-    combined_arms, same reasoning as Equipment (see that function's own
-    docstring), and no dimension field either, since Land is the only
-    dimension in scope.
-
-    Arguments, the second optional: affiliation, entity, designation
-    (default none). See mct_nonnato_sigint_svg_width() below for the
-    icon-size stabilisation companion function.
-    """
-
-    svg, error = _render_sigint(values)
-
-    if error is not None:
-        return error
-
-    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
-
-    return "base64:" + encoded
-
-
-@qgsfunction(
-    'mct_nonnato_sigint_svg_width',
-    group='Military Cartography Tools'
-)
-def mct_nonnato_sigint_svg_width(values, feature=None, parent=None):
-
-    """The rendered WIDTH of exactly the symbol mct_nonnato_sigint_svg() would return - see mct_nonnato_unit_svg_width()'s own docstring for the full reasoning and the 2026-09-02 fix this belongs to."""
-
-    svg, error = _render_sigint(values)
 
     if error is not None:
         return 0.0
@@ -388,8 +322,6 @@ _FUNCTIONS = [
     mct_nonnato_unit_svg_width,
     mct_nonnato_equipment_svg,
     mct_nonnato_equipment_svg_width,
-    mct_nonnato_sigint_svg,
-    mct_nonnato_sigint_svg_width,
     mct_nonnato_booby_trap_svg,
     mct_nonnato_pillbox_svg,
     mct_nonnato_pillbox_svg_width,

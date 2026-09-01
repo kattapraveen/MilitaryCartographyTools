@@ -37,6 +37,7 @@ from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
     INFLUENCE_MINE_ANTI_TANK_ENTITY,
     MINE_GREEN,
+    SIGINT_RADAR_ENTITY,
     UNKNOWN_MINE_ENTITY,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
@@ -55,6 +56,21 @@ SYNTHETIC_ENTITIES = frozenset({
     BAR_MINE_ENTITY,
 })
 
+# Jammer/Radar are real APP-6E entities, but under symbol_set
+# "sigint_land", not "land_equipment" - merged in here 2026-09-02 from
+# the retired standalone SIGINT (Non-NATO) layer, once two entities
+# stopped justifying their own module/layer/toolbar action. SIGINT's
+# own Radar is stored as SIGINT_RADAR_ENTITY ("sigint_radar"), not the
+# literal "radar" - that key is already Land Equipment's own distinct
+# "Radar" entity. This maps each STORED key to the real APP-6E entity
+# key SIDC resolution actually needs (identical for jammer).
+SIGINT_ENTITIES = frozenset({"jammer", SIGINT_RADAR_ENTITY})
+
+SIGINT_REAL_ENTITY_KEYS = {
+    "jammer": "jammer",
+    SIGINT_RADAR_ENTITY: "radar",
+}
+
 
 class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
@@ -64,7 +80,7 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
         for key in ENTITY_LABELS:
 
-            if key in SYNTHETIC_ENTITIES:
+            if key in SYNTHETIC_ENTITIES or key in SIGINT_ENTITIES:
                 continue
 
             with self.subTest(entity=key):
@@ -72,14 +88,27 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
                 self.assertIn(key, real_keys)
 
 
+    def test_jammer_and_radar_are_valid_app6e_sigint_land_entities(self):
+
+        real_keys = entities_for_edition("2525E")["sigint_land"]
+
+        for key in SIGINT_ENTITIES:
+
+            with self.subTest(entity=key):
+
+                self.assertIn(SIGINT_REAL_ENTITY_KEYS[key], real_keys)
+
+
     def test_count_matches_the_reviewed_list(self):
 
-        # 53 real entities (11 non-tiered + 39 weapon-tier siblings +
-        # 3 repurposed Machine Gun tiers) plus 5 synthetic mine icons -
-        # see the rules record's "Required entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 58)
+        # 53 real Land Equipment entities (11 non-tiered + 39
+        # weapon-tier siblings + 3 repurposed Machine Gun tiers) plus 5
+        # synthetic mine icons plus Jammer/Radar (Land-scoped SIGINT,
+        # merged in 2026-09-02) - see the rules record's "Required
+        # entities" section.
+        self.assertEqual(len(ENTITY_LABELS), 60)
 
-        for entity in SYNTHETIC_ENTITIES:
+        for entity in SYNTHETIC_ENTITIES | SIGINT_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)
 
 
@@ -298,17 +327,63 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
         # render_nonnato_equipment_svg()'s own build_sidc() call
         # expects - not just present in the 2525E vocabulary (already
         # checked above) but resolving with no KeyError for every one.
+        # Jammer/Radar resolve under "sigint_land" instead, per
+        # nonnato_symbol_engine._EQUIPMENT_SYMBOL_SET_OVERRIDES, and
+        # SIGINT's own Radar resolves through its own real entity key
+        # ("radar", not the stored "sigint_radar" - see
+        # _EQUIPMENT_ENTITY_KEY_ALIASES).
         for entity in ENTITY_LABELS:
 
             if entity in SYNTHETIC_ENTITIES:
                 continue
 
+            if entity in SIGINT_ENTITIES:
+                real_entity = SIGINT_REAL_ENTITY_KEYS[entity]
+                symbol_set = "sigint_land"
+            else:
+                real_entity = entity
+                symbol_set = "land_equipment"
+
             with self.subTest(entity=entity):
 
                 build_sidc(
-                    affiliation="friend", entity=entity,
-                    symbol_set="land_equipment", edition="2525E",
+                    affiliation="friend", entity=real_entity,
+                    symbol_set=symbol_set, edition="2525E",
                 )
+
+
+    def test_jammer_and_radar_designation_sits_close_to_the_icon(self):
+
+        # The SIGINT designation-position fixup (y="130", not
+        # milsymbol's own far-away y="160") must still apply now that
+        # these two render through the Land Equipment layer.
+        layer = build_land_equipment_layer_nonnato()
+
+        svg = self._decoded_svg_for(
+            layer,
+            {
+                "affiliation": "friend", "entity": SIGINT_RADAR_ENTITY,
+                "unique_designation": "a1",
+            },
+        )
+
+        self.assertIn("A1", svg)
+        self.assertIn('y="130"', svg)
+        self.assertNotIn('y="160"', svg)
+
+
+    def test_sigint_radar_is_distinct_from_land_equipments_own_radar(self):
+
+        layer = build_land_equipment_layer_nonnato()
+
+        sigint_radar_svg = self._decoded_svg_for(
+            layer, {"affiliation": "friend", "entity": SIGINT_RADAR_ENTITY}
+        )
+        land_equipment_radar_svg = self._decoded_svg_for(
+            layer, {"affiliation": "friend", "entity": "radar"}
+        )
+
+        self.assertNotEqual(sigint_radar_svg, land_equipment_radar_svg)
 
 
 class TestAddLandEquipmentLayerNonnato(QgisTestCase):
