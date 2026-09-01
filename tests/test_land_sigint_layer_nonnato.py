@@ -12,6 +12,7 @@ import base64
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
+    QgsExpression,
     QgsExpressionContext,
     QgsExpressionContextUtils,
     QgsFeature,
@@ -119,6 +120,35 @@ class TestBuildLandSigintLayerNonnato(QgisTestCase):
         return base64.b64decode(path[len("base64:"):]).decode("utf-8")
 
 
+    def _render_size_for(self, layer, attributes):
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+        expr_context.setFeature(feature)
+
+        render_context = QgsRenderContext()
+        render_context.setExpressionContext(expr_context)
+
+        symbol = layer.renderer().symbol().clone()
+        symbol.startRender(render_context, layer.fields())
+
+        svg_layer = symbol.symbolLayer(0)
+
+        size, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, expr_context, 0.0
+        )
+
+        self.assertTrue(ok, "size expression failed to evaluate")
+
+        return size
+
+
     def test_every_field_exists_with_the_right_type(self):
 
         layer = build_land_sigint_layer_nonnato()
@@ -187,6 +217,41 @@ class TestBuildLandSigintLayerNonnato(QgisTestCase):
         )
 
         self.assertIn("A1", svg)
+
+
+    def test_a_typed_designation_does_not_shrink_the_icon(self):
+
+        # Same fix, same reasoning as Land Unit's own regression test -
+        # see that module's test file for the full "reported live"
+        # story and why the raw Size property is EXPECTED to grow with
+        # a designation, not stay flat.
+        layer = build_land_sigint_layer_nonnato()
+
+        without_designation = self._render_size_for(
+            layer,
+            {"affiliation": "friend", "entity": "radar", "unique_designation": ""},
+        )
+        with_designation = self._render_size_for(
+            layer,
+            {"affiliation": "friend", "entity": "radar", "unique_designation": "HQ 3"},
+        )
+
+        self.assertGreater(with_designation, without_designation)
+
+        plain_width = QgsExpression(
+            "mct_nonnato_sigint_svg_width('friend','radar','')"
+        ).evaluate()
+
+        amplified_width = QgsExpression(
+            "mct_nonnato_sigint_svg_width('friend','radar','HQ 3')"
+        ).evaluate()
+
+        icon_footprint_without = without_designation
+        icon_footprint_with = with_designation * plain_width / amplified_width
+
+        self.assertAlmostEqual(
+            icon_footprint_without, icon_footprint_with, places=3
+        )
 
 
     def test_entity_keys_match_a_real_sigint_land_sidc(self):

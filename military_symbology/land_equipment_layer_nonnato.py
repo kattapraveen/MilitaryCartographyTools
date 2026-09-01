@@ -52,6 +52,7 @@ from .nonnato_symbol_engine import (
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
     INFLUENCE_MINE_ANTI_TANK_ENTITY,
     UNKNOWN_MINE_ENTITY,
+    stabilised_nonnato_size_expression,
 )
 
 
@@ -189,9 +190,29 @@ def _build_renderer():
         f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
     )
 
+    # Holds the icon still when a designation is typed in - see
+    # stabilised_nonnato_size_expression()'s own docstring for the
+    # 2026-09-02 fix this is (reported against Land Unit, applied
+    # "across the board" per the maintainer's own instruction).
+    amplified_width_expression = (
+        'mct_nonnato_equipment_svg_width('
+        f'"affiliation","entity",{designation_expression}'
+        ')'
+    )
+
+    plain_width_expression = (
+        "mct_nonnato_equipment_svg_width(\"affiliation\",\"entity\",'')"
+    )
+
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
-        QgsProperty.fromExpression(scaled_size_expression)
+        QgsProperty.fromExpression(
+            stabilised_nonnato_size_expression(
+                scaled_size_expression,
+                amplified_width_expression,
+                plain_width_expression,
+            )
+        )
     )
 
     svg_layer.setDataDefinedProperty(

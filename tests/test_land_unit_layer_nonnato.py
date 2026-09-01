@@ -10,6 +10,7 @@ Military Cartography Tools
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
+    QgsExpression,
     QgsExpressionContext,
     QgsExpressionContextUtils,
     QgsFeature,
@@ -114,6 +115,35 @@ class TestBuildLandUnitLayerNonnato(QgisTestCase):
         return path
 
 
+    def _render_size_for(self, layer, attributes):
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+        expr_context.setFeature(feature)
+
+        render_context = QgsRenderContext()
+        render_context.setExpressionContext(expr_context)
+
+        symbol = layer.renderer().symbol().clone()
+        symbol.startRender(render_context, layer.fields())
+
+        svg_layer = symbol.symbolLayer(0)
+
+        size, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, expr_context, 0.0
+        )
+
+        self.assertTrue(ok, "size expression failed to evaluate")
+
+        return size
+
+
     def test_every_field_exists_with_the_right_type(self):
 
         layer = build_land_unit_layer_nonnato()
@@ -198,6 +228,60 @@ class TestBuildLandUnitLayerNonnato(QgisTestCase):
         )
 
         self.assertNotEqual(without, with_ca)
+
+
+    def test_a_typed_designation_does_not_shrink_the_icon(self):
+
+        # Reported live, 2026-09-02: "when i insert a land unit with
+        # designator, the size of the glyph is reducing making it
+        # unreadable" - QGIS sizes an SVG marker by its own declared
+        # width, and milsymbol widens that declared width to fit typed
+        # text, so a FIXED marker size drew a visibly smaller icon the
+        # moment text was typed in.
+        #
+        # The fix makes the Size PROPERTY itself grow with a
+        # designation (by design - see stabilised_nonnato_size_
+        # expression()'s own docstring for why) so the ICON's own drawn
+        # footprint stays fixed instead. That footprint is Size *
+        # (plain_width / amplified_width) - dividing the compensation
+        # back out recovers the plain, no-designation size exactly,
+        # which is what this test actually checks, rather than
+        # (wrongly) expecting the raw Size property to stay flat.
+        layer = build_land_unit_layer_nonnato()
+
+        base_attributes = {
+            "affiliation": "friend", "entity": "infantry",
+            "echelon": "unspecified", "status": "present",
+            "combined_arms": False,
+        }
+
+        without_designation = self._render_size_for(
+            layer, {**base_attributes, "unique_designation": ""}
+        )
+        with_designation = self._render_size_for(
+            layer, {**base_attributes, "unique_designation": "HQ 3"}
+        )
+
+        # The compensation must have actually kicked in - a designation
+        # genuinely widens milsymbol's own declared bounding box.
+        self.assertGreater(with_designation, without_designation)
+
+        plain_width = QgsExpression(
+            "mct_nonnato_unit_svg_width("
+            "'friend','infantry','unspecified','present','','false')"
+        ).evaluate()
+
+        amplified_width = QgsExpression(
+            "mct_nonnato_unit_svg_width("
+            "'friend','infantry','unspecified','present','HQ 3','false')"
+        ).evaluate()
+
+        icon_footprint_without = without_designation
+        icon_footprint_with = with_designation * plain_width / amplified_width
+
+        self.assertAlmostEqual(
+            icon_footprint_without, icon_footprint_with, places=3
+        )
 
 
     def test_entity_keys_match_a_real_ground_unit_sidc(self):

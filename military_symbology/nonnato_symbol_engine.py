@@ -73,6 +73,52 @@ DEFAULT_STROKE_SCALE = 1.3
 # .py's own OBSTACLE_GREEN_EXPRESSION shade for consistency.
 MINE_GREEN = "#009b00"
 
+
+def stabilised_nonnato_size_expression(
+    base_size_expression, amplified_width_expression, plain_width_expression
+):
+
+    """
+    `base_size_expression`, scaled so the ICON stays exactly the same
+    size when a unique designation is typed into it - the non-NATO
+    counterpart to _control_measure_shared.py's own stabilised_point_
+    size_expression(), decoupled from that function's hardwired
+    mct_sidc_svg()/mct_build_sidc() call shape (it locates those two
+    literal substrings inside a single combined expression string,
+    which no mct_nonnato_*_svg() call contains). Callers here instead
+    pass the two already-built width CALLS directly - one with the
+    feature's own designation, one with none - since each non-NATO
+    layer already has both in hand (echelon/status/combined_arms vary
+    the argument list per layer, so there is no single shared
+    "designation-less" transform to derive automatically the way the
+    NATO version does).
+
+    Fixed 2026-09-02, reported live against Land Unit ("when i insert a
+    land unit with designator, the size of the glyph is reducing making
+    it unreadable") - QGIS sizes an SVG marker by its own declared
+    width, and milsymbol widens that declared width to fit whatever
+    designation text it carries, so a fixed marker size draws a visibly
+    smaller icon the moment text is typed in. Dividing the amplified
+    width by the plain one and multiplying the base size by that ratio
+    holds the icon steady and lets the text hang outside it instead -
+    same fix, same reasoning as the NATO one this mirrors, applied
+    across every non-NATO layer built so far (Land Unit, Land
+    Equipment, SIGINT) - Control Measure Points already had this, since
+    ten of its eleven entities go through the plain NATO mct_sidc_svg()
+    pipeline unchanged (see that layer's own module for why).
+
+    The ratio is guarded the same way, and for the same reason: a NULL
+    feature attribute must not null out the whole size expression and
+    silently drop the "scale" field's own multiplier with it. nullif()
+    also covers a width of 0, which is what the width function returns
+    for anything it cannot render at all.
+    """
+
+    return (
+        f"({base_size_expression}) * coalesce({amplified_width_expression}"
+        f" / nullif({plain_width_expression}, 0), 1)"
+    )
+
 # --- Mine family (Land Equipment) -------------------------------------
 #
 # Three real APP-6E entities (already render correctly with no fixup,
@@ -694,6 +740,30 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
 
 # --- SIGINT (Land only) -------------------------------------------------
 
+# milsymbol places uniqueDesignation at a FIXED y="160" regardless of
+# how far down the icon's own artwork actually reaches - confirmed live
+# by comparing Jammer/Radar's own rendered SVG (glyph drawn no lower
+# than ~y=120, viewBox 126 units tall) against a framed Unit icon's
+# (drawn to y=150 in the same 126-unit viewBox): both get the exact
+# same y="160" text position, so the framed icon reads as "just below
+# the frame" while SIGINT's own compact bare glyphs read as "text
+# floating well below the icon" - reported live against a screenshot,
+# 2026-09-0X: "in both sigint glyphs - the unique designator is too far
+# from the icon". Moved to y="130" instead - the same ~10-unit gap
+# below the icon's own actual bottom edge the framed case already gets
+# "for free" from the fixed constant. A plain string replace, not a
+# regex: "160" never appears anywhere else in either icon's own SVG.
+_SIGINT_DESIGNATION_Y_FIX = (('y="160"', 'y="130"'),)
+
+
+def _tighten_sigint_designation(svg):
+
+    for old, new in _SIGINT_DESIGNATION_Y_FIX:
+        svg = svg.replace(old, new)
+
+    return svg
+
+
 def render_nonnato_sigint_svg(affiliation, entity, designation=None):
 
     """
@@ -728,7 +798,7 @@ def render_nonnato_sigint_svg(affiliation, entity, designation=None):
     if designation:
         options["uniqueDesignation"] = str(designation).upper()
 
-    svg = render_symbol_svg(sidc, options)
+    svg = _tighten_sigint_designation(render_symbol_svg(sidc, options))
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 
@@ -759,50 +829,78 @@ def booby_trap_control_measure_svg(colour=MINE_GREEN):
     Control Measure Point's own Booby Trap (280700) - NOT the Land
     Equipment mine family's own, structurally distinct, Antitank Mine
     Booby Trapped synthetic entity (ANTITANK_MINE_BOOBY_TRAPPED_ENTITY
-    above) - the two happen to share a visual starting point (this one's
-    circle-plus-horns geometry is lifted from that one's), nothing more.
+    above).
 
-    Built from that shape's own solid circle and 45/135/225/315-degree
-    horn coordinates (see antitank_mine_booby_trapped_svg()), then
-    revised per the rules record: the two bottom horns (225/315 degrees)
-    dropped; the two top horns (45/135 degrees) each made dashed, with a
-    second, parallel dashed line of the same length alongside it (offset
-    5 units, perpendicular to the horn's own direction, sitting outward -
-    away from the OTHER horn - rather than the pair straddling the
-    original's centreline symmetrically). Dash pattern "4,3" is this
-    scheme's own standard dash unit (see bar_mine_svg()'s own comment on
-    why IT doubles the dash length instead - this icon does not).
-
-    This was never actually built before now - the rules record's own
-    "confirmed against a render before recording" note describes an
-    exploration this function's own author could not find any surviving
-    code for, so the exact horn/offset numbers below are a fresh,
-    from-the-spec derivation, re-confirmed against a real render when
-    this function was written rather than assumed correct.
+    Corrected 2026-09-02, reported live against a rendered screenshot:
+    "booby trap is incorrect - it should be same as antitank mine but
+    with the circle only, no fill" - replacing an earlier, more
+    elaborate dashed-double-horn design this function used to have (a
+    from-the-spec derivation of an ambiguous prose description that
+    turned out not to match what the maintainer actually wanted once
+    they saw it rendered). Antitank Mine's own real icon (checked live:
+    `render_symbol_svg` on the real "antitank_mine" Land Equipment
+    entity) is exactly _mine_circle()'s own geometry - cx=100, cy=100,
+    r=22, stroke-width 3 - so this is now a direct, literal reuse of
+    that same helper, hollow rather than Antitank Mine's own filled
+    circle.
     """
-
-    offset = 5 / (2 ** 0.5)  # perpendicular unit vector at 45 degrees, times 5
-
-    top_right = (
-        f'<path d="M115.6,84.4 L131.9,68.1" stroke-width="3" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
-        f'<path d="M{115.6 + offset:g},{84.4 + offset:g} '
-        f'L{131.9 + offset:g},{68.1 + offset:g}" stroke-width="3" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
-    )
-
-    top_left = (
-        f'<path d="M84.4,84.4 L68.1,68.1" stroke-width="3" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
-        f'<path d="M{84.4 - offset:g},{84.4 + offset:g} '
-        f'L{68.1 - offset:g},{68.1 + offset:g}" stroke-width="3" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
-    )
 
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
         'baseProfile="tiny" viewBox="46 46 108 108">'
-        + _mine_circle(colour, filled=True)
-        + top_right + top_left
+        + _mine_circle(colour, filled=False)
         + '</svg>'
     )
+
+
+def apply_pillbox_fixup(svg):
+
+    """
+    Pill Box (`shelter`, 280900) renders as a solid filled square,
+    hardcoded into milsymbol's own icon drawing the same way Field
+    Fortification's other hardcoded-fill glyphs are (see Part A's own
+    "blanket policy" note on this being common, not rare) - confirmed
+    live that milsymbol's own `fill: false` option does nothing for it
+    (the rendered fill matches the rendered stroke colour exactly
+    either way). Forced hollow here by post-processing instead, per the
+    maintainer's own live report, 2026-09-02: "pillbox is rendering as
+    filled rectangle, it should be just the outline, no fill". Pill Box
+    is a single `<path>` with exactly one fill attribute, so a blunt
+    "first fill wins" replace is safe and does not risk touching
+    anything else in the icon.
+    """
+
+    return re.sub(r'fill="[^"]*"', 'fill="none"', svg, count=1)
+
+
+def render_nonnato_pillbox_svg(affiliation, status="present", designation=None):
+
+    """
+    Pill Box's own render - branched out of the plain mct_sidc_svg()
+    pipeline every other Control Measure Point entity still uses (see
+    this section's own top-of-file comment), purely because it is the
+    one entity needing apply_pillbox_fixup() above. Affiliation/status/
+    designation all behave exactly as they would through the plain
+    pipeline - NATO's own real colouring, no monoColor override, per
+    Part C's own settled "no non-NATO-specific treatment" rule; only
+    the fill is forced hollow.
+    """
+
+    sidc = build_sidc(
+        affiliation=affiliation,
+        entity="shelter",
+        symbol_set="control_measure",
+        echelon="unspecified",
+        status=status,
+        headquarters=False,
+        edition="2525E",
+    )
+
+    options = {}
+
+    if designation:
+        options["uniqueDesignation"] = str(designation).upper()
+
+    svg = apply_pillbox_fixup(render_symbol_svg(sidc, options or None))
+
+    return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)

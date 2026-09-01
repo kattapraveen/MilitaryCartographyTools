@@ -656,14 +656,21 @@ class TestRenderNonnatoSigintSvg(QgisTestCase):
 
 class TestBoobyTrapControlMeasureSvg(QgisTestCase):
 
-    def test_renders_a_solid_circle_with_two_dashed_horn_pairs(self):
+    def test_renders_a_hollow_circle_only(self):
 
+        # Corrected 2026-09-02, reported live: "booby trap is incorrect
+        # - it should be same as antitank mine but with the circle
+        # only, no fill" - replacing an earlier dashed-double-horn
+        # design. Same geometry as Antitank Mine's own real icon
+        # (cx=100, cy=100, r=22 - see _mine_circle()), hollow instead of
+        # that icon's own filled circle.
         svg = nse.booby_trap_control_measure_svg()
 
         self.assertTrue(svg.startswith("<svg"))
         self.assertEqual(svg.count("<circle"), 1)
-        self.assertEqual(svg.count("<path"), 4)
-        self.assertEqual(svg.count("stroke-dasharray"), 4)
+        self.assertEqual(svg.count("<path"), 0)
+        self.assertIn('cx="100" cy="100" r="22"', svg)
+        self.assertIn('fill="none"', svg)
 
 
     def test_defaults_to_mine_green(self):
@@ -673,20 +680,69 @@ class TestBoobyTrapControlMeasureSvg(QgisTestCase):
         self.assertIn(nse.MINE_GREEN, svg)
 
 
-    def test_bottom_horns_are_not_present(self):
-
-        # The dropped 225/315-degree horns from Antitank Mine Booby
-        # Trapped's own four-horn shape - see that function's own
-        # coordinates for the pair this must NOT contain.
-        svg = nse.booby_trap_control_measure_svg()
-
-        self.assertNotIn("84.4,115.6", svg)
-        self.assertNotIn("115.6,115.6", svg)
-
-
     def test_accepts_a_colour_override(self):
 
         svg = nse.booby_trap_control_measure_svg("#000000")
 
         self.assertIn("#000000", svg)
         self.assertNotIn(nse.MINE_GREEN, svg)
+
+
+class TestPillboxFixup(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_renders_hollow_with_real_affiliation_colour(self):
+
+        # Reported live: "pillbox is rendering as filled rectangle, it
+        # should be just the outline, no fill" - milsymbol's own
+        # `fill: false` option does nothing for this icon (confirmed
+        # live: fill matched stroke either way), so this is a
+        # post-render fixup instead. Affiliation colouring is otherwise
+        # untouched NATO behaviour (Part C) - friend/neutral/unknown
+        # render black, hostile renders red, same as every other entity
+        # on this layer.
+        friend_svg = nse.render_nonnato_pillbox_svg("friend")
+        hostile_svg = nse.render_nonnato_pillbox_svg("hostile")
+
+        for svg in (friend_svg, hostile_svg):
+
+            self.assertTrue(svg.startswith("<svg"))
+            self.assertIn('fill="none"', svg)
+
+        self.assertIn("black", friend_svg)
+        self.assertIn("255, 0, 0", hostile_svg)
+
+
+    def test_designation_is_accepted_but_milsymbol_draws_nothing_for_it(self):
+
+        # Confirmed live: `shelter`'s own milsymbol icon defines NO
+        # designation slot at all - uniqueDesignation/uniqueDesignation1
+        # /additionalInformation/additionalInformation1 all draw
+        # identically with or without one. Not a regression from the
+        # fill fixup - the plain mct_sidc_svg() pipeline every other
+        # entity on this layer uses would hit the exact same milsymbol
+        # limitation for this one entity. Documented here as the
+        # current, accepted behaviour rather than silently assumed.
+        without = nse.render_nonnato_pillbox_svg("friend")
+        with_designation = nse.render_nonnato_pillbox_svg("friend", designation="a1")
+
+        self.assertEqual(without, with_designation)
+
+
+    def test_status_makes_no_visible_difference(self):
+
+        # Confirmed live: milsymbol only dashes a FRAME's own stroke
+        # for Planned status, and Pill Box (like every other bare-
+        # glyph control-measure point) has no frame - present vs
+        # planned render byte-identical, same defect class already
+        # documented for non-NATO Equipment/SIGINT.
+        present = nse.render_nonnato_pillbox_svg("friend", status="present")
+        planned = nse.render_nonnato_pillbox_svg("friend", status="planned")
+
+        self.assertEqual(present, planned)

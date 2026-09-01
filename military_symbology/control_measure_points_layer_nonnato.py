@@ -14,11 +14,15 @@ precedent), with milsymbol's own real 4-value affiliation colouring
 and no monoColor override - not the six-colour non-NATO palette
 Land Unit/Land Equipment/SIGINT use.
 
-Booby Trap is the one exception: a fully custom green icon (see
-nonnato_symbol_engine.booby_trap_control_measure_svg()), selected by a
-CASE in the renderer expression exactly the way obstacle_control_
-measures.py already branches Trip Wire/Abatis onto their own custom
-shapes alongside plain milsymbol entities on the same layer.
+Booby Trap and Pill Box are the two exceptions: Booby Trap is a fully
+custom green icon (see nonnato_symbol_engine.booby_trap_control_
+measure_svg()); Pill Box (`shelter`) still goes through milsymbol but
+needs its own hollow-fill fixup (see apply_pillbox_fixup()'s own
+docstring - milsymbol's own `fill: false` option does nothing for it,
+confirmed live). Both are selected by a CASE in the renderer
+expression exactly the way obstacle_control_measures.py already
+branches Trip Wire/Abatis onto their own custom shapes alongside plain
+milsymbol entities on the same layer.
 
 Required entities and renames - see the rules record's "Control
 Measure Points" section: `target_reference_point` -> Target, `shelter`
@@ -57,6 +61,7 @@ from ._control_measure_shared import (
     configure_rotation_and_scale_fields,
     stabilised_point_size_expression,
 )
+from .nonnato_symbol_engine import stabilised_nonnato_size_expression
 
 
 LAYER_NAME = "Control Measure Points (Non-NATO)"
@@ -64,6 +69,8 @@ LAYER_NAME = "Control Measure Points (Non-NATO)"
 MARKER_SIZE_MM = 8.0
 
 BOOBY_TRAP_ENTITY = "booby_trap"
+
+PILLBOX_ENTITY = "shelter"
 
 # The eleven required entities - see this module's own docstring and
 # the rules record's "Control Measure Points" section. Keys are
@@ -106,16 +113,50 @@ _MILSYMBOL_SIDC_EXPRESSION = (
     "'uniqueDesignation')"
 )
 
-_NAME_EXPRESSION = (
-    "CASE WHEN \"entity\" = '" + BOOBY_TRAP_ENTITY + "' "
-    "THEN mct_nonnato_booby_trap_svg() "
-    f"ELSE {_MILSYMBOL_SIDC_EXPRESSION} "
-    "END"
+# Pill Box needs its own hollow-fill fixup (see nonnato_symbol_engine.
+# apply_pillbox_fixup()'s own docstring) - the only other departure
+# from the plain milsymbol pipeline on this layer besides Booby Trap.
+_PILLBOX_DESIGNATION_EXPRESSION = 'upper(coalesce("unique_designation", \'\'))'
+
+_PILLBOX_EXPRESSION = (
+    'mct_nonnato_pillbox_svg('
+    f'"affiliation","status",{_PILLBOX_DESIGNATION_EXPRESSION}'
+    ')'
 )
 
-_SIZE_EXPRESSION = stabilised_point_size_expression(
-    f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0',
-    _MILSYMBOL_SIDC_EXPRESSION,
+_NAME_EXPRESSION = (
+    "CASE"
+    f" WHEN \"entity\" = '{BOOBY_TRAP_ENTITY}' THEN mct_nonnato_booby_trap_svg()"
+    f" WHEN \"entity\" = '{PILLBOX_ENTITY}' THEN {_PILLBOX_EXPRESSION}"
+    f" ELSE {_MILSYMBOL_SIDC_EXPRESSION}"
+    " END"
+)
+
+_SCALED_SIZE_EXPRESSION = f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
+
+# Booby Trap never carries a designation (booby_trap_control_measure_
+# svg() takes no text argument at all), so its size needs no
+# stabilisation ratio - the plain scaled size is already correct.
+# Pill Box gets its own width-based ratio (mct_nonnato_pillbox_svg_
+# width(), since it branched off the plain pipeline above); every
+# other entity keeps the existing mct_sidc_svg_width()-based one.
+_SIZE_EXPRESSION = (
+    "CASE"
+    f" WHEN \"entity\" = '{BOOBY_TRAP_ENTITY}' THEN ({_SCALED_SIZE_EXPRESSION})"
+    f" WHEN \"entity\" = '{PILLBOX_ENTITY}' THEN ("
+    + stabilised_nonnato_size_expression(
+        _SCALED_SIZE_EXPRESSION,
+        'mct_nonnato_pillbox_svg_width('
+        f'"affiliation","status",{_PILLBOX_DESIGNATION_EXPRESSION})',
+        'mct_nonnato_pillbox_svg_width("affiliation","status",\'\')',
+    )
+    + ")"
+    " ELSE ("
+    + stabilised_point_size_expression(
+        _SCALED_SIZE_EXPRESSION, _MILSYMBOL_SIDC_EXPRESSION
+    )
+    + ")"
+    " END"
 )
 
 

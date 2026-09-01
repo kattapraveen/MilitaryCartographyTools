@@ -17,47 +17,46 @@ Military Cartography Tools
 """
 
 import base64
+import re
 
 from qgis.core import QgsExpression, qgsfunction
 
 from ..military_symbology.nonnato_symbol_engine import (
     booby_trap_control_measure_svg,
     render_nonnato_equipment_svg,
+    render_nonnato_pillbox_svg,
     render_nonnato_sigint_svg,
     render_nonnato_unit_svg,
 )
 
 
-@qgsfunction(
-    'mct_nonnato_unit_svg',
-    group='Military Cartography Tools'
-)
-def mct_nonnato_unit_svg(values, feature=None, parent=None):
+def _viewbox_width(svg):
 
     """
-    "base64:<...>" for a non-NATO Land Unit feature's own attributes -
-    the one function land_unit_layer_nonnato.py's renderer calls,
-    mirroring mct_sidc_svg()'s own role for NATO layers but built
-    around render_nonnato_unit_svg() instead of a raw SIDC string,
-    since non-NATO needs real logic (the affiliation colour map, the
-    icon fixups, Combined Arms, Enemy (Info Unknown)'s no-SIDC path)
-    that a thin milsymbol-options passthrough can't express.
+    The rendered SVG's own declared width (viewBox's 3rd number) - same
+    regex military_symbology_functions.py's own mct_sidc_svg_width()
+    uses, needed for exactly the same reason: QGIS sizes an SVG marker
+    by this width, and a typed designation widens it, so a size
+    expression has to divide it out to hold the icon still. See
+    _stabilised_size_expression() below for where this feeds in.
+    """
 
-    Arguments, all but the first two optional: affiliation, entity,
-    echelon (default "unspecified"), status (default "present"),
-    designation (default none), combined_arms (default false).
+    match = re.search(r'viewBox="\S+ \S+ (\S+) \S+"', svg)
 
-    **No icon-size stabilisation for a typed designation yet** (unlike
-    mct_sidc_svg(), see stabilised_point_size_expression()) - a
-    genuinely separate mechanism tightly coupled to that function's
-    own call shape, not extended here for this first pass. A typed
-    designation may shrink the icon slightly, matching this project's
-    own pre-2026-08-13 NATO behaviour; worth revisiting once this
-    layer is otherwise proven out.
+    return float(match.group(1)) if match else 0.0
+
+
+def _render_unit(values):
+
+    """
+    Shared argument parsing for mct_nonnato_unit_svg()/_width() - kept
+    in one place so the two can never read a differently-defaulted
+    echelon/status/designation/combined_arms from the same raw
+    `values`. Returns (svg, error_text); exactly one is None.
     """
 
     if len(values) < 2:
-        return "Need at least an affiliation and an entity"
+        return None, "Need at least an affiliation and an entity"
 
     affiliation = str(values[0])
     entity = str(values[1])
@@ -84,11 +83,106 @@ def mct_nonnato_unit_svg(values, feature=None, parent=None):
         # text through the expression rather than raising out of a
         # renderer callback, which QGIS would otherwise surface as a
         # much less useful generic evaluation failure.
-        return str(error)
+        return None, str(error)
+
+    return svg, None
+
+
+@qgsfunction(
+    'mct_nonnato_unit_svg',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_unit_svg(values, feature=None, parent=None):
+
+    """
+    "base64:<...>" for a non-NATO Land Unit feature's own attributes -
+    the one function land_unit_layer_nonnato.py's renderer calls,
+    mirroring mct_sidc_svg()'s own role for NATO layers but built
+    around render_nonnato_unit_svg() instead of a raw SIDC string,
+    since non-NATO needs real logic (the affiliation colour map, the
+    icon fixups, Combined Arms, Enemy (Info Unknown)'s no-SIDC path)
+    that a thin milsymbol-options passthrough can't express.
+
+    Arguments, all but the first two optional: affiliation, entity,
+    echelon (default "unspecified"), status (default "present"),
+    designation (default none), combined_arms (default false).
+
+    See mct_nonnato_unit_svg_width() below for the icon-size
+    stabilisation companion function - land_unit_layer_nonnato.py's own
+    renderer calls both, mirroring mct_sidc_svg()/mct_sidc_svg_width()'s
+    own pairing for NATO layers.
+    """
+
+    svg, error = _render_unit(values)
+
+    if error is not None:
+        return error
 
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
     return "base64:" + encoded
+
+
+@qgsfunction(
+    'mct_nonnato_unit_svg_width',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_unit_svg_width(values, feature=None, parent=None):
+
+    """
+    The rendered WIDTH, in milsymbol's own icon units, of exactly the
+    symbol mct_nonnato_unit_svg() would return for the same arguments -
+    the non-NATO Land Unit counterpart to mct_sidc_svg_width() (see
+    that function's own docstring for the full reasoning: QGIS sizes an
+    SVG marker by its width, and milsymbol widens an icon's box to take
+    in a typed designation, which SHRINKS the icon at a fixed marker
+    size unless something divides that widening back out).
+
+    Fixed 2026-09-02, reported live: "when i insert a land unit with
+    designator, the size of the glyph is reducing making it
+    unreadable" - this layer never got the NATO layers' own 2026-08-13
+    fix, because stabilised_point_size_expression() is hardwired to
+    mct_sidc_svg()'s own call shape (string-replaces "mct_sidc_svg(",
+    parses out a "mct_build_sidc(...)" argument) and none of that
+    exists in a mct_nonnato_unit_svg(...) call. See nonnato_symbol_
+    engine.stabilised_nonnato_size_expression() for the decoupled
+    version built for this instead.
+
+    Takes mct_nonnato_unit_svg()'s own argument list, so the two can be
+    called side by side with the same expression text - same contract
+    mct_sidc_svg_width() documents for its own sibling.
+    """
+
+    svg, error = _render_unit(values)
+
+    if error is not None:
+        return 0.0
+
+    return _viewbox_width(svg)
+
+
+def _render_equipment(values):
+
+    """Shared argument parsing for mct_nonnato_equipment_svg()/_width() - see _render_unit()'s own docstring for why this is factored out."""
+
+    if len(values) < 2:
+        return None, "Need at least an affiliation and an entity"
+
+    affiliation = str(values[0])
+    entity = str(values[1])
+    designation = values[2] if len(values) > 2 else None
+
+    try:
+
+        svg = render_nonnato_equipment_svg(
+            affiliation, entity, designation=designation
+        )
+
+    except KeyError as error:
+
+        return None, str(error)
+
+    return svg, None
 
 
 @qgsfunction(
@@ -106,11 +200,42 @@ def mct_nonnato_equipment_svg(values, feature=None, parent=None):
     Units-only).
 
     Arguments, the second optional: affiliation, entity, designation
-    (default none).
+    (default none). See mct_nonnato_equipment_svg_width() below for the
+    icon-size stabilisation companion function.
     """
 
+    svg, error = _render_equipment(values)
+
+    if error is not None:
+        return error
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
+@qgsfunction(
+    'mct_nonnato_equipment_svg_width',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_equipment_svg_width(values, feature=None, parent=None):
+
+    """The rendered WIDTH of exactly the symbol mct_nonnato_equipment_svg() would return - see mct_nonnato_unit_svg_width()'s own docstring for the full reasoning and the 2026-09-02 fix this belongs to."""
+
+    svg, error = _render_equipment(values)
+
+    if error is not None:
+        return 0.0
+
+    return _viewbox_width(svg)
+
+
+def _render_sigint(values):
+
+    """Shared argument parsing for mct_nonnato_sigint_svg()/_width() - see _render_unit()'s own docstring for why this is factored out."""
+
     if len(values) < 2:
-        return "Need at least an affiliation and an entity"
+        return None, "Need at least an affiliation and an entity"
 
     affiliation = str(values[0])
     entity = str(values[1])
@@ -118,17 +243,15 @@ def mct_nonnato_equipment_svg(values, feature=None, parent=None):
 
     try:
 
-        svg = render_nonnato_equipment_svg(
+        svg = render_nonnato_sigint_svg(
             affiliation, entity, designation=designation
         )
 
     except KeyError as error:
 
-        return str(error)
+        return None, str(error)
 
-    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
-
-    return "base64:" + encoded
+    return svg, None
 
 
 @qgsfunction(
@@ -146,29 +269,34 @@ def mct_nonnato_sigint_svg(values, feature=None, parent=None):
     dimension in scope.
 
     Arguments, the second optional: affiliation, entity, designation
-    (default none).
+    (default none). See mct_nonnato_sigint_svg_width() below for the
+    icon-size stabilisation companion function.
     """
 
-    if len(values) < 2:
-        return "Need at least an affiliation and an entity"
+    svg, error = _render_sigint(values)
 
-    affiliation = str(values[0])
-    entity = str(values[1])
-    designation = values[2] if len(values) > 2 else None
-
-    try:
-
-        svg = render_nonnato_sigint_svg(
-            affiliation, entity, designation=designation
-        )
-
-    except KeyError as error:
-
-        return str(error)
+    if error is not None:
+        return error
 
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
     return "base64:" + encoded
+
+
+@qgsfunction(
+    'mct_nonnato_sigint_svg_width',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_sigint_svg_width(values, feature=None, parent=None):
+
+    """The rendered WIDTH of exactly the symbol mct_nonnato_sigint_svg() would return - see mct_nonnato_unit_svg_width()'s own docstring for the full reasoning and the 2026-09-02 fix this belongs to."""
+
+    svg, error = _render_sigint(values)
+
+    if error is not None:
+        return 0.0
+
+    return _viewbox_width(svg)
 
 
 @qgsfunction(
@@ -194,11 +322,77 @@ def mct_nonnato_booby_trap_svg(values, feature=None, parent=None):
     return "base64:" + encoded
 
 
+def _render_pillbox(values):
+
+    """Shared argument parsing for mct_nonnato_pillbox_svg()/_width() - see _render_unit()'s own docstring for why this is factored out."""
+
+    if len(values) < 1:
+        return None, "Need at least an affiliation"
+
+    affiliation = str(values[0])
+    status = str(values[1]) if len(values) > 1 and values[1] else "present"
+    designation = values[2] if len(values) > 2 else None
+
+    svg = render_nonnato_pillbox_svg(
+        affiliation, status=status, designation=designation
+    )
+
+    return svg, None
+
+
+@qgsfunction(
+    'mct_nonnato_pillbox_svg',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_pillbox_svg(values, feature=None, parent=None):
+
+    """
+    "base64:<...>" for the Control Measure Point's own Pill Box
+    (`shelter`) - branched out to its own function purely for
+    apply_pillbox_fixup() (see render_nonnato_pillbox_svg()'s own
+    docstring): every other Control Measure Point entity still goes
+    straight through the plain mct_sidc_svg() pipeline.
+
+    Arguments, the first required: affiliation, status (default
+    "present"), designation (default none).
+    """
+
+    svg, error = _render_pillbox(values)
+
+    if error is not None:
+        return error
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
+@qgsfunction(
+    'mct_nonnato_pillbox_svg_width',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_pillbox_svg_width(values, feature=None, parent=None):
+
+    """The rendered WIDTH of exactly the symbol mct_nonnato_pillbox_svg() would return - see mct_nonnato_unit_svg_width()'s own docstring for the full reasoning behind this pairing."""
+
+    svg, error = _render_pillbox(values)
+
+    if error is not None:
+        return 0.0
+
+    return _viewbox_width(svg)
+
+
 _FUNCTIONS = [
     mct_nonnato_unit_svg,
+    mct_nonnato_unit_svg_width,
     mct_nonnato_equipment_svg,
+    mct_nonnato_equipment_svg_width,
     mct_nonnato_sigint_svg,
+    mct_nonnato_sigint_svg_width,
     mct_nonnato_booby_trap_svg,
+    mct_nonnato_pillbox_svg,
+    mct_nonnato_pillbox_svg_width,
 ]
 
 

@@ -312,3 +312,165 @@ class TestMctNonnatoBoobyTrapSvg(QgisTestCase):
 
         self.assertTrue(svg.startswith("<svg"))
         self.assertIn("#009b00", svg)
+
+
+class TestNonnatoWidthFunctions(QgisTestCase):
+
+    """
+    Icon-size stabilisation companions - see mct_nonnato_unit_svg_
+    width()'s own docstring for the 2026-09-02 fix these belong to.
+    Each width function must take the SAME argument list as its own
+    non-width sibling and report a LARGER width once a designation is
+    added (the whole premise the compensation math relies on).
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+        nonnato_symbology_functions.register()
+
+        self.addCleanup(nonnato_symbology_functions.unregister)
+
+
+    def _evaluate(self, expression_text):
+
+        expression = QgsExpression(expression_text)
+
+        result = expression.evaluate(QgsExpressionContext())
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def test_unit_width_grows_with_a_designation(self):
+
+        plain = self._evaluate(
+            "mct_nonnato_unit_svg_width("
+            "'friend','infantry','unspecified','present','','false')"
+        )
+        amplified = self._evaluate(
+            "mct_nonnato_unit_svg_width("
+            "'friend','infantry','unspecified','present','HQ 3','false')"
+        )
+
+        self.assertGreater(amplified, plain)
+
+
+    def test_equipment_width_grows_with_a_designation(self):
+
+        plain = self._evaluate(
+            "mct_nonnato_equipment_svg_width('friend','tank','')"
+        )
+        amplified = self._evaluate(
+            "mct_nonnato_equipment_svg_width('friend','tank','HQ 3')"
+        )
+
+        self.assertGreater(amplified, plain)
+
+
+    def test_sigint_width_grows_with_a_designation(self):
+
+        plain = self._evaluate(
+            "mct_nonnato_sigint_svg_width('friend','radar','')"
+        )
+        amplified = self._evaluate(
+            "mct_nonnato_sigint_svg_width('friend','radar','HQ 3')"
+        )
+
+        self.assertGreater(amplified, plain)
+
+
+    def test_pillbox_width_is_unaffected_by_a_designation(self):
+
+        # Unlike every other width function here - `shelter` defines no
+        # designation slot at all (see mct_nonnato_pillbox_svg()'s own
+        # test of this), so its width genuinely does not change. The
+        # stabilisation ratio still computes correctly either way (it
+        # simply comes out as 1), it just has nothing to compensate for
+        # on this one entity.
+        plain = self._evaluate(
+            "mct_nonnato_pillbox_svg_width('friend','present','')"
+        )
+        amplified = self._evaluate(
+            "mct_nonnato_pillbox_svg_width('friend','present','HQ 3')"
+        )
+
+        self.assertEqual(amplified, plain)
+
+
+    def test_an_invalid_entity_returns_zero_not_a_crash(self):
+
+        result = self._evaluate(
+            "mct_nonnato_unit_svg_width('friend', 'not_a_real_entity')"
+        )
+
+        self.assertEqual(result, 0.0)
+
+
+class TestMctNonnatoPillboxSvg(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+        nonnato_symbology_functions.register()
+
+        self.addCleanup(nonnato_symbology_functions.unregister)
+
+
+    def _evaluate(self, expression_text):
+
+        expression = QgsExpression(expression_text)
+
+        result = expression.evaluate(QgsExpressionContext())
+
+        self.assertFalse(
+            expression.hasEvalError(), expression.evalErrorString()
+        )
+
+        return result
+
+
+    def _svg_for(self, expression_text):
+
+        result = self._evaluate(expression_text)
+
+        self.assertTrue(result.startswith("base64:"))
+
+        return base64.b64decode(result[len("base64:"):]).decode("utf-8")
+
+
+    def test_evaluates_through_a_real_qgs_expression(self):
+
+        svg = self._svg_for("mct_nonnato_pillbox_svg('friend')")
+
+        self.assertTrue(svg.startswith("<svg"))
+        self.assertIn('fill="none"', svg)
+
+
+    def test_designation_is_accepted_but_milsymbol_draws_nothing_for_it(self):
+
+        # See render_nonnato_pillbox_svg()'s own test of this - `shelter`
+        # defines no designation slot at all, so this is a pre-existing
+        # milsymbol limitation, not a regression from this function.
+        without = self._svg_for("mct_nonnato_pillbox_svg('friend')")
+        with_designation = self._svg_for(
+            "mct_nonnato_pillbox_svg('friend', 'present', 'a1')"
+        )
+
+        self.assertEqual(without, with_designation)
+
+
+    def test_missing_required_arguments(self):
+
+        result = self._evaluate("mct_nonnato_pillbox_svg()")
+
+        self.assertEqual(result, "Need at least an affiliation")

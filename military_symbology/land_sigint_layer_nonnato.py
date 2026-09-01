@@ -40,6 +40,7 @@ from ._control_measure_shared import configure_rotation_and_scale_fields
 from ._point_symbol_layer import default_insert_position
 from ..core._layer_utils import add_layer_at_default_position
 from .land_unit_layer_nonnato import AFFILIATION_LABELS
+from .nonnato_symbol_engine import stabilised_nonnato_size_expression
 
 
 LAYER_NAME = "SIGINT (Non-NATO)"
@@ -105,9 +106,29 @@ def _build_renderer():
         f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
     )
 
+    # Holds the icon still when a designation is typed in - see
+    # stabilised_nonnato_size_expression()'s own docstring for the
+    # 2026-09-02 fix this is (reported against Land Unit, applied
+    # "across the board" per the maintainer's own instruction).
+    amplified_width_expression = (
+        'mct_nonnato_sigint_svg_width('
+        f'"affiliation","entity",{designation_expression}'
+        ')'
+    )
+
+    plain_width_expression = (
+        "mct_nonnato_sigint_svg_width(\"affiliation\",\"entity\",'')"
+    )
+
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
-        QgsProperty.fromExpression(scaled_size_expression)
+        QgsProperty.fromExpression(
+            stabilised_nonnato_size_expression(
+                scaled_size_expression,
+                amplified_width_expression,
+                plain_width_expression,
+            )
+        )
     )
 
     svg_layer.setDataDefinedProperty(

@@ -3,10 +3,10 @@
 """
 Tests for military_symbology/control_measure_points_layer_nonnato.py -
 the "Control Measure Points (Non-NATO)" layer. Unlike Land Unit/Land
-Equipment/SIGINT, ten of its eleven entities render through the plain
+Equipment/SIGINT, nine of its eleven entities render through the plain
 existing mct_sidc_svg()/mct_build_sidc() pipeline (no non-NATO-specific
-colour treatment - see the rules record's Part C); only Booby Trap gets
-a custom icon.
+colour treatment - see the rules record's Part C); Booby Trap and Pill
+Box each get their own custom rendering (see nonnato_symbol_engine.py).
 
 Military Cartography Tools
 """
@@ -33,6 +33,7 @@ from MilitaryCartographyTools.expressions import (
 )
 from MilitaryCartographyTools.military_symbology.control_measure_points_layer_nonnato import (
     BOOBY_TRAP_ENTITY,
+    PILLBOX_ENTITY,
     LAYER_NAME,
     ENTITY_LABELS,
     add_control_measure_points_layer_nonnato,
@@ -135,6 +136,35 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
         return base64.b64decode(path[len("base64:"):]).decode("utf-8")
 
 
+    def _render_size_for(self, layer, attributes):
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+        expr_context.setFeature(feature)
+
+        render_context = QgsRenderContext()
+        render_context.setExpressionContext(expr_context)
+
+        symbol = layer.renderer().symbol().clone()
+        symbol.startRender(render_context, layer.fields())
+
+        svg_layer = symbol.symbolLayer(0)
+
+        size, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, expr_context, 0.0
+        )
+
+        self.assertTrue(ok, "size expression failed to evaluate")
+
+        return size
+
+
     def test_every_field_exists_with_the_right_type(self):
 
         layer = build_control_measure_points_layer_nonnato()
@@ -194,6 +224,55 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
         # booby_trap_control_measure_svg() takes no affiliation).
         self.assertIn("#009b00", svg)
         self.assertEqual(svg.count("<circle"), 1)
+
+
+    def test_pillbox_renders_hollow(self):
+
+        # Reported live: "pillbox is rendering as filled rectangle, it
+        # should be just the outline, no fill" - milsymbol's own `fill:
+        # false` option does nothing for this icon (a hardcoded fill),
+        # so this is a post-render fixup (apply_pillbox_fixup()).
+        layer = build_control_measure_points_layer_nonnato()
+
+        svg = self._decoded_svg_for(
+            layer,
+            {
+                "affiliation": "friend", "entity": PILLBOX_ENTITY,
+                "status": "present",
+            }
+        )
+
+        self.assertIn('fill="none"', svg)
+
+
+    def test_pillbox_size_is_stable_regardless_of_designation(self):
+
+        # Same size-stabilisation MACHINERY as Land Unit/Equipment/
+        # SIGINT, wired up here too since Pill Box branched off the
+        # plain mct_sidc_svg() pipeline (which already had it) onto its
+        # own mct_nonnato_pillbox_svg() function - but `shelter` defines
+        # no designation slot at all (see mct_nonnato_pillbox_svg()'s
+        # own test of this), so the ratio always comes out as 1 and the
+        # rendered size is simply identical either way, unlike the
+        # other three layers' own version of this test.
+        layer = build_control_measure_points_layer_nonnato()
+
+        without_designation = self._render_size_for(
+            layer,
+            {
+                "affiliation": "friend", "entity": PILLBOX_ENTITY,
+                "status": "present", "unique_designation": "",
+            },
+        )
+        with_designation = self._render_size_for(
+            layer,
+            {
+                "affiliation": "friend", "entity": PILLBOX_ENTITY,
+                "status": "present", "unique_designation": "HQ 3",
+            },
+        )
+
+        self.assertAlmostEqual(without_designation, with_designation, places=3)
 
 
     def test_every_other_entity_uses_the_real_nato_affiliation_colours(self):

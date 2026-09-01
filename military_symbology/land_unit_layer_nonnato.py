@@ -24,10 +24,13 @@ it - this is not the full 187-entity vocabulary the NATO Land Unit
 layer offers.
 
 Not yet built (deliberately deferred, not an oversight): headquarters/
-sector1/sector2 modifiers, and the icon-size stabilisation a typed
-designation gets on NATO layers (see mct_nonnato_unit_svg()'s own
-docstring) - both worth adding once this layer is otherwise proven
-out, not before.
+sector1/sector2 modifiers - worth adding once this layer is otherwise
+proven out, not before. Icon-size stabilisation for a typed
+designation WAS missing at first ("No icon-size stabilisation for a
+typed designation yet" in an earlier version of this file), then fixed
+2026-09-02 once the maintainer actually hit it live - see
+nonnato_symbol_engine.stabilised_nonnato_size_expression()'s own
+docstring.
 
 No toolbar action yet either - reachable only by calling
 add_land_unit_layer_nonnato(iface) directly (e.g. from QGIS's own
@@ -55,7 +58,10 @@ from qgis.PyQt.QtCore import QMetaType
 from ._control_measure_shared import configure_rotation_and_scale_fields
 from ._point_symbol_layer import default_insert_position
 from ..core._layer_utils import add_layer_at_default_position
-from .nonnato_symbol_engine import ENEMY_INFO_UNKNOWN_ENTITY
+from .nonnato_symbol_engine import (
+    ENEMY_INFO_UNKNOWN_ENTITY,
+    stabilised_nonnato_size_expression,
+)
 
 
 LAYER_NAME = "Land Unit (Non-NATO)"
@@ -213,9 +219,36 @@ def _build_renderer():
         f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
     )
 
+    # Holds the icon still when a designation is typed in - see
+    # stabilised_nonnato_size_expression()'s own docstring for the
+    # 2026-09-02 fix this is. The "plain" call below passes '' for
+    # designation (not "combined_arms"'s own field - Combined Arms
+    # widens the icon too, but by drawing a rectangle around it, not by
+    # milsymbol's own text-box widening, so it is correctly left as a
+    # live field reference on both sides and cancels out of the ratio).
+    amplified_width_expression = (
+        'mct_nonnato_unit_svg_width('
+        '"affiliation","entity","echelon","status",'
+        f'{designation_expression},"combined_arms"'
+        ')'
+    )
+
+    plain_width_expression = (
+        'mct_nonnato_unit_svg_width('
+        '"affiliation","entity","echelon","status",'
+        '\'\',"combined_arms"'
+        ')'
+    )
+
     svg_layer.setDataDefinedProperty(
         QgsSymbolLayer.Property.Size,
-        QgsProperty.fromExpression(scaled_size_expression)
+        QgsProperty.fromExpression(
+            stabilised_nonnato_size_expression(
+                scaled_size_expression,
+                amplified_width_expression,
+                plain_width_expression,
+            )
+        )
     )
 
     svg_layer.setDataDefinedProperty(
