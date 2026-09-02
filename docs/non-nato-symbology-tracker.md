@@ -375,15 +375,51 @@ designation slot in milsymbol at all - a typed designation is accepted
 without error but never actually appears on the icon, independent of
 this fix and not something this fix could address.
 
-**SIGINT designation position, corrected 2026-09-02**: reported live,
-against a rendered screenshot - "in both sigint glyphs - the unique
-designator is too far from the icon - get it closer similar to other
-land unit glyphs". Confirmed live that milsymbol places a designation
-at a fixed y="160" regardless of how far down the icon's own artwork
-actually reaches - fine for a full Unit frame (drawn to y=150, a
-10-unit gap) but far too distant for SIGINT's own compact bare glyphs
-(Jammer's "J", Radar's hook - both drawn no lower than ~y=120). Moved
-to y="130" for both Jammer and Radar.
+**SIGINT designation position, corrected 2026-09-02, first pass -
+superseded**: reported live, against a rendered screenshot - "in both
+sigint glyphs - the unique designator is too far from the icon - get
+it closer similar to other land unit glyphs". Confirmed live that
+milsymbol places a designation at a fixed y="160" regardless of how
+far down the icon's own artwork actually reaches - fine for a full
+Unit frame (drawn to y=150, a 10-unit gap) but far too distant for
+SIGINT's own compact bare glyphs (Jammer's "J", Radar's hook - both
+drawn no lower than ~y=120). Moved to y="130" for both Jammer and
+Radar. **This SIGINT-only fix was replaced days later** by
+`inject_centered_designation_below()` - see Part D's own "Designation
+position" entry - which centres the designation under EVERY Land
+Equipment icon, mines and Jammer/Radar alike, not just these two.
+
+**SIGINT merged into Land Equipment, 2026-09-02**: "merge sigint
+glyphs (since there are only two) with land equipment" - the
+standalone SIGINT (Non-NATO) layer/module/toolbar action is retired.
+Jammer and Radar are now two more entities on the Land Equipment
+layer, resolving to symbol_set "sigint_land" under the hood rather
+than "land_equipment". Caught a real key collision doing this: Land
+Equipment already had its own distinct real "radar" entity (a physical
+radar system, one of the originally reviewed 26 base entities) -
+SIGINT's own Radar was stored under a separate key
+(`nonnato_symbol_engine.SIGINT_RADAR_ENTITY`, "sigint_radar") to avoid
+silently breaking it. **That separate Land Equipment "radar" entity
+was then removed entirely**, same day: "remove radar and keep only
+radar (sigint) since both are same; rename radar (sigint) as radar
+only" - the two read as visually the same thing in practice, so only
+SIGINT_RADAR_ENTITY remains, now labelled plain "Radar".
+
+**Jammer/Radar size, corrected 2026-09-02**: "Jammer and radar (sigint)
+are still smaller than other land equipment, adjust them same as
+others" - both are a compact/bare glyph that occupies a much smaller
+fraction of its own declared viewBox than a typical Equipment icon's
+own path does, even at the identical declared marker width every icon
+on the layer shares. Measured real rendered pixel extents before
+picking a multiplier (1.8x) rather than guessing.
+
+**Radar's own mast, added 2026-09-02**: "add a small vertical line from
+the center of the arc of the radar, length about 1/2 the current
+height of the radar glyph", then "increase the mast length by 20%".
+The arc's own midpoint (90, 112) is computed directly from milsymbol's
+own cubic-bezier path (`nonnato_symbol_engine.add_radar_center_mast()`
+has the full derivation), not eyeballed; final mast length 21 units,
+drawn straight down.
 
 ---
 
@@ -530,6 +566,22 @@ commitment to build all of it.
 
 Meta-questions likely to come up regardless of category/domain.
 
+- [x] **Designation position (Land Equipment)** — settled 2026-09-02,
+      after two live-reported rounds: "the unique designation is still
+      too far from the glyphs... I want the unique designation to be
+      directly under the glyph, with text centered". Drawn as its own
+      centred `<text>` element directly below the icon's own current
+      viewBox (widened downward to fit, never sideways - a long
+      designation shrinks its own font size instead, mirroring the
+      NATO supply-box convention), not through milsymbol's own
+      uniqueDesignation option at all -
+      `nonnato_symbol_engine.inject_centered_designation_below()`.
+      Applies to every entity on the layer, mines and the merged-in
+      Jammer/Radar included. Land Unit still uses the older, NATO-
+      style side-anchored designation (`mct_sidc_svg()`'s own
+      uniqueDesignation slot, size-stabilised against a typed
+      designation) - this centred-below treatment has not been asked
+      for there.
 - [x] **Affiliation colour palette**:
       - Blue — Friendly
       - Red — Hostile
