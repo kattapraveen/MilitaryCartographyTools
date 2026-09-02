@@ -84,7 +84,12 @@ MARKER_SIZE_MM = 8.0 * 1.2
 # APP-6E sibling, or one of Machine Gun's repurposed Rifle siblings),
 # so there is one dropdown row per tier, not a second field.
 ENTITY_LABELS = {
-    # --- Non-tiered real entities (11) ---
+    # --- Non-tiered real entities (10) - Land Equipment's own separate
+    # "radar" entry (a physical radar system, distinct from SIGINT's
+    # own Radar platform below) was removed 2026-09-02, at the
+    # maintainer's own request, once the two read as visually the same
+    # thing in practice: "remove radar and keep only radar (sigint)
+    # since both are same; rename radar (sigint) as radar only". ---
     "antennae": "Antennae",
     "antipersonnel_land_mine": "Antipersonnel Fragmentation Mine",
     "land_mine": "Antipersonnel Mine",
@@ -94,7 +99,6 @@ ENTITY_LABELS = {
     "flame_thrower": "Flame Thrower",
     "improvised_explosives_device": "Improvised Explosives Device",
     "pack_animals": "Pack Animals",
-    "radar": "Radar",
     "vehicle": "Vehicle",
 
     # --- 13 weapon families x 3 tiers (39) ---
@@ -154,16 +158,14 @@ ENTITY_LABELS = {
     # --- SIGINT, Land-scoped (2), merged in 2026-09-02 - real APP-6E
     # entities, but under symbol_set "sigint_land" rather than
     # "land_equipment" (see nonnato_symbol_engine.
-    # _EQUIPMENT_SYMBOL_SET_OVERRIDES). SIGINT's own Radar is stored as
-    # SIGINT_RADAR_ENTITY, NOT the literal "radar" key - that key is
-    # already taken by the "Radar" entry above (a genuinely different,
-    # already-confirmed real Land Equipment entity - a physical radar
-    # system, not a SIGINT platform). See nonnato_symbol_engine.
-    # _EQUIPMENT_ENTITY_KEY_ALIASES for how the stored key still
-    # resolves to the real APP-6E entity "radar" at SIDC-build time,
-    # just under the other symbol_set.
+    # _EQUIPMENT_SYMBOL_SET_OVERRIDES). SIGINT_RADAR_ENTITY's own STORED
+    # key stays "sigint_radar" (not the literal "radar") purely to
+    # match nonnato_symbol_engine._EQUIPMENT_ENTITY_KEY_ALIASES, which
+    # resolves it to the real APP-6E entity "radar" at SIDC-build time -
+    # its own DISPLAY LABEL is plain "Radar" now that Land Equipment's
+    # own separate radar entry is gone (see this dict's own note above).
     "jammer": "Jammer",
-    SIGINT_RADAR_ENTITY: "Radar (SIGINT)",
+    SIGINT_RADAR_ENTITY: "Radar",
 }
 
 
@@ -195,6 +197,32 @@ def _configure_attribute_form(layer):
     configure_rotation_and_scale_fields(layer)
 
 
+# Jammer/Radar (SIGINT, merged in 2026-09-02) read visibly smaller
+# than every other Land Equipment icon at the same declared marker
+# size, confirmed by measuring rendered pixel extents directly: both
+# are a compact/bare glyph (a single letter, a small hooked line) that
+# occupies a much smaller fraction of its own declared viewBox than a
+# typical Equipment icon's own path does, even though every icon here
+# shares the same declared width QGIS scales against. Reported live:
+# "Jammer and radar (sigint) are still smaller than other land
+# equipment, adjust them same as others". 1.8x brings their own
+# measured bounding-box height roughly in line with the other
+# entities' own average - a real measurement, not a guess, though
+# still an approximation given how much bounding-box size already
+# varies entity to entity even among icons nobody complained about.
+_SIGINT_SIZE_MULTIPLIER = 1.8
+
+_ENTITY_SIZE_MULTIPLIERS = {
+    "jammer": _SIGINT_SIZE_MULTIPLIER,
+    SIGINT_RADAR_ENTITY: _SIGINT_SIZE_MULTIPLIER,
+}
+
+_ENTITY_SIZE_MULTIPLIER_EXPRESSION = "CASE " + " ".join(
+    f"WHEN \"entity\" = '{entity}' THEN {multiplier:g}"
+    for entity, multiplier in _ENTITY_SIZE_MULTIPLIERS.items()
+) + " ELSE 1 END"
+
+
 def _build_renderer():
 
     designation_expression = 'upper(coalesce("unique_designation", \'\'))'
@@ -213,6 +241,7 @@ def _build_renderer():
 
     scaled_size_expression = (
         f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
+        f' * ({_ENTITY_SIZE_MULTIPLIER_EXPRESSION})'
     )
 
     # Holds the icon still when a designation is typed in - see

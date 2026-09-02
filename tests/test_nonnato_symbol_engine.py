@@ -768,6 +768,30 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
         self.assertNotEqual(sigint_radar_svg, land_equipment_radar_svg)
 
 
+    def test_sigint_radar_has_a_centre_mast(self):
+
+        # Reported live, 2026-09-02: "add a small vertical line from
+        # the center of the arc of the radar, length about 1/2 the
+        # current height of the radar glyph" - later lengthened
+        # another 20% the same day. See add_radar_center_mast()'s own
+        # docstring for the full geometry derivation.
+        svg = nse.render_nonnato_equipment_svg("friend", nse.SIGINT_RADAR_ENTITY)
+
+        self.assertIn('d="M90,112 L90,133"', svg)
+
+
+    def test_land_equipments_own_radar_has_no_mast(self):
+
+        # add_radar_center_mast() is keyed to SIGINT_RADAR_ENTITY only
+        # in _EQUIPMENT_ENTITY_FIXUPS - Land Equipment's own separate
+        # "radar" entity (still resolvable directly through the engine,
+        # even though the layer's own dropdown no longer offers it)
+        # must not gain a mast it was never asked to have.
+        svg = nse.render_nonnato_equipment_svg("friend", "radar")
+
+        self.assertNotIn("M90,112", svg)
+
+
     def test_jammer_renders_the_bare_letter_glyph(self):
 
         svg = nse.render_nonnato_equipment_svg("friend", "jammer")

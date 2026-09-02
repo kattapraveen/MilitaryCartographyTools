@@ -25,6 +25,7 @@ import re
 from .sidc import build_sidc
 from .symbol_engine import (
     _escape_text,
+    _injected_text_colour,
     render_symbol_svg,
     scale_svg_stroke_width,
 )
@@ -796,15 +797,23 @@ def inject_centered_designation_below(svg, designation, colour):
 
 # Jammer is a real APP-6E entity, but under symbol_set "sigint_land",
 # not "land_equipment". Radar needs the same treatment - EXCEPT Land
-# Equipment already has its OWN, genuinely different, real "radar"
-# entity (a physical radar system, symbol_set "land_equipment" - one
-# of the originally reviewed 26 base entities, confirmed against the
-# maintainer's own check sheet). The two cannot share one stored entity
-# key, so SIGINT's own Radar is stored as SIGINT_RADAR_ENTITY instead -
-# still resolved to the real APP-6E key "radar" at SIDC-build time (see
-# _EQUIPMENT_ENTITY_KEY_ALIASES), just under "sigint_land". Caught only
-# because the layer's own entity-count test moved by one instead of two
-# when this was first merged in.
+# Equipment already had its OWN, genuinely different, real "radar"
+# entity too (a physical radar system, symbol_set "land_equipment" -
+# one of the originally reviewed 26 base entities, confirmed against
+# the maintainer's own check sheet), so the two could not share one
+# stored entity key without a collision. SIGINT's own Radar is stored
+# as SIGINT_RADAR_ENTITY instead - still resolved to the real APP-6E
+# key "radar" at SIDC-build time (see _EQUIPMENT_ENTITY_KEY_ALIASES),
+# just under "sigint_land". **Land Equipment's own separate "radar"
+# entry was removed from the layer's own ENTITY_LABELS 2026-09-02**, at
+# the maintainer's own request, once the two read as visually the same
+# thing in practice ("remove radar and keep only radar (sigint) since
+# both are same; rename radar (sigint) as radar only") - SIGINT_RADAR_
+# ENTITY's own label is now plain "Radar". The alias/symbol_set-
+# override mechanism below stays exactly as it was regardless - the
+# real land_equipment "radar" entity still exists in APP-6E's own
+# vocabulary and build_sidc() can still resolve it directly if ever
+# needed again; it is only gone from this ONE layer's own dropdown.
 SIGINT_RADAR_ENTITY = "sigint_radar"
 
 _EQUIPMENT_ENTITY_KEY_ALIASES = {
@@ -820,8 +829,47 @@ _EQUIPMENT_SYMBOL_SET_OVERRIDES = {
     SIGINT_RADAR_ENTITY: "sigint_land",
 }
 
+
+def add_radar_center_mast(svg):
+
+    """
+    Adds a short vertical stroke from the centre of the radar dish's
+    own arc, extending downward - requested live, 2026-09-02: "add a
+    small vertical line from the center of the arc of the radar,
+    length about 1/2 the current height of the radar glyph".
+
+    milsymbol's own Radar (sigint_land) glyph is `M 115,90 -15,15
+    0,-15 -15,15 M 80,85 c 0,25 15,35 35,35` - two diagonal "signal"
+    strokes above a single cubic-bezier arc (the dish itself, from
+    (80,85) to (115,120) via control points (80,110)/(95,120)). "Centre
+    of the arc" is read as the curve's own midpoint (t=0.5), computed
+    directly from those four bezier points rather than eyeballed:
+    (90, 112) - confirmed against a render. The glyph's own drawn
+    extent is roughly 35 units tall (y from 85 to 120); half of that
+    (~17.5 units) set the mast's own initial length, drawn straight
+    down from the arc's midpoint - then lengthened another 20% the same
+    day ("increase the mast length by 20%"), to 21 units (129.5 ->
+    133).
+
+    Colour is read off the glyph's own existing stroke (same technique
+    symbol_engine._injected_text_colour() already uses) rather than
+    threaded through as a parameter, so this stays a plain svg-in/svg-
+    out fixup matching every other entry in _EQUIPMENT_ENTITY_FIXUPS.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    mast = (
+        f'<path d="M90,112 L90,133" stroke-width="3" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+    return _inject_before_closing_svg(svg, mast)
+
+
 _EQUIPMENT_ENTITY_FIXUPS = {
     "antipersonnel_land_mine": unfilled_antipersonnel_fragmentation_mine,
+    SIGINT_RADAR_ENTITY: add_radar_center_mast,
 }
 
 

@@ -60,9 +60,13 @@ SYNTHETIC_ENTITIES = frozenset({
 # the retired standalone SIGINT (Non-NATO) layer, once two entities
 # stopped justifying their own module/layer/toolbar action. SIGINT's
 # own Radar is stored as SIGINT_RADAR_ENTITY ("sigint_radar"), not the
-# literal "radar" - that key is already Land Equipment's own distinct
-# "Radar" entity. This maps each STORED key to the real APP-6E entity
-# key SIDC resolution actually needs (identical for jammer).
+# literal "radar" - that key was originally Land Equipment's own
+# distinct "Radar" entity, later removed from this layer's own
+# ENTITY_LABELS ("remove radar and keep only radar (sigint) since both
+# are same; rename radar (sigint) as radar only"), so the alias is now
+# the ONLY way to reach a Radar-like icon from this layer at all. This
+# maps each STORED key to the real APP-6E entity key SIDC resolution
+# actually needs (identical for jammer).
 SIGINT_ENTITIES = frozenset({"jammer", SIGINT_RADAR_ENTITY})
 
 SIGINT_REAL_ENTITY_KEYS = {
@@ -98,14 +102,26 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
                 self.assertIn(SIGINT_REAL_ENTITY_KEYS[key], real_keys)
 
 
+    def test_land_equipments_own_separate_radar_entity_is_gone(self):
+
+        # "remove radar and keep only radar (sigint) since both are
+        # same; rename radar (sigint) as radar only" - the literal
+        # "radar" key (Land Equipment's own, distinct from SIGINT_
+        # RADAR_ENTITY) must no longer be offered.
+        self.assertNotIn("radar", ENTITY_LABELS)
+        self.assertEqual(ENTITY_LABELS[SIGINT_RADAR_ENTITY], "Radar")
+
+
     def test_count_matches_the_reviewed_list(self):
 
-        # 53 real Land Equipment entities (11 non-tiered + 39
-        # weapon-tier siblings + 3 repurposed Machine Gun tiers) plus 5
-        # synthetic mine icons plus Jammer/Radar (Land-scoped SIGINT,
-        # merged in 2026-09-02) - see the rules record's "Required
-        # entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 60)
+        # 52 real Land Equipment entities (10 non-tiered + 39
+        # weapon-tier siblings + 3 repurposed Machine Gun tiers, one
+        # fewer non-tiered entity than before since Land Equipment's
+        # own separate "radar" was removed 2026-09-02) plus 5 synthetic
+        # mine icons plus Jammer/Radar (Land-scoped SIGINT, merged in
+        # 2026-09-02) - see the rules record's "Required entities"
+        # section.
+        self.assertEqual(len(ENTITY_LABELS), 59)
 
         for entity in SYNTHETIC_ENTITIES | SIGINT_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)
@@ -312,6 +328,29 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
         self.assertAlmostEqual(without_designation, with_designation, places=3)
 
 
+    def test_jammer_and_radar_render_bigger_than_the_declared_marker_size(self):
+
+        # Reported live: "Jammer and radar (sigint) are still smaller
+        # than other land equipment, adjust them same as others" - both
+        # read visibly smaller than every other icon at the plain
+        # declared MARKER_SIZE_MM, so they get their own size
+        # multiplier (_ENTITY_SIZE_MULTIPLIERS) on top of it.
+        layer = build_land_equipment_layer_nonnato()
+
+        tank_size = self._render_size_for(
+            layer, {"affiliation": "friend", "entity": "tank"}
+        )
+        jammer_size = self._render_size_for(
+            layer, {"affiliation": "friend", "entity": "jammer"}
+        )
+        radar_size = self._render_size_for(
+            layer, {"affiliation": "friend", "entity": SIGINT_RADAR_ENTITY}
+        )
+
+        self.assertGreater(jammer_size, tank_size)
+        self.assertGreater(radar_size, tank_size)
+
+
     def test_entity_keys_match_a_real_land_equipment_sidc(self):
 
         # Confirms ENTITY_LABELS' keys are exactly what
@@ -362,20 +401,6 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
 
         self.assertIn(">A1<", svg)
         self.assertIn('text-anchor="middle"', svg)
-
-
-    def test_sigint_radar_is_distinct_from_land_equipments_own_radar(self):
-
-        layer = build_land_equipment_layer_nonnato()
-
-        sigint_radar_svg = self._decoded_svg_for(
-            layer, {"affiliation": "friend", "entity": SIGINT_RADAR_ENTITY}
-        )
-        land_equipment_radar_svg = self._decoded_svg_for(
-            layer, {"affiliation": "friend", "entity": "radar"}
-        )
-
-        self.assertNotEqual(sigint_radar_svg, land_equipment_radar_svg)
 
 
 class TestAddLandEquipmentLayerNonnato(QgisTestCase):
