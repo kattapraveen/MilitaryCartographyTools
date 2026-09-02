@@ -567,21 +567,31 @@ commitment to build all of it.
 Meta-questions likely to come up regardless of category/domain.
 
 - [x] **Designation position (Land Equipment)** — settled 2026-09-02,
-      after two live-reported rounds: "the unique designation is still
-      too far from the glyphs... I want the unique designation to be
-      directly under the glyph, with text centered". Drawn as its own
-      centred `<text>` element directly below the icon's own current
-      viewBox (widened downward to fit, never sideways - a long
+      after three live-reported rounds. Round one: "the unique
+      designation is still too far from the glyphs... I want the
+      unique designation to be directly under the glyph, with text
+      centered" - drawn as its own centred `<text>` element directly
+      below the icon (widened downward to fit, never sideways - a long
       designation shrinks its own font size instead, mirroring the
       NATO supply-box convention), not through milsymbol's own
       uniqueDesignation option at all -
       `nonnato_symbol_engine.inject_centered_designation_below()`.
-      Applies to every entity on the layer, mines and the merged-in
-      Jammer/Radar included. Land Unit still uses the older, NATO-
-      style side-anchored designation (`mct_sidc_svg()`'s own
-      uniqueDesignation slot, size-stabilised against a typed
-      designation) - this centred-below treatment has not been asked
-      for there.
+      Round two: "it is a bit far, can we move it as close to the
+      glyph as possible with some gap - this should be dynamic as we
+      move ahead with the modifications in future" - the gap was
+      anchored to the icon's DECLARED viewBox, which is not a tight
+      box (confirmed live: Jammer/Radar's own declared viewBox extends
+      20-30 units past their real ink, Tank/Antitank Mine within ~2),
+      so the fix re-anchors to each icon's own REAL rendered content
+      bounds instead - `_content_bounds()`, measured with Qt's
+      QSvgRenderer.boundsOnElement() rather than any per-icon constant,
+      so a future icon's own real ink is measured automatically rather
+      than needing to be hand-tuned. Applies to every entity on the
+      layer, mines and the merged-in Jammer/Radar included. Land Unit
+      still uses the older, NATO-style side-anchored designation
+      (`mct_sidc_svg()`'s own uniqueDesignation slot, size-stabilised
+      against a typed designation) - this centred-below treatment has
+      not been asked for there.
 - [x] **Affiliation colour palette**:
       - Blue — Friendly
       - Red — Hostile
