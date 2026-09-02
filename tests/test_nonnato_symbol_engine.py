@@ -9,6 +9,8 @@ symbol_engine.py's tests for that half of the pipeline).
 Military Cartography Tools
 """
 
+import re
+
 from .qgis_test_case import QgisTestCase
 
 from MilitaryCartographyTools.military_symbology import (
@@ -522,6 +524,136 @@ class TestMineFamily(QgisTestCase):
         self.assertIn('stroke-dasharray="8,3"', svg)
 
 
+class TestInjectCenteredDesignationBelow(QgisTestCase):
+
+    """
+    nonnato_symbol_engine.inject_centered_designation_below() - the
+    2026-09-02 fix reported live: "the unique designation is still too
+    far from the glyphs... I want the unique designation to be
+    directly under the glyph, with text centered". Replaces milsymbol's
+    own uniqueDesignation option entirely for Land Equipment.
+    """
+
+    def test_no_designation_is_a_no_op(self):
+
+        svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        self.assertEqual(
+            svg, nse.inject_centered_designation_below(svg, None, _FRIEND)
+        )
+        self.assertEqual(
+            svg, nse.inject_centered_designation_below(svg, "", _FRIEND)
+        )
+
+
+    def test_text_is_centred_under_the_icons_own_original_viewbox(self):
+
+        base_svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', base_svg)
+        vb_x, vb_y, vb_w, vb_h = (float(g) for g in match.groups())
+
+        svg = nse.inject_centered_designation_below(base_svg, "a1", _FRIEND)
+
+        text_match = re.search(
+            r'<text x="(\S+)" y="(\S+)" text-anchor="middle"[^>]*>A1</text>',
+            svg,
+        )
+
+        self.assertIsNotNone(text_match)
+
+        text_x, text_y = float(text_match.group(1)), float(text_match.group(2))
+
+        self.assertAlmostEqual(text_x, vb_x + vb_w / 2, places=3)
+        self.assertGreater(text_y, vb_y + vb_h)  # below the original icon
+
+
+    def test_upper_cases_the_designation(self):
+
+        base_svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        svg = nse.inject_centered_designation_below(base_svg, "hq 3", _FRIEND)
+
+        self.assertIn(">HQ 3<", svg)
+
+
+    def test_viewbox_height_grows_but_width_does_not(self):
+
+        base_svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', base_svg)
+        vb_w, vb_h = float(match.group(3)), float(match.group(4))
+
+        svg = nse.inject_centered_designation_below(base_svg, "a1", _FRIEND)
+
+        new_match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', svg)
+        new_w, new_h = float(new_match.group(3)), float(new_match.group(4))
+
+        self.assertAlmostEqual(new_w, vb_w, places=3)
+        self.assertGreater(new_h, vb_h)
+
+
+    def test_width_and_height_attributes_stay_in_sync_with_the_viewbox(self):
+
+        base_svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        svg = nse.inject_centered_designation_below(base_svg, "a1", _FRIEND)
+
+        vb_match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', svg)
+        vb_w, vb_h = float(vb_match.group(3)), float(vb_match.group(4))
+
+        wh_match = re.search(r'width="(\S+)" height="(\S+)"', svg)
+
+        self.assertIsNotNone(wh_match)
+
+        declared_w, declared_h = float(wh_match.group(1)), float(wh_match.group(2))
+
+        self.assertAlmostEqual(declared_w / declared_h, vb_w / vb_h, places=3)
+
+
+    def test_a_long_designation_shrinks_to_fit_rather_than_widening_the_icon(self):
+
+        base_svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', base_svg)
+        vb_w = float(match.group(3))
+
+        svg = nse.inject_centered_designation_below(
+            base_svg, "a very long designation indeed", _FRIEND
+        )
+
+        new_match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', svg)
+        new_w = float(new_match.group(3))
+
+        self.assertAlmostEqual(new_w, vb_w, places=3)
+
+        font_size_match = re.search(r'font-size="(\S+)"[^>]*>A VERY', svg)
+
+        self.assertIsNotNone(font_size_match)
+        self.assertLess(float(font_size_match.group(1)), nse._DESIGNATION_FONT_SIZE)
+
+
+    def test_works_on_an_svg_with_no_width_height_attributes(self):
+
+        # Synthetic mine icons (e.g. bar_mine_svg()) declare no width/
+        # height on the outer <svg> tag itself, only a viewBox (though
+        # bar_mine_svg()'s own <rect> legitimately has its own "width" -
+        # a different attribute entirely) - must not crash.
+        base_svg = nse.bar_mine_svg(nse.MINE_GREEN)
+
+        opening_tag_before = base_svg.split(">", 1)[0]
+        self.assertNotIn("width=", opening_tag_before)
+
+        svg = nse.inject_centered_designation_below(
+            base_svg, "a1", nse.MINE_GREEN
+        )
+
+        opening_tag_after = svg.split(">", 1)[0]
+
+        self.assertIn(">A1<", svg)
+        self.assertNotIn("width=", opening_tag_after)
+
+
 class TestRenderNonnatoEquipmentSvg(QgisTestCase):
 
     def setUp(self):
@@ -663,17 +795,17 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
         self.assertEqual(len(shapes), 1)
 
 
-    def test_jammer_and_sigint_radar_designation_sits_close_to_the_icon(self):
+    def test_jammer_and_sigint_radar_designation_renders_centred_below(self):
 
-        # The SIGINT designation-position fixup (y="130", not
-        # milsymbol's own far-away y="160") must still apply.
+        # Same centred-below-the-icon treatment every Land Equipment
+        # entity gets (inject_centered_designation_below()) - see that
+        # function's own docstring for the 2026-09-02 fix this is.
         svg = nse.render_nonnato_equipment_svg(
             "hostile", nse.SIGINT_RADAR_ENTITY, designation="a1"
         )
 
-        self.assertIn("A1", svg)
-        self.assertIn('y="130"', svg)
-        self.assertNotIn('y="160"', svg)
+        self.assertIn(">A1<", svg)
+        self.assertIn('text-anchor="middle"', svg)
 
 
 class TestBoobyTrapControlMeasureSvg(QgisTestCase):

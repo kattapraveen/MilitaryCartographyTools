@@ -10,7 +10,6 @@ Military Cartography Tools
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
-    QgsExpression,
     QgsExpressionContext,
     QgsExpressionContextUtils,
     QgsFeature,
@@ -288,10 +287,17 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
 
     def test_a_typed_designation_does_not_shrink_the_icon(self):
 
-        # Same fix, same reasoning as Land Unit's own regression test -
-        # see that module's test file for the full "reported live"
-        # story and why the raw Size property is EXPECTED to grow with
-        # a designation, not stay flat.
+        # Superseded 2026-09-02: designation text is now drawn centred
+        # directly BELOW the icon (inject_centered_designation_below()),
+        # not via milsymbol's own uniqueDesignation option, so it no
+        # longer widens the icon's own viewBox at all - only its
+        # height. QGIS sizes an SVG marker by width, so the rendered
+        # SIZE now stays IDENTICAL with or without a designation - a
+        # simpler invariant than the width-compensation dance the old
+        # milsymbol-driven placement needed (see mct_nonnato_unit_svg_
+        # width()'s own docstring for that older mechanism, still used
+        # by Land Unit/SIGINT... but SIGINT is Equipment now too, so in
+        # practice only Land Unit still needs it).
         layer = build_land_equipment_layer_nonnato()
 
         without_designation = self._render_size_for(
@@ -303,22 +309,7 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
             {"affiliation": "friend", "entity": "tank", "unique_designation": "HQ 3"},
         )
 
-        self.assertGreater(with_designation, without_designation)
-
-        plain_width = QgsExpression(
-            "mct_nonnato_equipment_svg_width('friend','tank','')"
-        ).evaluate()
-
-        amplified_width = QgsExpression(
-            "mct_nonnato_equipment_svg_width('friend','tank','HQ 3')"
-        ).evaluate()
-
-        icon_footprint_without = without_designation
-        icon_footprint_with = with_designation * plain_width / amplified_width
-
-        self.assertAlmostEqual(
-            icon_footprint_without, icon_footprint_with, places=3
-        )
+        self.assertAlmostEqual(without_designation, with_designation, places=3)
 
 
     def test_entity_keys_match_a_real_land_equipment_sidc(self):
@@ -352,11 +343,13 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
                 )
 
 
-    def test_jammer_and_radar_designation_sits_close_to_the_icon(self):
+    def test_jammer_and_radar_designation_renders_centred_below(self):
 
-        # The SIGINT designation-position fixup (y="130", not
-        # milsymbol's own far-away y="160") must still apply now that
-        # these two render through the Land Equipment layer.
+        # Same centred-below-the-icon designation treatment as every
+        # other Land Equipment entity - see inject_centered_
+        # designation_below()'s own docstring for the 2026-09-02 fix
+        # this is (superseding the SIGINT-only y="130" nudge from
+        # earlier the same day).
         layer = build_land_equipment_layer_nonnato()
 
         svg = self._decoded_svg_for(
@@ -367,9 +360,8 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
             },
         )
 
-        self.assertIn("A1", svg)
-        self.assertIn('y="130"', svg)
-        self.assertNotIn('y="160"', svg)
+        self.assertIn(">A1<", svg)
+        self.assertIn('text-anchor="middle"', svg)
 
 
     def test_sigint_radar_is_distinct_from_land_equipments_own_radar(self):

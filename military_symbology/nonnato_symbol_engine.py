@@ -23,7 +23,11 @@ Military Cartography Tools
 import re
 
 from .sidc import build_sidc
-from .symbol_engine import render_symbol_svg, scale_svg_stroke_width
+from .symbol_engine import (
+    _escape_text,
+    render_symbol_svg,
+    scale_svg_stroke_width,
+)
 
 
 # Part D's settled affiliation colour palette - six affiliations, not
@@ -681,33 +685,113 @@ def render_nonnato_unit_svg(
 # pointed out it only ever had two entities ("merge sigint glyphs
 # (since there are only two) with land equipment"). Jammer and Radar
 # keep their own SIDC symbol_set ("sigint_land", not "land_equipment"
-# - see _EQUIPMENT_SYMBOL_SET_OVERRIDES) and their own designation-
-# position fixup, but otherwise render through the exact same pipeline
-# as every other Land Equipment entity - same six-affiliation colour
-# map, same no-frame/no-fill options, same designation handling.
+# - see _EQUIPMENT_SYMBOL_SET_OVERRIDES) but otherwise render through
+# the exact same pipeline as every other Land Equipment entity - same
+# six-affiliation colour map, same no-frame/no-fill options, same
+# designation handling (see inject_centered_designation_below() below).
 
-# milsymbol places uniqueDesignation at a FIXED y="160" regardless of
-# how far down the icon's own artwork actually reaches - confirmed live
-# by comparing Jammer/Radar's own rendered SVG (glyph drawn no lower
-# than ~y=120, viewBox 126 units tall) against a framed Unit icon's
-# (drawn to y=150 in the same 126-unit viewBox): both get the exact
-# same y="160" text position, so the framed icon reads as "just below
-# the frame" while these two compact bare glyphs read as "text floating
-# well below the icon" - reported live against a screenshot: "in both
-# sigint glyphs - the unique designator is too far from the icon".
-# Moved to y="130" instead - the same ~10-unit gap below the icon's own
-# actual bottom edge the framed case already gets "for free" from the
-# fixed constant. A plain string replace, not a regex: "160" never
-# appears anywhere else in either icon's own SVG.
-_SIGINT_DESIGNATION_Y_FIX = (('y="160"', 'y="130"'),)
+# Designation text sits centred, directly below the icon's own current
+# viewBox - NOT milsymbol's own uniqueDesignation option at all, which
+# this layer stopped using entirely. milsymbol's own placement is a
+# FIXED offset baked into each icon's own layout config, independent of
+# how far down the icon's own artwork actually reaches - reported live
+# 2026-09-02, initially against Jammer/Radar's own especially compact
+# glyphs ("in both sigint glyphs - the unique designator is too far
+# from the icon", fixed that day by nudging milsymbol's own y="160" to
+# y="130"), then again days later against the WHOLE Land Equipment
+# layer ("the unique designation is still too far from the glyphs...
+# I want the unique designation to be directly under the glyph, with
+# text centered") - the first fix only patched the two SIGINT glyphs
+# specifically; this one replaces the mechanism outright, for every
+# entity on the layer, mines included.
+_DESIGNATION_FONT_SIZE = 28.0
+_DESIGNATION_GAP = 10.0
 
 
-def _tighten_sigint_designation(svg):
+def _designation_font_size(text, max_width):
 
-    for old, new in _SIGINT_DESIGNATION_Y_FIX:
-        svg = svg.replace(old, new)
+    """
+    `_DESIGNATION_FONT_SIZE`, or smaller if `text` would otherwise spill
+    past `max_width` - same QFontMetricsF technique symbol_engine.py's
+    own _fitted_font_size() uses, reimplemented here rather than
+    imported because that one measures against a single hardcoded
+    constant (built for one specific icon's own fixed-width supply
+    box), not a caller-supplied width that varies with every icon's own
+    viewBox.
+    """
 
-    return svg
+    try:
+
+        from qgis.PyQt.QtGui import QFont, QFontMetricsF
+
+        font = QFont("Arial", -1)
+        font.setPixelSize(1000)
+
+        width = (
+            QFontMetricsF(font).horizontalAdvance(text)
+            / 1000.0
+            * _DESIGNATION_FONT_SIZE
+        )
+
+    except Exception:
+
+        return _DESIGNATION_FONT_SIZE
+
+    if width <= max_width:
+        return _DESIGNATION_FONT_SIZE
+
+    return _DESIGNATION_FONT_SIZE * max_width / width
+
+
+def inject_centered_designation_below(svg, designation, colour):
+
+    """
+    Draws `designation`, centred, directly below `svg`'s own current
+    viewBox - see this section's own comment above for why. No-ops on
+    an empty/None designation or an svg with no parseable viewBox.
+
+    The viewBox is widened downward (never sideways) to fit the text,
+    reusing _expand_viewbox_for_rect() - the exact same "grow the
+    viewBox and rescale width/height together, never shrink" mechanism
+    Combined Arms' own rectangle already relies on, including the same
+    accepted trade-off (the marker's own geometric centre shifts down
+    slightly, since the growth is asymmetric). The text's own font size
+    shrinks to fit the icon's own width rather than widening the
+    viewBox sideways, mirroring symbol_engine.py's own supply-box
+    convention (_fitted_font_size()) - a long designation gets smaller,
+    not an ever-wider icon.
+    """
+
+    if not designation:
+        return svg
+
+    match = _VIEWBOX_PATTERN.search(svg)
+
+    if not match:
+        return svg
+
+    vb_x, vb_y, vb_w, vb_h = (float(value) for value in match.groups())
+
+    text = str(designation).upper()
+
+    font_size = _designation_font_size(text, vb_w * 0.9)
+
+    text_block_height = _DESIGNATION_GAP + font_size * 1.2
+
+    svg = _expand_viewbox_for_rect(
+        svg, vb_x, vb_y, vb_w, vb_h + text_block_height
+    )
+
+    center_x = vb_x + vb_w / 2
+    baseline_y = vb_y + vb_h + _DESIGNATION_GAP + font_size
+
+    text_element = (
+        f'<text x="{center_x:g}" y="{baseline_y:g}" text-anchor="middle" '
+        f'font-size="{font_size:g}" font-family="Arial" stroke="none" '
+        f'fill="{colour}">{_escape_text(text)}</text>'
+    )
+
+    return _inject_before_closing_svg(svg, text_element)
 
 
 # Jammer is a real APP-6E entity, but under symbol_set "sigint_land",
@@ -738,8 +822,6 @@ _EQUIPMENT_SYMBOL_SET_OVERRIDES = {
 
 _EQUIPMENT_ENTITY_FIXUPS = {
     "antipersonnel_land_mine": unfilled_antipersonnel_fragmentation_mine,
-    "jammer": _tighten_sigint_designation,
-    SIGINT_RADAR_ENTITY: _tighten_sigint_designation,
 }
 
 
@@ -772,6 +854,13 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
     APP-6E key "radar" via _EQUIPMENT_ENTITY_KEY_ALIASES before it ever
     reaches build_sidc(), since "radar" itself is already taken by Land
     Equipment's own distinct entity of the same name.
+
+    `designation` is drawn by inject_centered_designation_below() as a
+    separate post-render step, not passed to milsymbol at all - applies
+    equally to the SIDC-rendered branch and the synthetic mine branch,
+    since both used to have no consistent designation story of their
+    own (the mines never took milsymbol's own uniqueDesignation option
+    in the first place).
     """
 
     is_mine = entity in MINE_ENTITIES
@@ -797,12 +886,11 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
 
         options = {"frame": False, "fill": False, "monoColor": colour}
 
-        if designation:
-            options["uniqueDesignation"] = str(designation).upper()
-
         svg = apply_nonnato_equipment_fixups(
             render_symbol_svg(sidc, options), entity
         )
+
+    svg = inject_centered_designation_below(svg, designation, colour)
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 

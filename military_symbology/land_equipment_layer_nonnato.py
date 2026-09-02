@@ -65,7 +65,13 @@ LAYER_NAME = "Land Equipment (Non-NATO)"
 
 DEFAULT_ENTITY = "tank"
 
-MARKER_SIZE_MM = 8.0
+# 20% bigger than every other non-NATO point layer's own 8.0mm default
+# (Land Unit, SIGINT before its merge, Control Measure Points all still
+# use 8.0) - requested live, 2026-09-02, specifically for this layer:
+# "in land equipment, i want all the glyphs to be 20% bigger by
+# default". The "scale" field (configure_rotation_and_scale_fields())
+# still works exactly as before - 100% now means THIS size, not 8.0mm.
+MARKER_SIZE_MM = 8.0 * 1.2
 
 # Display labels for the 58 confirmed entities - see this module's own
 # docstring and docs/non-nato-symbology-tracker.md's "Required

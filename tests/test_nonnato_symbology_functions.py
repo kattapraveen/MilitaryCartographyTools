@@ -228,17 +228,17 @@ class TestMctNonnatoEquipmentSvg(QgisTestCase):
         self.assertIn(">J<", jammer_svg)
 
 
-    def test_jammer_and_sigint_radar_designation_sits_close_to_the_icon(self):
+    def test_jammer_and_sigint_radar_designation_renders_centred_below(self):
 
-        # The SIGINT designation-position fixup (y="130", not
-        # milsymbol's own far-away y="160") must still apply now that
-        # these two render through mct_nonnato_equipment_svg().
+        # Same centred-below-the-icon treatment every Land Equipment
+        # entity gets - see inject_centered_designation_below()'s own
+        # docstring for the 2026-09-02 fix this is.
         svg = self._svg_for(
             f"mct_nonnato_equipment_svg('friend', '{SIGINT_RADAR_ENTITY}', 'a1')"
         )
 
-        self.assertIn('y="130"', svg)
-        self.assertNotIn('y="160"', svg)
+        self.assertIn(">A1<", svg)
+        self.assertIn('text-anchor="middle"', svg)
 
 
 class TestMctNonnatoBoobyTrapSvg(QgisTestCase):
@@ -320,8 +320,16 @@ class TestNonnatoWidthFunctions(QgisTestCase):
         self.assertGreater(amplified, plain)
 
 
-    def test_equipment_width_grows_with_a_designation(self):
+    def test_equipment_width_is_unaffected_by_a_designation(self):
 
+        # Superseded 2026-09-02: Land Equipment's own designation text
+        # is now drawn centred BELOW the icon (inject_centered_
+        # designation_below()), not via milsymbol's own uniqueDesignation
+        # option, so it no longer widens the viewBox at all - only its
+        # height, which this width function does not report. The
+        # stabilisation ratio this feeds (land_equipment_layer_nonnato
+        # .py's own renderer) still computes correctly either way, it
+        # just always comes out as 1 for this layer now.
         plain = self._evaluate(
             "mct_nonnato_equipment_svg_width('friend','tank','')"
         )
@@ -329,10 +337,10 @@ class TestNonnatoWidthFunctions(QgisTestCase):
             "mct_nonnato_equipment_svg_width('friend','tank','HQ 3')"
         )
 
-        self.assertGreater(amplified, plain)
+        self.assertEqual(amplified, plain)
 
 
-    def test_equipment_width_grows_with_a_designation_for_sigint_radar_too(self):
+    def test_equipment_width_is_unaffected_by_a_designation_for_sigint_radar_too(self):
 
         # Jammer/Radar merged into mct_nonnato_equipment_svg_width()
         # 2026-09-02 - same width function every other Equipment entity
@@ -346,7 +354,7 @@ class TestNonnatoWidthFunctions(QgisTestCase):
             f"mct_nonnato_equipment_svg_width('friend','{SIGINT_RADAR_ENTITY}','HQ 3')"
         )
 
-        self.assertGreater(amplified, plain)
+        self.assertEqual(amplified, plain)
 
 
     def test_pillbox_width_is_unaffected_by_a_designation(self):
