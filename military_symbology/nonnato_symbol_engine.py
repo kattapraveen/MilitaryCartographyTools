@@ -704,9 +704,24 @@ def render_nonnato_unit_svg(
 # I want the unique designation to be directly under the glyph, with
 # text centered") - the first fix only patched the two SIGINT glyphs
 # specifically; this one replaces the mechanism outright, for every
-# entity on the layer, mines included.
+# entity on the layer, mines included. **Anchored to the declared
+# viewBox's own bottom edge at first, then corrected again the same
+# day** ("it is a bit far, can we move it as close to the glyph as
+# possible with some gap - this should be dynamic as we move ahead
+# with the modifications in future"): a declared viewBox is not a tight
+# bounding box - Jammer's own "J" and Radar's own hook stop drawing
+# 20-30 units above their own declared viewBox bottom (confirmed live:
+# tank/antitank_mine sit within ~2 units of their own declared bottom,
+# jammer/sigint_radar within ~20-30), so anchoring uniformly to the
+# DECLARED viewBox reintroduced exactly the per-icon unevenness the
+# original SIGINT-only y="130" hack existed to paper over, just for a
+# different subset of icons. Anchored to the ACTUAL rendered content
+# bounds instead (_content_bounds() below, via QSvgRenderer's own
+# boundsOnElement()) - genuinely dynamic in the sense asked for: every
+# icon, present or future, measures its own real ink, no per-icon
+# constant to keep in sync by hand.
 _DESIGNATION_FONT_SIZE = 28.0
-_DESIGNATION_GAP = 10.0
+_DESIGNATION_GAP = 6.0
 
 
 def _designation_font_size(text, max_width):
@@ -744,12 +759,66 @@ def _designation_font_size(text, max_width):
     return _DESIGNATION_FONT_SIZE * max_width / width
 
 
+def _content_bounds(svg, fallback):
+
+    """
+    The TIGHT bounding box of whatever `svg` actually draws, in its own
+    viewBox units - not the declared viewBox, which is routinely
+    bigger than the real ink (see this section's own comment above for
+    live-measured examples). Computed with Qt's own QSvgRenderer rather
+    than hand-parsed from the path/circle/text markup - correctly
+    handles bezier curves, transforms and text metrics without this
+    module reimplementing any of that, and stays correct for whatever
+    icon shape gets added here next, which a hardcoded per-icon number
+    could not.
+
+    `fallback` (a (x, y, width, height) tuple) is returned unchanged if
+    Qt's SVG support is unavailable for any reason, or the measurement
+    otherwise fails - the same defensive pattern _designation_font_
+    size() already uses for QFontMetricsF, so a missing/broken Qt SVG
+    stack degrades to the old viewBox-edge behaviour rather than
+    raising out of a renderer callback.
+    """
+
+    try:
+
+        from qgis.PyQt.QtSvg import QSvgRenderer
+
+        # boundsOnElement() needs an id to query - milsymbol's own
+        # markup has none, so the whole document is wrapped in one
+        # purely for this measurement. Inserted right after the
+        # opening <svg ...> tag and before the closing </svg>; nothing
+        # about how the icon itself renders changes.
+        open_tag_end = svg.index(">") + 1
+
+        wrapped = (
+            svg[:open_tag_end]
+            + '<g id="mctContentBounds">'
+            + svg[open_tag_end:-len("</svg>")]
+            + "</g></svg>"
+        )
+
+        renderer = QSvgRenderer(wrapped.encode("utf-8"))
+
+        bounds = renderer.boundsOnElement("mctContentBounds")
+
+        if bounds.isEmpty():
+            return fallback
+
+        return (bounds.x(), bounds.y(), bounds.width(), bounds.height())
+
+    except Exception:
+
+        return fallback
+
+
 def inject_centered_designation_below(svg, designation, colour):
 
     """
-    Draws `designation`, centred, directly below `svg`'s own current
-    viewBox - see this section's own comment above for why. No-ops on
-    an empty/None designation or an svg with no parseable viewBox.
+    Draws `designation`, centred, directly below `svg`'s own actual
+    drawn content (not its declared viewBox - see _content_bounds())
+    with a small, fixed gap (_DESIGNATION_GAP) - see this section's own
+    comment above for the two-round "too far" story this settles.
 
     The viewBox is widened downward (never sideways) to fit the text,
     reusing _expand_viewbox_for_rect() - the exact same "grow the
@@ -773,18 +842,26 @@ def inject_centered_designation_below(svg, designation, colour):
 
     vb_x, vb_y, vb_w, vb_h = (float(value) for value in match.groups())
 
+    content_x, content_y, content_w, content_h = _content_bounds(
+        svg, fallback=(vb_x, vb_y, vb_w, vb_h)
+    )
+
+    content_bottom = content_y + content_h
+
     text = str(designation).upper()
 
     font_size = _designation_font_size(text, vb_w * 0.9)
 
-    text_block_height = _DESIGNATION_GAP + font_size * 1.2
-
     svg = _expand_viewbox_for_rect(
-        svg, vb_x, vb_y, vb_w, vb_h + text_block_height
+        svg,
+        vb_x,
+        vb_y,
+        vb_w,
+        (content_bottom + _DESIGNATION_GAP + font_size * 1.2) - vb_y,
     )
 
-    center_x = vb_x + vb_w / 2
-    baseline_y = vb_y + vb_h + _DESIGNATION_GAP + font_size
+    center_x = content_x + content_w / 2
+    baseline_y = content_bottom + _DESIGNATION_GAP + font_size
 
     text_element = (
         f'<text x="{center_x:g}" y="{baseline_y:g}" text-anchor="middle" '

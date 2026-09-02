@@ -532,6 +532,15 @@ class TestInjectCenteredDesignationBelow(QgisTestCase):
     far from the glyphs... I want the unique designation to be
     directly under the glyph, with text centered". Replaces milsymbol's
     own uniqueDesignation option entirely for Land Equipment.
+
+    Corrected again the same day - "it is a bit far, can we move it as
+    close to the glyph as possible with some gap - this should be
+    dynamic as we move ahead with the modifications in future" -
+    anchored to the icon's own real rendered content bounds
+    (_content_bounds(), via Qt's own QSvgRenderer) rather than its
+    declared viewBox, which routinely carries far more padding below
+    the actual ink than the gap alone (Jammer/Radar especially - see
+    test_a_padded_declared_viewbox_does_not_widen_the_gap() below).
     """
 
     def test_no_designation_is_a_no_op(self):
@@ -566,6 +575,52 @@ class TestInjectCenteredDesignationBelow(QgisTestCase):
 
         self.assertAlmostEqual(text_x, vb_x + vb_w / 2, places=3)
         self.assertGreater(text_y, vb_y + vb_h)  # below the original icon
+
+
+    def test_a_padded_declared_viewbox_does_not_widen_the_gap(self):
+
+        # The core regression: Jammer's own declared viewBox extends
+        # ~30 units below its actual "J" glyph (milsymbol allocates
+        # room generically, not tightly) - confirmed live. Anchoring to
+        # the declared viewBox, like the first version of this function
+        # did, would draw the designation ~30 units further from the
+        # glyph than tank's own (whose declared viewBox sits within
+        # ~2 units of its own real ink) - a per-icon inconsistency this
+        # fix exists to remove. The gap from the REAL content bottom to
+        # the text baseline must be the same fixed budget
+        # (_DESIGNATION_GAP + font-size-derived ascent) for both.
+        tank_svg = nse.render_nonnato_equipment_svg("friend", "tank")
+        jammer_svg = nse.render_nonnato_equipment_svg("friend", "jammer")
+
+        tank_with = nse.inject_centered_designation_below(tank_svg, "a1", _FRIEND)
+        jammer_with = nse.inject_centered_designation_below(jammer_svg, "a1", _FRIEND)
+
+        def content_bottom_and_baseline(base_svg, injected_svg):
+
+            content_bottom = (
+                nse._content_bounds(base_svg, fallback=(0, 0, 0, 0))[1]
+                + nse._content_bounds(base_svg, fallback=(0, 0, 0, 0))[3]
+            )
+
+            # search() only, not the whole string - Jammer's own base
+            # svg already has its OWN <text> element (the "J" glyph
+            # itself), so this must match the INJECTED designation
+            # specifically, not just the first <text> tag found.
+            baseline_match = re.search(
+                r'<text x="\S+" y="(\S+)" text-anchor="middle"[^>]*>A1</text>',
+                injected_svg,
+            )
+
+            return content_bottom, float(baseline_match.group(1))
+
+        tank_bottom, tank_baseline = content_bottom_and_baseline(tank_svg, tank_with)
+        jammer_bottom, jammer_baseline = content_bottom_and_baseline(
+            jammer_svg, jammer_with
+        )
+
+        self.assertAlmostEqual(
+            tank_baseline - tank_bottom, jammer_baseline - jammer_bottom, places=1
+        )
 
 
     def test_upper_cases_the_designation(self):
@@ -652,6 +707,33 @@ class TestInjectCenteredDesignationBelow(QgisTestCase):
 
         self.assertIn(">A1<", svg)
         self.assertNotIn("width=", opening_tag_after)
+
+
+class TestContentBounds(QgisTestCase):
+
+    """nonnato_symbol_engine._content_bounds() on its own - the Qt QSvgRenderer-based measurement inject_centered_designation_below() relies on."""
+
+    def test_measures_tighter_than_the_declared_viewbox_for_a_padded_icon(self):
+
+        svg = nse.render_nonnato_equipment_svg("friend", "jammer")
+
+        match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', svg)
+        vb_x, vb_y, vb_w, vb_h = (float(g) for g in match.groups())
+
+        content_x, content_y, content_w, content_h = nse._content_bounds(
+            svg, fallback=(vb_x, vb_y, vb_w, vb_h)
+        )
+
+        self.assertLess(content_y + content_h, vb_y + vb_h)
+
+
+    def test_falls_back_when_the_svg_has_no_viewbox_at_all(self):
+
+        fallback = (1.0, 2.0, 3.0, 4.0)
+
+        result = nse._content_bounds("<not-an-svg/>", fallback=fallback)
+
+        self.assertEqual(result, fallback)
 
 
 class TestRenderNonnatoEquipmentSvg(QgisTestCase):
