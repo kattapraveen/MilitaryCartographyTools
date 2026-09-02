@@ -678,21 +678,38 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
 
 class TestBoobyTrapControlMeasureSvg(QgisTestCase):
 
-    def test_renders_a_hollow_circle_only(self):
+    def test_renders_a_hollow_circle_with_four_horns(self):
 
-        # Corrected 2026-09-02, reported live: "booby trap is incorrect
-        # - it should be same as antitank mine but with the circle
-        # only, no fill" - replacing an earlier dashed-double-horn
-        # design. Same geometry as Antitank Mine's own real icon
-        # (cx=100, cy=100, r=22 - see _mine_circle()), hollow instead of
-        # that icon's own filled circle.
+        # Corrected twice, live, 2026-09-02 - see
+        # booby_trap_control_measure_svg()'s own docstring for the full
+        # back-and-forth. Final shape: hollow circle (same geometry as
+        # Antitank Mine's own real icon - cx=100, cy=100, r=22, see
+        # _mine_circle()) plus four plain, non-dashed horns at
+        # 45/135/225/315 degrees - the same coordinates
+        # antitank_mine_booby_trapped_svg() uses for its own (filled-
+        # circle) version.
         svg = nse.booby_trap_control_measure_svg()
 
         self.assertTrue(svg.startswith("<svg"))
         self.assertEqual(svg.count("<circle"), 1)
-        self.assertEqual(svg.count("<path"), 0)
+        self.assertEqual(svg.count("<path"), 4)
+        self.assertEqual(svg.count("stroke-dasharray"), 0)
         self.assertIn('cx="100" cy="100" r="22"', svg)
-        self.assertIn('fill="none"', svg)
+        self.assertIn('fill="none"></circle>', svg)
+
+
+    def test_all_four_horns_at_the_right_angles(self):
+
+        svg = nse.booby_trap_control_measure_svg()
+
+        for coordinate in (
+            "M115.6,84.4 L131.9,68.1",   # 45 degrees
+            "M84.4,84.4 L68.1,68.1",     # 135 degrees
+            "M84.4,115.6 L68.1,131.9",   # 225 degrees
+            "M115.6,115.6 L131.9,131.9", # 315 degrees
+        ):
+            with self.subTest(coordinate=coordinate):
+                self.assertIn(coordinate, svg)
 
 
     def test_defaults_to_mine_green(self):

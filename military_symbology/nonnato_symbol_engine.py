@@ -833,26 +833,43 @@ def booby_trap_control_measure_svg(colour=MINE_GREEN):
     Control Measure Point's own Booby Trap (280700) - NOT the Land
     Equipment mine family's own, structurally distinct, Antitank Mine
     Booby Trapped synthetic entity (ANTITANK_MINE_BOOBY_TRAPPED_ENTITY
-    above).
+    above), though the two now share the same horn geometry - see
+    below.
 
-    Corrected 2026-09-02, reported live against a rendered screenshot:
-    "booby trap is incorrect - it should be same as antitank mine but
-    with the circle only, no fill" - replacing an earlier, more
-    elaborate dashed-double-horn design this function used to have (a
-    from-the-spec derivation of an ambiguous prose description that
-    turned out not to match what the maintainer actually wanted once
-    they saw it rendered). Antitank Mine's own real icon (checked live:
-    `render_symbol_svg` on the real "antitank_mine" Land Equipment
-    entity) is exactly _mine_circle()'s own geometry - cx=100, cy=100,
-    r=22, stroke-width 3 - so this is now a direct, literal reuse of
-    that same helper, hollow rather than Antitank Mine's own filled
-    circle.
+    Corrected twice, live, 2026-09-02:
+    1. First correction, against a rendered screenshot: "booby trap is
+       incorrect - it should be same as antitank mine but with the
+       circle only, no fill" - read (wrongly, as it turned out) as
+       "drop the horns entirely", replacing the earlier dashed-double-
+       horn design with a bare hollow circle.
+    2. Second correction, against a screenshot of THAT bare circle:
+       "its supposed to have four lines at the four angles as
+       described earlier" - the horns were never meant to be dropped,
+       only the CIRCLE'S fill was the actual complaint both times. This
+       is the tracker's own original "first draft" description
+       ("hollow circle + four 45/135/225/315-degree horns"), which
+       turns out to have been right all along - it was ANTITANK_MINE_
+       BOOBY_TRAPPED_ENTITY's own FILLED circle that was the source of
+       the earlier confusion, not the horn count.
+
+    Built from the exact same four-horn coordinates as
+    antitank_mine_booby_trapped_svg() (45/135/225/315 degrees, plain
+    lines, no dashing), with a hollow circle instead of that function's
+    own filled one - the one real difference between the two shapes.
     """
+
+    horns = (
+        f'<path d="M115.6,84.4 L131.9,68.1" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M84.4,84.4 L68.1,68.1" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M84.4,115.6 L68.1,131.9" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        f'<path d="M115.6,115.6 L131.9,131.9" stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
 
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
         'baseProfile="tiny" viewBox="46 46 108 108">'
         + _mine_circle(colour, filled=False)
+        + horns
         + '</svg>'
     )
 

@@ -326,14 +326,28 @@ actually implemented in code** - when the layer was finally built
 found, so it was re-derived fresh from this prose and shipped, then
 immediately corrected below once the maintainer saw it live.
 
-**Shape, corrected 2026-09-02 - this is the actual final version**:
+**Shape, corrected 2026-09-02, first pass - superseded, see below**:
 reported live, against a rendered screenshot, as simply wrong -
 "booby trap is incorrect - it should be same as antitank mine but with
-the circle only, no fill". The dashed-horn design above is dropped
-entirely. The icon is now Antitank Mine's own real circle geometry
-(checked live: cx=100, cy=100, r=22, stroke-width 3 - Land Equipment's
-own `_mine_circle()` helper), hollow rather than that icon's own
-filled circle, and nothing else - no horns at all.
+the circle only, no fill". Read (wrongly) as "drop the horns entirely"
+- the icon was rebuilt as Antitank Mine's own real circle geometry
+(cx=100, cy=100, r=22, stroke-width 3 - Land Equipment's own
+`_mine_circle()` helper), hollow rather than that icon's own filled
+circle, with no horns at all.
+
+**Shape, corrected 2026-09-02, second pass - this is the actual final
+version**: reported live again, against a screenshot of the bare-
+circle render - "its supposed to have four lines at the four angles as
+described earlier". The horns were never meant to be dropped; only the
+circle's own fill was ever the real complaint, both times. Final
+shape: the hollow circle above, PLUS all four horns at 45/135/225/315
+degrees, plain (no dashing) - the exact same horn coordinates
+`antitank_mine_booby_trapped_svg()` uses for its own (filled-circle)
+version. This is, in the end, precisely the "first draft" shape this
+record originally described ("hollow circle + four 45/135/225/315-
+degree horns") - that description was right all along; it was
+ANTITANK_MINE_BOOBY_TRAPPED_ENTITY's own filled circle, not the horn
+count, that caused both rounds of confusion.
 
 **Echelons and the Combined Arms indicator are unaffected by this
 review** - all 11 echelons were checked in the reviewed sheet
