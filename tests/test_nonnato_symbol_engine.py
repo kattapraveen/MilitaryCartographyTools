@@ -715,6 +715,15 @@ class TestContentBounds(QgisTestCase):
 
     def test_measures_tighter_than_the_declared_viewbox_for_a_padded_icon(self):
 
+        # Jammer is deliberately the test subject here, not an
+        # arbitrary choice: it is pure `<text>` (no path/circle/rect at
+        # all), which is exactly the case QSvgRenderer.boundsOnElement()
+        # cannot measure on QGIS 3's own Qt SVG module (confirmed live:
+        # always returns an empty rect for text, on any attributes) -
+        # this test is the regression guard for that cross-version bug,
+        # caught only by running both QGIS_APP targets, not something
+        # the newer environment this was first built against could
+        # have shown on its own.
         svg = nse.render_nonnato_equipment_svg("friend", "jammer")
 
         match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', svg)
@@ -725,6 +734,20 @@ class TestContentBounds(QgisTestCase):
         )
 
         self.assertLess(content_y + content_h, vb_y + vb_h)
+
+
+    def test_text_element_bounds_respects_anchor_and_baseline(self):
+
+        left, top, width, height = nse._text_element_bounds(
+            x=100, y=100,
+            attrs=' text-anchor="middle" font-size="40" dominant-baseline="middle"',
+            content="AB",
+        )
+
+        self.assertGreater(width, 0)
+        self.assertGreater(height, 0)
+        self.assertLess(left, 100)  # centred anchor pulls left of x
+        self.assertLess(top, 100)  # middle baseline pulls top above y
 
 
     def test_falls_back_when_the_svg_has_no_viewbox_at_all(self):

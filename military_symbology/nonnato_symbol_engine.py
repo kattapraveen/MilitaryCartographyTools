@@ -759,22 +759,93 @@ def _designation_font_size(text, max_width):
     return _DESIGNATION_FONT_SIZE * max_width / width
 
 
+_TEXT_ELEMENT_PATTERN = re.compile(
+    r'<text\s+x="([-\d.]+)"\s+y="([-\d.]+)"([^>]*)>(.*?)</text>', re.S
+)
+
+
+def _text_element_bounds(x, y, attrs, content):
+
+    """
+    An approximate (x, y, width, height) for one `<text>` element -
+    see _content_bounds()'s own docstring for why this exists instead
+    of trusting QSvgRenderer for text. Width comes from QFontMetricsF
+    (the same technique _designation_font_size()/symbol_engine.py's own
+    _fitted_font_size() already rely on, confirmed reliable on both Qt
+    versions this project tests against); height is a fixed cap-height
+    estimate (0.7 of the font size) rather than a precise font-metrics
+    conversion, which would need to know exactly how each Qt version's
+    own SVG engine maps `dominant-baseline="middle"` to real ascent/
+    descent - more precision than a single-line, mostly-uppercase
+    label needs here.
+    """
+
+    font_size_match = re.search(r'font-size="([\d.]+)"', attrs)
+    font_size = float(font_size_match.group(1)) if font_size_match else 16.0
+
+    bold = 'font-weight="bold"' in attrs
+
+    try:
+
+        from qgis.PyQt.QtGui import QFont, QFontMetricsF
+
+        font = QFont("Arial", -1)
+        font.setPixelSize(1000)
+        font.setBold(bold)
+
+        width = (
+            QFontMetricsF(font).horizontalAdvance(content)
+            / 1000.0
+            * font_size
+        )
+
+    except Exception:
+
+        width = len(content) * font_size * 0.6
+
+    cap_height = font_size * 0.7
+
+    top = (
+        y - cap_height / 2 if 'dominant-baseline="middle"' in attrs
+        else y - cap_height
+    )
+
+    if 'text-anchor="middle"' in attrs:
+        left = x - width / 2
+    elif 'text-anchor="end"' in attrs:
+        left = x - width
+    else:
+        left = x
+
+    return left, top, width, cap_height
+
+
 def _content_bounds(svg, fallback):
 
     """
     The TIGHT bounding box of whatever `svg` actually draws, in its own
     viewBox units - not the declared viewBox, which is routinely
     bigger than the real ink (see this section's own comment above for
-    live-measured examples). Computed with Qt's own QSvgRenderer rather
-    than hand-parsed from the path/circle/text markup - correctly
-    handles bezier curves, transforms and text metrics without this
-    module reimplementing any of that, and stays correct for whatever
-    icon shape gets added here next, which a hardcoded per-icon number
-    could not.
+    live-measured examples).
+
+    Path/circle/rect geometry is measured with Qt's own QSvgRenderer
+    (QSvgRenderer.boundsOnElement(), after wrapping the content in an
+    identifying <g> purely for the query - milsymbol's own markup has
+    no ids) - correctly handles bezier curves and transforms without
+    this module reimplementing any of that. `<text>` elements are
+    measured separately, with _text_element_bounds() instead: confirmed
+    live that QSvgRenderer.boundsOnElement() returns an EMPTY rect for
+    ANY text content on QGIS 3's own (older) Qt SVG module, regardless
+    of attributes - caught by this project's own standing rule to test
+    both QGIS versions, not something the QGIS 4 environment this was
+    first built and confirmed against could have shown on its own. Text
+    elements are stripped out before the geometry query and their own
+    bounds unioned back in afterward, so a text-only icon like Jammer's
+    bare "J" still measures correctly on both versions.
 
     `fallback` (a (x, y, width, height) tuple) is returned unchanged if
-    Qt's SVG support is unavailable for any reason, or the measurement
-    otherwise fails - the same defensive pattern _designation_font_
+    Qt's SVG support is unavailable for any reason, or nothing could be
+    measured at all - the same defensive pattern _designation_font_
     size() already uses for QFontMetricsF, so a missing/broken Qt SVG
     stack degrades to the old viewBox-edge behaviour rather than
     raising out of a renderer callback.
@@ -784,28 +855,49 @@ def _content_bounds(svg, fallback):
 
         from qgis.PyQt.QtSvg import QSvgRenderer
 
-        # boundsOnElement() needs an id to query - milsymbol's own
-        # markup has none, so the whole document is wrapped in one
-        # purely for this measurement. Inserted right after the
-        # opening <svg ...> tag and before the closing </svg>; nothing
-        # about how the icon itself renders changes.
-        open_tag_end = svg.index(">") + 1
+        text_matches = list(_TEXT_ELEMENT_PATTERN.finditer(svg))
+
+        non_text_svg = _TEXT_ELEMENT_PATTERN.sub("", svg)
+
+        open_tag_end = non_text_svg.index(">") + 1
 
         wrapped = (
-            svg[:open_tag_end]
+            non_text_svg[:open_tag_end]
             + '<g id="mctContentBounds">'
-            + svg[open_tag_end:-len("</svg>")]
+            + non_text_svg[open_tag_end:-len("</svg>")]
             + "</g></svg>"
         )
 
         renderer = QSvgRenderer(wrapped.encode("utf-8"))
 
-        bounds = renderer.boundsOnElement("mctContentBounds")
+        geometry_bounds = renderer.boundsOnElement("mctContentBounds")
 
-        if bounds.isEmpty():
+        boxes = []
+
+        if not geometry_bounds.isEmpty():
+
+            boxes.append((
+                geometry_bounds.x(), geometry_bounds.y(),
+                geometry_bounds.width(), geometry_bounds.height(),
+            ))
+
+        for match in text_matches:
+
+            x, y = float(match.group(1)), float(match.group(2))
+
+            boxes.append(
+                _text_element_bounds(x, y, match.group(3), match.group(4))
+            )
+
+        if not boxes:
             return fallback
 
-        return (bounds.x(), bounds.y(), bounds.width(), bounds.height())
+        min_x = min(box[0] for box in boxes)
+        min_y = min(box[1] for box in boxes)
+        max_x = max(box[0] + box[2] for box in boxes)
+        max_y = max(box[1] + box[3] for box in boxes)
+
+        return (min_x, min_y, max_x - min_x, max_y - min_y)
 
     except Exception:
 
