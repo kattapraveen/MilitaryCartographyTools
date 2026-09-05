@@ -126,10 +126,14 @@ class TestPluginLifecycle(QgisTestCase):
                 ],
                 # SIGINT used to be its own third entry here, merged
                 # into "Land" (Land Equipment) 2026-09-02 - only two
-                # entities stopped justifying a separate action.
+                # entities stopped justifying a separate action. Mines
+                # and Obstacles added 2026-09-03, consolidating the mine
+                # family (from Land) and Booby Trap (from Control
+                # Measure Points) onto their own layer.
                 "non_nato_symbols": [
                     "Land",
                     "Control Measure Points",
+                    "Mines and Obstacles",
                 ],
             }
 
@@ -249,6 +253,7 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
         self.assertIsNone(plugin.nonnato_land_action)
         self.assertIsNone(plugin.nonnato_control_measure_points_action)
+        self.assertIsNone(plugin.nonnato_mines_and_obstacles_action)
         self.assertIsNone(plugin.c2_measures_action)
         self.assertIsNone(plugin.maneuver_control_measures_action)
         self.assertIsNone(plugin.defensive_control_measures_action)

@@ -3,10 +3,12 @@
 """
 Tests for military_symbology/control_measure_points_layer_nonnato.py -
 the "Control Measure Points (Non-NATO)" layer. Unlike Land Unit/Land
-Equipment/SIGINT, nine of its eleven entities render through the plain
+Equipment/SIGINT, nine of its ten entities render through the plain
 existing mct_sidc_svg()/mct_build_sidc() pipeline (no non-NATO-specific
-colour treatment - see the rules record's Part C); Booby Trap and Pill
-Box each get their own custom rendering (see nonnato_symbol_engine.py).
+colour treatment - see the rules record's Part C); Pill Box gets its
+own custom rendering (see nonnato_symbol_engine.py). Booby Trap moved
+out to its own "Mines and Obstacles (Non-NATO)" layer 2026-09-03 - see
+test_mines_and_obstacles_layer_nonnato.py.
 
 Military Cartography Tools
 """
@@ -32,7 +34,6 @@ from MilitaryCartographyTools.expressions import (
     nonnato_symbology_functions,
 )
 from MilitaryCartographyTools.military_symbology.control_measure_points_layer_nonnato import (
-    BOOBY_TRAP_ENTITY,
     PILLBOX_ENTITY,
     LAYER_NAME,
     ENTITY_LABELS,
@@ -63,14 +64,24 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
     def test_count_matches_the_reviewed_list(self):
 
-        # 11 of 241 - see the rules record's "Control Measure Points"
-        # section.
-        self.assertEqual(len(ENTITY_LABELS), 11)
+        # 10 of 241 - Booby Trap moved out to Mines and Obstacles
+        # 2026-09-03 (was 11) - see the rules record's "Control Measure
+        # Points" section.
+        self.assertEqual(len(ENTITY_LABELS), 10)
+
+
+    def test_booby_trap_is_gone(self):
+
+        # "shift booby trap also into this new layer" (Mines and
+        # Obstacles, 2026-09-03) - must no longer be reachable here.
+        self.assertNotIn("booby_trap", ENTITY_LABELS)
 
 
     def test_the_three_renames_are_in_place(self):
 
-        self.assertEqual(ENTITY_LABELS["target_reference_point"], "Target")
+        self.assertEqual(
+            ENTITY_LABELS["target_reference_point"], "Target/DF Task"
+        )
         self.assertEqual(ENTITY_LABELS["shelter"], "Pill Box")
         self.assertEqual(
             ENTITY_LABELS["observation_post_forward_observer"],
@@ -205,25 +216,6 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
                 )
 
                 self.assertTrue(path.startswith("base64:"))
-
-
-    def test_booby_trap_uses_the_custom_green_icon(self):
-
-        layer = build_control_measure_points_layer_nonnato()
-
-        svg = self._decoded_svg_for(
-            layer,
-            {
-                "affiliation": "hostile", "entity": BOOBY_TRAP_ENTITY,
-                "status": "present",
-            }
-        )
-
-        # Green regardless of affiliation, and NOT a milsymbol-rendered
-        # ellipse-plus-triangle (no monoColor use here at all, since
-        # booby_trap_control_measure_svg() takes no affiliation).
-        self.assertIn("#009b00", svg)
-        self.assertEqual(svg.count("<circle"), 1)
 
 
     def test_pillbox_renders_hollow(self):

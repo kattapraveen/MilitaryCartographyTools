@@ -32,6 +32,8 @@ from MilitaryCartographyTools.military_symbology.land_unit_layer_nonnato import 
     build_land_unit_layer_nonnato,
 )
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
+    AIR_DEFENSE_ARTILLERY_ENTITY,
+    AIR_FORCE_ENTITY,
     ENEMY_INFO_UNKNOWN_ENTITY,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
@@ -42,6 +44,10 @@ from MilitaryCartographyTools.military_symbology.sidc import (
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
+SYNTHETIC_ENTITIES = (
+    ENEMY_INFO_UNKNOWN_ENTITY, AIR_DEFENSE_ARTILLERY_ENTITY, AIR_FORCE_ENTITY,
+)
+
 
 class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
@@ -51,7 +57,7 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
         for key in ENTITY_LABELS:
 
-            if key == ENEMY_INFO_UNKNOWN_ENTITY:
+            if key in SYNTHETIC_ENTITIES:
                 continue
 
             with self.subTest(entity=key):
@@ -59,13 +65,20 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
                 self.assertIn(key, real_keys)
 
 
-    def test_count_matches_the_reviewed_list_plus_enemy_info_unknown(self):
+    def test_count_matches_the_reviewed_list_plus_the_synthetic_entries(self):
 
         # 20 real entities the maintainer's reviewed check sheet
-        # confirmed, plus Enemy (Info Unknown) - see the rules record's
-        # "Required entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 21)
-        self.assertIn(ENEMY_INFO_UNKNOWN_ENTITY, ENTITY_LABELS)
+        # confirmed, plus Enemy (Info Unknown) (no SIDC at all), Air
+        # Defence Artillery (Air Defence's real SIDC with Artillery's
+        # own dot fixed up on top, requested live 2026-09-02), and Air
+        # Force (Army Aviation's real SIDC with its own figure-of-8
+        # opened on the right, requested live 2026-09-03) - none of the
+        # three has a matching real ground_unit key of its own. See the
+        # rules record's "Required entities" section.
+        self.assertEqual(len(ENTITY_LABELS), 23)
+
+        for entity in SYNTHETIC_ENTITIES:
+            self.assertIn(entity, ENTITY_LABELS)
 
 
 class TestBuildLandUnitLayerNonnato(QgisTestCase):
@@ -154,7 +167,8 @@ class TestBuildLandUnitLayerNonnato(QgisTestCase):
             field_names,
             [
                 "affiliation", "entity", "echelon", "status",
-                "combined_arms", "unique_designation", "rotation", "scale",
+                "combined_arms", "unique_designation_left",
+                "unique_designation_right", "rotation", "scale",
             ]
         )
 
@@ -230,6 +244,56 @@ class TestBuildLandUnitLayerNonnato(QgisTestCase):
         self.assertNotEqual(without, with_ca)
 
 
+    def test_left_and_right_designation_fields_reach_the_render(self):
+
+        layer = build_land_unit_layer_nonnato()
+
+        base_attributes = {
+            "affiliation": "friend", "entity": "infantry",
+            "echelon": "unspecified", "status": "present",
+            "combined_arms": False,
+        }
+
+        plain = self._render_path_for(
+            layer,
+            {
+                **base_attributes,
+                "unique_designation_left": "",
+                "unique_designation_right": "",
+            },
+        )
+        left_only = self._render_path_for(
+            layer,
+            {
+                **base_attributes,
+                "unique_designation_left": "A1",
+                "unique_designation_right": "",
+            },
+        )
+        right_only = self._render_path_for(
+            layer,
+            {
+                **base_attributes,
+                "unique_designation_left": "",
+                "unique_designation_right": "B2",
+            },
+        )
+        both = self._render_path_for(
+            layer,
+            {
+                **base_attributes,
+                "unique_designation_left": "A1",
+                "unique_designation_right": "B2",
+            },
+        )
+
+        self.assertNotEqual(plain, left_only)
+        self.assertNotEqual(plain, right_only)
+        self.assertNotEqual(left_only, right_only)
+        self.assertNotEqual(left_only, both)
+        self.assertNotEqual(right_only, both)
+
+
     def test_a_typed_designation_does_not_shrink_the_icon(self):
 
         # Reported live, 2026-09-02: "when i insert a land unit with
@@ -256,24 +320,34 @@ class TestBuildLandUnitLayerNonnato(QgisTestCase):
         }
 
         without_designation = self._render_size_for(
-            layer, {**base_attributes, "unique_designation": ""}
+            layer,
+            {
+                **base_attributes,
+                "unique_designation_left": "",
+                "unique_designation_right": "",
+            },
         )
         with_designation = self._render_size_for(
-            layer, {**base_attributes, "unique_designation": "HQ 3"}
+            layer,
+            {
+                **base_attributes,
+                "unique_designation_left": "HQ 3",
+                "unique_designation_right": "",
+            },
         )
 
         # The compensation must have actually kicked in - a designation
-        # genuinely widens milsymbol's own declared bounding box.
+        # genuinely widens the icon's own bounding box.
         self.assertGreater(with_designation, without_designation)
 
         plain_width = QgsExpression(
             "mct_nonnato_unit_svg_width("
-            "'friend','infantry','unspecified','present','','false')"
+            "'friend','infantry','unspecified','present','','','false')"
         ).evaluate()
 
         amplified_width = QgsExpression(
             "mct_nonnato_unit_svg_width("
-            "'friend','infantry','unspecified','present','HQ 3','false')"
+            "'friend','infantry','unspecified','present','HQ 3','','false')"
         ).evaluate()
 
         icon_footprint_without = without_designation
@@ -289,10 +363,17 @@ class TestBuildLandUnitLayerNonnato(QgisTestCase):
         # Confirms ENTITY_LABELS' keys are exactly what
         # render_nonnato_unit_svg()'s own build_sidc() call expects -
         # not just present in the 2525E vocabulary (already checked
-        # above) but resolving with no KeyError for every one.
+        # above) but resolving with no KeyError for every one. Skips
+        # the synthetic entries with no real key of their own - Enemy
+        # (Info Unknown) never reaches build_sidc() at all, and Air
+        # Defence Artillery/Air Force only reach it through render_
+        # nonnato_unit_svg()'s own alias resolution
+        # (_UNIT_ENTITY_KEY_ALIASES), not as this raw key - see
+        # test_nonnato_symbol_engine.py's own TestRenderNonnatoUnitSvg
+        # for that path's own shape checks.
         for entity in ENTITY_LABELS:
 
-            if entity == ENEMY_INFO_UNKNOWN_ENTITY:
+            if entity in SYNTHETIC_ENTITIES:
                 continue
 
             with self.subTest(entity=entity):

@@ -69,7 +69,7 @@ Engineers, Army Aviation, Artillery, Counterintelligence, EME,
 Electronic Warfare, **Enemy (Info Unknown)** *(new, no entity key -
 see Icon modifications below)*, Engineer, Infantry, Light
 Armour/Recce & Support (Tracked), Medical, Mechanised Infantry,
-Military Intelligence, Military Police, Parachute Rigger, Signal,
+Military Intelligence, Military Police, Parachute, Signal,
 Special Operations Forces. *(Displayed with British spelling per the
 rule below - these are the same APP-6E entities, keys unchanged.)*
 
@@ -92,6 +92,10 @@ no longer required. `aviation_fixed_wing` added in its place and
 renamed to Army Aviation (above) - the "Army Aviation" name moves from
 the rotary-wing entity to the fixed-wing one. Count stays at 20.
 
+**Renamed 2026-09-02**: `parachute_rigger` "Parachute Rigger" ->
+**Parachute** (entity key, composite-icon fixup, and its own SIDC all
+unchanged - display label only).
+
 **Icon modifications 2026-08-31** (glyph changes, not just relabelling
 - verified by standalone rendering, both confirmed by the maintainer
 against actual before/after SVGs):
@@ -105,7 +109,8 @@ against actual before/after SVGs):
   the solid bowtie into a hollow figure-of-8 outline. Mechanically:
   the fix is a straight fill/stroke swap on that one `<path>`, nothing
   else about the icon changes.
-- **Parachute Rigger** (`parachute_rigger`): composite icon. Add the
+- **Parachute** (`parachute_rigger`, renamed from "Parachute Rigger"
+  2026-09-02 - see below): composite icon. Add the
   Infantry glyph's own frame content (the rectangle's two diagonals,
   crossing at the centroid) as a base layer, then take the existing
   parachute glyph (a dome + two lines converging to a point, bounding
@@ -128,8 +133,66 @@ against actual before/after SVGs):
   weight unchanged from NATO" rule rather than shrinking along with
   the shape.
 
+**Amphibious's own oval removed, 2026-09-02**: "i want the oval inside
+the rectangle removed - so the result is only the rectangle and the
+wave". `amphibious`'s real milsymbol glyph is a stadium-shaped oval
+(`M125,80 C150,80 150,120 125,120 L75,120 C50,120 50,80 75,80 Z`)
+layered above a multi-hump wave path - the oval's own path is a fixed
+signature, stripped out entirely (`nonnato_symbol_engine.
+remove_amphibious_oval()`), leaving the frame and the wave untouched.
+
+**Air Defence Artillery, added 2026-09-02** (Land Unit's count moves
+to 22, entities-with-no-APP-6E-equivalent-of-their-own moves to two -
+Enemy (Info Unknown) and this one): "use the Air Defence Glyph and add
+a dot in the center (basically Air Defence and Artillery glyphs
+merged)". Confirmed by rendering both real entities directly: Air
+Defence's own glyph is the frame plus one arc path
+(`M25,150 C25,110 175,110 175,150`); Artillery's own glyph is the frame
+plus one filled centre dot (`<circle cx="100" cy="100" r="15">`, same
+class as Field Artillery's dot noted elsewhere in this doc). The merge
+renders Air Defence's real SIDC unchanged and adds that exact circle on
+top as a fixup - `nonnato_symbol_engine.add_artillery_center_dot()`,
+keyed to a synthetic entity (`AIR_DEFENSE_ARTILLERY_ENTITY =
+"nonnato_air_defense_artillery"`, same "nonnato_"-prefixed, collision-
+proof convention the synthetic mine family already uses) that resolves
+to the real `air_defense` key only at SIDC-build time
+(`_UNIT_ENTITY_KEY_ALIASES`, mirroring SIGINT Radar's own alias
+mechanism on the Land Equipment side) - so the dot never leaks onto a
+plain Air Defence render.
+
+**Air Force, added 2026-09-03** (Land Unit's count moves to 23,
+entities-with-no-APP-6E-equivalent-of-their-own moves to three): "use
+the Army Aviation glyph, the figure of 8 is open on the right - so +-30
+deg at 90deg i.e. 60 to 120 deg - keep the arc open, rest of the figure
+of eight remains". Army Aviation's own hollow figure-of-8
+(`hollow_army_aviation_propeller()`) is two curved wings meeting at the
+centre; the right wing's own outer edge is a single ~180-degree cubic
+bezier around its own local centre (130,100), radius 12. Angles read
+as compass bearings (0 deg = up/north, 90 deg = right/east, clockwise -
+the same convention `terrain/hillshade_combination.py`'s own light
+azimuths already use elsewhere in this plugin) - the arc's own start
+point (130,88) is due north of its local centre, its own rightmost
+bulge (~145,100) is due east (bearing 90), and its end point (130,112)
+is due south (bearing 180), so "60 to 120 degrees" sits astride
+due-east, centred exactly on the arc's own rightmost point - reads as
+"open on the right", confirmed against a render. Implemented by
+splitting the single 180-degree bezier into two 60-degree arcs (0-60,
+120-180), each rebuilt with the standard cubic-bezier circular-arc
+control-point formula (k = 4/3 * tan(angle/4) * radius, not guessed),
+leaving a real gap - two subpaths (a second `M` mid-path), which reads
+correctly since the shape is stroke-only (`fill="none"`).
+`nonnato_symbol_engine.open_air_force_propeller_arc()`, keyed to
+`AIR_FORCE_ENTITY = "nonnato_air_force"`, resolved to the real
+`aviation_fixed_wing` key only at SIDC-build time
+(`_UNIT_ENTITY_KEY_ALIASES`) - same pattern as Air Defence Artillery
+above, so the gap never leaks onto a plain Army Aviation render.
+
 **Land Equipment (58 of 189, five with no APP-6E equivalent - see
-below):** Air Defence Gun (Light), Air Defence Gun (Medium), Air
+below):** *(this is the original 2026-08-31 reviewed list, kept as a
+historical record - the nine mine entities named in it moved OUT to
+their own "Mines and Obstacles" layer 2026-09-03; see Part D's own
+"Mines and Obstacles, a new fourth layer" entry for the current count)*
+Air Defence Gun (Light), Air Defence Gun (Medium), Air
 Defence Gun (Heavy), Air Defence Missile Launcher (Light), Air Defence
 Missile Launcher (Medium), Air Defence Missile Launcher (Heavy),
 Antennae, Antipersonnel Fragmentation Mine, Antipersonnel Mine,
@@ -151,7 +214,8 @@ Launcher (Medium), Missile Launcher (Heavy), Mortar (Light), Mortar
 Recoilless Gun (Medium), Recoilless Gun (Heavy), Single Rocket
 Launcher (Light), Single Rocket Launcher (Medium), Single Rocket
 Launcher (Heavy), Tank (Light), Tank (Medium), Tank (Heavy), **Unknown
-Mine** *(new, no entity key - see Icon modifications below)*, Vehicle.
+Mine** *(new, no entity key - see Icon modifications below)*, ~~Vehicle~~
+*(removed 2026-09-05, replaced by the Vehicle family below)*.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `antipersonnel_land_mine` "Antipersonnel Land Mine" ->
@@ -209,6 +273,260 @@ no longer required - and `automatic_rifle` took over the "Machine Gun"
 name. That name now belongs specifically to the Heavy tier per the
 rifle-family repurposing above, not to `automatic_rifle` alone as a
 single untiered entity.
+
+**The 2026-09-01 "not one of the 13" call was ITSELF wrong - corrected
+2026-09-02**, reported live: "in case of machine gun, the light,
+medium, heavy designations glyphs are incorrect - light has no
+horizontal line in center, medium has one line and heavy two lines -
+same as all other; this must have skipped since we changed the names".
+Checked again, properly this time: Machine Gun DOES have real
+Light/Medium/Heavy siblings in the 2525E table (`110201`/`110202`/
+`110203`, right after `machine_gun`'s own `110200`) - the 2026-09-01
+check went looking for the pattern every other family uses
+(`machine_gun_light` etc., which is exactly how `sidc.py`'s own 2525D
+table names the SAME three codes) and never found it, because the
+2525E extraction dropped the "machine_gun_" prefix for this one family
+only - the siblings sit in `sidc_2525e.py` under bare, unprefixed keys
+`"light"`/`"medium"`/`"heavy"` instead. Confirmed by rendering all
+four codes directly: `machine_gun` draws the gun body with no tier
+line, `"light"` adds one horizontal line, `"medium"` adds two,
+`"heavy"` adds three - exactly the same base/Light/Medium/Heavy
+line-count progression every other tiered family has (e.g. `howitzer`/
+`howitzer_light`/`howitzer_medium` at 0/1/2 lines). **The Rifle-family
+repurposing (single_shot/semiautomatic/automatic_rifle) is retired** -
+it was a workaround for a family that was never actually missing tiers
+in the first place, and it drew the wrong line counts (1/2/3 instead
+of 0/1/2) because the rifle fire-mode glyphs don't follow the tier-line
+convention at all. Machine Gun now takes the same base -> Light,
+real-Light -> Medium, real-Medium -> Heavy shift as the 13 properly-
+prefixed families, making it a 14th real tiered family, not a special
+case: `machine_gun` -> **Machine Gun (Light)**, `"light"` -> **Machine
+Gun (Medium)**, `"medium"` -> **Machine Gun (Heavy)**; the real
+`"heavy"` key (3 lines) is dropped, same as every other family's own
+real Heavy tier. Entity count is unaffected (still 3 rows for Machine
+Gun, just different keys) - only the underlying glyphs change.
+
+**Missile Launcher family's dome gap, 2026-09-03** - Air Defence
+Missile Launcher, Antitank Missile Launcher and (plain) Missile
+Launcher all share the same real milsymbol glyph shape: a dome-capped
+"inverted U" (two vertical legs plus a curved dome bridging their own
+tops, drawn as one continuous connected stroke) with a vertical centre
+line running up through the middle, touching the dome's own peak
+exactly - no gap anywhere. Reported live: "essentially adjust the
+length of the dome on top of the glyph so that it does not touch
+anything, it should have a gap with the other lines on top, sides and
+bottom" plus "reduce the length of the domes sides to match that of
+the anti tank missile launcher" (Antitank's own U-legs were already the
+shorter of the three, 45 units vs the other two families' own 65).
+**First draft corrected live**: "no you misunderstood, the side lines
+and dome are one entity like an inverted U" - an initial attempt wrongly
+detached the dome from its own legs to open the gap; the U itself stays
+one unbroken connected shape. The real fix instead trims the CENTRE
+LINE's own top reach short of the dome's peak, by a gap doubled live
+from an initial 5 to 10 ("increase the gap between the line and top of
+dome by 100%") - `nonnato_symbol_engine._MISSILE_DOME_GAP = 10`. Air
+Defence Missile Launcher's and plain Missile Launcher's own U-legs are
+additionally shortened from 65 to 45 units to match Antitank
+("length adjustment is fine") - opening the same gap versus the base
+shape below that Antitank's own legs already had. Applies identically
+across all three families' Light/Medium/Heavy tiers (the shared BODY
+path is identical within a family; only the appended tier-line differs)
+- `separate_antitank_missile_launcher_dome()`, `separate_air_defense_
+missile_launcher_dome()`, `separate_missile_launcher_dome()`.
+
+**Missile Launcher tier line inset, same day, immediately after**:
+"everything is fine except that the dome legs are touching the
+horizontal lines, so introduce a small gap, 50% of that between dome
+top and vertical line, on both sides". "The horizontal lines" are the
+Light/Medium/Heavy tier-line overlay every tiered weapon family gets
+(the exact same shared geometry Machine Gun's own tiers use, fixed at
+x=85..115 regardless of family) - unrelated to this family's own body,
+but its fixed span happens to land exactly on the missile launcher
+dome's own leg x-coordinates, so the two touch. Inset by
+`_MISSILE_TIER_LINE_GAP = 5` (half of `_MISSILE_DOME_GAP`) on BOTH
+sides, staying centred: 30 units wide (x=85..115) shrinks to 20
+(x=90..110). Scoped to only the three missile-launcher fixups
+(`_inset_missile_tier_line()`, called from each) - every other tiered
+family's own, visually identical tier line is untouched.
+
+**Three synthetic entities built from Armoured Protected Vehicle,
+2026-09-03** (Land Equipment's own count moves to 54): three requests
+in one batch, all starting from the same real entity's glyph.
+`armored_protected_vehicle`'s own real glyph is NOT a true ellipse -
+confirmed by rendering it directly - it is a stadium/discorectangle:
+straight top/bottom edges from x=75 to 125
+(`M125,80 C150,80 150,120 125,120 L75,120 C50,120 50,80 75,80 Z`),
+semicircular caps left/right centred at (75,100)/(125,100) radius 20.
+Overall bounding box x 50..150 (semi-major axis 50), y 80..120
+(semi-minor axis 20 - the axis APV Wheeled's own radius spec refers
+to).
+- **Bridge Layer Tank**: "start with the Armoured Protected Vehicle
+  (APV) glyph - over the oval, add a < on the top left - slightly
+  inward say 1/3rd inside". First draft read "top left of the oval" as
+  the stadium's own only real corner - (75,80), where the straight top
+  edge meets the left semicircular cap - with "1/3rd inside" moving
+  that point a third of the way toward the oval's own centre
+  (100,100). **Corrected live, same day, twice**: (1) "shift the < to
+  the top of the oval not inside it, and increase the < size by
+  double" - dropped the inward interpolation, anchored at (75,80)
+  itself, arm length doubled (10 -> 20 units); (2) "the bottom of <
+  or / should touch the top of the oval" - the whole chevron moved to
+  sit entirely ABOVE the oval's own straight top edge (y=80), its own
+  lower arm-tip touching that edge exactly rather than the shape
+  straddling it. Final vertex/arm-tips: (75,65.9) / (89.1,51.8) /
+  (89.1,80) - `nonnato_symbol_engine.bridge_layer_tank_mark()`.
+- **Armoured Recce Vehicle**: "start with the APV glyph and add a /
+  at the same position as the Bridge Layer Tank <", corrected the same
+  two rounds as Bridge Layer Tank above but with its own arm length
+  (+50%, 10 -> 15 units, not doubled) - the two marks share the same
+  horizontal anchor (x=75) and both now touch the oval's own top edge
+  at their own lowest point, but are no longer the same size. Final
+  line: (75,80) [touching] to (85.6,58.8) -
+  `armoured_recce_vehicle_mark()`.
+- **APV Wheeled, later renamed Armoured Protection Vehicle (Wheeled)**:
+  "add APV Wheeled - start with APV glyph and add three circles below
+  the oval, slightly inside the edges, touching the oval, radii size
+  can be 1/3 of semi-minor axis" - radius = 20/3, left/right circles
+  inset exactly one radius from the oval's own straight left/right
+  edges (x=75/125), middle circle centring the group horizontally -
+  **Real bug, caught by an actual smoke test**: "the circles below the
+  ellipse are not visible - the full circle is not being drawn, circles
+  are being cropped". QGIS's own SVG marker rendering clips to a paint
+  rect tied to milsymbol's ORIGINAL declared draw area, regardless of
+  what the viewBox attribute itself says afterwards - reproduced with a
+  minimal two-shape SVG outside the plugin entirely, and confirmed
+  Qt's own bare `QSvgRenderer` does NOT clip to viewBox at all, so this
+  is QGIS-marker-layer-specific, not a Qt limitation. Six SVG-side
+  workarounds were tried and all failed the same way: growing the
+  viewBox (`_expand_viewbox_for_rect()`), leaving width/height
+  unchanged while growing only the viewBox, dropping width/height
+  entirely, drawing the circles as path arcs instead of `<circle>`
+  elements, a second SVG marker layer with its own tight viewBox and
+  offset, and circle-shaped text glyphs. **Settled fix**, after the
+  maintainer pointed at the plugin's own NATO side ("there are
+  instances where we have added additional svg elements to existing
+  milsymbols - check the main branch files"): the wheels are not in the
+  SVG at all. They are three QGIS simple-marker (circle) symbol layers
+  composed alongside the icon's own SVG marker layer - the same
+  multi-layer approach `c2_measures.py`'s own crossed runway lines
+  already use on `main` - sized, offset and coloured from
+  `nonnato_symbol_engine.py`'s own `APV_WHEEL_*` constants against this
+  layer's own MARKER_SIZE_MM, scaling with the "scale" field and
+  collapsing to size 0 for every other entity. Renders in full, exactly
+  as originally specified (top of each wheel touching the oval's own
+  bottom edge), with the icon's own SVG left completely untouched.
+  See `land_equipment_layer_nonnato._wheel_symbol_layers()`.
+
+  **Two follow-on fixes the multi-layer approach needed**, both
+  reported live the same day: (1) "when i add the unique designator in
+  APV wheeled, the wheels shift and overlap on the text of unique
+  designation instead of staying where they are" - a designation grows
+  the SVG's own viewBox downward, which moves the marker's anchor (its
+  viewBox centre) down and so shifts the ICON up, while a fixed wheel
+  offset stayed put. The wheels' own vertical offset is now computed
+  per feature from the icon's own RENDERED height, via a new
+  `mct_nonnato_equipment_svg_height()` expression function, so they
+  track the hull whatever the designation does. (2) The designation
+  itself is placed relative to the SVG's own measured content, which
+  now stops at the hull - so it tucked under the hull and straight
+  through the wheels. `inject_centered_designation_below()` grew a
+  `min_content_bottom` argument for exactly this: an icon whose drawn
+  extent is not all inside its own SVG passes the lowest point its
+  extra symbol layers actually reach, and the normal gap is measured
+  below THAT.
+
+All three keyed to synthetic entities (`BRIDGE_LAYER_TANK_ENTITY`,
+`ARMOURED_RECCE_VEHICLE_ENTITY`, `APV_WHEELED_ENTITY`, all
+"nonnato_"-prefixed per the standing collision-proof convention),
+resolved to the real `armored_protected_vehicle` key only at
+SIDC-build time (`_EQUIPMENT_ENTITY_KEY_ALIASES`) - same pattern as
+every other synthetic-entity-from-a-real-glyph built on this branch, so
+none of the three marks ever leak onto a plain APV render.
+
+**The Vehicle family: 'B' Vehicle, 'C' Vehicle, Light Recce Vehicle,
+2026-09-05** (Land Equipment's own count moves to 56): "remove the
+existing vehicle glyph, we will replace with 'B' Vehicle and 'C'
+Vehicle / draw a rectangle, similar dimensions as land unit, draw two
+circles - similar to what we did for the APV wheeled with the center
+wheel removed, insert letter 'B' in the center of the rectangle /
+Similarly - same construction for 'C' Vehicle except that 'B' is
+replaced with 'C' / Finally - Light Recce Vehicle - start with vehicle
+'B', remove the alphabet B and put a "/" on top of the rectangle of
+same dimensions as the Armoured Recce Vehicle".
+
+APP-6E's own real `vehicle` entity is dropped from this layer
+entirely - rendered directly to check what was being replaced, it is a
+stadium hull over a ground line with two small wheels
+(`m 60,120 80,0 M 120,80 c 25,0.2 25,40 0,40 l -40,0 C 55,120 55,80
+80,80 Z` plus two r=7 circles at (80,130)/(120,130)).
+
+Unlike the three APV variants above, these three are **fully
+synthetic**: nothing starts from a milsymbol render at all, so they are
+built the same way the synthetic mine family is - a complete SVG
+authored in `nonnato_symbol_engine.py` and routed through a new
+`_SYNTHETIC_VEHICLE_SVG` dict, not as `_EQUIPMENT_ENTITY_FIXUPS`
+entries. They therefore have no SIDC and no `_EQUIPMENT_ENTITY_KEY_
+ALIASES` entry either, and `is_synthetic_entity()` now covers them.
+- **Geometry.** "Similar dimensions as land unit" read literally: the
+  same rectangle every Land Unit icon's own frame uses, 150 x 100 at
+  x 25..175, y 50..150 (the measurement `enemy_info_unknown_svg()`
+  already states). Wheels follow APV Wheeled's own rule exactly, minus
+  its middle wheel - radius = 1/3 of the shape's own semi-minor axis
+  (here half the rectangle's height, so 100/2/3 = 16.67), centred one
+  radius below the bottom edge so each wheel's own top touches it, and
+  inset one radius from the left/right edges. The letter sits at
+  font-size 56.25, milsymbol's own letter-in-a-shape proportion
+  (45 in an 80-unit shape) restated for a 100-unit-tall rectangle.
+- **Qt honours no `dominant-baseline`.** The first draft centred the
+  letter with `dominant-baseline="middle"` and it rendered a half
+  cap-height high on both QGIS versions. The baseline is computed
+  instead, using the same 0.7-of-font-size cap-height estimate
+  `_text_element_bounds()` already works to. (Land Unit's own side
+  designations still carry the attribute; their position was accepted
+  live at the time and is not being changed off the back of this.)
+- **Light Recce Vehicle's own "/"** is Armoured Recce Vehicle's own
+  mark re-anchored to the rectangle's own top-left corner (25,50), its
+  own lower end touching the top edge exactly, the same way that mark
+  meets the oval. **Corrected live the same day**: "increase the mast
+  height of the light recce vehicle by 125%" - 2.25x, read the way
+  every other "increase by N%" on this branch has been (a 100%
+  increase doubled the missile dome gap), and applied to the arm so
+  the whole mark scales uniformly and keeps Armoured Recce Vehicle's
+  own angle rather than stretching vertically.
+- **Size and line weight, corrected live after a smoke test**:
+  "reduce the size of all three by 20% - too big now, also increase the
+  line width slightly to match with that of APV probably". Both come
+  from the same cause: this family's own viewBox is 166 units wide
+  against every milsymbol glyph's 108, and QGIS scales an SVG marker
+  so its viewBox WIDTH equals the marker size. So the icon draws
+  nearly edge to edge (a 150-unit rectangle in 166) and close to twice
+  as tall as its neighbours, while a plain `stroke-width="3"` - correct
+  at 108 - renders at 108/166 of everyone else's apparent thickness.
+  The 20% reduction goes through Land Equipment's own existing
+  per-entity multiplier (`VEHICLE_SIZE_MULTIPLIER = 0.8`, the same
+  mechanism Jammer/Radar use in the other direction), and the stroke
+  divides BOTH factors back out
+  (`3 * (166/108) / 0.8`) so the lines match Armoured Protected
+  Vehicle's own weight exactly on the map - the comparison the request
+  named. Confirmed against a render at true relative marker sizes.
+  The viewBox padding went 4 -> 8 in the same pass: the widened stroke
+  put Light Recce Vehicle's own diagonal mast cap outside the viewBox,
+  caught by this family's own viewBox-contains-the-ink test rather
+  than by eye.
+
+**Real bug found while building the above, 2026-09-05**:
+`_expand_viewbox_for_rect()`'s own width/height rescale (which follows
+a viewBox expansion, because QGIS sizes a marker by its declared
+width) matched the FIRST `width="..." height="..."` pair anywhere in
+the document. Every milsymbol render declares that pair on its own root
+`<svg>`, so it happened to be right for them - but an SVG hand-built in
+this module declares neither, and the first pair is then a `<rect>` the
+icon actually draws with. **Bar Mine has been silently deformed by this
+since it was built**: type a designation and its own bar stretched from
+14.7 units tall to 72.5. Invisible without a designation, which is why
+the Bar Mine smoke test passed. The match is now scoped to the root tag
+only; both halves are covered by tests
+(`TestViewboxExpansionLeavesDrawnRectanglesAlone`).
 
 **Mine icons (2026-08-31)** - checked milsymbol's actual current
 render for all three real mine entities against the maintainer's
@@ -268,6 +586,29 @@ rules before changing anything:
   scheme (8 vs the usual 4) while the gap stays at the standard 3 -
   only the dash itself was asked to lengthen, not the gap. Confirmed
   against a rendered SVG comparing both draft and final versions.
+- **Directional Mine, added 2026-09-03** - **no APP-6E equivalent**
+  (the real `antipersonnel_mine_directional` entity is an unrelated
+  NATO-side Control Measure, `obstacle_control_measures.py`'s own).
+  "we had designed a directional mine yesterday, it is missing from
+  the menu" - no trace of it survived anywhere (no commit, function,
+  or menu entry checked directly), so this is a fresh build, not a
+  recovered one, though it turned out to reuse geometry that DOES
+  survive in history - see below. Requested shape: "use booby trap
+  symbol to begin with, remove the bottom lines at 315 and 225 deg,
+  change the top lines to dashed, add a parallel line each to the two
+  top lines also dashed". Built from Control Measure Point's own Booby
+  Trap shape (hollow circle + four 45/135/225/315-degree horns): the
+  two bottom horns (225/315) dropped, the two top horns (45/135) made
+  dashed, each with a second, parallel dashed line of the same length
+  alongside it. The horn/offset geometry (5-unit perpendicular offset,
+  dash pattern "4,3", new line sitting outward away from the OTHER
+  horn) is not a fresh guess - it is recovered unchanged from a
+  same-shaped "dashed parallel horns" design originally built
+  2026-09-01 for Booby Trap itself (commit `16f9bc1`), later superseded
+  there once the maintainer clarified the circle's FILL, not the horn
+  count/style, was the actual complaint (see this doc's own "Icon
+  replacement 2026-08-31 - `booby_trap`" entry above). That geometry
+  was never wrong, just built for the wrong icon at the time.
 
 **Mine colour (2026-08-31)**: all mine icons above default to
 **green** rather than affiliation colour - confirmed to match an
@@ -279,23 +620,33 @@ module's own "obstacles are GREEN, not affiliation-coloured" rule.
 Reused the exact same shade here for consistency rather than picking
 a new green. Applies to Antipersonnel Mine, Antitank Mine, Influence
 Mine (Anti Tank), Influence Mine (Anti Personnel), Antitank Mine
-Booby Trapped, Bar Mine, Antipersonnel Fragmentation Mine, Unknown
-Mine, and Booby Trap (the Control Measure Point, see below) alike.
+Booby Trapped, Bar Mine, Directional Mine, Antipersonnel Fragmentation
+Mine, Unknown Mine, and Booby Trap (the Control Measure Point, see
+below) alike.
 
 **SIGINT Land (2 of 2 - unchanged):** Jammer, Radar - matches what was
 already the entire in-scope SIGINT list, so no narrowing needed here.
 
-**Control Measure Points (11 of 241):** Booby Trap, Decision Point,
-Fort, Impact Point, Observation Post, Artillery Observation Post,
+**Control Measure Points (11 of 241):** *(this is the original
+2026-08-31 reviewed list, kept as a historical record - Booby Trap
+moved OUT to "Mines and Obstacles" 2026-09-03; see Part D's own "Mines
+and Obstacles, a new fourth layer" entry for the current count)* Booby
+Trap, Decision Point, Fort, Impact Point, Observation Post, Artillery
+Observation Post,
 Point Of Interest, Pill Box, Shelter Above Ground, Shelter Below
-Ground, Target.
+Ground, Target/DF Task.
 
 **Renamed 2026-08-31** (entity key unchanged, display label only):
 - `target_reference_point` "Target Reference Point" -> **Target**
+  *(renamed again 2026-09-03 - see below)*
 - `shelter` "Shelter" -> **Pill Box** *(the "Shelter Above Ground"/
   "Shelter Below Ground" entities are separate keys, left unchanged)*
 - `observation_post_forward_observer` "Observation Post Forward
   Observer" -> **Artillery Observation Post**
+
+**Renamed again 2026-09-03**: `target_reference_point` "Target" ->
+**Target/DF Task** (entity key/SIDC unchanged, display label only,
+same as every other rename in this table).
 
 **Icon replacement 2026-08-31 - `booby_trap`**: fully replaces its
 current NATO glyph (an ellipse with a triangular peak over it), rather
@@ -588,10 +939,35 @@ Meta-questions likely to come up regardless of category/domain.
       so a future icon's own real ink is measured automatically rather
       than needing to be hand-tuned. Applies to every entity on the
       layer, mines and the merged-in Jammer/Radar included. Land Unit
-      still uses the older, NATO-style side-anchored designation
-      (`mct_sidc_svg()`'s own uniqueDesignation slot, size-stabilised
-      against a typed designation) - this centred-below treatment has
-      not been asked for there.
+      got its OWN, different two-sided replacement the same day - see
+      the next entry.
+- [x] **Two-sided designation (Land Unit)** — settled 2026-09-02:
+      "i want two unique designators - unique designator (left) and
+      unique designator (right)... both left and right designators
+      should be vertically middle aligned to the left or right of the
+      glyph, the present unique designator can be removed or ignored".
+      Replaces milsymbol's own single, side-anchored uniqueDesignation
+      slot entirely (the older mechanism this same section used to
+      describe as still in use there) - two independent fields,
+      `unique_designation_left`/`unique_designation_right`, each drawn
+      as its own `<text>` element vertically centred on the icon's own
+      REAL rendered content bounds (reusing Land Equipment's own
+      `_content_bounds()`/`_DESIGNATION_GAP` above), one to either side,
+      widening the viewBox sideways rather than downward -
+      `nonnato_symbol_engine.inject_side_designations()`. Applied
+      before the Combined Arms rectangle, so both designations align
+      with the unit glyph/frame, not with Combined Arms' own indicator
+      sitting above it. **Font size corrected the same day**: "the
+      font size is too small to read, the position is ok, increase
+      the size to 8pt or more" - the position stayed as-is; font size
+      moved to its own constant, `_SIDE_DESIGNATION_FONT_SIZE = 45`
+      (up from 28, the value it started out sharing with Land
+      Equipment's own `_DESIGNATION_FONT_SIZE`) - 45 matches
+      milsymbol's own established legible-in-icon-text size at this
+      same coordinate scale (see symbol_engine.py's own sonobuoy-
+      family comment). Kept as a separate constant on purpose, so a
+      future font tweak to one layer's designation text can't
+      silently move the other's too.
 - [x] **Affiliation colour palette**:
       - Blue — Friendly
       - Red — Hostile
@@ -671,6 +1047,70 @@ Meta-questions likely to come up regardless of category/domain.
       required** - same pattern as Squad's rename orphaning NATO's own
       Section: its name is now taken by the old Medium tier, and
       there's nothing to shift it up into.
+- [x] **Mines and Obstacles, a new fourth layer (2026-09-03)** —
+      requested live: "now, let's move all the mines to a different
+      layer - say mines and obstacles; shift booby trap also into this
+      new layer". Consolidates two groups of entities that used to sit
+      on different layers purely because of which real APP-6E
+      symbol_set they happened to belong to, even though both already
+      shared identical real behaviour (fixed MINE_GREEN, never
+      affiliation-coloured, custom non-milsymbol-default icons): the
+      nine-entity mine family (moved OUT of Land Equipment - three real
+      entities plus six synthetic icons) and Booby Trap (moved OUT of
+      Control Measure Points, the one custom-icon exception that layer
+      used to carry). See `mines_and_obstacles_layer_nonnato.py` - a
+      new module, own toolbar action ("Mines and Obstacles", third
+      entry in the "Non-NATO Symbols" group), own icon
+      (`nonnato_mines_and_obstacles.svg`, reusing the Booby Trap horn
+      glyph Control Measure Points' own icon used to show - that layer
+      needed a NEW icon instead, a generic crosshair/target mark, since
+      Booby Trap no longer represents it).
+
+      Rendering functions themselves (`booby_trap_control_measure_svg()`,
+      the whole mine family in `nonnato_symbol_engine.py`) are
+      completely unchanged - always layer-agnostic; only which QGIS
+      layer's own renderer calls them changed. Two judgment calls made
+      without an explicit spec, both confirmed against a render before
+      settling:
+      - **No "affiliation" field on the new layer at all** - every
+        entity here is fixed-green regardless of affiliation, so a
+        field that could never change the render would be dead weight
+        on the attribute form. The rendering functions still need SOME
+        affiliation value passed through (mine entities only - Booby
+        Trap never took one), so a fixed `'friend'` literal is used in
+        the expression instead of a live field reference.
+      - **MARKER_SIZE_MM reset to the scheme's own plain 8.0mm
+        default**, not Land Equipment's own 20%-bigger 9.6mm the mine
+        family used to inherit purely by sitting on that layer - that
+        multiplier was requested specifically for Land Equipment as a
+        whole ("in land equipment, i want all the glyphs to be 20%
+        bigger by default"), not for mines in particular, so it does
+        not follow them to the new layer. Matches Booby Trap's own
+        prior 8.0mm on Control Measure Points too, so neither group
+        changes visual size as a side effect of the move.
+
+      Land Equipment's own count dropped from 60 to 51 at the time of
+      the move (9 mine entities removed - it is 56 now, after the three
+      Armoured Protected Vehicle variants added later the same day and
+      the three-entity Vehicle family that replaced the real "vehicle"
+      entity on 2026-09-05);
+      Control Measure Points' own count drops from 11 to 10 (Booby Trap
+      removed); the new layer carries all 10 of them.
 - [ ] Designation / label placement conventions — to be specified
       later.
+      - **NEXT ITEM WHEN WORK RESUMES (flagged 2026-09-05)**: the
+        designation text under the Vehicle family renders noticeably
+        SMALLER than under every other Land Equipment entity, for
+        exactly the same reason its strokes did before they were
+        compensated — `_DESIGNATION_FONT_SIZE = 28` is in icon units,
+        and QGIS scales an SVG marker so its viewBox WIDTH equals the
+        marker size, so 28 units in this family's own 166-wide viewBox
+        at a 0.8 size multiplier draws at roughly 0.44x the apparent
+        size it does in a 108-wide one. Raised and deliberately left
+        alone in the same pass that fixed the strokes, rather than
+        widening scope unasked. The fix is the same shape as the stroke
+        one (`* (viewBox width / 108) / size multiplier`), but it wants
+        a general answer rather than a Vehicle-family constant: any
+        future entity authored in a non-108 viewBox hits it too, and
+        Bar Mine (160-wide) already does.
 - [ ] Anything else that surfaces while specifying the above

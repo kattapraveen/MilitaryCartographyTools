@@ -292,13 +292,106 @@ class TestRenderNonnatoUnitSvg(QgisTestCase):
         self.assertNotIn('stroke="none"', svg)
 
 
-    def test_designation_is_uppercased_and_drawn(self):
+    def test_amphibious_oval_is_removed_leaving_the_frame_and_wave(self):
+
+        # "i want the oval inside the rectangle removed - so the result
+        # is only the rectangle and the wave" - the wave is the icon's
+        # own multi-hump path, kept untouched.
+        svg = nse.render_nonnato_unit_svg("friend", "amphibious")
+
+        self.assertNotIn("C150,80 150,120 125,120", svg)  # the oval, gone
+        self.assertIn("M25,50 l150,0 0,100 -150,0 z", svg)  # frame stays
+        self.assertIn("c 18.8,0 0,20 18.8,20", svg)  # wave stays
+
+
+    def test_air_defense_artillery_is_air_defense_plus_artillery_dot(self):
+
+        # "use the Air Defence Glyph and add a dot in the center
+        # (basically Air Defence and Artillery glyphs merged)" -
+        # confirmed live: Air Defence's own real glyph is a single arc
+        # path, Artillery's own real glyph is a single filled centre
+        # dot - the merge keeps Air Defence's arc and adds Artillery's
+        # own exact dot geometry on top.
+        air_defense = nse.render_nonnato_unit_svg("friend", "air_defense")
+        merged = nse.render_nonnato_unit_svg(
+            "friend", nse.AIR_DEFENSE_ARTILLERY_ENTITY
+        )
+
+        self.assertIn("C25,110 175,110 175,150", air_defense)  # the arc
+        self.assertNotIn("<circle", air_defense)
+
+        self.assertIn("C25,110 175,110 175,150", merged)  # same arc kept
+        self.assertIn(
+            f'<circle cx="100" cy="100" r="15" ', merged
+        )
+        self.assertIn(f'fill="{_FRIEND}"', merged)
+
+
+    def test_air_defense_artillery_dot_follows_the_affiliation_colour(self):
 
         svg = nse.render_nonnato_unit_svg(
-            "friend", "infantry", designation="1st bn"
+            "hostile", nse.AIR_DEFENSE_ARTILLERY_ENTITY
+        )
+
+        hostile_colour = nse.AFFILIATION_COLOURS["hostile"]
+
+        self.assertIn(f'fill="{hostile_colour}"', svg)
+
+
+    def test_air_defense_artillery_does_not_affect_plain_air_defense(self):
+
+        # Regression guard for the alias mechanism: the fixup is keyed
+        # on the SYNTHETIC entity, not the real "air_defense" key it
+        # resolves to for the SIDC build - a plain Air Defence render
+        # must stay dot-free.
+        svg = nse.render_nonnato_unit_svg("friend", "air_defense")
+
+        self.assertNotIn("<circle", svg)
+
+
+    def test_air_force_is_army_aviation_with_the_right_arc_opened(self):
+
+        # "use the Army Aviation glyph, the figure of 8 is open on the
+        # right - so +-30 deg at 90deg i.e. 60 to 120 deg - keep the
+        # arc open, rest of the figure of eight remains".
+        aviation = nse.render_nonnato_unit_svg("friend", "aviation_fixed_wing")
+        air_force = nse.render_nonnato_unit_svg("friend", nse.AIR_FORCE_ENTITY)
+
+        # The original, unbroken right-arc bezier must be gone, and the
+        # left wing/centre-line geometry it shares with Army Aviation
+        # must still be present.
+        self.assertIn("c15,0 15,24 0,24", aviation)
+        self.assertNotIn("c15,0 15,24 0,24", air_force)
+        self.assertIn("L100,100 70,112 c-15,0 -15,-24 0,-24", air_force)
+
+        # The gap is a genuine break in the path (a second M), not just
+        # a redrawn continuous arc.
+        self.assertEqual(air_force.count("<path"), aviation.count("<path"))
+        self.assertIn(" M140.4,106 ", air_force)
+
+        # Still hollow (stroke, not fill) like Army Aviation.
+        self.assertNotIn('fill="#3060c0"', air_force)
+
+
+    def test_air_force_does_not_affect_plain_army_aviation(self):
+
+        # Regression guard for the alias mechanism, same as Air Defence
+        # Artillery's own above: the fixup is keyed on the SYNTHETIC
+        # entity, not the real "aviation_fixed_wing" key it resolves to.
+        svg = nse.render_nonnato_unit_svg("friend", "aviation_fixed_wing")
+
+        self.assertIn("c15,0 15,24 0,24", svg)
+
+
+    def test_left_and_right_designations_are_uppercased_and_drawn(self):
+
+        svg = nse.render_nonnato_unit_svg(
+            "friend", "infantry",
+            designation_left="1st bn", designation_right="2nd co",
         )
 
         self.assertIn("1ST BN", svg)
+        self.assertIn("2ND CO", svg)
 
 
     def test_combined_arms_adds_a_rectangle_sized_for_the_echelon(self):
@@ -524,6 +617,48 @@ class TestMineFamily(QgisTestCase):
         self.assertIn('stroke-dasharray="8,3"', svg)
 
 
+    def test_directional_mine_is_a_hollow_circle_with_two_dashed_horn_pairs(self):
+
+        # "use booby trap symbol to begin with, remove the bottom
+        # lines at 315 and 225 deg, change the top lines to dashed,
+        # add a parallel line each to the two top lines also dashed" -
+        # starts from booby_trap_control_measure_svg()'s own hollow
+        # circle + 4-horn shape; bottom horns dropped, top two each
+        # become a dashed pair (4 dashed <path> elements total, no
+        # plain undashed horn left).
+        svg = nse.directional_mine_svg(nse.MINE_GREEN)
+
+        self.assertNotIn(f'fill="{nse.MINE_GREEN}"', svg)  # hollow circle
+        self.assertEqual(svg.count("<path"), 4)
+        self.assertEqual(svg.count('stroke-dasharray="4,3"'), 4)
+
+        # Bottom horns (225/315 degrees) are gone.
+        self.assertNotIn("M84.4,115.6", svg)
+        self.assertNotIn("M115.6,115.6", svg)
+
+        # Each top horn's own parallel twin sits 7 units out along its
+        # own 45-degree direction (offset = 7 / sqrt(2) per axis) -
+        # widened from an initial 5 units, live: "increase the gap
+        # between the parallel lines slightly".
+        offset = 7 / (2 ** 0.5)
+        self.assertIn(f"M{115.6 + offset:g},{84.4 + offset:g}", svg)
+        self.assertIn(f"M{84.4 - offset:g},{84.4 + offset:g}", svg)
+
+        # Each horn is 20% longer than the original 45-degree segment,
+        # and its own pre-scale stroke width is 30% bigger (3 -> 3.9) -
+        # both requested live after a smoke test found the parallel
+        # lines hard to make out.
+        self.assertIn("L135.2,64.8", svg)
+        self.assertIn("L64.8,64.8", svg)
+        self.assertEqual(svg.count('stroke-width="3.9"'), 4)
+
+
+    def test_directional_mine_is_registered_as_a_mine_entity(self):
+
+        self.assertIn(nse.DIRECTIONAL_MINE_ENTITY, nse.MINE_ENTITIES)
+        self.assertTrue(nse.is_synthetic_entity(nse.DIRECTIONAL_MINE_ENTITY))
+
+
 class TestInjectCenteredDesignationBelow(QgisTestCase):
 
     """
@@ -709,6 +844,139 @@ class TestInjectCenteredDesignationBelow(QgisTestCase):
         self.assertNotIn("width=", opening_tag_after)
 
 
+class TestInjectSideDesignations(QgisTestCase):
+
+    """
+    nonnato_symbol_engine.inject_side_designations() - Land Unit's own
+    2026-09-02 replacement for milsymbol's single, side-anchored
+    uniqueDesignation slot: "i want two unique designators - unique
+    designator (left) and unique designator (right)... both left and
+    right designators should be vertically middle aligned to the left
+    or right of the glyph, the present unique designator can be
+    removed or ignored". Reuses the same _content_bounds()-based
+    measurement TestInjectCenteredDesignationBelow above already
+    exercises for Land Equipment.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_no_text_is_a_no_op(self):
+
+        svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        self.assertEqual(
+            svg, nse.inject_side_designations(svg, None, None, _FRIEND)
+        )
+        self.assertEqual(
+            svg, nse.inject_side_designations(svg, "", "", _FRIEND)
+        )
+
+
+    def test_left_text_sits_left_of_and_vertically_centred_on_the_content(self):
+
+        base_svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        content_x, content_y, content_w, content_h = nse._content_bounds(
+            base_svg, fallback=(0, 0, 0, 0)
+        )
+
+        svg = nse.inject_side_designations(base_svg, "a1", None, _FRIEND)
+
+        text_match = re.search(
+            r'<text x="(\S+)" y="(\S+)" text-anchor="end"[^>]*>A1</text>',
+            svg,
+        )
+
+        self.assertIsNotNone(text_match)
+
+        text_x, text_y = float(text_match.group(1)), float(text_match.group(2))
+
+        self.assertLess(text_x, content_x)
+        self.assertAlmostEqual(text_y, content_y + content_h / 2, places=3)
+
+
+    def test_right_text_sits_right_of_and_vertically_centred_on_the_content(self):
+
+        base_svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        content_x, content_y, content_w, content_h = nse._content_bounds(
+            base_svg, fallback=(0, 0, 0, 0)
+        )
+
+        svg = nse.inject_side_designations(base_svg, None, "b2", _FRIEND)
+
+        text_match = re.search(
+            r'<text x="(\S+)" y="(\S+)" text-anchor="start"[^>]*>B2</text>',
+            svg,
+        )
+
+        self.assertIsNotNone(text_match)
+
+        text_x, text_y = float(text_match.group(1)), float(text_match.group(2))
+
+        self.assertGreater(text_x, content_x + content_w)
+        self.assertAlmostEqual(text_y, content_y + content_h / 2, places=3)
+
+
+    def test_both_sides_render_independently(self):
+
+        base_svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        svg = nse.inject_side_designations(base_svg, "a1", "b2", _FRIEND)
+
+        self.assertIn(">A1<", svg)
+        self.assertIn(">B2<", svg)
+        self.assertEqual(svg.count("<text"), 2)
+
+
+    def test_upper_cases_both_designations(self):
+
+        base_svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        svg = nse.inject_side_designations(base_svg, "hq 3", "co b", _FRIEND)
+
+        self.assertIn(">HQ 3<", svg)
+        self.assertIn(">CO B<", svg)
+
+
+    def test_viewbox_grows_sideways_but_not_vertically(self):
+
+        base_svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', base_svg)
+        vb_h = float(match.group(4))
+
+        svg = nse.inject_side_designations(base_svg, "a1", "b2", _FRIEND)
+
+        new_match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', svg)
+        new_h = float(new_match.group(4))
+
+        self.assertAlmostEqual(new_h, vb_h, places=3)
+
+
+    def test_width_and_height_attributes_stay_in_sync_with_the_viewbox(self):
+
+        base_svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        svg = nse.inject_side_designations(base_svg, "a1", "b2", _FRIEND)
+
+        vb_match = re.search(r'viewBox="(\S+) (\S+) (\S+) (\S+)"', svg)
+        vb_w, vb_h = float(vb_match.group(3)), float(vb_match.group(4))
+
+        wh_match = re.search(r'width="(\S+)" height="(\S+)"', svg)
+
+        self.assertIsNotNone(wh_match)
+
+        declared_w, declared_h = float(wh_match.group(1)), float(wh_match.group(2))
+
+        self.assertAlmostEqual(declared_w / declared_h, vb_w / vb_h, places=3)
+
+
 class TestContentBounds(QgisTestCase):
 
     """nonnato_symbol_engine._content_bounds() on its own - the Qt QSvgRenderer-based measurement inject_centered_designation_below() relies on."""
@@ -825,13 +1093,320 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
         for entity in (
             "tank", "tank_light", "tank_medium",
             "howitzer", "howitzer_light", "howitzer_medium",
-            "single_shot_rifle", "semiautomatic_rifle", "automatic_rifle",
+            "machine_gun", "light", "medium",
         ):
             with self.subTest(entity=entity):
 
                 svg = nse.render_nonnato_equipment_svg("friend", entity)
 
                 self.assertTrue(svg.startswith("<svg"))
+
+
+    def test_machine_gun_tiers_have_the_right_number_of_horizontal_lines(self):
+
+        # Regression test for a real bug: Machine Gun's tiers were
+        # briefly mapped onto the Rifle fire-mode family (single_shot/
+        # semiautomatic/automatic_rifle) after an investigation wrongly
+        # concluded Machine Gun had no real Light/Medium/Heavy siblings
+        # in the 2525E table - it does, just bare-keyed "light"/
+        # "medium"/"heavy" rather than "machine_gun_light" etc. (see
+        # sidc.py's own 2525D table, which has the same codes correctly
+        # prefixed). "light has no horizontal line in center, medium
+        # has one line and heavy two lines - same as all other" -
+        # matching every other weapon-tier family's own base/Light/
+        # Medium shift (e.g. howitzer/howitzer_light/howitzer_medium).
+        light = nse.render_nonnato_equipment_svg("friend", "machine_gun")
+        medium = nse.render_nonnato_equipment_svg("friend", "light")
+        heavy = nse.render_nonnato_equipment_svg("friend", "medium")
+
+        # Each tier line is a "30,0" horizontal segment - Light has
+        # none, Medium's own extra <path> carries one, Heavy's own
+        # extra <path> carries two (drawn as one multi-segment path,
+        # not two separate <path> elements).
+        self.assertEqual(light.count("30,0"), 0)
+        self.assertEqual(medium.count("30,0"), 1)
+        self.assertEqual(heavy.count("30,0"), 2)
+
+
+    def test_missile_launcher_dome_stays_one_connected_u_shape(self):
+
+        # "no you misunderstood, the side lines and dome are one entity
+        # like an inverted U" - a first draft wrongly detached the dome
+        # from its own legs; the fix must keep them as a single
+        # continuous subpath, only trimming the centre line's own reach.
+        for entity in (
+            "antitank_missile_launcher",
+            "air_defense_missile_launcher",
+            "missile_launcher",
+        ):
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                # The dome curve and its two flanking legs must all sit
+                # in the SAME unbroken subpath (no M/m between the two
+                # legs' own "c 0,-20 30,-20 30,0" dome and either leg).
+                self.assertIn(
+                    "85,75 c 0,-20 30,-20 30,0 l 0,45", svg
+                )
+
+
+    def test_missile_launcher_centre_line_has_a_gap_below_the_dome(self):
+
+        # "adjust the length of the dome... it should have a gap with
+        # the other lines on top" - the centre line's own top tip must
+        # stop short of the dome's peak, not touch it, by
+        # _MISSILE_DOME_GAP (doubled live from 5 to 10: "increase the
+        # gap between the line and top of dome by 100%").
+        antitank = nse.render_nonnato_equipment_svg(
+            "friend", "antitank_missile_launcher"
+        )
+        air_defense = nse.render_nonnato_equipment_svg(
+            "friend", "air_defense_missile_launcher"
+        )
+        plain = nse.render_nonnato_equipment_svg("friend", "missile_launcher")
+
+        self.assertEqual(nse._MISSILE_DOME_GAP, 10)
+        self.assertIn("0,-55", antitank)  # 65 - 10
+        self.assertIn("0,-55", air_defense)  # 65 - 10
+        self.assertIn("0,-70", plain)  # 80 - 10
+
+        # The old, touching-the-peak reach must be gone.
+        self.assertNotIn("0,-65", antitank)
+        self.assertNotIn("0,-65", air_defense)
+        self.assertNotIn("0,-80", plain)
+
+
+    def test_air_defense_and_plain_missile_launcher_legs_match_antitanks(self):
+
+        # "reduce the length of the domes sides to match that of the
+        # anti tank missile launcher" - Antitank's own U-legs were
+        # already 45 units; Air Defence's and plain Missile Launcher's
+        # own legs (65 units) must shrink to match.
+        for entity in ("air_defense_missile_launcher", "missile_launcher"):
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                self.assertIn("M 85,120 85,75 c 0,-20 30,-20 30,0 l 0,45", svg)
+                self.assertNotIn("l 0,65", svg)
+
+
+    def test_missile_launcher_fixup_applies_to_every_tier(self):
+
+        for entity in (
+            "antitank_missile_launcher", "antitank_missile_launcher_light",
+            "antitank_missile_launcher_medium",
+            "air_defense_missile_launcher", "air_defense_missile_launcher_light",
+            "air_defense_missile_launcher_medium",
+            "missile_launcher", "missile_launcher_light",
+            "missile_launcher_medium",
+        ):
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                self.assertNotIn("0,-65", svg)
+                self.assertNotIn("0,-80", svg)
+
+
+    def test_missile_launcher_tier_line_is_inset_from_the_dome_legs(self):
+
+        # "everything is fine except that the dome legs are touching
+        # the horizontal lines, so introduce a small gap, 50% of that
+        # between dome top and vertical line, on both sides" -
+        # _MISSILE_DOME_GAP is 10, so the tier line insets by 5 on each
+        # side (30 wide -> 20 wide, still centred).
+        self.assertEqual(nse._MISSILE_TIER_LINE_GAP, 5)
+
+        for family in (
+            "antitank_missile_launcher",
+            "air_defense_missile_launcher",
+            "missile_launcher",
+        ):
+            with self.subTest(family=family):
+
+                medium_tier = nse.render_nonnato_equipment_svg(
+                    "friend", f"{family}_light"
+                )
+                heavy_tier = nse.render_nonnato_equipment_svg(
+                    "friend", f"{family}_medium"
+                )
+
+                self.assertIn('d="m 90,100 20,0"', medium_tier)
+                self.assertNotIn('d="m 85,100 30,0"', medium_tier)
+
+                self.assertIn('d="m 90,105 20,0 m -20,-10 20,0"', heavy_tier)
+                self.assertNotIn(
+                    'd="m 85,105 30,0 m -30,-10 30,0"', heavy_tier
+                )
+
+
+    def test_missile_launcher_tier_line_inset_does_not_leak_to_other_families(self):
+
+        # The tier-line geometry is shared/generic across every tiered
+        # weapon family, not unique to missile launchers - the inset
+        # must stay scoped to the three missile-launcher fixups only.
+        howitzer_medium_tier = nse.render_nonnato_equipment_svg(
+            "friend", "howitzer_light"
+        )
+
+        self.assertIn('d="m 85,100 30,0"', howitzer_medium_tier)
+        self.assertNotIn('d="m 90,100 20,0"', howitzer_medium_tier)
+
+
+    def test_bridge_layer_tank_adds_a_chevron_at_the_top_of_the_oval(self):
+
+        # "use the Armoured Protected Vehicle (APV) glyph - over the
+        # oval, add a < on the top left - slightly inward say 1/3rd
+        # inside", corrected live: "shift the < to the top of the oval
+        # not inside it, and increase the < size by double", corrected
+        # again: "the bottom of < or / should touch the top of the
+        # oval".
+        apv = nse.render_nonnato_equipment_svg("friend", "armored_protected_vehicle")
+        blt = nse.render_nonnato_equipment_svg(
+            "friend", nse.BRIDGE_LAYER_TANK_ENTITY
+        )
+
+        # The oval itself is untouched.
+        self.assertIn(
+            'd="M125,80 C150,80 150,120 125,120 L75,120 C50,120 50,80 '
+            '75,80 Z"',
+            blt,
+        )
+        self.assertEqual(apv.count("<path"), 1)
+        self.assertEqual(blt.count("<path"), 2)
+
+        # The chevron sits entirely above the oval's own top edge
+        # (y=80), its own lower arm-tip touching that edge exactly.
+        self.assertIn("L89.1,80", blt)
+
+
+    def test_armoured_recce_vehicle_adds_a_slash_at_the_top_of_the_oval(self):
+
+        # "start with the APV glyph and add a / at the same position as
+        # the Bridge Layer Tank <", corrected live: "same - shift the /
+        # to the top of the oval, increase size by 50%", corrected
+        # again: "the bottom of < or / should touch the top of the
+        # oval".
+        arv = nse.render_nonnato_equipment_svg(
+            "friend", nse.ARMOURED_RECCE_VEHICLE_ENTITY
+        )
+
+        self.assertEqual(arv.count("<path"), 2)
+        self.assertIn(
+            '<path d="M75,80 L85.6,58.8"', arv
+        )
+
+
+    def test_bridge_layer_tank_chevron_is_bigger_than_armoured_recce_vehicles_slash(self):
+
+        # "increase the < size by double" (Bridge Layer Tank) vs
+        # "increase size by 50%" (Armoured Recce Vehicle) - the two are
+        # no longer the same size, only the same anchor point.
+        self.assertGreater(
+            nse._BRIDGE_LAYER_TANK_ARM, nse._ARMOURED_RECCE_VEHICLE_ARM
+        )
+
+
+    def test_apv_wheeled_svg_is_the_plain_apv_glyph(self):
+
+        # The three wheels are NOT drawn into the SVG - an SVG-internal
+        # circle below milsymbol's own declared draw area gets clipped
+        # by QGIS's own marker rendering whatever the viewBox says (a
+        # real bug, caught by a smoke test: "the circles below the
+        # ellipse are not visible... circles are being cropped"). They
+        # are their own simple-marker symbol layers instead - see
+        # land_equipment_layer_nonnato._wheel_symbol_layers() and its
+        # own tests - so this entity's own SVG is byte-identical to the
+        # plain APV render it aliases to.
+        wheeled = nse.render_nonnato_equipment_svg(
+            "friend", nse.APV_WHEELED_ENTITY
+        )
+        apv = nse.render_nonnato_equipment_svg(
+            "friend", "armored_protected_vehicle"
+        )
+
+        self.assertEqual(wheeled, apv)
+        self.assertEqual(wheeled.count("<circle"), 0)
+
+
+    def test_apv_wheel_geometry_constants_sit_on_the_ovals_own_edges(self):
+
+        # "three circles below the oval, slightly inside the edges,
+        # touching the oval, radii size can be 1/3 of semi-minor axis" -
+        # the oval spans x 75..125 and y 80..120, so the semi-minor axis
+        # is 20 and the radius 20/3. Each wheel's own top touches the
+        # oval's own straight bottom edge, and the outer two are inset
+        # exactly one radius from its own straight left/right edges.
+        radius = nse.APV_WHEEL_DIAMETER / 2
+
+        self.assertAlmostEqual(radius, 20 / 3)
+        self.assertAlmostEqual(nse.APV_WHEEL_CENTRE_Y - radius, 120)
+
+        left, middle, right = nse.APV_WHEEL_CENTRE_XS
+
+        self.assertAlmostEqual(left - radius, 75)
+        self.assertAlmostEqual(right + radius, 125)
+        self.assertAlmostEqual(middle, (left + right) / 2)
+
+
+    def test_apv_wheeled_designation_clears_the_wheels(self):
+
+        # The wheels are separate symbol layers, so this SVG's own
+        # measured content stops at the hull - without being told where
+        # the wheels really end, the designation tucks straight under
+        # the hull and through them. Reported live, 2026-09-03, right
+        # after the wheels themselves were fixed.
+        wheel_bottom = nse.APV_WHEEL_CENTRE_Y + nse.APV_WHEEL_DIAMETER / 2
+
+        wheeled = nse.render_nonnato_equipment_svg(
+            "friend", nse.APV_WHEELED_ENTITY, designation="a1"
+        )
+        plain = nse.render_nonnato_equipment_svg(
+            "friend", "armored_protected_vehicle", designation="a1"
+        )
+
+        def baseline(svg):
+            match = re.search(r'<text x="\S+" y="(\S+)"[^>]*>A1</text>', svg)
+            return float(match.group(1))
+
+        # The text's own top edge (baseline minus roughly a cap height)
+        # has to sit below the lowest point the wheels reach.
+        font_size = nse._DESIGNATION_FONT_SIZE
+
+        self.assertGreater(baseline(wheeled) - font_size, wheel_bottom)
+
+        # ...and it is pushed down purely because of the wheels - the
+        # plain APV, same glyph without them, sits higher.
+        self.assertGreater(baseline(wheeled), baseline(plain))
+
+
+    def test_designation_min_content_bottom_never_pulls_text_up(self):
+
+        # The override only ever lowers the text - an icon that already
+        # draws below the given floor keeps its own measured position.
+        base_svg = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        without = nse.inject_centered_designation_below(base_svg, "a1", _FRIEND)
+        with_low_floor = nse.inject_centered_designation_below(
+            base_svg, "a1", _FRIEND, min_content_bottom=-999
+        )
+
+        self.assertEqual(without, with_low_floor)
+
+
+    def test_apv_synthetic_entities_do_not_affect_the_plain_apv_render(self):
+
+        # Regression guard for the alias mechanism, same as Air Defence
+        # Artillery's/Air Force's own above.
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", "armored_protected_vehicle"
+        )
+
+        self.assertEqual(svg.count("<path"), 1)
+        self.assertEqual(svg.count("<circle"), 0)
 
 
     def test_an_invalid_entity_raises_a_key_error(self):
@@ -1046,3 +1621,286 @@ class TestPillboxFixup(QgisTestCase):
         planned = nse.render_nonnato_pillbox_svg("friend", status="planned")
 
         self.assertEqual(present, planned)
+
+
+class TestVehicleFamily(QgisTestCase):
+
+    """
+    'B' Vehicle, 'C' Vehicle and Light Recce Vehicle - the three fully
+    synthetic entities that replaced APP-6E's own real "vehicle" entity
+    on Land Equipment, 2026-09-05.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _rect(self, svg):
+
+        match = re.search(
+            r'<rect x="(\S+)" y="(\S+)" width="(\S+)" height="(\S+)"', svg
+        )
+
+        self.assertIsNotNone(match, "no rectangle in the vehicle icon")
+
+        return tuple(float(value) for value in match.groups())
+
+
+    def test_the_rectangle_matches_the_land_unit_frames_own_dimensions(self):
+
+        # "draw a rectangle, similar dimensions as land unit" - read as
+        # the literal frame every Land Unit icon uses, 150 x 100 at
+        # x 25..175, y 50..150.
+        for entity in (
+            nse.B_VEHICLE_ENTITY,
+            nse.C_VEHICLE_ENTITY,
+            nse.LIGHT_RECCE_VEHICLE_ENTITY,
+        ):
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                self.assertEqual(self._rect(svg), (25.0, 50.0, 150.0, 100.0))
+
+
+    def test_two_wheels_follow_apv_wheeleds_own_rule_without_its_middle_one(self):
+
+        # "draw two circles - similar to what we did for the APV
+        # wheeled with the center wheel removed": radius = 1/3 of the
+        # shape's own semi-minor axis (half the rectangle's height),
+        # each wheel's own top touching the bottom edge, inset one
+        # radius from the left/right edges.
+        svg = nse.render_nonnato_equipment_svg("friend", nse.B_VEHICLE_ENTITY)
+
+        wheels = re.findall(r'<circle cx="(\S+)" cy="(\S+)" r="(\S+)"', svg)
+
+        self.assertEqual(len(wheels), 2)
+
+        (left_x, left_y, radius), (right_x, right_y, _) = (
+            tuple(float(value) for value in wheel) for wheel in wheels
+        )
+
+        self.assertAlmostEqual(radius, 100 / 2 / 3, places=3)
+        self.assertAlmostEqual(left_y - radius, 150, places=3)
+        self.assertAlmostEqual(right_y, left_y, places=3)
+        self.assertAlmostEqual(left_x - radius, 25, places=3)
+        self.assertAlmostEqual(right_x + radius, 175, places=3)
+
+
+    def test_b_and_c_differ_only_by_their_own_letter(self):
+
+        # "same construction for 'C' Vehicle except that 'B' is
+        # replaced with 'C'" - nothing else about the two may drift
+        # apart.
+        b_svg = nse.render_nonnato_equipment_svg("friend", nse.B_VEHICLE_ENTITY)
+        c_svg = nse.render_nonnato_equipment_svg("friend", nse.C_VEHICLE_ENTITY)
+
+        self.assertIn(">B</text>", b_svg)
+        self.assertIn(">C</text>", c_svg)
+
+        self.assertEqual(b_svg.replace(">B</text>", ">C</text>"), c_svg)
+
+
+    def test_the_letter_sits_in_the_rectangles_own_centre(self):
+
+        # Qt's own SVG engine honours no dominant-baseline on either
+        # version tested here, so the baseline is computed instead -
+        # confirmed against a render, where the first draft's letter
+        # sat a half cap-height high.
+        svg = nse.render_nonnato_equipment_svg("friend", nse.B_VEHICLE_ENTITY)
+
+        match = re.search(
+            r'<text x="(\S+)" y="(\S+)"[^>]*font-size="(\S+)"[^>]*>B</text>', svg
+        )
+
+        x, baseline, font_size = (float(value) for value in match.groups())
+
+        self.assertAlmostEqual(x, 100.0)
+
+        # The cap's own vertical midpoint, using the same 0.7-of-font-
+        # size estimate _text_element_bounds() works to.
+        # places=2 rather than 3 purely because the baseline is written
+        # out through "%g", which rounds it to six significant figures.
+        self.assertAlmostEqual(baseline - font_size * 0.7 / 2, 100.0, places=2)
+
+        self.assertNotIn("dominant-baseline", svg)
+
+
+    def test_light_recce_carries_a_mast_and_no_letter(self):
+
+        # "start with vehicle 'B', remove the alphabet B and put a "/"
+        # on top of the rectangle" - the mark's own lower end touches
+        # the rectangle's own top-left corner exactly, the same way
+        # Armoured Recce Vehicle's own "/" meets the oval.
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", nse.LIGHT_RECCE_VEHICLE_ENTITY
+        )
+
+        self.assertNotIn("</text>", svg)
+
+        match = re.search(r'<path d="M(\S+),(\S+) L(\S+),(\S+)"', svg)
+
+        x1, y1, x2, y2 = (float(value) for value in match.groups())
+
+        self.assertAlmostEqual(x1, 25.0)
+        self.assertAlmostEqual(y1, 50.0)
+
+        # Above the rectangle and to its right - a "/" leaning the same
+        # way Armoured Recce Vehicle's own does.
+        self.assertLess(y2, 50.0)
+        self.assertGreater(x2, x1)
+
+
+    def test_the_mast_is_armoured_recce_vehicles_own_mark_grown_125_percent(self):
+
+        # "increase the mast height of the light recce vehicle by 125%"
+        # - 2.25x, read the same way every other "increase by N%" on
+        # this branch has been, and applied uniformly so the mark keeps
+        # Armoured Recce Vehicle's own angle.
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", nse.LIGHT_RECCE_VEHICLE_ENTITY
+        )
+
+        x1, y1, x2, y2 = (
+            float(value)
+            for value in re.search(r'<path d="M(\S+),(\S+) L(\S+),(\S+)"', svg).groups()
+        )
+
+        self.assertAlmostEqual(
+            y1 - y2, 2 * nse._ARMOURED_RECCE_VEHICLE_ARM * 2.25, places=3
+        )
+        self.assertAlmostEqual(
+            x2 - x1, nse._ARMOURED_RECCE_VEHICLE_ARM * 2.25, places=3
+        )
+
+
+    def test_the_viewbox_holds_every_part_of_the_icon(self):
+
+        # Nothing may fall outside the declared viewBox - the mast in
+        # particular reaches well above the rectangle.
+        for entity in (
+            nse.B_VEHICLE_ENTITY,
+            nse.C_VEHICLE_ENTITY,
+            nse.LIGHT_RECCE_VEHICLE_ENTITY,
+        ):
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                vb_x, vb_y, vb_w, vb_h = (
+                    float(value)
+                    for value in nse._VIEWBOX_PATTERN.search(svg).groups()
+                )
+
+                left, top, width, height = nse._content_bounds(svg, None)
+
+                self.assertGreaterEqual(left, vb_x)
+                self.assertGreaterEqual(top, vb_y)
+                self.assertLessEqual(left + width, vb_x + vb_w)
+                self.assertLessEqual(top + height, vb_y + vb_h)
+
+
+    def test_the_designation_clears_the_wheels(self):
+
+        # These wheels ARE in the SVG (unlike Armoured Protection
+        # Vehicle (Wheeled)'s), so the ordinary content-bounds
+        # measurement already has to place the text below them.
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", nse.B_VEHICLE_ENTITY, designation="a1"
+        )
+
+        baseline = float(
+            re.search(r'<text x="\S+" y="(\S+)"[^>]*>A1</text>', svg).group(1)
+        )
+
+        wheel_bottom = 150 + 2 * (100 / 2 / 3)
+
+        self.assertGreater(baseline - nse._DESIGNATION_FONT_SIZE, wheel_bottom)
+
+
+    def test_they_are_synthetic_and_never_reach_a_sidc(self):
+
+        for entity in (
+            nse.B_VEHICLE_ENTITY,
+            nse.C_VEHICLE_ENTITY,
+            nse.LIGHT_RECCE_VEHICLE_ENTITY,
+        ):
+
+            with self.subTest(entity=entity):
+
+                self.assertTrue(nse.is_synthetic_entity(entity))
+                self.assertNotIn(entity, nse._EQUIPMENT_ENTITY_KEY_ALIASES)
+
+
+    def test_they_take_the_affiliation_colour(self):
+
+        # Not mines - these follow the ordinary six-colour palette.
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                svg = nse.render_nonnato_equipment_svg(
+                    affiliation, nse.B_VEHICLE_ENTITY
+                )
+
+                self.assertIn(colour, svg)
+
+
+class TestViewboxExpansionLeavesDrawnRectanglesAlone(QgisTestCase):
+
+    """
+    A real bug found 2026-09-05 while building the Vehicle family: the
+    width/height rescale that follows a viewBox expansion matched the
+    FIRST width="..." height="..." pair anywhere in the document. Every
+    milsymbol render declares that pair on its own root <svg>, so it
+    happened to be right for them - but an SVG hand-built in this
+    module declares neither, and the first pair is then a <rect> the
+    icon actually draws with. Invisible until a designation grew the
+    viewBox.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_bar_mines_own_bar_keeps_its_height_under_a_designation(self):
+
+        def bar(svg):
+            return tuple(
+                float(value)
+                for value in re.search(
+                    r'<rect x="\S+" y="\S+" width="(\S+)" height="(\S+)"', svg
+                ).groups()
+            )
+
+        plain = nse.render_nonnato_equipment_svg("friend", nse.BAR_MINE_ENTITY)
+        with_designation = nse.render_nonnato_equipment_svg(
+            "friend", nse.BAR_MINE_ENTITY, designation="mf 12"
+        )
+
+        self.assertEqual(bar(plain), bar(with_designation))
+
+
+    def test_a_root_declared_width_and_height_still_rescale(self):
+
+        # The other half of the fix: a real milsymbol render, which DOES
+        # declare both on its root, must still have them grown with the
+        # viewBox - that is what QGIS sizes the marker by.
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" '
+            'viewBox="46 46 108 108"><rect x="50" y="50" width="10" '
+            'height="10"></rect></svg>'
+        )
+
+        grown = nse._expand_viewbox_for_rect(svg, 46, 46, 108, 216)
+
+        self.assertIn('width="108" height="216"', grown)
+        self.assertIn('<rect x="50" y="50" width="10" height="10">', grown)

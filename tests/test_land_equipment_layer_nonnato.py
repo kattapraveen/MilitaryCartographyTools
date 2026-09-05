@@ -17,6 +17,8 @@ from qgis.core import (
     QgsPointXY,
     QgsProject,
     QgsRenderContext,
+    QgsSimpleMarkerSymbolLayer,
+    QgsSimpleMarkerSymbolLayerBase,
     QgsSymbolLayer,
 )
 
@@ -31,13 +33,14 @@ from MilitaryCartographyTools.military_symbology.land_equipment_layer_nonnato im
     build_land_equipment_layer_nonnato,
 )
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
-    ANTITANK_MINE_BOOBY_TRAPPED_ENTITY,
-    BAR_MINE_ENTITY,
-    INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
-    INFLUENCE_MINE_ANTI_TANK_ENTITY,
-    MINE_GREEN,
+    AFFILIATION_COLOURS,
+    APV_WHEELED_ENTITY,
+    ARMOURED_RECCE_VEHICLE_ENTITY,
+    B_VEHICLE_ENTITY,
+    BRIDGE_LAYER_TANK_ENTITY,
+    C_VEHICLE_ENTITY,
+    LIGHT_RECCE_VEHICLE_ENTITY,
     SIGINT_RADAR_ENTITY,
-    UNKNOWN_MINE_ENTITY,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
     build_sidc,
@@ -46,14 +49,6 @@ from MilitaryCartographyTools.military_symbology.sidc import (
 
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
-
-SYNTHETIC_ENTITIES = frozenset({
-    UNKNOWN_MINE_ENTITY,
-    INFLUENCE_MINE_ANTI_TANK_ENTITY,
-    INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
-    ANTITANK_MINE_BOOBY_TRAPPED_ENTITY,
-    BAR_MINE_ENTITY,
-})
 
 # Jammer/Radar are real APP-6E entities, but under symbol_set
 # "sigint_land", not "land_equipment" - merged in here 2026-09-02 from
@@ -74,6 +69,22 @@ SIGINT_REAL_ENTITY_KEYS = {
     SIGINT_RADAR_ENTITY: "radar",
 }
 
+# Three synthetic entities built from Armoured Protected Vehicle's own
+# oval glyph, added 2026-09-03 - no matching real land_equipment key of
+# their own (they alias to "armored_protected_vehicle" at SIDC-build
+# time via nonnato_symbol_engine._EQUIPMENT_ENTITY_KEY_ALIASES).
+SYNTHETIC_APV_ENTITIES = frozenset({
+    BRIDGE_LAYER_TANK_ENTITY, ARMOURED_RECCE_VEHICLE_ENTITY, APV_WHEELED_ENTITY,
+})
+
+# The Vehicle family that replaced APP-6E's own real "vehicle" entity
+# on this layer, 2026-09-05 - FULLY synthetic, unlike the three above:
+# no SIDC and so no key alias either, a complete SVG authored in
+# nonnato_symbol_engine._SYNTHETIC_VEHICLE_SVG.
+SYNTHETIC_VEHICLE_ENTITIES = frozenset({
+    B_VEHICLE_ENTITY, C_VEHICLE_ENTITY, LIGHT_RECCE_VEHICLE_ENTITY,
+})
+
 
 class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
@@ -83,7 +94,11 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
         for key in ENTITY_LABELS:
 
-            if key in SYNTHETIC_ENTITIES or key in SIGINT_ENTITIES:
+            if (
+                key in SIGINT_ENTITIES
+                or key in SYNTHETIC_APV_ENTITIES
+                or key in SYNTHETIC_VEHICLE_ENTITIES
+            ):
                 continue
 
             with self.subTest(entity=key):
@@ -114,16 +129,32 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
     def test_count_matches_the_reviewed_list(self):
 
-        # 52 real Land Equipment entities (10 non-tiered + 39
-        # weapon-tier siblings + 3 repurposed Machine Gun tiers, one
-        # fewer non-tiered entity than before since Land Equipment's
-        # own separate "radar" was removed 2026-09-02) plus 5 synthetic
-        # mine icons plus Jammer/Radar (Land-scoped SIGINT, merged in
-        # 2026-09-02) - see the rules record's "Required entities"
-        # section.
-        self.assertEqual(len(ENTITY_LABELS), 59)
+        # 54 real Land Equipment entities (6 non-tiered + 42
+        # weapon-tier siblings across 14 families, Machine Gun's own
+        # bare-keyed "light"/"medium" siblings included - see the rules
+        # record's 2026-09-02 correction - plus 3 synthetic entities
+        # built from Armoured Protected Vehicle's own oval, added
+        # 2026-09-03, and 3 fully synthetic Vehicle-family entities that
+        # replaced the real "vehicle" entity 2026-09-05) plus
+        # Jammer/Radar (Land-scoped SIGINT, merged in 2026-09-02) - see
+        # the rules record's "Required entities" section. The mine
+        # family (9 entities) moved out to its own "Mines and Obstacles
+        # (Non-NATO)" layer 2026-09-03 - see
+        # test_mines_and_obstacles_layer_nonnato.py.
+        self.assertEqual(len(ENTITY_LABELS), 56)
 
-        for entity in SYNTHETIC_ENTITIES | SIGINT_ENTITIES:
+        for entity in SIGINT_ENTITIES:
+            self.assertIn(entity, ENTITY_LABELS)
+
+
+    def test_the_real_vehicle_entity_was_replaced_by_the_vehicle_family(self):
+
+        # "remove the existing vehicle glyph, we will replace with 'B'
+        # Vehicle and 'C' Vehicle" - APP-6E's own real "vehicle" key
+        # (a stadium hull on two small wheels) is no longer offered.
+        self.assertNotIn("vehicle", ENTITY_LABELS)
+
+        for entity in SYNTHETIC_VEHICLE_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)
 
 
@@ -236,6 +267,141 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
             self.assertNotIn(absent, field_names)
 
 
+    def test_apv_wheels_are_their_own_simple_marker_layers(self):
+
+        # Real bug this exists to prevent regressing: circles drawn
+        # INSIDE the SVG, below milsymbol's own declared draw area, are
+        # clipped by QGIS's own marker rendering whatever the viewBox
+        # says ("the circles below the ellipse are not visible... being
+        # cropped"). They are three separate simple-marker layers
+        # instead - the same multi-layer composition the NATO side
+        # already uses to add elements to a milsymbol icon.
+        layer = build_land_equipment_layer_nonnato()
+
+        symbol = layer.renderer().symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 4)  # SVG + 3 wheels
+
+        for index in range(1, 4):
+
+            wheel = symbol.symbolLayer(index)
+
+            self.assertIsInstance(wheel, QgsSimpleMarkerSymbolLayer)
+            self.assertEqual(
+                wheel.shape(), QgsSimpleMarkerSymbolLayerBase.Shape.Circle
+            )
+
+
+    def test_apv_wheels_only_render_for_apv_wheeled(self):
+
+        # One shared symbol serves the whole layer, so the wheels
+        # collapse to size 0 for every other entity.
+        layer = build_land_equipment_layer_nonnato()
+
+        wheel = layer.renderer().symbol().symbolLayer(1)
+
+        size_property = wheel.dataDefinedProperties().property(
+            QgsSymbolLayer.Property.Size
+        )
+
+        for entity, expected_visible in (
+            (APV_WHEELED_ENTITY, True),
+            ("armored_protected_vehicle", False),
+            ("tank", False),
+        ):
+            with self.subTest(entity=entity):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("entity", entity)
+
+                context = QgsExpressionContext()
+                context.appendScope(
+                    QgsExpressionContextUtils.layerScope(layer)
+                )
+                context.setFeature(feature)
+
+                size = size_property.valueAsDouble(context, 0.0)[0]
+
+                if expected_visible:
+                    self.assertGreater(size, 0)
+                else:
+                    self.assertEqual(size, 0)
+
+
+    def test_apv_wheels_stay_with_the_hull_when_a_designation_is_typed(self):
+
+        # Reported live, 2026-09-03: "when i add the unique designator
+        # in APV wheeled, the wheels shift and overlap on the text of
+        # unique designation instead of staying where they are". A
+        # designation grows the SVG's own viewBox downward, which moves
+        # the marker's anchor (its viewBox centre) DOWN and so shifts
+        # the icon itself UP - a fixed wheel offset would stay put and
+        # land on the text. The offset expression reads the icon's own
+        # rendered height instead, so it shrinks by the same amount.
+        layer = build_land_equipment_layer_nonnato()
+
+        wheel = layer.renderer().symbol().symbolLayer(1)
+
+        offset_property = wheel.dataDefinedProperties().property(
+            QgsSymbolLayer.Property.Offset
+        )
+
+        def offset_y_for(designation):
+
+            feature = QgsFeature(layer.fields())
+            feature.setAttribute("entity", APV_WHEELED_ENTITY)
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("unique_designation", designation)
+
+            context = QgsExpressionContext()
+            context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+            context.setFeature(feature)
+
+            return float(
+                offset_property.valueAsString(context, "")[0].split(",")[1]
+            )
+
+        plain = offset_y_for("")
+        with_designation = offset_y_for("A1")
+
+        # Both still put the wheels BELOW the anchor...
+        self.assertGreater(plain, 0)
+        self.assertGreater(with_designation, 0)
+
+        # ...but the designation moves the anchor down, so the wheels
+        # must sit closer to it to stay on the hull.
+        self.assertLess(with_designation, plain)
+
+
+    def test_apv_wheels_follow_the_affiliation_colour(self):
+
+        layer = build_land_equipment_layer_nonnato()
+
+        wheel = layer.renderer().symbol().symbolLayer(1)
+
+        colour_property = wheel.dataDefinedProperties().property(
+            QgsSymbolLayer.Property.StrokeColor
+        )
+
+        for affiliation, expected in AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                feature = QgsFeature(layer.fields())
+                feature.setAttribute("entity", APV_WHEELED_ENTITY)
+                feature.setAttribute("affiliation", affiliation)
+
+                context = QgsExpressionContext()
+                context.appendScope(
+                    QgsExpressionContextUtils.layerScope(layer)
+                )
+                context.setFeature(feature)
+
+                self.assertEqual(
+                    colour_property.valueAsString(context, "")[0], expected
+                )
+
+
     def test_every_entity_renders_a_valid_symbol_path(self):
 
         layer = build_land_equipment_layer_nonnato()
@@ -267,23 +433,6 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
                 )
 
                 self.assertTrue(path.startswith("base64:"))
-
-
-    def test_every_mine_entity_renders_green_regardless_of_affiliation(self):
-
-        layer = build_land_equipment_layer_nonnato()
-
-        for entity in SYNTHETIC_ENTITIES | {
-            "land_mine", "antitank_mine", "antipersonnel_land_mine"
-        }:
-
-            with self.subTest(entity=entity):
-
-                svg = self._decoded_svg_for(
-                    layer, {"affiliation": "hostile", "entity": entity}
-                )
-
-                self.assertIn(MINE_GREEN, svg)
 
 
     def test_designation_reaches_the_render(self):
@@ -361,15 +510,22 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
         # nonnato_symbol_engine._EQUIPMENT_SYMBOL_SET_OVERRIDES, and
         # SIGINT's own Radar resolves through its own real entity key
         # ("radar", not the stored "sigint_radar" - see
-        # _EQUIPMENT_ENTITY_KEY_ALIASES).
+        # _EQUIPMENT_ENTITY_KEY_ALIASES). The three synthetic APV
+        # entities all alias to "armored_protected_vehicle" the same
+        # way. The three Vehicle-family entities are skipped outright -
+        # they never reach build_sidc() at all, being rendered from a
+        # complete hand-authored SVG (_SYNTHETIC_VEHICLE_SVG).
         for entity in ENTITY_LABELS:
 
-            if entity in SYNTHETIC_ENTITIES:
+            if entity in SYNTHETIC_VEHICLE_ENTITIES:
                 continue
 
             if entity in SIGINT_ENTITIES:
                 real_entity = SIGINT_REAL_ENTITY_KEYS[entity]
                 symbol_set = "sigint_land"
+            elif entity in SYNTHETIC_APV_ENTITIES:
+                real_entity = "armored_protected_vehicle"
+                symbol_set = "land_equipment"
             else:
                 real_entity = entity
                 symbol_set = "land_equipment"
@@ -401,6 +557,58 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
 
         self.assertIn(">A1<", svg)
         self.assertIn('text-anchor="middle"', svg)
+
+
+    def test_the_vehicle_family_renders_through_the_real_expression(self):
+
+        # The three Vehicle-family entities never reach build_sidc() -
+        # they render from a complete hand-authored SVG. This is the
+        # end-to-end check that the layer's own data-defined Name
+        # expression still resolves them, added 2026-09-05.
+        layer = build_land_equipment_layer_nonnato()
+
+        expected_marks = {
+            B_VEHICLE_ENTITY: ">B</text>",
+            C_VEHICLE_ENTITY: ">C</text>",
+            LIGHT_RECCE_VEHICLE_ENTITY: "<path",
+        }
+
+        for entity, mark in expected_marks.items():
+
+            with self.subTest(entity=entity):
+
+                svg = self._decoded_svg_for(
+                    layer, {"affiliation": "friend", "entity": entity},
+                )
+
+                self.assertIn('<rect x="25" y="50" width="150" height="100"', svg)
+                self.assertEqual(svg.count("<circle"), 2)
+                self.assertIn(mark, svg)
+
+
+    def test_the_vehicle_family_gets_no_apv_wheel_symbol_layers(self):
+
+        # Their wheels are drawn INSIDE the SVG, so the three simple-
+        # marker wheel layers - which exist only for Armoured
+        # Protection Vehicle (Wheeled) - must collapse to size 0 here,
+        # or the icon gets a second, wrong set of wheels on top.
+        layer = build_land_equipment_layer_nonnato()
+
+        symbol = layer.renderer().symbol()
+
+        for index in range(1, symbol.symbolLayerCount()):
+
+            expression = symbol.symbolLayer(index).dataDefinedProperties().property(
+                QgsSymbolLayer.Property.Size
+            ).expressionString()
+
+            self.assertIn(APV_WHEELED_ENTITY, expression)
+
+            for entity in SYNTHETIC_VEHICLE_ENTITIES:
+
+                with self.subTest(layer=index, entity=entity):
+
+                    self.assertNotIn(entity, expression)
 
 
 class TestAddLandEquipmentLayerNonnato(QgisTestCase):

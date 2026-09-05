@@ -109,7 +109,7 @@ def stabilised_nonnato_size_expression(
     same fix, same reasoning as the NATO one this mirrors, applied
     across every non-NATO layer built so far (Land Unit, Land
     Equipment, SIGINT) - Control Measure Points already had this, since
-    ten of its eleven entities go through the plain NATO mct_sidc_svg()
+    nine of its ten entities go through the plain NATO mct_sidc_svg()
     pipeline unchanged (see that layer's own module for why).
 
     The ratio is guarded the same way, and for the same reason: a NULL
@@ -124,13 +124,16 @@ def stabilised_nonnato_size_expression(
         f" / nullif({plain_width_expression}, 0), 1)"
     )
 
-# --- Mine family (Land Equipment) -------------------------------------
+# --- Mine family (Mines and Obstacles, moved out of Land Equipment
+#     2026-09-03 - see mines_and_obstacles_layer_nonnato.py) -----------
 #
 # Three real APP-6E entities (already render correctly with no fixup,
-# see the rules record's "Mine icons" note) plus five synthetic icons
+# see the rules record's "Mine icons" note) plus six synthetic icons
 # with no SIDC at all - the whole family defaults to MINE_GREEN
 # regardless of the feature's own affiliation, same as obstacle_
 # control_measures.py's own NATO-side convention for the same reason.
+# This rendering logic is layer-agnostic and unchanged by the 2026-09-03
+# move - only which QGIS layer offers these entities changed.
 #
 # Synthetic keys are outside APP-6E's own numbering on purpose (a
 # leading "nonnato_" prefix), so they can never collide with a real
@@ -140,6 +143,7 @@ INFLUENCE_MINE_ANTI_TANK_ENTITY = "nonnato_influence_mine_anti_tank"
 INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY = "nonnato_influence_mine_anti_personnel"
 ANTITANK_MINE_BOOBY_TRAPPED_ENTITY = "nonnato_antitank_mine_booby_trapped"
 BAR_MINE_ENTITY = "nonnato_bar_mine"
+DIRECTIONAL_MINE_ENTITY = "nonnato_directional_mine"
 
 # Every mine-family entity, real or synthetic - checked by
 # render_nonnato_equipment_svg() to apply the green-not-affiliation
@@ -153,6 +157,7 @@ MINE_ENTITIES = frozenset({
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
     ANTITANK_MINE_BOOBY_TRAPPED_ENTITY,
     BAR_MINE_ENTITY,
+    DIRECTIONAL_MINE_ENTITY,
 })
 
 _MINE_R = 22
@@ -300,20 +305,97 @@ def bar_mine_svg(colour):
     )
 
 
+def directional_mine_svg(colour):
+
+    """
+    No APP-6E equivalent - designed live, 2026-09-03: "use booby trap
+    symbol to begin with, remove the bottom lines at 315 and 225 deg,
+    change the top lines to dashed, add a parallel line each to the two
+    top lines also dashed". Starts from Control Measure Point's own
+    Booby Trap shape (booby_trap_control_measure_svg() - hollow circle
+    + four 45/135/225/315-degree horns), drops the two bottom horns
+    (225/315 degrees), and makes each of the two remaining top horns
+    (45/135 degrees) dashed with a second, parallel dashed line of the
+    same length alongside it.
+
+    The horn/offset geometry (perpendicular offset, dash pattern "4,3",
+    new line sitting outward - away from the OTHER horn - rather than
+    the pair straddling the original's centreline) is not a fresh
+    guess: it is recovered from a same-shaped "dashed parallel horns"
+    design originally built 2026-09-01 for this same Booby Trap control
+    measure, then superseded there once the maintainer clarified the
+    circle's FILL (not the horn count/style) was the actual complaint -
+    see booby_trap_control_measure_svg()'s own docstring for that
+    history. That geometry was never wrong, just built for the wrong
+    icon at the time; reused here for Directional Mine instead.
+
+    **Legibility pass, same day, after a real smoke test**: "the horns
+    (parallel) lines are not clearly discernable - increase their
+    stroke width by 30%, make them 20% longer and increase the gap
+    between the parallel lines slightly to make them more distinct".
+    Stroke width: the horn's own PRE-scale width goes from 3 to 3.9 -
+    not simply 3*1.3 - so that DEFAULT_STROKE_SCALE's own later 1.3x
+    (applied uniformly to every stroke in the final render) lands on an
+    effective width 30% bigger than before (3*1.3=3.9 -> 3.9*1.3=5.07),
+    not 30% of the unscaled base. Length: each horn's own OUTER tip
+    (the inner end stays anchored exactly on the circle's own edge)
+    moves out along the same 45-degree line by 20% - (131.9,68.1) ->
+    (135.2,64.8) and (68.1,68.1) -> (64.8,64.8). Gap: the perpendicular
+    offset between each horn and its own parallel twin goes from 5 to
+    7 units.
+    """
+
+    offset = 7 / (2 ** 0.5)  # perpendicular unit vector at 45 degrees, times 7 (was 5)
+    stroke_width = 3.9  # was 3 - see this function's own docstring
+
+    top_right = (
+        f'<path d="M115.6,84.4 L135.2,64.8" stroke-width="{stroke_width:g}" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'<path d="M{115.6 + offset:g},{84.4 + offset:g} '
+        f'L{135.2 + offset:g},{64.8 + offset:g}" stroke-width="{stroke_width:g}" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+    )
+
+    top_left = (
+        f'<path d="M84.4,84.4 L64.8,64.8" stroke-width="{stroke_width:g}" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'<path d="M{84.4 - offset:g},{84.4 + offset:g} '
+        f'L{64.8 - offset:g},{64.8 + offset:g}" stroke-width="{stroke_width:g}" '
+        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="46 46 108 108">'
+        + _mine_circle(colour, filled=False)
+        + top_right + top_left
+        + '</svg>'
+    )
+
+
 _SYNTHETIC_MINE_SVG = {
     UNKNOWN_MINE_ENTITY: unknown_mine_svg,
     INFLUENCE_MINE_ANTI_TANK_ENTITY: influence_mine_anti_tank_svg,
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY: influence_mine_anti_personnel_svg,
     ANTITANK_MINE_BOOBY_TRAPPED_ENTITY: antitank_mine_booby_trapped_svg,
     BAR_MINE_ENTITY: bar_mine_svg,
+    DIRECTIONAL_MINE_ENTITY: directional_mine_svg,
 }
 
 
 def is_synthetic_entity(entity):
 
-    """True for any entity with no SIDC/milsymbol render at all - Enemy (Info Unknown) or one of the five synthetic mines."""
+    """True for any entity with no SIDC/milsymbol render at all - Enemy (Info Unknown), one of the six synthetic mines, or one of the three Vehicle-family entities."""
 
-    return entity == ENEMY_INFO_UNKNOWN_ENTITY or entity in _SYNTHETIC_MINE_SVG
+    # _SYNTHETIC_VEHICLE_SVG is defined further down, beside the rest of
+    # the Land Equipment vehicle family's own geometry - a module-level
+    # name resolved when this is CALLED, same as ENEMY_INFO_UNKNOWN_
+    # ENTITY just below.
+    return (
+        entity == ENEMY_INFO_UNKNOWN_ENTITY
+        or entity in _SYNTHETIC_MINE_SVG
+        or entity in _SYNTHETIC_VEHICLE_SVG
+    )
 
 # Enemy (Info Unknown) has no APP-6E entity at all - a standalone frame
 # variant (two concentric rectangles, no icon glyph inside), always
@@ -449,12 +531,154 @@ def composite_parachute_rigger(svg):
     return svg[:match.start()] + replacement + svg[match.end():]
 
 
+# --- Entity-specific fixup: Amphibious's own oval removed -------------
+
+# amphibious's own icon is a stadium-shaped oval sitting above the wave
+# glyph - requested live, 2026-09-02: "i want the oval inside the
+# rectangle removed - so the result is only the rectangle and the
+# wave". The oval's own path is a fixed signature (a stadium shape
+# built from two straight sides and two semicircular caps), confirmed
+# against a render - stripped out entirely, leaving the frame and the
+# wave untouched.
+_AMPHIBIOUS_OVAL_PATTERN = re.compile(
+    r'<path d="M125,80 C150,80 150,120 125,120 L75,120 C50,120 50,80 '
+    r'75,80 Z" stroke-width="3" stroke="[^"]+" fill="none" ></path>'
+)
+
+
+def remove_amphibious_oval(svg):
+
+    return _AMPHIBIOUS_OVAL_PATTERN.sub("", svg)
+
+
+# --- Synthetic entity: Air Defence Artillery (Air Defence + Artillery) -
+#
+# No such combined key exists in APP-6E's own ground_unit vocabulary -
+# requested live, 2026-09-02: "use the Air Defence Glyph and add a dot
+# in the center (basically Air Defence and Artillery glyphs merged)".
+# Confirmed by rendering both real entities directly: Air Defence is
+# the frame plus one arc path (`M25,150 C25,110 175,110 175,150`),
+# Artillery is the frame plus one filled centre dot (`<circle cx="100"
+# cy="100" r="15">`, fill = the icon's own colour) - the merge is Air
+# Defence's own SIDC render with that exact circle added on top, same
+# "nonnato_" prefix convention the synthetic mine family already uses
+# (see that section's own comment) so this can never collide with a
+# real key sidc_2525e.py might add later. Resolved to the real "air_
+# defense" key at SIDC-build time only (_UNIT_ENTITY_KEY_ALIASES) -
+# same alias pattern SIGINT's own Radar uses on the Land Equipment
+# side (_EQUIPMENT_ENTITY_KEY_ALIASES) - so the fixup below applies
+# only to this synthetic entity, never to a plain Air Defence render.
+AIR_DEFENSE_ARTILLERY_ENTITY = "nonnato_air_defense_artillery"
+
+# --- Synthetic entity: Air Force (Army Aviation, right arc opened) ----
+#
+# No such entity exists in APP-6E's own ground_unit vocabulary either -
+# requested live, 2026-09-03: "use the Army Aviation glyph, the figure
+# of 8 is open on the right - so +-30 deg at 90deg i.e. 60 to 120 deg -
+# keep the arc open, rest of the figure of eight remains". Army
+# Aviation's own hollow figure-of-8 (hollow_army_aviation_propeller()
+# above) is two curved "wings" meeting at the centre (100,100); the
+# RIGHT wing's own outer edge is a single cubic bezier from (130,88)
+# down to (130,112), bulging right through roughly (145,100) - a ~180
+# degree arc around its own local centre (130,100), radius 12.
+#
+# Angles read as compass bearings (0 deg = up/north, 90 deg = right/
+# east, clockwise) - the convention already used elsewhere in this
+# plugin for azimuths (e.g. terrain/hillshade_combination.py's own
+# light directions), and the only reading that actually lands "on the
+# right" as named: (130,88) is due north of the wing's own local centre
+# (130,100), (145,100) [the arc's own rightmost bulge] is due east -
+# bearing 90 degrees - and (130,112) is due south, bearing 180 degrees.
+# So the requested "60 to 120 degree" gap sits astride due-east,
+# centred exactly on the arc's own rightmost point - reads as "open on
+# the right", confirmed.
+#
+# The single 180-degree bezier is split into two 60-degree arcs (0-60,
+# 120-180), each rebuilt with the standard cubic-bezier circular-arc
+# control-point formula (k = 4/3 * tan(angle/4) * radius) rather than
+# guessed, leaving a real gap between them - drawn as two separate
+# subpaths (a second `M` mid-path) since this shape is stroke-only
+# (fill="none"), so an open subpath reads correctly with no unwanted
+# closing segment.
+AIR_FORCE_ENTITY = "nonnato_air_force"
+
+_UNIT_ENTITY_KEY_ALIASES = {
+    AIR_DEFENSE_ARTILLERY_ENTITY: "air_defense",
+    AIR_FORCE_ENTITY: "aviation_fixed_wing",
+}
+
+_ARMY_AVIATION_PROPELLER_SOLID_D = (
+    "M100,100 L130,88 c15,0 15,24 0,24 L100,100 70,112 "
+    "c-15,0 -15,-24 0,-24 Z"
+)
+
+_AIR_FORCE_PROPELLER_PATTERN = re.compile(
+    r'<path d="' + re.escape(_ARMY_AVIATION_PROPELLER_SOLID_D)
+    + r'" stroke-width="3" stroke="none" fill="([^"]+)"'
+)
+
+# Arc 1: (130,88) [bearing 0] to (140.4,94) [bearing 60], control points
+# computed from the wing's own local centre (130,100), radius 12.
+# Arc 2: (140.4,106) [bearing 120] to (130,112) [bearing 180] - the
+# mirror image of arc 1 about the centreline y=100, as the geometry
+# itself is.
+_AIR_FORCE_PROPELLER_D = (
+    "M100,100 L130,88 c4.3,0 8.2,2.3 10.4,6 "
+    "M140.4,106 c-2.2,3.7 -6.1,6 -10.4,6 L100,100 70,112 "
+    "c-15,0 -15,-24 0,-24 L100,100"
+)
+
+
+def open_air_force_propeller_arc(svg):
+
+    """
+    Rebuilds Army Aviation's own filled propeller path directly into
+    the hollow, right-arc-open Air Force shape in one step (rather than
+    chaining onto hollow_army_aviation_propeller()) - see this
+    section's own comment above for the geometry.
+    """
+
+    def _replacement(match):
+
+        colour = match.group(1)
+
+        return (
+            f'<path d="{_AIR_FORCE_PROPELLER_D}" stroke-width="3" '
+            f'stroke="{colour}" fill="none"'
+        )
+
+    return _AIR_FORCE_PROPELLER_PATTERN.sub(_replacement, svg)
+
+
+def add_artillery_center_dot(svg):
+
+    """
+    Adds Artillery's own filled centre dot on top of Air Defence's own
+    arc glyph - see this section's own comment above. Colour read off
+    the glyph's own existing stroke (_injected_text_colour(), same
+    technique add_radar_center_mast() already uses for Land Equipment's
+    Radar mast), so this stays a plain svg-in/svg-out fixup.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    dot = (
+        f'<circle cx="100" cy="100" r="15" stroke-width="3" '
+        f'stroke="{colour}" fill="{colour}"></circle>'
+    )
+
+    return _inject_before_closing_svg(svg, dot)
+
+
 # Dispatch tables - keyed on the feature's own entity, applied after
 # the echelon fixup (which is entity-independent) whenever that entity
 # is selected, regardless of affiliation/echelon/status.
 _ENTITY_FIXUPS = {
+    "amphibious": remove_amphibious_oval,
     "aviation_fixed_wing": hollow_army_aviation_propeller,
     "parachute_rigger": composite_parachute_rigger,
+    AIR_DEFENSE_ARTILLERY_ENTITY: add_artillery_center_dot,
+    AIR_FORCE_ENTITY: open_air_force_propeller_arc,
 }
 
 
@@ -576,7 +800,21 @@ def _expand_viewbox_for_rect(svg, rect_x, rect_y, rect_width, rect_height):
         f'viewBox="{new_x:g} {new_y:g} {new_w:g} {new_h:g}"', svg, count=1
     )
 
-    wh_match = _WIDTH_HEIGHT_PATTERN.search(svg)
+    # Scoped to the ROOT <svg> tag, not the whole document. milsymbol's
+    # own renders always declare width/height on the root, so an
+    # unscoped search happened to hit the right pair for them - but a
+    # hand-built SVG in this module declares neither, and the first
+    # width="..." height="..." pair in the document is then a <rect>
+    # the icon actually draws with. Both Bar Mine and 'B'/'C' Vehicle
+    # were being silently deformed that way the moment a designation
+    # grew the viewBox (Bar Mine's own bar stretched from 14.7 units
+    # tall to 72.5) - a real bug, found 2026-09-05 while building the
+    # Vehicle family, invisible until a designation was typed.
+    root_end = svg.find(">")
+
+    root_tag = svg[: root_end + 1] if root_end != -1 else svg
+
+    wh_match = _WIDTH_HEIGHT_PATTERN.search(root_tag)
 
     if wh_match:
 
@@ -584,9 +822,9 @@ def _expand_viewbox_for_rect(svg, rect_x, rect_y, rect_width, rect_height):
 
         svg = _WIDTH_HEIGHT_PATTERN.sub(
             f'width="{new_w * scale:g}" height="{new_h * scale:g}"',
-            svg,
+            root_tag,
             count=1,
-        )
+        ) + svg[root_end + 1:]
 
     return svg
 
@@ -618,7 +856,8 @@ def render_nonnato_unit_svg(
     entity,
     echelon="unspecified",
     status="present",
-    designation=None,
+    designation_left=None,
+    designation_right=None,
     combined_arms=False,
 ):
 
@@ -633,6 +872,17 @@ def render_nonnato_unit_svg(
     Enemy (Info Unknown) short-circuits everything else - it has no
     APP-6E entity, so there is no SIDC to build and no milsymbol call
     to make at all.
+
+    `designation_left`/`designation_right` no longer reach milsymbol's
+    own uniqueDesignation option at all - see inject_side_designations()
+    below (defined alongside Land Equipment's own designation mechanism,
+    which this one reuses the measurement primitives of) for the two-
+    sided replacement requested live 2026-09-02 ("i want two unique
+    designators - unique designator (left) and unique designator
+    (right)... the present unique designator can be removed or
+    ignored"). Applied before Combined Arms, so both designations align
+    with the unit glyph/frame itself rather than with Combined Arms' own
+    indicator sitting above it.
     """
 
     if is_enemy_info_unknown(entity):
@@ -644,7 +894,7 @@ def render_nonnato_unit_svg(
 
         sidc = build_sidc(
             affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
-            entity=entity,
+            entity=_UNIT_ENTITY_KEY_ALIASES.get(entity, entity),
             symbol_set="ground_unit",
             echelon=echelon,
             status=status,
@@ -658,14 +908,15 @@ def render_nonnato_unit_svg(
 
         options = {"frame": True, "fill": False, "monoColor": colour}
 
-        if designation:
-            options["uniqueDesignation"] = str(designation).upper()
-
         svg = apply_nonnato_unit_fixups(
             render_symbol_svg(sidc, options), entity, echelon
         )
 
         combined_arms_colour = colour
+
+    svg = inject_side_designations(
+        svg, designation_left, designation_right, combined_arms_colour
+    )
 
     if combined_arms:
 
@@ -757,6 +1008,35 @@ def _designation_font_size(text, max_width):
         return _DESIGNATION_FONT_SIZE
 
     return _DESIGNATION_FONT_SIZE * max_width / width
+
+
+def _designation_text_width(text, font_size):
+
+    """
+    Plain rendered width of `text` at `font_size` - the side-designation
+    counterpart to _designation_font_size()'s own internal measurement,
+    without that function's shrink-to-fit behaviour: side text has no
+    fixed-width budget to fit inside (the icon's own viewBox simply
+    grows sideways to fit it instead - see inject_side_designations()
+    below), so there is nothing to shrink against.
+    """
+
+    try:
+
+        from qgis.PyQt.QtGui import QFont, QFontMetricsF
+
+        font = QFont("Arial", -1)
+        font.setPixelSize(1000)
+
+        return (
+            QFontMetricsF(font).horizontalAdvance(text)
+            / 1000.0
+            * font_size
+        )
+
+    except Exception:
+
+        return len(text) * font_size * 0.6
 
 
 _TEXT_ELEMENT_PATTERN = re.compile(
@@ -904,7 +1184,9 @@ def _content_bounds(svg, fallback):
         return fallback
 
 
-def inject_centered_designation_below(svg, designation, colour):
+def inject_centered_designation_below(
+    svg, designation, colour, min_content_bottom=None
+):
 
     """
     Draws `designation`, centred, directly below `svg`'s own actual
@@ -922,6 +1204,14 @@ def inject_centered_designation_below(svg, designation, colour):
     viewBox sideways, mirroring symbol_engine.py's own supply-box
     convention (_fitted_font_size()) - a long designation gets smaller,
     not an ever-wider icon.
+
+    `min_content_bottom` is for an icon whose drawn extent is NOT all
+    inside this SVG: Armoured Protection Vehicle (Wheeled)'s own three
+    wheels are separate QGIS symbol layers (see land_equipment_layer_
+    nonnato._wheel_symbol_layers()), so measuring this SVG alone would
+    tuck the designation under the hull and straight through them.
+    Passing the lowest point those layers actually reach keeps the
+    normal gap below the WHOLE icon instead.
     """
 
     if not designation:
@@ -939,6 +1229,9 @@ def inject_centered_designation_below(svg, designation, colour):
     )
 
     content_bottom = content_y + content_h
+
+    if min_content_bottom is not None:
+        content_bottom = max(content_bottom, min_content_bottom)
 
     text = str(designation).upper()
 
@@ -964,6 +1257,112 @@ def inject_centered_designation_below(svg, designation, colour):
     return _inject_before_closing_svg(svg, text_element)
 
 
+# Land Unit's own side-designation font size, deliberately NOT the same
+# constant as _DESIGNATION_FONT_SIZE above (Land Equipment's own,
+# centred-below designation) - reported live, 2026-09-02: "the font
+# size is too small to read, the position is ok, increase the size to
+# 8pt or more". Bumped from 28 (the shared constant's own value) to 45
+# - not an arbitrary guess: 45 is milsymbol's own established font size
+# for legible in-icon text at this exact same coordinate scale (see
+# symbol_engine.py's own sonobuoy-family comment, where milsymbol
+# itself sets a letter glyph at font-size 45 inside an 80-unit circle).
+# Kept as its own constant, not a shared one, so a future Land
+# Equipment-only font tweak can't silently move Land Unit's side text
+# too, or vice versa.
+_SIDE_DESIGNATION_FONT_SIZE = 45.0
+
+
+def inject_side_designations(svg, left_text, right_text, colour):
+
+    """
+    Land Unit's own two-sided replacement for milsymbol's single, side-
+    anchored uniqueDesignation slot - requested live, 2026-09-02: "i
+    want two unique designators - unique designator (left) and unique
+    designator (right)... both left and right designators should be
+    vertically middle aligned to the left or right of the glyph, the
+    present unique designator can be removed or ignored". Reuses this
+    section's own _content_bounds()/_DESIGNATION_GAP - same "measure
+    the icon's own real ink, not its declared viewBox" reasoning as
+    inject_centered_designation_below() above - but grows the viewBox
+    SIDEWAYS instead of downward, one side at a time, and centres each
+    text VERTICALLY on the content's own midpoint instead of centring
+    one text horizontally below it. Font size is its own constant,
+    _SIDE_DESIGNATION_FONT_SIZE (see above), not the shared
+    _DESIGNATION_FONT_SIZE Land Equipment's own mechanism uses.
+
+    Either argument may be empty/None on its own - only the side(s)
+    actually supplied get a `<text>` element and widen the viewBox.
+    """
+
+    left_text = str(left_text).upper().strip() if left_text else ""
+    right_text = str(right_text).upper().strip() if right_text else ""
+
+    if not left_text and not right_text:
+        return svg
+
+    match = _VIEWBOX_PATTERN.search(svg)
+
+    if not match:
+        return svg
+
+    vb_x, vb_y, vb_w, vb_h = (float(value) for value in match.groups())
+
+    content_x, content_y, content_w, content_h = _content_bounds(
+        svg, fallback=(vb_x, vb_y, vb_w, vb_h)
+    )
+
+    center_y = content_y + content_h / 2
+    font_size = _SIDE_DESIGNATION_FONT_SIZE
+    half_height = font_size * 1.2 / 2
+
+    elements = []
+
+    if left_text:
+
+        width = _designation_text_width(left_text, font_size)
+        text_x = content_x - _DESIGNATION_GAP
+
+        svg = _expand_viewbox_for_rect(
+            svg,
+            text_x - width,
+            center_y - half_height,
+            width,
+            half_height * 2,
+        )
+
+        elements.append(
+            f'<text x="{text_x:g}" y="{center_y:g}" text-anchor="end" '
+            f'dominant-baseline="middle" font-size="{font_size:g}" '
+            f'font-family="Arial" stroke="none" fill="{colour}">'
+            f'{_escape_text(left_text)}</text>'
+        )
+
+    if right_text:
+
+        width = _designation_text_width(right_text, font_size)
+        text_x = content_x + content_w + _DESIGNATION_GAP
+
+        svg = _expand_viewbox_for_rect(
+            svg,
+            text_x,
+            center_y - half_height,
+            width,
+            half_height * 2,
+        )
+
+        elements.append(
+            f'<text x="{text_x:g}" y="{center_y:g}" text-anchor="start" '
+            f'dominant-baseline="middle" font-size="{font_size:g}" '
+            f'font-family="Arial" stroke="none" fill="{colour}">'
+            f'{_escape_text(right_text)}</text>'
+        )
+
+    for element in elements:
+        svg = _inject_before_closing_svg(svg, element)
+
+    return svg
+
+
 # Jammer is a real APP-6E entity, but under symbol_set "sigint_land",
 # not "land_equipment". Radar needs the same treatment - EXCEPT Land
 # Equipment already had its OWN, genuinely different, real "radar"
@@ -985,8 +1384,22 @@ def inject_centered_designation_below(svg, designation, colour):
 # needed again; it is only gone from this ONE layer's own dropdown.
 SIGINT_RADAR_ENTITY = "sigint_radar"
 
+BRIDGE_LAYER_TANK_ENTITY = "nonnato_bridge_layer_tank"
+ARMOURED_RECCE_VEHICLE_ENTITY = "nonnato_armoured_recce_vehicle"
+APV_WHEELED_ENTITY = "nonnato_apv_wheeled"
+
+# The Vehicle family that replaced APP-6E's own real "vehicle" entity
+# on this layer, 2026-09-05 - fully synthetic, no SIDC and so no
+# _EQUIPMENT_ENTITY_KEY_ALIASES entry. See _SYNTHETIC_VEHICLE_SVG.
+B_VEHICLE_ENTITY = "nonnato_b_vehicle"
+C_VEHICLE_ENTITY = "nonnato_c_vehicle"
+LIGHT_RECCE_VEHICLE_ENTITY = "nonnato_light_recce_vehicle"
+
 _EQUIPMENT_ENTITY_KEY_ALIASES = {
     SIGINT_RADAR_ENTITY: "radar",
+    BRIDGE_LAYER_TANK_ENTITY: "armored_protected_vehicle",
+    ARMOURED_RECCE_VEHICLE_ENTITY: "armored_protected_vehicle",
+    APV_WHEELED_ENTITY: "armored_protected_vehicle",
 }
 
 # This is the SAME small-number-of-entities-need-a-different-
@@ -1036,9 +1449,489 @@ def add_radar_center_mast(svg):
     return _inject_before_closing_svg(svg, mast)
 
 
+# --- Entity-specific fixup: Missile Launcher family's dome gap --------
+#
+# All three tiered "missile launcher" families (Air Defence Missile
+# Launcher, Antitank Missile Launcher, Missile Launcher) share the same
+# dome-shaped cap on their real milsymbol glyph - a single connected
+# "inverted U" (two vertical side legs plus the curved dome bridging
+# their tops, all one continuous stroke - corrected live, 2026-09-03,
+# after a first draft wrongly split the dome away from its own legs:
+# "no you misunderstood, the side lines and dome are one entity like an
+# inverted U"). The vertical centre line running up the middle pokes
+# through this U and touches the dome's own peak exactly, with no gap
+# at all - requested live: "adjust the length of the dome on top of the
+# glyph so that it does not touch anything, it should have a gap with
+# the other lines on top, sides and bottom" plus "reduce the length of
+# the domes sides to match that of the anti tank missile launcher"
+# (Antitank Missile Launcher's own U-legs are already the SHORTER of
+# the three - 45 units vs Air Defence/plain Missile Launcher's own 65;
+# confirmed as the right call: "length adjustment is fine").
+#
+# Applied identically across all three families' Light/Medium/Heavy
+# tiers - the tier-line <path> milsymbol appends is a separate element,
+# untouched by this fixup, and the BODY path is identical across all
+# three tiers within a family (confirmed against a render), so one
+# fixup per family covers its own three entity keys.
+#
+# The fix, with the U itself left fully intact/connected: (1) the
+# centre line's own top reach is trimmed short of the dome's peak, by
+# _MISSILE_DOME_GAP - doubled live from an initial 5 to 10 ("increase
+# the gap between the line and top of dome by 100%") - opening the one
+# real touch point this glyph had; (2) Air Defence Missile Launcher's
+# and plain Missile Launcher's own U-legs are shortened from 65 to 45
+# units (their TOP end, where the dome sits, stays put; only the bottom
+# end moves up) to match Antitank's own length, which as a side effect
+# also opens a gap versus the base shape below - the same proportion
+# Antitank's own U already had before this fix (confirmed live: its own
+# legs already stopped 20 units short of its chevron base's own outer
+# corners).
+_MISSILE_DOME_GAP = 10
+
+# Half the dome-to-centre-line gap - reported live, 2026-09-03, right
+# after the dome fix above: "everything is fine except that the dome
+# legs are touching the horizontal lines, so introduce a small gap,
+# 50% of that between dome top and vertical line, on both sides". "The
+# horizontal lines" are the shared Light/Medium/Heavy tier-line overlay
+# every tiered weapon family gets (identical x=85..115 span regardless
+# of family - the same lines Machine Gun's own tiers use, for example)
+# - unrelated to this family's own body, but its fixed x-span happens
+# to land exactly on the missile launcher dome's own leg x-coordinates
+# (85/115), so the two touch. Inset ON BOTH SIDES, not just shortened
+# from one end, so the line stays centred.
+_MISSILE_TIER_LINE_GAP = _MISSILE_DOME_GAP / 2
+
+
+def _inset_missile_tier_line(svg):
+
+    """
+    Shrinks the tier-line overlay inward by _MISSILE_TIER_LINE_GAP on
+    each side so it clears the missile launcher dome's own legs - see
+    this section's own comment above. Only ever called from this
+    family's own fixups below (never registered generically), so no
+    other tiered weapon family's identical-looking tier line is
+    affected.
+    """
+
+    return (
+        svg
+        .replace('d="m 85,100 30,0"', 'd="m 90,100 20,0"')
+        .replace(
+            'd="m 85,105 30,0 m -30,-10 30,0"',
+            'd="m 90,105 20,0 m -20,-10 20,0"',
+        )
+    )
+
+
+def separate_antitank_missile_launcher_dome(svg):
+
+    """Antitank Missile Launcher - see this section's own comment above."""
+
+    old_d = (
+        "m 85,140 15,-15 15,15 M 85,120 85,75 "
+        "c 0,-20 30,-20 30,0 l 0,45 m -15,5 0,-65"
+    )
+    new_d = (
+        "m 85,140 15,-15 15,15 M 85,120 85,75 "
+        f"c 0,-20 30,-20 30,0 l 0,45 m -15,5 0,{-(65 - _MISSILE_DOME_GAP):g}"
+    )
+
+    return _inset_missile_tier_line(svg.replace(f'd="{old_d}"', f'd="{new_d}"'))
+
+
+def separate_air_defense_missile_launcher_dome(svg):
+
+    """Air Defence Missile Launcher - see this section's own comment above."""
+
+    old_d = (
+        "m 85,140 30,0 c 0,-20 -30,-20 -30,0 z "
+        "m 15,-15 0,-65 m -15,80 0,-65 c 0,-20 30,-20 30,0 l 0,65"
+    )
+    new_d = (
+        "m 85,140 30,0 c 0,-20 -30,-20 -30,0 z "
+        f"m 15,-15 0,{-(65 - _MISSILE_DOME_GAP):g} "
+        "M 85,120 85,75 c 0,-20 30,-20 30,0 l 0,45"
+    )
+
+    return _inset_missile_tier_line(svg.replace(f'd="{old_d}"', f'd="{new_d}"'))
+
+
+def separate_missile_launcher_dome(svg):
+
+    """Missile Launcher (plain) - see this section's own comment above."""
+
+    old_d = "m 100,140 0,-80 m -15,80 0,-65 c 0,-20 30,-20 30,0 l 0,65"
+    new_d = (
+        f"m 100,140 0,{-(80 - _MISSILE_DOME_GAP):g} "
+        "M 85,120 85,75 c 0,-20 30,-20 30,0 l 0,45"
+    )
+
+    return _inset_missile_tier_line(svg.replace(f'd="{old_d}"', f'd="{new_d}"'))
+
+
+# --- Synthetic entities built from Armoured Protected Vehicle's own
+# "oval" ------------------------------------------------------------
+#
+# Requested live, 2026-09-03, three in one batch, all starting from the
+# same real entity's glyph: Bridge Layer Tank ("< on the top left,
+# slightly inward - say 1/3rd inside"), Armoured Recce Vehicle ("/ at
+# the same position" as Bridge Layer Tank's own mark), APV Wheeled
+# (three circles below the oval). `armored_protected_vehicle`'s own
+# real glyph is NOT a true ellipse - confirmed by rendering it directly
+# - it is a stadium/discorectangle: straight top and bottom edges from
+# x=75 to x=125 (`M125,80 C150,80 150,120 125,120 L75,120 C50,120
+# 50,80 75,80 Z`), semicircular caps left/right centred at (75,100)/
+# (125,100), radius 20. Overall bounding box x 50..150 (semi-major axis
+# 50), y 80..120 (semi-minor axis 20) - the "semi-minor axis" APV
+# Wheeled's own radius spec refers to.
+#
+# Corrected live, 2026-09-03, after a real smoke test: "shift the < to
+# the top of the oval not inside it, and increase the < size by
+# double" / "[Armoured Recce Vehicle] same - shift the / to the top of
+# the oval, increase size by 50%" - then corrected again the same day:
+# "for the other two the bottom of < or / should touch the top of the
+# oval". Both marks anchor horizontally at the oval's own top-left
+# corner (x=75) and now sit entirely ABOVE the oval's own straight top
+# edge (y=80), with their own BOTTOM-most point touching that edge
+# exactly, rather than straddling it. Each keeps its own arm length:
+# Bridge Layer Tank's own "<" doubled (10 -> 20 units), Armoured Recce
+# Vehicle's own "/" up 50% (10 -> 15 units).
+_APV_MARK_X = 75
+_APV_MARK_Y = 80
+
+_BRIDGE_LAYER_TANK_ARM = 14.1  # 20 units at 45 degrees (20 * cos(45))
+_ARMOURED_RECCE_VEHICLE_ARM = 10.6  # 15 units at 45 degrees (15 * cos(45))
+
+
+def bridge_layer_tank_mark(svg):
+
+    """
+    A small "<" chevron above the oval's own top-left corner, its own
+    lower arm-tip touching the oval's own top edge exactly - see this
+    section's own comment above. Colour read off the glyph's own
+    existing stroke (_injected_text_colour()), same technique every
+    other fixup in this module uses.
+    """
+
+    colour = _injected_text_colour(svg)
+    arm = _BRIDGE_LAYER_TANK_ARM
+
+    vertex_y = _APV_MARK_Y - arm
+
+    mark = (
+        f'<path d="M{_APV_MARK_X + arm:g},{vertex_y - arm:g} '
+        f'L{_APV_MARK_X:g},{vertex_y:g} '
+        f'L{_APV_MARK_X + arm:g},{_APV_MARK_Y:g}" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+    return _inject_before_closing_svg(svg, mark)
+
+
+def armoured_recce_vehicle_mark(svg):
+
+    """
+    A small "/" above the oval's own top-left corner, its own lower end
+    touching the oval's own top edge exactly - see this section's own
+    comment above - with its own, separately-sized arm.
+    """
+
+    colour = _injected_text_colour(svg)
+    arm = _ARMOURED_RECCE_VEHICLE_ARM
+
+    mark = (
+        f'<path d="M{_APV_MARK_X:g},{_APV_MARK_Y:g} '
+        f'L{_APV_MARK_X + arm:g},{_APV_MARK_Y - 2 * arm:g}" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+    return _inject_before_closing_svg(svg, mark)
+
+
+# Armoured Protection Vehicle (Wheeled)'s own three wheels are NOT
+# drawn into the SVG at all - they are their own QGIS simple-marker
+# symbol layers, composed alongside this icon's own SVG marker layer by
+# land_equipment_layer_nonnato.py's own renderer. See APV_WHEEL_*
+# below for the geometry those layers read, and that module's own
+# _wheel_symbol_layers() for why: an SVG-internal circle drawn below
+# milsymbol's own declared draw area gets clipped by QGIS's own marker
+# rendering no matter what the viewBox says (a real bug, caught by a
+# smoke test, then chased through six different SVG-side workarounds
+# before the multi-layer approach - which is what this plugin's own
+# NATO side already does for exactly this kind of "add an element to a
+# milsymbol icon" job, e.g. c2_measures.py's own runway lines - settled
+# it). These constants stay here, beside the rest of this family's own
+# geometry, because they are read off the SAME oval.
+#
+# Radius: 1/3 of the oval's own semi-minor axis (20) - "radii size can
+# be 1/3 of semi-minor axis". Centres: one radius below the oval's own
+# straight bottom edge (y=120), so each wheel's own top touches it, and
+# inset one radius from its own straight left/right edges (x=75/125),
+# with the middle wheel centring the group.
+_APV_WHEEL_RADIUS = 20 / 3
+
+APV_WHEEL_CENTRE_Y = 120 + _APV_WHEEL_RADIUS
+
+APV_WHEEL_CENTRE_XS = (
+    75 + _APV_WHEEL_RADIUS,
+    100,
+    125 - _APV_WHEEL_RADIUS,
+)
+
+APV_WHEEL_DIAMETER = 2 * _APV_WHEEL_RADIUS
+
+# milsymbol's own stroke width for this family, after DEFAULT_STROKE_
+# SCALE - so the wheels match the hull's own line weight exactly.
+APV_WHEEL_STROKE_WIDTH = 3 * DEFAULT_STROKE_SCALE
+
+
+# --- The Vehicle family: 'B' Vehicle, 'C' Vehicle, Light Recce Vehicle
+# ---------------------------------------------------------------------
+#
+# Requested live, 2026-09-05: "remove the existing vehicle glyph, we
+# will replace with 'B' Vehicle and 'C' Vehicle / draw a rectangle,
+# similar dimensions as land unit, draw two circles - similar to what
+# we did for the APV wheeled with the center wheel removed, insert
+# letter 'B' in the center of the rectangle / Similarly - same
+# construction for 'C' Vehicle except that 'B' is replaced with 'C' /
+# Finally - Light Recce Vehicle - start with vehicle 'B', remove the
+# alphabet B and put a "/" on top of the rectangle of same dimensions
+# as the Armoured Recce Vehicle".
+#
+# APP-6E's own real "vehicle" entity (a stadium hull over a ground line
+# with two small wheels, confirmed by rendering it) is dropped from
+# this layer entirely - these three replace it. They are fully
+# synthetic: unlike Bridge Layer Tank/Armoured Recce Vehicle above,
+# which decorate a real milsymbol glyph, nothing here starts from a
+# milsymbol render at all, so they are built the same way the synthetic
+# mine family is (a complete SVG authored here, routed through
+# _SYNTHETIC_VEHICLE_SVG below) rather than as an
+# _EQUIPMENT_ENTITY_FIXUPS entry.
+#
+# **Authoring the whole SVG is also what makes the wheels safe here.**
+# Armoured Protection Vehicle (Wheeled)'s own wheels had to become
+# separate QGIS symbol layers because they sat outside milsymbol's own
+# declared draw area and got clipped (see the comment above
+# APV_WHEEL_RADIUS). That constraint is milsymbol-specific: there is no
+# milsymbol draw area involved in an SVG this module writes end to end,
+# so plain <circle> elements render in full - the same reason Bar Mine's
+# own below-the-circle rectangle already works.
+#
+# "Similar dimensions as land unit" is read literally: the same
+# rectangle every Land Unit icon's own frame uses (150 wide x 100 tall,
+# x 25..175, y 50..150 - see enemy_info_unknown_svg(), which states the
+# same measurement). The wheels follow APV Wheeled's own rule exactly,
+# minus its middle wheel: radius = 1/3 of the shape's own semi-minor
+# axis (here half the rectangle's height, 50), centred one radius below
+# the bottom edge so each wheel's own top touches it, and inset one
+# radius from the left/right edges.
+_VEHICLE_RECT_X = 25
+_VEHICLE_RECT_Y = 50
+_VEHICLE_RECT_WIDTH = 150
+_VEHICLE_RECT_HEIGHT = 100
+
+_VEHICLE_RECT_RIGHT = _VEHICLE_RECT_X + _VEHICLE_RECT_WIDTH
+_VEHICLE_RECT_BOTTOM = _VEHICLE_RECT_Y + _VEHICLE_RECT_HEIGHT
+
+_VEHICLE_WHEEL_RADIUS = _VEHICLE_RECT_HEIGHT / 2 / 3
+
+_VEHICLE_WHEEL_CENTRE_Y = _VEHICLE_RECT_BOTTOM + _VEHICLE_WHEEL_RADIUS
+
+_VEHICLE_WHEEL_CENTRE_XS = (
+    _VEHICLE_RECT_X + _VEHICLE_WHEEL_RADIUS,
+    _VEHICLE_RECT_RIGHT - _VEHICLE_WHEEL_RADIUS,
+)
+
+# milsymbol's own established letter-in-a-shape proportion, restated
+# for this rectangle: it sets a letter glyph at font-size 45 inside an
+# 80-unit-tall shape (the same measurement _SIDE_DESIGNATION_FONT_SIZE
+# is derived from), so a 100-unit-tall rectangle takes 56.25.
+_VEHICLE_LETTER_FONT_SIZE = 45.0 / 80.0 * _VEHICLE_RECT_HEIGHT
+
+# Qt's own SVG engine does not honour dominant-baseline on either
+# version this project tests against - confirmed against a render, the
+# letter sat a half cap-height high - so the baseline is computed here
+# instead, using the same 0.7-of-font-size cap-height estimate
+# _text_element_bounds() already works to.
+_VEHICLE_LETTER_BASELINE_Y = (
+    _VEHICLE_RECT_Y
+    + _VEHICLE_RECT_HEIGHT / 2
+    + _VEHICLE_LETTER_FONT_SIZE * 0.7 / 2
+)
+
+# Light Recce Vehicle's own "/" starts as Armoured Recce Vehicle's own
+# mark ("of same dimensions as the Armoured Recce Vehicle"), re-anchored
+# to the rectangle's own top-left corner instead of the oval's, with its
+# own lower end touching the top edge exactly - the same way that mark
+# meets the oval.
+#
+# Corrected live the same day, once the first render showed the mark
+# reading as small against a rectangle half again wider than the oval it
+# was sized for: "increase the mast height of the light recce vehicle by
+# 125%". Read the way every other "increase by N%" on this branch has
+# been (a 100% increase doubled the missile dome gap), so 2.25x - and
+# applied to the arm, scaling the whole mark uniformly rather than
+# stretching it vertically, so it stays the same "/" at the same angle.
+_LIGHT_RECCE_VEHICLE_MAST_GROWTH = 2.25
+
+_LIGHT_RECCE_VEHICLE_ARM = (
+    _ARMOURED_RECCE_VEHICLE_ARM * _LIGHT_RECCE_VEHICLE_MAST_GROWTH
+)
+
+# Enough to clear the widened stroke below (roughly 7.5 units after
+# DEFAULT_STROKE_SCALE) wherever it is centred on the ink's own outer
+# edge - including Light Recce Vehicle's own diagonal mast, whose line
+# cap reaches further sideways than any straight edge does. A 4-unit
+# padding, chosen before the stroke was widened, left the mast's own
+# cap hanging outside the viewBox - caught by this family's own
+# viewBox-contains-the-ink test, not by eye.
+_VEHICLE_VIEWBOX_PADDING = 8
+
+_VEHICLE_VIEWBOX_WIDTH = _VEHICLE_RECT_WIDTH + 2 * _VEHICLE_VIEWBOX_PADDING
+
+# Every other Land Equipment icon's own viewBox width - milsymbol's own
+# default for an unamplified glyph, and the width QGIS scales an SVG
+# marker by (see land_equipment_layer_nonnato._MM_PER_ICON_UNIT, whose
+# offsets were confirmed against a real render).
+_STANDARD_EQUIPMENT_VIEWBOX_WIDTH = 108
+
+# Requested live, 2026-09-05, after a smoke test of the first render:
+# "reduce the size of all three by 20% - too big now". The Vehicle
+# family fills far more of its own viewBox than a milsymbol glyph does
+# (a 150-unit rectangle in 158, against roughly 100 in 108) and is
+# nearly twice as tall on top of that, so it reads oversized beside its
+# neighbours at the same marker size. Applied through Land Equipment's
+# own existing per-entity multiplier mechanism (which is why this is
+# exported rather than private), the same one Jammer/Radar use.
+VEHICLE_SIZE_MULTIPLIER = 0.8
+
+# ...and, from the same message: "increase the line width slightly to
+# match with that of APV probably". A stroke's own APPARENT thickness
+# is its width in icon units times (marker size / viewBox width), so a
+# plain "3" - correct for every 108-wide milsymbol glyph - draws this
+# 158-wide icon's lines at 108/158 of everyone else's, thinner again by
+# the 20% reduction above. Both are divided back out here so the family
+# matches Armoured Protected Vehicle's own line weight exactly on the
+# map, which is the comparison the request named.
+_VEHICLE_STROKE_WIDTH = (
+    3
+    * (_VEHICLE_VIEWBOX_WIDTH / _STANDARD_EQUIPMENT_VIEWBOX_WIDTH)
+    / VEHICLE_SIZE_MULTIPLIER
+)
+
+
+def _vehicle_body(colour):
+
+    """The rectangle plus its two wheels - shared by all three entities."""
+
+    wheels = "".join(
+        f'<circle cx="{centre_x:g}" cy="{_VEHICLE_WHEEL_CENTRE_Y:g}" '
+        f'r="{_VEHICLE_WHEEL_RADIUS:g}" stroke-width="{_VEHICLE_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="none"></circle>'
+        for centre_x in _VEHICLE_WHEEL_CENTRE_XS
+    )
+
+    return (
+        f'<rect x="{_VEHICLE_RECT_X:g}" y="{_VEHICLE_RECT_Y:g}" '
+        f'width="{_VEHICLE_RECT_WIDTH:g}" height="{_VEHICLE_RECT_HEIGHT:g}" '
+        f'stroke-width="{_VEHICLE_STROKE_WIDTH:g}" stroke="{colour}" '
+        'fill="none"></rect>'
+        + wheels
+    )
+
+
+def _vehicle_svg(colour, body, content_top=_VEHICLE_RECT_Y):
+
+    """
+    Wraps a vehicle body in its own viewBox, padded evenly around the
+    real ink. `content_top` only ever differs for Light Recce Vehicle,
+    whose "/" reaches above the rectangle.
+    """
+
+    top = content_top - _VEHICLE_VIEWBOX_PADDING
+    bottom = (
+        _VEHICLE_WHEEL_CENTRE_Y
+        + _VEHICLE_WHEEL_RADIUS
+        + _VEHICLE_VIEWBOX_PADDING
+    )
+
+    left = _VEHICLE_RECT_X - _VEHICLE_VIEWBOX_PADDING
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        f'baseProfile="tiny" viewBox="{left:g} {top:g} '
+        f'{_VEHICLE_VIEWBOX_WIDTH:g} {bottom - top:g}">' + body + '</svg>'
+    )
+
+
+def _lettered_vehicle_svg(colour, letter):
+
+    centre_x = _VEHICLE_RECT_X + _VEHICLE_RECT_WIDTH / 2
+
+    glyph = (
+        f'<text x="{centre_x:g}" y="{_VEHICLE_LETTER_BASELINE_Y:g}" '
+        f'text-anchor="middle" font-size="{_VEHICLE_LETTER_FONT_SIZE:g}" '
+        f'font-family="Arial" stroke="none" fill="{colour}">{letter}</text>'
+    )
+
+    return _vehicle_svg(colour, _vehicle_body(colour) + glyph)
+
+
+def b_vehicle_svg(colour):
+
+    """No APP-6E equivalent - the Vehicle family's rectangle-on-two-wheels with a centred "B"."""
+
+    return _lettered_vehicle_svg(colour, "B")
+
+
+def c_vehicle_svg(colour):
+
+    """No APP-6E equivalent - identical to 'B' Vehicle with a "C" instead."""
+
+    return _lettered_vehicle_svg(colour, "C")
+
+
+def light_recce_vehicle_svg(colour):
+
+    """No APP-6E equivalent - the same body with no letter, carrying Armoured Recce Vehicle's own "/" above its top-left corner."""
+
+    arm = _LIGHT_RECCE_VEHICLE_ARM
+
+    mark_top = _VEHICLE_RECT_Y - 2 * arm
+
+    mark = (
+        f'<path d="M{_VEHICLE_RECT_X:g},{_VEHICLE_RECT_Y:g} '
+        f'L{_VEHICLE_RECT_X + arm:g},{mark_top:g}" '
+        f'stroke-width="{_VEHICLE_STROKE_WIDTH:g}" stroke="{colour}" '
+        'fill="none"></path>'
+    )
+
+    return _vehicle_svg(
+        colour, _vehicle_body(colour) + mark, content_top=mark_top
+    )
+
+
+_SYNTHETIC_VEHICLE_SVG = {
+    B_VEHICLE_ENTITY: b_vehicle_svg,
+    C_VEHICLE_ENTITY: c_vehicle_svg,
+    LIGHT_RECCE_VEHICLE_ENTITY: light_recce_vehicle_svg,
+}
+
+
 _EQUIPMENT_ENTITY_FIXUPS = {
     "antipersonnel_land_mine": unfilled_antipersonnel_fragmentation_mine,
     SIGINT_RADAR_ENTITY: add_radar_center_mast,
+    "antitank_missile_launcher": separate_antitank_missile_launcher_dome,
+    "antitank_missile_launcher_light": separate_antitank_missile_launcher_dome,
+    "antitank_missile_launcher_medium": separate_antitank_missile_launcher_dome,
+    "air_defense_missile_launcher": separate_air_defense_missile_launcher_dome,
+    "air_defense_missile_launcher_light": separate_air_defense_missile_launcher_dome,
+    "air_defense_missile_launcher_medium": separate_air_defense_missile_launcher_dome,
+    "missile_launcher": separate_missile_launcher_dome,
+    "missile_launcher_light": separate_missile_launcher_dome,
+    "missile_launcher_medium": separate_missile_launcher_dome,
+    BRIDGE_LAYER_TANK_ENTITY: bridge_layer_tank_mark,
+    ARMOURED_RECCE_VEHICLE_ENTITY: armoured_recce_vehicle_mark,
 }
 
 
@@ -1086,9 +1979,11 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
         else AFFILIATION_COLOURS.get(affiliation, AFFILIATION_COLOURS["friend"])
     )
 
-    if entity in _SYNTHETIC_MINE_SVG:
+    synthetic = _SYNTHETIC_MINE_SVG.get(entity) or _SYNTHETIC_VEHICLE_SVG.get(entity)
 
-        svg = _SYNTHETIC_MINE_SVG[entity](colour)
+    if synthetic:
+
+        svg = synthetic(colour)
 
     else:
 
@@ -1107,7 +2002,18 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
             render_symbol_svg(sidc, options), entity
         )
 
-    svg = inject_centered_designation_below(svg, designation, colour)
+    # Armoured Protection Vehicle (Wheeled) draws lower than this SVG
+    # knows about - its own wheels are separate symbol layers, so the
+    # designation has to be told where they actually end.
+    min_content_bottom = (
+        APV_WHEEL_CENTRE_Y + APV_WHEEL_DIAMETER / 2
+        if entity == APV_WHEELED_ENTITY
+        else None
+    )
+
+    svg = inject_centered_designation_below(
+        svg, designation, colour, min_content_bottom=min_content_bottom
+    )
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 
@@ -1116,27 +2022,33 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
 #
 # Part C's own settled mechanism: "affiliation is coded the same way as
 # NATO... no non-NATO-specific treatment needed for that part." Unlike
-# Unit/Equipment/SIGINT above, the ten other required entities (Decision
+# Unit/Equipment/SIGINT above, the nine other required entities (Decision
 # Point, Fort, Impact Point, Observation Post, Artillery Observation
 # Post, Point Of Interest, Pill Box, Shelter Above Ground, Shelter Below
-# Ground, Target) get NO new rendering logic at all here - they render
-# through the plain existing mct_sidc_svg()/mct_build_sidc() pipeline,
-# same as every other NATO control-measure-points layer, with milsymbol's
-# own real 4-value affiliation colouring and no monoColor override. See
-# control_measure_points_layer_nonnato.py's own renderer for that half.
+# Ground, Target/DF Task) get NO new rendering logic at all here - they
+# render through the plain existing mct_sidc_svg()/mct_build_sidc()
+# pipeline, same as every other NATO control-measure-points layer, with
+# milsymbol's own real 4-value affiliation colouring and no monoColor
+# override. See control_measure_points_layer_nonnato.py's own renderer
+# for that half.
 #
-# Booby Trap is the one exception needing code here: "fully replaces its
+# Booby Trap needed its own custom render function: "fully replaces its
 # current NATO glyph (an ellipse with a triangular peak over it), rather
 # than a tweak to the existing icon" (rules record, 2026-08-31), coloured
 # MINE_GREEN regardless of affiliation - confirmed against
 # obstacle_control_measures.py's own existing green-obstacle default, so
-# this is "carrying over unchanged", not a new non-NATO deviation.
+# this is "carrying over unchanged", not a new non-NATO deviation. The
+# function itself stays here (rendering logic, layer-agnostic) even
+# though the ENTITY moved 2026-09-03 to its own "Mines and Obstacles
+# (Non-NATO)" layer, alongside the mine family below - see
+# mines_and_obstacles_layer_nonnato.py.
 
 def booby_trap_control_measure_svg(colour=MINE_GREEN):
 
     """
-    Control Measure Point's own Booby Trap (280700) - NOT the Land
-    Equipment mine family's own, structurally distinct, Antitank Mine
+    Mines and Obstacles' own Booby Trap (280700, moved 2026-09-03 from
+    Control Measure Points - see this section's own comment above) -
+    NOT the same layer's own, structurally distinct, Antitank Mine
     Booby Trapped synthetic entity (ANTITANK_MINE_BOOBY_TRAPPED_ENTITY
     above), though the two now share the same horn geometry - see
     below.

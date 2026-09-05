@@ -64,23 +64,25 @@ class TestMctNonnatoUnitSvg(QgisTestCase):
         self.assertIn("#3060c0", svg)
 
 
-    def test_echelon_status_and_designation_all_reach_the_render(self):
+    def test_echelon_status_and_designations_all_reach_the_render(self):
 
         svg = self._svg_for(
             "mct_nonnato_unit_svg("
-            "'hostile', 'infantry', 'team_crew', 'planned', 'HQ 3', false)"
+            "'hostile', 'infantry', 'team_crew', 'planned', "
+            "'HQ 3', 'CO B', false)"
         )
 
         self.assertNotIn("M80,40L120,20", svg)  # Detachment fixup applied
         self.assertIn("stroke-dasharray", svg)  # Planned -> dashed
         self.assertIn("HQ 3", svg)
+        self.assertIn("CO B", svg)
 
 
     def test_combined_arms_flag_adds_the_rectangle(self):
 
         without = self._svg_for("mct_nonnato_unit_svg('friend', 'infantry')")
         with_ca = self._svg_for(
-            "mct_nonnato_unit_svg('friend', 'infantry', '', '', '', true)"
+            "mct_nonnato_unit_svg('friend', 'infantry', '', '', '', '', true)"
         )
 
         self.assertEqual(without.count("<rect"), 0)
@@ -310,11 +312,11 @@ class TestNonnatoWidthFunctions(QgisTestCase):
 
         plain = self._evaluate(
             "mct_nonnato_unit_svg_width("
-            "'friend','infantry','unspecified','present','','false')"
+            "'friend','infantry','unspecified','present','','','false')"
         )
         amplified = self._evaluate(
             "mct_nonnato_unit_svg_width("
-            "'friend','infantry','unspecified','present','HQ 3','false')"
+            "'friend','infantry','unspecified','present','HQ 3','','false')"
         )
 
         self.assertGreater(amplified, plain)

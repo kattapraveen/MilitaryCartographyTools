@@ -6,7 +6,7 @@ Builds the "Control Measure Points (Non-NATO)" point layer.
 Structurally different from every other non-NATO layer in this branch:
 Part C's own settled mechanism note - "affiliation is coded the same
 way as NATO... no non-NATO-specific treatment needed for that part" -
-means ten of these eleven entities get NO new rendering logic at all.
+means nine of these ten entities get NO new rendering logic at all.
 They render through the exact same mct_sidc_svg()/mct_build_sidc()
 pipeline every other NATO control-measure-points layer already uses
 (see field_fortification.py's own points layer for the closest
@@ -14,26 +14,34 @@ precedent), with milsymbol's own real 4-value affiliation colouring
 and no monoColor override - not the six-colour non-NATO palette
 Land Unit/Land Equipment/SIGINT use.
 
-Booby Trap and Pill Box are the two exceptions: Booby Trap is a fully
-custom green icon (see nonnato_symbol_engine.booby_trap_control_
-measure_svg()); Pill Box (`shelter`) still goes through milsymbol but
+Pill Box is the one exception: it still goes through milsymbol but
 needs its own hollow-fill fixup (see apply_pillbox_fixup()'s own
 docstring - milsymbol's own `fill: false` option does nothing for it,
-confirmed live). Both are selected by a CASE in the renderer
-expression exactly the way obstacle_control_measures.py already
-branches Trip Wire/Abatis onto their own custom shapes alongside plain
-milsymbol entities on the same layer.
+confirmed live). Selected by a CASE in the renderer expression exactly
+the way obstacle_control_measures.py already branches Trip Wire/Abatis
+onto their own custom shapes alongside plain milsymbol entities on the
+same layer.
+
+Booby Trap (`booby_trap`) - the other custom-icon exception this layer
+used to carry - moved OUT 2026-09-03 to its own "Mines and Obstacles
+(Non-NATO)" layer, alongside the mine family that moved out of Land
+Equipment the same day: "let's move all the mines to a different
+layer - say mines and obstacles; shift booby trap also into this new
+layer". See mines_and_obstacles_layer_nonnato.py -
+nonnato_symbol_engine.booby_trap_control_measure_svg() itself is
+unchanged, only which layer offers it changed.
 
 Required entities and renames - see the rules record's "Control
-Measure Points" section: `target_reference_point` -> Target, `shelter`
--> Pill Box, `observation_post_forward_observer` -> Artillery
-Observation Post. No echelon/headquarters field - Appendix H's own
-amplifier table gives control-measure points neither, same as every
-other Points layer built from this table.
+Measure Points" section: `target_reference_point` -> Target/DF Task
+(renamed again 2026-09-03, from plain "Target"), `shelter` -> Pill Box,
+`observation_post_forward_observer` -> Artillery Observation Post. No
+echelon/headquarters field - Appendix H's own amplifier table gives
+control-measure points neither, same as every other Points layer built
+from this table.
 
-No toolbar action yet, same as every other non-NATO layer so far -
-reachable only by calling add_control_measure_points_layer_nonnato
-(iface) directly.
+Reachable via its own "Control Measure Points" entry in the toolbar's
+"Non-NATO Symbols" group (see plugin.py), or directly via
+add_control_measure_points_layer_nonnato(iface).
 
 Military Cartography Tools
 """
@@ -68,18 +76,17 @@ LAYER_NAME = "Control Measure Points (Non-NATO)"
 
 MARKER_SIZE_MM = 8.0
 
-BOOBY_TRAP_ENTITY = "booby_trap"
-
 PILLBOX_ENTITY = "shelter"
 
-# The eleven required entities - see this module's own docstring and
+# The ten required entities - see this module's own docstring and
 # the rules record's "Control Measure Points" section. Keys are
 # sidc.py's own ENTITIES["control_measure"] keys, unchanged (real 2525E
 # entities, confirmed to exist under that edition and to render as real
 # glyphs - not the unknown-icon fallback - before this module was
-# written). Only three get a renamed display label.
+# written). Only three get a renamed display label. Booby Trap
+# (`booby_trap`) moved out to its own layer 2026-09-03 - see this
+# module's own docstring.
 ENTITY_LABELS = {
-    BOOBY_TRAP_ENTITY: "Booby Trap",
     "decision_point": "Decision Point",
     "fort": "Fort",
     "impact_point": "Impact Point",
@@ -89,7 +96,7 @@ ENTITY_LABELS = {
     "shelter": "Pill Box",
     "shelter_above_ground": "Shelter Above Ground",
     "shelter_below_ground": "Shelter Below Ground",
-    "target_reference_point": "Target",
+    "target_reference_point": "Target/DF Task",
 }
 
 DEFAULT_ENTITY = "decision_point"
@@ -126,7 +133,6 @@ _PILLBOX_EXPRESSION = (
 
 _NAME_EXPRESSION = (
     "CASE"
-    f" WHEN \"entity\" = '{BOOBY_TRAP_ENTITY}' THEN mct_nonnato_booby_trap_svg()"
     f" WHEN \"entity\" = '{PILLBOX_ENTITY}' THEN {_PILLBOX_EXPRESSION}"
     f" ELSE {_MILSYMBOL_SIDC_EXPRESSION}"
     " END"
@@ -134,15 +140,11 @@ _NAME_EXPRESSION = (
 
 _SCALED_SIZE_EXPRESSION = f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
 
-# Booby Trap never carries a designation (booby_trap_control_measure_
-# svg() takes no text argument at all), so its size needs no
-# stabilisation ratio - the plain scaled size is already correct.
 # Pill Box gets its own width-based ratio (mct_nonnato_pillbox_svg_
-# width(), since it branched off the plain pipeline above); every
+# width(), since it branches off the plain pipeline below); every
 # other entity keeps the existing mct_sidc_svg_width()-based one.
 _SIZE_EXPRESSION = (
     "CASE"
-    f" WHEN \"entity\" = '{BOOBY_TRAP_ENTITY}' THEN ({_SCALED_SIZE_EXPRESSION})"
     f" WHEN \"entity\" = '{PILLBOX_ENTITY}' THEN ("
     + stabilised_nonnato_size_expression(
         _SCALED_SIZE_EXPRESSION,

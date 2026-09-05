@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Booby Trap's own custom icon - a hollow circle with four plain
+       horns at 45/135/225/315 degrees - standing in for Mines and
+       Obstacles as a whole, since Booby Trap moved onto this layer
+       2026-09-03 (this icon file moved with it from Control Measure
+       Points, which needed its own new icon instead) -->
+  <circle cx="12" cy="12" r="5.5" fill="none" stroke="#1f3a5f" stroke-width="1.8"/>
+  <line x1="15.9" y1="8.1" x2="19" y2="5" stroke="#1f3a5f" stroke-width="1.8"/>
+  <line x1="8.1" y1="8.1" x2="5" y2="5" stroke="#1f3a5f" stroke-width="1.8"/>
+  <line x1="8.1" y1="15.9" x2="5" y2="19" stroke="#1f3a5f" stroke-width="1.8"/>
+  <line x1="15.9" y1="15.9" x2="19" y2="19" stroke="#1f3a5f" stroke-width="1.8"/>
+</svg>

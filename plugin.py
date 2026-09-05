@@ -56,6 +56,9 @@ from .military_symbology.nonnato_layers import add_nonnato_land_layers
 from .military_symbology.control_measure_points_layer_nonnato import (
     add_control_measure_points_layer_nonnato,
 )
+from .military_symbology.mines_and_obstacles_layer_nonnato import (
+    add_mines_and_obstacles_layer_nonnato,
+)
 from .military_symbology.sustainment_control_measures import (
     add_sustainment_points_layer,
 )
@@ -217,9 +220,14 @@ class MilitaryCartographyTools:
         # two entities, Jammer/Radar, stopped justifying its own
         # layer/module/action - see land_equipment_layer_nonnato.py).
         # Control Measure Points stays its own single action, same
-        # granularity as its NATO counterpart.
+        # granularity as its NATO counterpart. Mines and Obstacles is a
+        # fourth, added 2026-09-03 once the mine family (Land Equipment)
+        # and Booby Trap (Control Measure Points) were consolidated onto
+        # their own dedicated layer - see
+        # mines_and_obstacles_layer_nonnato.py.
         self.nonnato_land_action = None
         self.nonnato_control_measure_points_action = None
+        self.nonnato_mines_and_obstacles_action = None
 
         # "Control Measures" nests as its own flyout submenu (like Sub
         # Grid below) rather than a single QAction, since Appendix H's
@@ -355,6 +363,7 @@ class MilitaryCartographyTools:
         self._setup_tactical_graphics_cyberspace_action()
         self._setup_nonnato_land_action()
         self._setup_nonnato_control_measure_points_action()
+        self._setup_nonnato_mines_and_obstacles_action()
         self._setup_control_measures_menu()
 
         # Assembles every action built above (all built with
@@ -1119,15 +1128,41 @@ class MilitaryCartographyTools:
 
         # One-shot action, not a map tool - see
         # military_symbology/control_measure_points_layer_nonnato.py.
+        # 11 entities until 2026-09-03, when Booby Trap moved out to
+        # Mines and Obstacles - see
+        # _setup_nonnato_mines_and_obstacles_action() below.
         self.nonnato_control_measure_points_action = self._build_action(
             "nonnato_control_measure_points.svg",
             "Control Measure Points",
             tooltip=(
-                "Add a Control Measure Points (Non-NATO) layer (11 "
+                "Add a Control Measure Points (Non-NATO) layer (10 "
                 "entities) that renders each point's own symbol "
                 "automatically from its attributes"
             ),
             callback=self.create_nonnato_control_measure_points,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_mines_and_obstacles_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/mines_and_obstacles_layer_nonnato.py. Added
+        # 2026-09-03: "let's move all the mines to a different layer -
+        # say mines and obstacles; shift booby trap also into this new
+        # layer" - consolidates the nine-entity mine family (previously
+        # on Land Equipment) and Booby Trap (previously on Control
+        # Measure Points) onto one dedicated layer, since both were
+        # already fixed-green, non-affiliation-coloured custom icons.
+        self.nonnato_mines_and_obstacles_action = self._build_action(
+            "nonnato_mines_and_obstacles.svg",
+            "Mines and Obstacles",
+            tooltip=(
+                "Add a Mines and Obstacles (Non-NATO) layer (10 "
+                "entities) that renders each point's own symbol "
+                "automatically from its attributes"
+            ),
+            callback=self.create_nonnato_mines_and_obstacles,
             standalone=False
         )
 
@@ -1643,14 +1678,15 @@ class MilitaryCartographyTools:
                 (
                     "A separate non-NATO tactical symbology scheme "
                     "(own affiliation colours, entity renames, custom "
-                    "icons): Land (including SIGINT) and Control "
-                    "Measure Points - not part of MIL-STD-2525D/E or "
-                    "APP-6D/E, and not yet merged into this plugin's "
-                    "released symbology"
+                    "icons): Land (including SIGINT), Control Measure "
+                    "Points, and Mines and Obstacles - not part of "
+                    "MIL-STD-2525D/E or APP-6D/E, and not yet merged "
+                    "into this plugin's released symbology"
                 ),
                 [
                     self.nonnato_land_action,
                     self.nonnato_control_measure_points_action,
+                    self.nonnato_mines_and_obstacles_action,
                 ],
             ),
             # Print Production stays last, always (2026-08-09, at the
@@ -1954,6 +1990,7 @@ class MilitaryCartographyTools:
         self.tactical_graphics_cyberspace_action = None
         self.nonnato_land_action = None
         self.nonnato_control_measure_points_action = None
+        self.nonnato_mines_and_obstacles_action = None
         self.c2_measures_action = None
         self.maneuver_control_measures_action = None
         self.defensive_control_measures_action = None
@@ -2422,6 +2459,17 @@ class MilitaryCartographyTools:
         """
 
         add_control_measure_points_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_mines_and_obstacles(self):
+        """
+        Add a "Mines and Obstacles (Non-NATO)" layer, ready for placing
+        symbols with QGIS's own native point editing tools.
+        """
+
+        add_mines_and_obstacles_layer_nonnato(
             self.iface
         )
 

@@ -32,10 +32,18 @@ typed designation yet" in an earlier version of this file), then fixed
 nonnato_symbol_engine.stabilised_nonnato_size_expression()'s own
 docstring.
 
-No toolbar action yet either - reachable only by calling
-add_land_unit_layer_nonnato(iface) directly (e.g. from QGIS's own
-Python console), by the maintainer's own request, until this branch's
-non-NATO work is further along.
+A single "unique_designation" field (milsymbol's own side-anchored
+uniqueDesignation slot) was replaced the same day with the two fields
+below - "i want two unique designators - unique designator (left) and
+unique designator (right)... both left and right designators should be
+vertically middle aligned to the left or right of the glyph, the
+present unique designator can be removed or ignored" - see
+nonnato_symbol_engine.inject_side_designations().
+
+Reachable via the "Land" entry in the toolbar's "Non-NATO Symbols"
+group, which adds this layer and Land Equipment (Non-NATO) together
+(see nonnato_layers.py and plugin.py), or directly via
+add_land_unit_layer_nonnato(iface).
 
 Military Cartography Tools
 """
@@ -59,6 +67,8 @@ from ._control_measure_shared import configure_rotation_and_scale_fields
 from ._point_symbol_layer import default_insert_position
 from ..core._layer_utils import add_layer_at_default_position
 from .nonnato_symbol_engine import (
+    AIR_DEFENSE_ARTILLERY_ENTITY,
+    AIR_FORCE_ENTITY,
     ENEMY_INFO_UNKNOWN_ENTITY,
     stabilised_nonnato_size_expression,
 )
@@ -71,15 +81,24 @@ DEFAULT_ENTITY = "infantry"
 MARKER_SIZE_MM = 8.0
 
 # Display labels for the 20 real APP-6E entities the reviewed check
-# sheet confirmed, plus Enemy (Info Unknown). Entity KEYS are the real
-# ground_unit keys sidc_2525e.py already defines (unchanged, so
-# render_nonnato_unit_svg()'s own build_sidc() call resolves them
-# directly) - only the LABEL a user reads in the dropdown is renamed,
-# same convention as every other vocabulary dict in this project. See
-# the rules record's "Required entities"/"Renamed"/"Icon modifications"
-# notes for where each one of these came from.
+# sheet confirmed, plus Enemy (Info Unknown), Air Defence Artillery and
+# Air Force - three entries with no matching real ground_unit key of
+# their own. Every other entry's KEY is a real ground_unit key
+# sidc_2525e.py already defines (unchanged, so render_nonnato_unit_
+# svg()'s own build_sidc() call resolves them directly) - only the
+# LABEL a user reads in the dropdown is renamed, same convention as
+# every other vocabulary dict in this project. See the rules record's
+# "Required entities"/"Renamed"/"Icon modifications" notes for where
+# each one of these came from, and nonnato_symbol_engine.py's own
+# comments for Enemy (Info Unknown) (no SIDC at all), Air Defence
+# Artillery (Air Defence's real SIDC, plus Artillery's own dot fixed up
+# on top - requested live 2026-09-02), and Air Force (Army Aviation's
+# real SIDC, with its own hollow figure-of-8 opened on the right -
+# requested live 2026-09-03).
 ENTITY_LABELS = {
     "air_defense": "Air Defence",
+    AIR_DEFENSE_ARTILLERY_ENTITY: "Air Defence Artillery",
+    AIR_FORCE_ENTITY: "Air Force",
     "ammunition": "Ammunition",
     "amphibious": "Amphibious",
     "armor_mechanized": "Armour",
@@ -95,7 +114,7 @@ ENTITY_LABELS = {
     "medical": "Medical",
     "military_intelligence": "Military Intelligence",
     "military_police": "Military Police",
-    "parachute_rigger": "Parachute Rigger",
+    "parachute_rigger": "Parachute",
     "reconnaissance_cavalry_scout": "Light Armour/Recce & Support (Tracked)",
     "signal": "Signal",
     "special_operations_forces": "Special Operations Forces",
@@ -197,13 +216,25 @@ def _build_renderer():
 
     # Field values are passed straight through - affiliation/entity/
     # echelon/status all use the same stored keys render_nonnato_unit_
-    # svg() itself expects, per the label dicts above.
-    designation_expression = 'upper(coalesce("unique_designation", \'\'))'
+    # svg() itself expects, per the label dicts above. Two independent
+    # designation fields, left and right - see nonnato_symbol_engine.
+    # inject_side_designations()'s own docstring for the 2026-09-02
+    # request this replaces the older single "unique_designation" field
+    # for ("i want two unique designators - unique designator (left)
+    # and unique designator (right)... the present unique designator
+    # can be removed or ignored").
+    designation_left_expression = (
+        'upper(coalesce("unique_designation_left", \'\'))'
+    )
+    designation_right_expression = (
+        'upper(coalesce("unique_designation_right", \'\'))'
+    )
 
     expression = (
         'mct_nonnato_unit_svg('
         '"affiliation","entity","echelon","status",'
-        f'{designation_expression},"combined_arms"'
+        f'{designation_left_expression},{designation_right_expression},'
+        '"combined_arms"'
         ')'
     )
 
@@ -221,22 +252,24 @@ def _build_renderer():
 
     # Holds the icon still when a designation is typed in - see
     # stabilised_nonnato_size_expression()'s own docstring for the
-    # 2026-09-02 fix this is. The "plain" call below passes '' for
-    # designation (not "combined_arms"'s own field - Combined Arms
+    # 2026-09-02 fix this is. The "plain" call below passes '' for both
+    # designation sides (not "combined_arms"'s own field - Combined Arms
     # widens the icon too, but by drawing a rectangle around it, not by
-    # milsymbol's own text-box widening, so it is correctly left as a
-    # live field reference on both sides and cancels out of the ratio).
+    # the side-designation text-box widening, so it is correctly left as
+    # a live field reference on both sides and cancels out of the
+    # ratio).
     amplified_width_expression = (
         'mct_nonnato_unit_svg_width('
         '"affiliation","entity","echelon","status",'
-        f'{designation_expression},"combined_arms"'
+        f'{designation_left_expression},{designation_right_expression},'
+        '"combined_arms"'
         ')'
     )
 
     plain_width_expression = (
         'mct_nonnato_unit_svg_width('
         '"affiliation","entity","echelon","status",'
-        '\'\',"combined_arms"'
+        '\'\',\'\',"combined_arms"'
         ')'
     )
 
@@ -284,7 +317,8 @@ def build_land_unit_layer_nonnato():
         QgsField("echelon", QMetaType.Type.QString),
         QgsField("status", QMetaType.Type.QString),
         QgsField("combined_arms", QMetaType.Type.Bool),
-        QgsField("unique_designation", QMetaType.Type.QString),
+        QgsField("unique_designation_left", QMetaType.Type.QString),
+        QgsField("unique_designation_right", QMetaType.Type.QString),
         QgsField("rotation", QMetaType.Type.Double),
         QgsField("scale", QMetaType.Type.Double),
     ]

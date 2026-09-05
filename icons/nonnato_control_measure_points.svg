@@ -1,11 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-  <!-- Booby Trap's own custom icon - a hollow circle with four plain
-       horns at 45/135/225/315 degrees - standing in for Control
-       Measure Points as a whole, since it is the one entity in this
-       table that isn't a plain milsymbol glyph -->
-  <circle cx="12" cy="12" r="5.5" fill="none" stroke="#1f3a5f" stroke-width="1.8"/>
-  <line x1="15.9" y1="8.1" x2="19" y2="5" stroke="#1f3a5f" stroke-width="1.8"/>
-  <line x1="8.1" y1="8.1" x2="5" y2="5" stroke="#1f3a5f" stroke-width="1.8"/>
-  <line x1="8.1" y1="15.9" x2="5" y2="19" stroke="#1f3a5f" stroke-width="1.8"/>
-  <line x1="15.9" y1="15.9" x2="19" y2="19" stroke="#1f3a5f" stroke-width="1.8"/>
+  <!-- Generic crosshair/target mark, standing in for Control Measure
+       Points as a whole now that Booby Trap (the icon this file used
+       to show) moved to Mines and Obstacles 2026-09-03 - the ten
+       entities left here are all plain milsymbol glyphs with no single
+       obvious shape of their own, so a generic point-on-a-target mark
+       reads better than picking one entity's own real glyph -->
+  <circle cx="12" cy="12" r="6" fill="none" stroke="#1f3a5f" stroke-width="1.7"/>
+  <circle cx="12" cy="12" r="1.4" fill="#1f3a5f" stroke="none"/>
+  <line x1="12" y1="1.5" x2="12" y2="5" stroke="#1f3a5f" stroke-width="1.7"/>
+  <line x1="12" y1="19" x2="12" y2="22.5" stroke="#1f3a5f" stroke-width="1.7"/>
+  <line x1="1.5" y1="12" x2="5" y2="12" stroke="#1f3a5f" stroke-width="1.7"/>
+  <line x1="19" y1="12" x2="22.5" y2="12" stroke="#1f3a5f" stroke-width="1.7"/>
 </svg>

@@ -45,13 +45,33 @@ def _viewbox_width(svg):
     return float(match.group(1)) if match else 0.0
 
 
+def _viewbox_height(svg):
+
+    """
+    The rendered SVG's own declared height (viewBox's 4th number) - the
+    companion to _viewbox_width() above, needed for a different reason:
+    QGIS anchors an SVG marker on the CENTRE of its own viewBox, and
+    inject_centered_designation_below() grows that viewBox downward to
+    fit the designation text, which moves the centre down and so shifts
+    the icon itself UP on the map. Anything composed alongside the icon
+    as its own symbol layer (see land_equipment_layer_nonnato.py's own
+    _wheel_symbol_layers()) has to follow that shift, which means
+    knowing the height the icon actually rendered at.
+    """
+
+    match = re.search(r'viewBox="\S+ \S+ \S+ (\S+)"', svg)
+
+    return float(match.group(1)) if match else 0.0
+
+
 def _render_unit(values):
 
     """
     Shared argument parsing for mct_nonnato_unit_svg()/_width() - kept
     in one place so the two can never read a differently-defaulted
-    echelon/status/designation/combined_arms from the same raw
-    `values`. Returns (svg, error_text); exactly one is None.
+    echelon/status/designation_left/designation_right/combined_arms
+    from the same raw `values`. Returns (svg, error_text); exactly one
+    is None.
     """
 
     if len(values) < 2:
@@ -61,8 +81,9 @@ def _render_unit(values):
     entity = str(values[1])
     echelon = str(values[2]) if len(values) > 2 and values[2] else "unspecified"
     status = str(values[3]) if len(values) > 3 and values[3] else "present"
-    designation = values[4] if len(values) > 4 else None
-    combined_arms = bool(values[5]) if len(values) > 5 and values[5] else False
+    designation_left = values[4] if len(values) > 4 else None
+    designation_right = values[5] if len(values) > 5 else None
+    combined_arms = bool(values[6]) if len(values) > 6 and values[6] else False
 
     try:
 
@@ -71,7 +92,8 @@ def _render_unit(values):
             entity,
             echelon=echelon,
             status=status,
-            designation=designation,
+            designation_left=designation_left,
+            designation_right=designation_right,
             combined_arms=combined_arms,
         )
 
@@ -104,7 +126,8 @@ def mct_nonnato_unit_svg(values, feature=None, parent=None):
 
     Arguments, all but the first two optional: affiliation, entity,
     echelon (default "unspecified"), status (default "present"),
-    designation (default none), combined_arms (default false).
+    designation_left (default none), designation_right (default none),
+    combined_arms (default false).
 
     See mct_nonnato_unit_svg_width() below for the icon-size
     stabilisation companion function - land_unit_layer_nonnato.py's own
@@ -202,6 +225,12 @@ def mct_nonnato_equipment_svg(values, feature=None, parent=None):
     justifying its own module. render_nonnato_equipment_svg() itself
     handles the different SIDC symbol_set those two need.
 
+    Also called from the "Mines and Obstacles (Non-NATO)" layer since
+    2026-09-03, for the nine mine entities that moved out of Land
+    Equipment there (see mines_and_obstacles_layer_nonnato.py) - this
+    function itself needed no change, since it was always layer-
+    agnostic; only which layer's own renderer calls it changed.
+
     Arguments, the second optional: affiliation, entity, designation
     (default none). See mct_nonnato_equipment_svg_width() below for the
     icon-size stabilisation companion function.
@@ -234,19 +263,53 @@ def mct_nonnato_equipment_svg_width(values, feature=None, parent=None):
 
 
 @qgsfunction(
+    'mct_nonnato_equipment_svg_height',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_equipment_svg_height(values, feature=None, parent=None):
+
+    """
+    The rendered HEIGHT of exactly the symbol mct_nonnato_equipment_
+    svg() would return, in milsymbol's own icon units - takes the same
+    argument list as its two siblings above.
+
+    Added 2026-09-03 for Armoured Protection Vehicle (Wheeled), whose
+    own three wheels are separate simple-marker symbol layers rather
+    than circles inside the SVG (see land_equipment_layer_nonnato.py's
+    own _wheel_symbol_layers() for why). Those layers are offset from
+    the map point, but the ICON is anchored on its own viewBox centre -
+    and that centre moves down as soon as a designation grows the
+    viewBox downward, shifting the icon up while a fixed offset would
+    leave the wheels behind, overlapping the designation text (reported
+    live: "when i add the unique designator in APV wheeled, the wheels
+    shift and overlap on the text of unique designation instead of
+    staying where they are"). Feeding this height into the wheels' own
+    offset expression keeps them locked to the hull.
+    """
+
+    svg, error = _render_equipment(values)
+
+    if error is not None:
+        return 0.0
+
+    return _viewbox_height(svg)
+
+
+@qgsfunction(
     'mct_nonnato_booby_trap_svg',
     group='Military Cartography Tools'
 )
 def mct_nonnato_booby_trap_svg(values, feature=None, parent=None):
 
     """
-    "base64:<...>" for the Control Measure Point's own Booby Trap - a
-    fully custom icon (see booby_trap_control_measure_svg()'s own
-    docstring), not routed through mct_sidc_svg()/milsymbol at all.
-    Fixed MINE_GREEN, no arguments needed - unlike every other
-    mct_nonnato_*_svg() function, this one entity's colour never varies
-    by affiliation, matching every other mine-family icon's own
-    convention.
+    "base64:<...>" for Mines and Obstacles' own Booby Trap (moved here
+    2026-09-03 from Control Measure Points, alongside the mine family -
+    see mines_and_obstacles_layer_nonnato.py) - a fully custom icon (see
+    booby_trap_control_measure_svg()'s own docstring), not routed
+    through mct_sidc_svg()/milsymbol at all. Fixed MINE_GREEN, no
+    arguments needed - unlike every other mct_nonnato_*_svg() function,
+    this one entity's colour never varies by affiliation, matching every
+    other mine-family icon's own convention.
     """
 
     svg = booby_trap_control_measure_svg()
@@ -322,6 +385,7 @@ _FUNCTIONS = [
     mct_nonnato_unit_svg_width,
     mct_nonnato_equipment_svg,
     mct_nonnato_equipment_svg_width,
+    mct_nonnato_equipment_svg_height,
     mct_nonnato_booby_trap_svg,
     mct_nonnato_pillbox_svg,
     mct_nonnato_pillbox_svg_width,
