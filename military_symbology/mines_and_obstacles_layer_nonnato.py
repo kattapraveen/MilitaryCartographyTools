@@ -78,6 +78,7 @@ from .nonnato_symbol_engine import (
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
     INFLUENCE_MINE_ANTI_TANK_ENTITY,
     UNKNOWN_MINE_ENTITY,
+    nonnato_entity_size_multiplier_expression,
     stabilised_nonnato_size_expression,
 )
 
@@ -128,29 +129,23 @@ _NAME_EXPRESSION = (
 
 _SCALED_SIZE_EXPRESSION = f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
 
-# Bar Mine's own circle rendered visibly smaller than every other
-# mine's - reported live after a real smoke test on this new layer:
-# "the size of the circle is too small, make the size of circle same
-# as all other mines and therefore, the bar below the circle is also
-# increased in size". Root cause: bar_mine_svg() declares a WIDER
-# viewBox (160 units) than every other mine's own (108 units) to make
-# room for the rectangle below the circle - QGIS sizes an SVG marker
-# off its own declared width, so the SAME 22-unit circle radius reads
-# as a smaller fraction of a 160-wide box than a 108-wide one, hence
-# smaller on screen at the same declared marker size. Rather than
-# hand-editing bar_mine_svg()'s own geometry (which would also need its
-# own viewBox re-expanded to avoid clipping the now-bigger shape), a
-# per-entity size multiplier scales the whole rendered marker up by
-# exactly the viewBox-width ratio (160/108) - the same "reads smaller
-# than its siblings, boost it" pattern land_equipment_layer_nonnato.py
-# already uses for Jammer/Radar. Scaling the WHOLE icon up naturally
-# grows the rectangle right along with the circle, matching "therefore
-# the bar... is also increased in size".
-_BAR_MINE_SIZE_MULTIPLIER = 160 / 108
+# Bar Mine's own 160-unit viewBox (wider than every other mine's 108,
+# to make room for the rectangle below the circle) made the SAME
+# 22-unit circle read smaller on screen, since QGIS sizes an SVG marker
+# off its declared width - reported live 2026-09-03: "bar mine - the
+# size of the circle is too small... and therefore, the bar below the
+# circle is also increased in size". A per-entity multiplier of exactly
+# the viewBox-width ratio fixes it and grows the rectangle right along
+# with the circle. That multiplier now lives in nonnato_symbol_engine's
+# own shared table (2026-09-05) rather than here, because the engine
+# has to divide it back out again when sizing designation text - see
+# NONNATO_ENTITY_SIZE_MULTIPLIERS.
+_MINE_SIZE_MULTIPLIER_EXPRESSION = nonnato_entity_size_multiplier_expression(
+    ENTITY_LABELS
+)
 
 _MINE_SCALED_SIZE_EXPRESSION = (
-    f'({_SCALED_SIZE_EXPRESSION}) * (CASE WHEN "entity" = '
-    f"'{BAR_MINE_ENTITY}' THEN {_BAR_MINE_SIZE_MULTIPLIER:g} ELSE 1 END)"
+    f"({_SCALED_SIZE_EXPRESSION}) * ({_MINE_SIZE_MULTIPLIER_EXPRESSION})"
 )
 
 # Booby Trap never carries a designation, so its size needs no

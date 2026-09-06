@@ -971,20 +971,71 @@ def render_nonnato_unit_svg(
 # boundsOnElement()) - genuinely dynamic in the sense asked for: every
 # icon, present or future, measures its own real ink, no per-icon
 # constant to keep in sync by hand.
+# milsymbol's own viewBox width for an unamplified glyph, and so the
+# width every length in this module is implicitly calibrated against -
+# QGIS scales an SVG marker so its declared viewBox WIDTH equals the
+# marker size (confirmed against a real render via land_equipment_
+# layer_nonnato._MM_PER_ICON_UNIT). Anything authored in a WIDER
+# viewBox has to divide that ratio back out or it draws small: the
+# Vehicle family's own stroke width does, and so does the designation
+# text below.
+_STANDARD_EQUIPMENT_VIEWBOX_WIDTH = 108
+
 _DESIGNATION_FONT_SIZE = 28.0
 _DESIGNATION_GAP = 6.0
 
 
-def _designation_font_size(text, max_width):
+def designation_font_size_in_icon_units(viewbox_width, size_multiplier=1.0):
 
     """
-    `_DESIGNATION_FONT_SIZE`, or smaller if `text` would otherwise spill
-    past `max_width` - same QFontMetricsF technique symbol_engine.py's
-    own _fitted_font_size() uses, reimplemented here rather than
-    imported because that one measures against a single hardcoded
-    constant (built for one specific icon's own fixed-width supply
-    box), not a caller-supplied width that varies with every icon's own
-    viewBox.
+    `_DESIGNATION_FONT_SIZE`, restated in ONE icon's own units so that
+    every icon's designation comes out the SAME apparent size on the
+    map - the general form of the compensation the Vehicle family's own
+    stroke width already needed.
+
+    QGIS scales an SVG marker so its declared viewBox WIDTH equals the
+    marker size, so a length written in icon units draws at
+    `length * (marker size * entity multiplier / viewBox width)`. Every
+    number in this module was calibrated against milsymbol's own
+    108-wide viewBox at multiplier 1, so an icon that departs from
+    either has to divide both back out. Two ways that happens today:
+    - a hand-built SVG with a wider viewBox (the Vehicle family's 166),
+      which shrinks the text;
+    - a per-entity size multiplier (Jammer/Radar's 1.8, the Vehicle
+      family's 0.8), which scales the whole marker and the text with
+      it.
+
+    Bar Mine has BOTH and is the reason this is one formula rather than
+    two fixes: its 160-wide viewBox and its own 160/108 multiplier
+    cancel exactly, which is why its designation was already correct
+    and must stay untouched here.
+
+    Flagged 2026-09-05 while the Vehicle family's strokes were being
+    compensated, deliberately deferred then, and settled here.
+    """
+
+    return (
+        _DESIGNATION_FONT_SIZE
+        * (viewbox_width / _STANDARD_EQUIPMENT_VIEWBOX_WIDTH)
+        / size_multiplier
+    )
+
+
+def _designation_font_size(text, max_width, base_size=_DESIGNATION_FONT_SIZE):
+
+    """
+    `base_size`, or smaller if `text` would otherwise spill past
+    `max_width` - same QFontMetricsF technique symbol_engine.py's own
+    _fitted_font_size() uses, reimplemented here rather than imported
+    because that one measures against a single hardcoded constant
+    (built for one specific icon's own fixed-width supply box), not a
+    caller-supplied width that varies with every icon's own viewBox.
+
+    `base_size` defaults to the plain constant, but an icon in a
+    non-108 viewBox passes the compensated size from
+    designation_font_size_in_icon_units() instead - the shrink-to-fit
+    then works off THAT, so a long designation still shrinks by the
+    same proportion it would anywhere else.
     """
 
     try:
@@ -997,17 +1048,17 @@ def _designation_font_size(text, max_width):
         width = (
             QFontMetricsF(font).horizontalAdvance(text)
             / 1000.0
-            * _DESIGNATION_FONT_SIZE
+            * base_size
         )
 
     except Exception:
 
-        return _DESIGNATION_FONT_SIZE
+        return base_size
 
     if width <= max_width:
-        return _DESIGNATION_FONT_SIZE
+        return base_size
 
-    return _DESIGNATION_FONT_SIZE * max_width / width
+    return base_size * max_width / width
 
 
 def _designation_text_width(text, font_size):
@@ -1185,7 +1236,7 @@ def _content_bounds(svg, fallback):
 
 
 def inject_centered_designation_below(
-    svg, designation, colour, min_content_bottom=None
+    svg, designation, colour, min_content_bottom=None, size_multiplier=1.0
 ):
 
     """
@@ -1212,6 +1263,13 @@ def inject_centered_designation_below(
     tuck the designation under the hull and straight through them.
     Passing the lowest point those layers actually reach keeps the
     normal gap below the WHOLE icon instead.
+
+    `size_multiplier` is the icon's own per-entity marker multiplier
+    (nonnato_entity_size_multiplier()). Together with the icon's own
+    viewBox width it decides the font size in icon units, so that the
+    text draws the same size on the map whatever viewBox the icon was
+    authored in and whatever multiplier scales it - see
+    designation_font_size_in_icon_units().
     """
 
     if not designation:
@@ -1235,7 +1293,9 @@ def inject_centered_designation_below(
 
     text = str(designation).upper()
 
-    font_size = _designation_font_size(text, vb_w * 0.9)
+    base_font_size = designation_font_size_in_icon_units(vb_w, size_multiplier)
+
+    font_size = _designation_font_size(text, vb_w * 0.9, base_font_size)
 
     svg = _expand_viewbox_for_rect(
         svg,
@@ -1789,12 +1849,6 @@ _VEHICLE_VIEWBOX_PADDING = 8
 
 _VEHICLE_VIEWBOX_WIDTH = _VEHICLE_RECT_WIDTH + 2 * _VEHICLE_VIEWBOX_PADDING
 
-# Every other Land Equipment icon's own viewBox width - milsymbol's own
-# default for an unamplified glyph, and the width QGIS scales an SVG
-# marker by (see land_equipment_layer_nonnato._MM_PER_ICON_UNIT, whose
-# offsets were confirmed against a real render).
-_STANDARD_EQUIPMENT_VIEWBOX_WIDTH = 108
-
 # Requested live, 2026-09-05, after a smoke test of the first render:
 # "reduce the size of all three by 20% - too big now". The Vehicle
 # family fills far more of its own viewBox than a milsymbol glyph does
@@ -1809,7 +1863,7 @@ VEHICLE_SIZE_MULTIPLIER = 0.8
 # match with that of APV probably". A stroke's own APPARENT thickness
 # is its width in icon units times (marker size / viewBox width), so a
 # plain "3" - correct for every 108-wide milsymbol glyph - draws this
-# 158-wide icon's lines at 108/158 of everyone else's, thinner again by
+# 166-wide icon's lines at 108/166 of everyone else's, thinner again by
 # the 20% reduction above. Both are divided back out here so the family
 # matches Armoured Protected Vehicle's own line weight exactly on the
 # map, which is the comparison the request named.
@@ -1944,6 +1998,71 @@ def apply_nonnato_equipment_fixups(svg, entity):
     return fixup(svg) if fixup else svg
 
 
+# --- Per-entity size multipliers ---------------------------------------
+#
+# Every non-NATO point layer scales its own marker by this, on top of
+# its own MARKER_SIZE_MM and the feature's own "scale" field. The table
+# lives HERE, not in the layers that apply it, because two things in
+# this module have to divide it back out to stay visually correct: the
+# Vehicle family's own stroke width, and every icon's own designation
+# text (designation_font_size_in_icon_units()). Keeping it in the layer
+# split that knowledge in two, which is how the designation text came
+# to be wrong for the Vehicle family in the first place.
+#
+# Entity keys do not collide across layers, so one table serves all of
+# them.
+_SIGINT_SIZE_MULTIPLIER = 1.8
+
+NONNATO_ENTITY_SIZE_MULTIPLIERS = {
+    # Jammer/Radar read visibly smaller than their neighbours -
+    # "Jammer and radar (sigint) are still smaller than other land
+    # equipment, adjust them same as others" (2026-09-02). 1.8x came
+    # from measured bounding boxes, not a guess.
+    "jammer": _SIGINT_SIZE_MULTIPLIER,
+    SIGINT_RADAR_ENTITY: _SIGINT_SIZE_MULTIPLIER,
+
+    # The opposite problem - the Vehicle family draws nearly edge to
+    # edge in its own viewBox and is close to twice as tall as a
+    # milsymbol glyph, so it came out oversized ("reduce the size of
+    # all three by 20% - too big now", 2026-09-05).
+    B_VEHICLE_ENTITY: VEHICLE_SIZE_MULTIPLIER,
+    C_VEHICLE_ENTITY: VEHICLE_SIZE_MULTIPLIER,
+    LIGHT_RECCE_VEHICLE_ENTITY: VEHICLE_SIZE_MULTIPLIER,
+
+    # Bar Mine's own 160-wide viewBox made the SAME 22-unit circle read
+    # smaller than every other mine's - "bar mine - the size of the
+    # circle is too small" (2026-09-03). The multiplier is exactly the
+    # viewBox-width ratio, so it cancels that ratio completely: this is
+    # the entity that proves designation_font_size_in_icon_units() has
+    # to account for BOTH factors rather than either one alone.
+    BAR_MINE_ENTITY: 160 / _STANDARD_EQUIPMENT_VIEWBOX_WIDTH,
+}
+
+
+def nonnato_entity_size_multiplier(entity):
+
+    """This entity's own marker size multiplier, or 1 for the great majority that need none."""
+
+    return NONNATO_ENTITY_SIZE_MULTIPLIERS.get(entity, 1)
+
+
+def nonnato_entity_size_multiplier_expression(entities):
+
+    """
+    The same table as a QGIS CASE expression over `entities` - each
+    layer passes its OWN entity keys, so a layer never carries a branch
+    for an entity it does not offer.
+    """
+
+    branches = " ".join(
+        f"WHEN \"entity\" = '{entity}' THEN {nonnato_entity_size_multiplier(entity):g}"
+        for entity in entities
+        if entity in NONNATO_ENTITY_SIZE_MULTIPLIERS
+    )
+
+    return f"CASE {branches} ELSE 1 END" if branches else "1"
+
+
 def render_nonnato_equipment_svg(affiliation, entity, designation=None):
 
     """
@@ -2012,7 +2131,11 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
     )
 
     svg = inject_centered_designation_below(
-        svg, designation, colour, min_content_bottom=min_content_bottom
+        svg,
+        designation,
+        colour,
+        min_content_bottom=min_content_bottom,
+        size_multiplier=nonnato_entity_size_multiplier(entity),
     )
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)

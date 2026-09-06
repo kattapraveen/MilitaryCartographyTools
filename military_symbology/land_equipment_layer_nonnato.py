@@ -83,7 +83,7 @@ from .nonnato_symbol_engine import (
     C_VEHICLE_ENTITY,
     LIGHT_RECCE_VEHICLE_ENTITY,
     SIGINT_RADAR_ENTITY,
-    VEHICLE_SIZE_MULTIPLIER,
+    nonnato_entity_size_multiplier_expression,
     stabilised_nonnato_size_expression,
 )
 
@@ -252,41 +252,17 @@ def _configure_attribute_form(layer):
     configure_rotation_and_scale_fields(layer)
 
 
-# Jammer/Radar (SIGINT, merged in 2026-09-02) read visibly smaller
-# than every other Land Equipment icon at the same declared marker
-# size, confirmed by measuring rendered pixel extents directly: both
-# are a compact/bare glyph (a single letter, a small hooked line) that
-# occupies a much smaller fraction of its own declared viewBox than a
-# typical Equipment icon's own path does, even though every icon here
-# shares the same declared width QGIS scales against. Reported live:
-# "Jammer and radar (sigint) are still smaller than other land
-# equipment, adjust them same as others". 1.8x brings their own
-# measured bounding-box height roughly in line with the other
-# entities' own average - a real measurement, not a guess, though
-# still an approximation given how much bounding-box size already
-# varies entity to entity even among icons nobody complained about.
-_SIGINT_SIZE_MULTIPLIER = 1.8
-
-_ENTITY_SIZE_MULTIPLIERS = {
-    "jammer": _SIGINT_SIZE_MULTIPLIER,
-    SIGINT_RADAR_ENTITY: _SIGINT_SIZE_MULTIPLIER,
-
-    # The other direction, and for the opposite reason - the Vehicle
-    # family draws nearly edge to edge in its own viewBox and is close
-    # to twice as tall as a milsymbol glyph, so it came out oversized
-    # beside its neighbours ("reduce the size of all three by 20% - too
-    # big now", 2026-09-05). The factor lives in nonnato_symbol_engine
-    # rather than here because that module's own stroke width is
-    # derived from it - see VEHICLE_SIZE_MULTIPLIER.
-    B_VEHICLE_ENTITY: VEHICLE_SIZE_MULTIPLIER,
-    C_VEHICLE_ENTITY: VEHICLE_SIZE_MULTIPLIER,
-    LIGHT_RECCE_VEHICLE_ENTITY: VEHICLE_SIZE_MULTIPLIER,
-}
-
-_ENTITY_SIZE_MULTIPLIER_EXPRESSION = "CASE " + " ".join(
-    f"WHEN \"entity\" = '{entity}' THEN {multiplier:g}"
-    for entity, multiplier in _ENTITY_SIZE_MULTIPLIERS.items()
-) + " ELSE 1 END"
+# Per-entity size multipliers - Jammer/Radar up 1.8x, the Vehicle
+# family down to 0.8x. Both the table and the CASE expression live in
+# nonnato_symbol_engine now (2026-09-05): that module has to divide the
+# same multiplier back out of the Vehicle family's own stroke width AND
+# of every icon's own designation text, and keeping a second copy here
+# is exactly how the designation text came to be wrong for that family.
+# See NONNATO_ENTITY_SIZE_MULTIPLIERS for the reasoning behind each
+# value. Only this layer's own entities get a branch.
+_ENTITY_SIZE_MULTIPLIER_EXPRESSION = nonnato_entity_size_multiplier_expression(
+    ENTITY_LABELS
+)
 
 
 # Armoured Protection Vehicle (Wheeled)'s own three wheels are their

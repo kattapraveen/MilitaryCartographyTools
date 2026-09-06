@@ -1904,3 +1904,194 @@ class TestViewboxExpansionLeavesDrawnRectanglesAlone(QgisTestCase):
 
         self.assertIn('width="108" height="216"', grown)
         self.assertIn('<rect x="50" y="50" width="10" height="10">', grown)
+
+
+class TestDesignationSizeIsUniformOnTheMap(QgisTestCase):
+
+    """
+    A designation must draw the same size on the map whatever viewBox
+    its icon was authored in and whatever per-entity multiplier scales
+    that icon - settled 2026-09-05, having been flagged and deliberately
+    deferred when the Vehicle family's own strokes were compensated the
+    same way.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _apparent_size(self, entity, marker_size_mm):
+
+        """
+        The designation's own rendered height in millimetres - font size
+        in icon units times (marker size * multiplier / viewBox width),
+        which is exactly how QGIS scales an SVG marker.
+        """
+
+        svg = nse.render_nonnato_equipment_svg("friend", entity, "a1")
+
+        viewbox_width = float(nse._VIEWBOX_PATTERN.search(svg).group(3))
+
+        font_size = float(
+            re.search(r'<text x="\S+" y="\S+"[^>]*font-size="([\d.]+)"[^>]*>A1</text>', svg)
+            .group(1)
+        )
+
+        multiplier = nse.nonnato_entity_size_multiplier(entity)
+
+        return font_size * (marker_size_mm * multiplier / viewbox_width)
+
+
+    def test_the_plain_case_is_unchanged(self):
+
+        # An icon in milsymbol's own 108-wide viewBox with no
+        # multiplier keeps the bare constant - the great majority of
+        # entities, and the calibration everything else is measured
+        # against.
+        self.assertAlmostEqual(
+            nse.designation_font_size_in_icon_units(108, 1.0),
+            nse._DESIGNATION_FONT_SIZE,
+        )
+
+
+    def test_a_wider_viewbox_scales_the_font_up(self):
+
+        # Its units are smaller on screen, so it needs more of them.
+        self.assertAlmostEqual(
+            nse.designation_font_size_in_icon_units(216, 1.0),
+            nse._DESIGNATION_FONT_SIZE * 2,
+        )
+
+
+    def test_a_size_multiplier_scales_the_font_down(self):
+
+        # The whole marker is already being scaled up, text included.
+        self.assertAlmostEqual(
+            nse.designation_font_size_in_icon_units(108, 2.0),
+            nse._DESIGNATION_FONT_SIZE / 2,
+        )
+
+
+    def test_bar_mines_own_two_factors_cancel(self):
+
+        # Bar Mine is why this is one formula rather than two separate
+        # fixes: its 160-wide viewBox and its own 160/108 multiplier
+        # cancel exactly, so its designation was already correct and
+        # must come out of this unchanged.
+        multiplier = nse.nonnato_entity_size_multiplier(nse.BAR_MINE_ENTITY)
+
+        self.assertAlmostEqual(
+            nse.designation_font_size_in_icon_units(160, multiplier),
+            nse._DESIGNATION_FONT_SIZE,
+        )
+
+
+    def test_every_land_equipment_entity_draws_it_the_same_size(self):
+
+        from MilitaryCartographyTools.military_symbology import (
+            land_equipment_layer_nonnato as layer_module,
+        )
+
+        sizes = {
+            entity: self._apparent_size(entity, layer_module.MARKER_SIZE_MM)
+            for entity in layer_module.ENTITY_LABELS
+        }
+
+        reference = sizes["tank"]
+
+        for entity, size in sizes.items():
+
+            with self.subTest(entity=entity):
+
+                # places=4 rather than exact: the font size reaches the
+                # SVG through "%g", which rounds it to six significant
+                # figures (28/1.8 becomes 15.5556).
+                self.assertAlmostEqual(size, reference, places=4)
+
+
+    def test_every_mine_draws_it_the_same_size(self):
+
+        from MilitaryCartographyTools.military_symbology import (
+            mines_and_obstacles_layer_nonnato as layer_module,
+        )
+
+        # Booby Trap never carries a designation at all.
+        entities = [
+            entity for entity in layer_module.ENTITY_LABELS
+            if entity != layer_module.BOOBY_TRAP_ENTITY
+        ]
+
+        sizes = {
+            entity: self._apparent_size(entity, layer_module.MARKER_SIZE_MM)
+            for entity in entities
+        }
+
+        reference = sizes["land_mine"]
+
+        for entity, size in sizes.items():
+
+            with self.subTest(entity=entity):
+
+                # places=4 rather than exact: the font size reaches the
+                # SVG through "%g", which rounds it to six significant
+                # figures (28/1.8 becomes 15.5556).
+                self.assertAlmostEqual(size, reference, places=4)
+
+
+    def test_a_long_designation_still_shrinks_to_fit(self):
+
+        # The shrink-to-fit works off the COMPENSATED base, not the
+        # bare constant - otherwise a wide-viewBox icon would either
+        # never shrink or shrink at the wrong point.
+        long_text = "A VERY LONG DESIGNATION INDEED"
+
+        for entity in ("tank", nse.B_VEHICLE_ENTITY):
+
+            with self.subTest(entity=entity):
+
+                short = nse.render_nonnato_equipment_svg("friend", entity, "a1")
+                long = nse.render_nonnato_equipment_svg("friend", entity, long_text)
+
+                def font_size(svg):
+                    return float(
+                        re.search(r'font-size="([\d.]+)"[^>]*>[^<]*</text>\s*</svg>', svg)
+                        .group(1)
+                    )
+
+                self.assertLess(font_size(long), font_size(short))
+
+
+    def test_the_multiplier_table_is_the_single_source_of_truth(self):
+
+        # Both layers build their own CASE expression from this table
+        # rather than keeping a second copy - the split that caused the
+        # Vehicle family's designation to be wrong in the first place.
+        from MilitaryCartographyTools.military_symbology import (
+            land_equipment_layer_nonnato as equipment,
+            mines_and_obstacles_layer_nonnato as mines,
+        )
+
+        expression = nse.nonnato_entity_size_multiplier_expression(
+            equipment.ENTITY_LABELS
+        )
+
+        self.assertIn("jammer", expression)
+        self.assertIn(nse.B_VEHICLE_ENTITY, expression)
+
+        # A layer never carries a branch for an entity it does not offer.
+        self.assertNotIn(nse.BAR_MINE_ENTITY, expression)
+
+        mine_expression = nse.nonnato_entity_size_multiplier_expression(
+            mines.ENTITY_LABELS
+        )
+
+        self.assertIn(nse.BAR_MINE_ENTITY, mine_expression)
+        self.assertNotIn("jammer", mine_expression)
+
+
+    def test_an_entity_with_no_multiplier_gets_one(self):
+
+        self.assertEqual(nse.nonnato_entity_size_multiplier("tank"), 1)

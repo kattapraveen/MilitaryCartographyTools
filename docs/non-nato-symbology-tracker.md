@@ -1098,19 +1098,56 @@ Meta-questions likely to come up regardless of category/domain.
       removed); the new layer carries all 10 of them.
 - [ ] Designation / label placement conventions — to be specified
       later.
-      - **NEXT ITEM WHEN WORK RESUMES (flagged 2026-09-05)**: the
-        designation text under the Vehicle family renders noticeably
-        SMALLER than under every other Land Equipment entity, for
-        exactly the same reason its strokes did before they were
-        compensated — `_DESIGNATION_FONT_SIZE = 28` is in icon units,
-        and QGIS scales an SVG marker so its viewBox WIDTH equals the
-        marker size, so 28 units in this family's own 166-wide viewBox
-        at a 0.8 size multiplier draws at roughly 0.44x the apparent
-        size it does in a 108-wide one. Raised and deliberately left
-        alone in the same pass that fixed the strokes, rather than
-        widening scope unasked. The fix is the same shape as the stroke
-        one (`* (viewBox width / 108) / size multiplier`), but it wants
-        a general answer rather than a Vehicle-family constant: any
-        future entity authored in a non-108 viewBox hits it too, and
-        Bar Mine (160-wide) already does.
+- [x] **Designation text size is now uniform on the map (2026-09-05)**
+      — flagged when the Vehicle family's own strokes were compensated,
+      deliberately deferred that pass rather than widening scope, and
+      settled straight after.
+
+      `_DESIGNATION_FONT_SIZE = 28` is in ICON units, and QGIS scales an
+      SVG marker so its declared viewBox WIDTH equals the marker size.
+      So a length written in icon units draws at
+      `length * (marker size * entity multiplier / viewBox width)`, and
+      an icon that departs from milsymbol's own 108-wide viewBox, or
+      carries a per-entity multiplier, draws its designation at the
+      wrong size. Measured before the fix, within Land Equipment: 51
+      entities at 1.0, the Vehicle family at **0.52**, Jammer/Radar at
+      **1.8**.
+
+      One helper now restates the constant per icon —
+      `designation_font_size_in_icon_units(viewbox_width,
+      size_multiplier)`, dividing BOTH factors back out — and the
+      shrink-to-fit for a long designation works off that compensated
+      base rather than the bare constant. Every Land Equipment entity
+      now renders its designation at exactly 2.4889 mm, every mine at
+      2.0741 mm (the two layers differ only by their own
+      MARKER_SIZE_MM, 9.6 vs 8.0, which is intentional).
+
+      **Correction to what was written when this was flagged**: that
+      note said Bar Mine "already does" have the problem. It does not.
+      Bar Mine has BOTH factors — a 160-wide viewBox AND a 160/108
+      multiplier — and they cancel exactly, so its designation was
+      already correct and comes out of this untouched. That is the
+      entity that proves the fix has to be one formula over both
+      factors rather than either one alone, and it is now a test.
+
+      **Jammer/Radar changed as a side effect and this was deliberate**:
+      their designations were rendering 1.8x oversized because the
+      multiplier that fixes their small GLYPH was scaling their text
+      too. Nobody had complained, but the point of the item was
+      uniformity, so they were brought into line with everything else
+      rather than special-cased.
+
+      **The per-entity multiplier table moved into
+      `nonnato_symbol_engine.py`** (`NONNATO_ENTITY_SIZE_MULTIPLIERS`,
+      plus `nonnato_entity_size_multiplier_expression()` which each
+      layer calls with its OWN entity keys so no layer carries a branch
+      for an entity it does not offer). It had been split across
+      `land_equipment_layer_nonnato.py` and
+      `mines_and_obstacles_layer_nonnato.py`, while the engine needed
+      the same numbers to size both the Vehicle family's strokes and
+      every icon's designation — that split is exactly how the
+      designation came to be wrong for that family. `108` is likewise
+      now one named constant near the designation code
+      (`_STANDARD_EQUIPMENT_VIEWBOX_WIDTH`) rather than a Vehicle-family
+      detail.
 - [ ] Anything else that surfaces while specifying the above

@@ -483,7 +483,8 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
         # than other land equipment, adjust them same as others" - both
         # read visibly smaller than every other icon at the plain
         # declared MARKER_SIZE_MM, so they get their own size
-        # multiplier (_ENTITY_SIZE_MULTIPLIERS) on top of it.
+        # multiplier (nonnato_symbol_engine.
+        # NONNATO_ENTITY_SIZE_MULTIPLIERS) on top of it.
         layer = build_land_equipment_layer_nonnato()
 
         tank_size = self._render_size_for(
