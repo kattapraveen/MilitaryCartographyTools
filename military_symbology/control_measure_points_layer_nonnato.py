@@ -101,7 +101,7 @@ ENTITY_LABELS = {
 
 DEFAULT_ENTITY = "decision_point"
 
-# The plain milsymbol path every entity except Booby Trap uses - the
+# The plain milsymbol path nine of this layer's ten entities use - the
 # exact same mct_sidc_svg(mct_build_sidc(...)) shape every other
 # control-measure Points layer already builds (see
 # field_fortification.py's own create_field_fortification_points_layer
@@ -121,8 +121,9 @@ _MILSYMBOL_SIDC_EXPRESSION = (
 )
 
 # Pill Box needs its own hollow-fill fixup (see nonnato_symbol_engine.
-# apply_pillbox_fixup()'s own docstring) - the only other departure
-# from the plain milsymbol pipeline on this layer besides Booby Trap.
+# apply_pillbox_fixup()'s own docstring) - the ONLY departure from the
+# plain milsymbol pipeline left on this layer, since Booby Trap (the
+# other one) moved out to Mines and Obstacles 2026-09-03.
 _PILLBOX_DESIGNATION_EXPRESSION = 'upper(coalesce("unique_designation", \'\'))'
 
 _PILLBOX_EXPRESSION = (

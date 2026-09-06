@@ -14,7 +14,6 @@ from .qgis_test_case import FakeIface, QgisTestCase
 from MilitaryCartographyTools.expressions import nonnato_symbology_functions
 from MilitaryCartographyTools.military_symbology.land_equipment_layer_nonnato import (
     LAYER_NAME as EQUIPMENT_LAYER_NAME,
-    add_land_equipment_layer_nonnato,
 )
 from MilitaryCartographyTools.military_symbology.land_unit_layer_nonnato import (
     LAYER_NAME as UNIT_LAYER_NAME,

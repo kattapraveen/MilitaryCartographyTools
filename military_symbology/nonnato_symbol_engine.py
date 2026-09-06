@@ -984,6 +984,21 @@ _STANDARD_EQUIPMENT_VIEWBOX_WIDTH = 108
 _DESIGNATION_FONT_SIZE = 28.0
 _DESIGNATION_GAP = 6.0
 
+# Cap height as a fraction of font size - the estimate this module
+# measures and positions all of its OWN <text> with. Deliberately a
+# round approximation: every label here is a short, all-uppercase
+# string, so the cap box IS the visible ink and "centred" means that
+# box centred.
+#
+# Note this is NOT symbol_engine._apply_dominant_baseline()'s own
+# ratio, and the difference is intentional. That helper reproduces
+# what SVG's `dominant-baseline="middle"` is defined to do - shift by
+# half the font's X-HEIGHT (0.2595 em for Arial) - because its job is
+# to honour an attribute milsymbol emits and Qt ignores. Here there is
+# no attribute to honour, only a request to centre visible uppercase
+# ink, which is half the CAP height.
+_CAP_HEIGHT_RATIO = 0.7
+
 
 def designation_font_size_in_icon_units(viewbox_width, size_multiplier=1.0):
 
@@ -1105,10 +1120,22 @@ def _text_element_bounds(x, y, attrs, content):
     _fitted_font_size() already rely on, confirmed reliable on both Qt
     versions this project tests against); height is a fixed cap-height
     estimate (0.7 of the font size) rather than a precise font-metrics
-    conversion, which would need to know exactly how each Qt version's
-    own SVG engine maps `dominant-baseline="middle"` to real ascent/
-    descent - more precision than a single-line, mostly-uppercase
+    conversion - more precision than a single-line, mostly-uppercase
     label needs here.
+
+    **`dominant-baseline` is ignored, because Qt ignores it.** An
+    earlier version treated `dominant-baseline="middle"` as centring
+    the glyph on `y`, per the SVG spec. Measured directly on this
+    project's own Qt (rendering one letter at y=100 with and without
+    the attribute, then comparing the painted rows: identical, 71..99
+    both times), Qt's SVG module honours it on neither version tested -
+    `y` is always the BASELINE. The estimate now says so, which moves
+    the measured bottom of any such element up by half a cap height.
+    Blast radius checked before changing it: two icons, Improvised
+    Explosives Device and Jammer, whose designations move ~10 and ~5
+    units closer to the glyph (where they were always meant to sit).
+    The five Land Unit letter glyphs that also use the attribute are
+    unaffected - their frame is the outer bound, not the letter.
     """
 
     font_size_match = re.search(r'font-size="([\d.]+)"', attrs)
@@ -1134,12 +1161,9 @@ def _text_element_bounds(x, y, attrs, content):
 
         width = len(content) * font_size * 0.6
 
-    cap_height = font_size * 0.7
+    cap_height = font_size * _CAP_HEIGHT_RATIO
 
-    top = (
-        y - cap_height / 2 if 'dominant-baseline="middle"' in attrs
-        else y - cap_height
-    )
+    top = y - cap_height
 
     if 'text-anchor="middle"' in attrs:
         left = x - width / 2
@@ -1352,6 +1376,26 @@ def inject_side_designations(svg, left_text, right_text, colour):
 
     Either argument may be empty/None on its own - only the side(s)
     actually supplied get a `<text>` element and widen the viewBox.
+
+    **The vertical centring is computed, not delegated to
+    `dominant-baseline="middle"`** - fixed 2026-09-05, during a
+    housekeeping sweep. Qt's SVG module ignores that attribute outright
+    (measured: one letter at y=100 renders pixel-identically with and
+    without it), so asking for it put each label's BASELINE on the
+    glyph's centre line rather than its middle. Measured on a plain
+    Infantry frame - frame y 50..150, centre 100, font size 45 - the
+    text painted 67.6..100, a visual centre of 83.8: **16.2 units
+    high**, about a third of the frame's half-height, against an
+    explicit "vertically middle aligned" request.
+
+    The plugin already handles this for milsymbol's own labels
+    (symbol_engine._apply_dominant_baseline(), written after letters
+    collided with centre dots on Appendix H's Reference Points) - but
+    that runs INSIDE render_symbol_svg(), and this text is injected
+    afterwards, so it never passed through. The baseline is placed at
+    `centre + cap height / 2` instead, which puts the cap box's own
+    middle exactly on the content's midpoint and makes this agree with
+    _text_element_bounds()'s own measurement of the same element.
     """
 
     left_text = str(left_text).upper().strip() if left_text else ""
@@ -1375,6 +1419,10 @@ def inject_side_designations(svg, left_text, right_text, colour):
     font_size = _SIDE_DESIGNATION_FONT_SIZE
     half_height = font_size * 1.2 / 2
 
+    # See this function's own docstring: the cap box is centred on
+    # center_y by placing the baseline half a cap height below it.
+    baseline_y = center_y + font_size * _CAP_HEIGHT_RATIO / 2
+
     elements = []
 
     if left_text:
@@ -1391,8 +1439,8 @@ def inject_side_designations(svg, left_text, right_text, colour):
         )
 
         elements.append(
-            f'<text x="{text_x:g}" y="{center_y:g}" text-anchor="end" '
-            f'dominant-baseline="middle" font-size="{font_size:g}" '
+            f'<text x="{text_x:g}" y="{baseline_y:g}" text-anchor="end" '
+            f'font-size="{font_size:g}" '
             f'font-family="Arial" stroke="none" fill="{colour}">'
             f'{_escape_text(left_text)}</text>'
         )
@@ -1411,8 +1459,8 @@ def inject_side_designations(svg, left_text, right_text, colour):
         )
 
         elements.append(
-            f'<text x="{text_x:g}" y="{center_y:g}" text-anchor="start" '
-            f'dominant-baseline="middle" font-size="{font_size:g}" '
+            f'<text x="{text_x:g}" y="{baseline_y:g}" text-anchor="start" '
+            f'font-size="{font_size:g}" '
             f'font-family="Arial" stroke="none" fill="{colour}">'
             f'{_escape_text(right_text)}</text>'
         )
@@ -1816,7 +1864,7 @@ _VEHICLE_LETTER_FONT_SIZE = 45.0 / 80.0 * _VEHICLE_RECT_HEIGHT
 _VEHICLE_LETTER_BASELINE_Y = (
     _VEHICLE_RECT_Y
     + _VEHICLE_RECT_HEIGHT / 2
-    + _VEHICLE_LETTER_FONT_SIZE * 0.7 / 2
+    + _VEHICLE_LETTER_FONT_SIZE * _CAP_HEIGHT_RATIO / 2
 )
 
 # Light Recce Vehicle's own "/" starts as Armoured Recce Vehicle's own
@@ -2145,10 +2193,11 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
 #
 # Part C's own settled mechanism: "affiliation is coded the same way as
 # NATO... no non-NATO-specific treatment needed for that part." Unlike
-# Unit/Equipment/SIGINT above, the nine other required entities (Decision
-# Point, Fort, Impact Point, Observation Post, Artillery Observation
-# Post, Point Of Interest, Pill Box, Shelter Above Ground, Shelter Below
-# Ground, Target/DF Task) get NO new rendering logic at all here - they
+# Unit/Equipment/SIGINT above, nine of that layer's ten entities
+# (Decision Point, Fort, Impact Point, Observation Post, Artillery
+# Observation Post, Point Of Interest, Shelter Above Ground, Shelter
+# Below Ground, Target/DF Task) get NO new rendering logic at all -
+# Pill Box is the one exception, and its fixup is below. They
 # render through the plain existing mct_sidc_svg()/mct_build_sidc()
 # pipeline, same as every other NATO control-measure-points layer, with
 # milsymbol's own real 4-value affiliation colouring and no monoColor

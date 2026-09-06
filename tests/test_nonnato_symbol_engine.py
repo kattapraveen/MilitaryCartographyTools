@@ -897,7 +897,17 @@ class TestInjectSideDesignations(QgisTestCase):
         text_x, text_y = float(text_match.group(1)), float(text_match.group(2))
 
         self.assertLess(text_x, content_x)
-        self.assertAlmostEqual(text_y, content_y + content_h / 2, places=3)
+
+        # The INK is centred on the content, not the `y` attribute:
+        # `y` is the baseline (Qt ignores dominant-baseline), so the cap
+        # box runs from y - cap to y and its own middle is what has to
+        # land on the content's midpoint. See inject_side_designations()
+        # for the 2026-09-05 fix this checks.
+        cap_height = nse._SIDE_DESIGNATION_FONT_SIZE * nse._CAP_HEIGHT_RATIO
+
+        self.assertAlmostEqual(
+            text_y - cap_height / 2, content_y + content_h / 2, places=3
+        )
 
 
     def test_right_text_sits_right_of_and_vertically_centred_on_the_content(self):
@@ -920,7 +930,45 @@ class TestInjectSideDesignations(QgisTestCase):
         text_x, text_y = float(text_match.group(1)), float(text_match.group(2))
 
         self.assertGreater(text_x, content_x + content_w)
-        self.assertAlmostEqual(text_y, content_y + content_h / 2, places=3)
+
+        # The INK is centred on the content, not the `y` attribute:
+        # `y` is the baseline (Qt ignores dominant-baseline), so the cap
+        # box runs from y - cap to y and its own middle is what has to
+        # land on the content's midpoint. See inject_side_designations()
+        # for the 2026-09-05 fix this checks.
+        cap_height = nse._SIDE_DESIGNATION_FONT_SIZE * nse._CAP_HEIGHT_RATIO
+
+        self.assertAlmostEqual(
+            text_y - cap_height / 2, content_y + content_h / 2, places=3
+        )
+
+
+    def test_the_designators_carry_no_dominant_baseline_at_all(self):
+
+        # The attribute is what put them 16.2 units high against an
+        # explicit "vertically middle aligned" request - Qt ignores it,
+        # so the baseline is computed instead (2026-09-05). Guarding
+        # this because reaching for the attribute is the natural thing
+        # to write and it silently does nothing.
+        svg = nse.inject_side_designations(
+            nse.render_nonnato_unit_svg("friend", "infantry"), "a1", "b2", _FRIEND
+        )
+
+        self.assertNotIn("dominant-baseline", svg)
+
+
+    def test_the_two_sides_share_one_baseline(self):
+
+        svg = nse.inject_side_designations(
+            nse.render_nonnato_unit_svg("friend", "infantry"), "a1", "b2", _FRIEND
+        )
+
+        baselines = {
+            float(y) for y in
+            re.findall(r'<text x="\S+" y="(\S+)"[^>]*>(?:A1|B2)</text>', svg)
+        }
+
+        self.assertEqual(len(baselines), 1)
 
 
     def test_both_sides_render_independently(self):
@@ -2095,3 +2143,106 @@ class TestDesignationSizeIsUniformOnTheMap(QgisTestCase):
     def test_an_entity_with_no_multiplier_gets_one(self):
 
         self.assertEqual(nse.nonnato_entity_size_multiplier("tank"), 1)
+
+
+class TestTextBoundsIgnoreDominantBaseline(QgisTestCase):
+
+    """
+    Qt's own SVG module honours `dominant-baseline` on neither version
+    this project tests against - measured directly, 2026-09-05, by
+    rendering one letter with and without the attribute and comparing
+    the painted rows (identical). _text_element_bounds() therefore
+    treats `y` as the baseline always, which is what decides where a
+    designation sits under a letter-glyph icon.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_qt_really_does_ignore_it(self):
+
+        # The measurement the estimate is based on, kept as a test so
+        # it fails loudly if a future Qt starts honouring the
+        # attribute - at which point _text_element_bounds() has to
+        # learn the distinction again.
+        from qgis.PyQt.QtCore import QByteArray, QRectF
+        from qgis.PyQt.QtGui import QColor, QImage, QPainter
+        from qgis.PyQt.QtSvg import QSvgRenderer
+
+        def painted_rows(attrs):
+
+            svg = (
+                '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+                'baseProfile="tiny" viewBox="0 0 200 200">'
+                '<text x="100" y="100" text-anchor="middle" font-size="40" '
+                f'font-family="Arial" stroke="none" fill="#000000" {attrs}>X</text>'
+                '</svg>'
+            )
+
+            image = QImage(200, 200, QImage.Format.Format_ARGB32)
+            image.fill(QColor("white"))
+
+            painter = QPainter(image)
+            QSvgRenderer(QByteArray(svg.encode())).render(
+                painter, QRectF(0, 0, 200, 200)
+            )
+            painter.end()
+
+            rows = [
+                y for y in range(200)
+                if any(QColor(image.pixel(x, y)).value() < 200 for x in range(200))
+            ]
+
+            return (min(rows), max(rows)) if rows else None
+
+        self.assertEqual(
+            painted_rows(""), painted_rows('dominant-baseline="middle"')
+        )
+
+
+    def test_the_estimate_treats_y_as_the_baseline_either_way(self):
+
+        plain = nse._text_element_bounds(100, 100, 'font-size="40"', "X")
+        middle = nse._text_element_bounds(
+            100, 100, 'font-size="40" dominant-baseline="middle"', "X"
+        )
+
+        self.assertEqual(plain, middle)
+
+        _, top, _, height = plain
+
+        self.assertAlmostEqual(top + height, 100.0)
+
+
+    def test_a_letter_glyphs_designation_sits_close_under_it(self):
+
+        # Improvised Explosives Device is a bare milsymbol <text> glyph
+        # with the attribute, and was the icon this showed up on: its
+        # designation used to sit half a cap height lower than the gap
+        # asks for.
+        plain = nse.render_nonnato_equipment_svg(
+            "friend", "improvised_explosives_device"
+        )
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", "improvised_explosives_device", "a1"
+        )
+
+        # Measured on the icon WITHOUT the designation - the whole point
+        # is where the text gets placed relative to the glyph alone.
+        _, top, _, height = nse._content_bounds(plain, None)
+
+        baseline = float(
+            re.search(r'<text x="\S+" y="(\S+)"[^>]*>A1</text>', svg).group(1)
+        )
+
+        # Exactly one gap plus one font size below the glyph's own
+        # measured bottom - the same rule every other icon follows.
+        self.assertAlmostEqual(
+            baseline,
+            top + height + nse._DESIGNATION_GAP + nse._DESIGNATION_FONT_SIZE,
+            places=3,
+        )

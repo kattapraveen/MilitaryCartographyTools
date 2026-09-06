@@ -481,9 +481,24 @@ ALIASES` entry either, and `is_synthetic_entity()` now covers them.
   letter with `dominant-baseline="middle"` and it rendered a half
   cap-height high on both QGIS versions. The baseline is computed
   instead, using the same 0.7-of-font-size cap-height estimate
-  `_text_element_bounds()` already works to. (Land Unit's own side
-  designations still carry the attribute; their position was accepted
-  live at the time and is not being changed off the back of this.)
+  `_text_element_bounds()` already works to.
+
+  **Measured properly during the 2026-09-05 housekeeping sweep**, since
+  the first pass only inferred it from one icon looking wrong: rendering
+  a single letter at y=100 with and without the attribute and comparing
+  the painted rows gives 71..99 both times — Qt's SVG module ignores the
+  attribute outright, on both versions, and `y` is always the BASELINE.
+  That measurement is now a test, so it fails loudly if a future Qt
+  starts honouring it.
+
+  `_text_element_bounds()` had been modelling the attribute as honoured
+  (per the SVG spec) and so measured any such element's bottom half a
+  cap height too low. Corrected. Blast radius checked before changing
+  it — two icons, Improvised Explosives Device and Jammer, whose
+  designations move ~10 and ~5 units closer to their glyph, where they
+  were always meant to sit. The five Land Unit letter glyphs that also
+  carry the attribute are unaffected: their frame is the outer bound,
+  not the letter.
 - **Light Recce Vehicle's own "/"** is Armoured Recce Vehicle's own
   mark re-anchored to the rectangle's own top-left corner (25,50), its
   own lower end touching the top edge exactly, the same way that mark
@@ -1150,4 +1165,56 @@ Meta-questions likely to come up regardless of category/domain.
       now one named constant near the designation code
       (`_STANDARD_EQUIPMENT_VIEWBOX_WIDTH`) rather than a Vehicle-family
       detail.
+- [x] **Land Unit's side designators are now actually middle-aligned**
+      — surfaced by the same measurement during the 2026-09-05
+      housekeeping sweep, flagged rather than changed unasked, then
+      fixed on the maintainer's own go-ahead ("fix the land unit side
+      designators too").
+
+      The request was explicit: "both left and right designators should
+      be vertically middle aligned to the left or right of the glyph".
+      `inject_side_designations()` implements that with
+      `dominant-baseline="middle"`, which Qt ignores — so the text is
+      painted with its BASELINE on the glyph's centre line instead of
+      its middle.
+
+      **The plugin already solves this everywhere else**, which is what
+      makes it a defect rather than a limitation: `symbol_engine.
+      _apply_dominant_baseline()` bakes the shift into an explicit `y`
+      for every label milsymbol emits (it was written for exactly this
+      Qt behaviour, after letters collided with centre dots on
+      Appendix H's Reference Points). But it runs INSIDE
+      `render_symbol_svg()`, and this module's own hand-written `<text>`
+      elements are injected afterwards, so they never pass through it.
+      The Vehicle family's letter sidesteps it by computing its own
+      baseline; the side designations do not. Measured on a plain Infantry frame (frame y 50..150,
+      centre 100, designation font size 45): the text paints from y 67.6
+      to y 100, visual centre 83.8, so it sits **16.2 units high** —
+      about a third of the frame's half-height.
+
+      **Fixed** the same way the Vehicle family's letter already did
+      it: drop the attribute, place the baseline at
+      `centre + cap height / 2`, so the cap box's own middle lands on
+      the content's midpoint. Re-measured on the same Infantry frame,
+      the visual centre moves 83.8 → 99.5 against a frame centre of
+      100; the residual half-unit is the difference between the 0.7
+      cap-height estimate and Arial's real ratio, and is not worth
+      chasing.
+
+      It had NOT been applied on the first pass because the position was
+      reviewed live and accepted ("the font size is too small to read,
+      the position is ok") — but that review was of the same already-off
+      rendering, so the acceptance was not evidence the offset was
+      wanted. Confirmed live instead of assumed either way.
+
+      The 0.7 cap-height ratio is now one shared constant
+      (`_CAP_HEIGHT_RATIO`) covering the bounds estimate, the Vehicle
+      family's letter and these designators, rather than three separate
+      literals. It is deliberately NOT
+      `symbol_engine._apply_dominant_baseline()`'s own ratio: that
+      helper reproduces what `dominant-baseline="middle"` is *defined*
+      to do (half the font's X-height, 0.2595 em for Arial) because its
+      job is honouring an attribute milsymbol emits; here there is no
+      attribute to honour, only a request to centre visible uppercase
+      ink, which is half the CAP height.
 - [ ] Anything else that surfaces while specifying the above
