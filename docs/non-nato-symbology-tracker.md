@@ -440,6 +440,85 @@ latent blank-icon bug since it was added; adding `"headquarters"`
 beside it is what surfaced it. Both are now wrapped in
 `coalesce(..., false)`. Confirmed by direct expression evaluation.
 
+**Land Unit, second batch the same day, 2026-09-06** (23 -> 39
+entities across both batches): eight more entities, two corrections to
+existing glyphs, and one resize.
+
+- **Self Propelled Artillery** - "Use the Artillery glyph (rectangle
+  with a filled dot) - add three wheels (same as APV wheeled)". "Same
+  as APV wheeled" is read as that icon's own RULE, not its literal
+  radius: three circles at a third of the shape's own semi-minor axis,
+  tops touching its bottom edge, outer two inset one radius, middle
+  centring the group. On the Land Unit frame that gives radius 16.7,
+  not the APV oval's 6.7 - the literal radius would draw three dots
+  about a tenth of the frame's width, and would clash with Motorised
+  Infantry's own wheels sitting on the same layer at frame scale. So
+  these ARE Motorised Infantry's own two wheels with the middle one
+  restored, which is what the APV rule yields here anyway; a test pins
+  the two entities to the same wheel size.
+- **Parachute Field Artillery** - "Use the Artillery glyph - add the
+  parachute symbol (from the Parachute unit - inserted below the
+  diagonals)". The same path as the Parachute unit's own canopy, not a
+  redrawing. **Resized on sight the same day**: "reduce the size of the
+  parachute canopy just enough that it is clear of the dot and clear
+  from the rectangle". The scale is DERIVED, not picked - fit the
+  glyph's own ink (geometry plus a stroke that scales with it) into the
+  clear band between the dot's own bottom edge and the frame's, leaving
+  `_PARACHUTE_CLEARANCE` = 3 at each end. That works out to exactly
+  0.6, against the Parachute unit's own 0.8. The first pass reused 0.8
+  unchanged and left the canopy's crown ~3.5 units behind the dot,
+  because Artillery's dot is filled and 30 across where Infantry's
+  diagonal crossing - what that placement was designed around - is a
+  thin X. The test asserts the CLEARANCE at both ends rather than the
+  number, so the fit survives a future change to either shape.
+- **Signal's own jagged line is mirrored** - "horizontally invert the
+  jagged line - it should touch the other two vertices of the
+  rectangle". milsymbol draws `M25,50 100,110 100,90 175,150`,
+  top-left to bottom-right; it now runs top-right to bottom-left. Only
+  the endpoints move: the two middle vertices sit on x=100 and are
+  their own mirror image. A test asserts it is a true reflection of
+  milsymbol's own path rather than a hand-typed one. This CHANGES an
+  existing entity rather than adding one.
+- **Six entities on Military Police's own framed glyph** - "Information
+  Warfare, Postal Unit and Intelligence - use the Military Police
+  Glyph, replace MP with IW, PO and I respectively", plus "Supplies and
+  Transport unit - standard rectangle, insert a circle in the middle
+  and add a X (two diagonals) inside the circle only", "Ordnance unit -
+  standard rectangle with the [booby trap] glyph inside it" and
+  "Remount and Veterinary corps unit - standard rectangle with \/ -
+  starting at the top corners and meeting at the center of the bottom
+  line of the rectangle".
+
+  **Built on a real milsymbol render, NOT as standalone SVGs** - unlike
+  Administration or Logistics and Static Formation Headquarters, which
+  are hand-built and therefore carry no echelon, status or headquarters
+  support. Military Police is the donor because its own interior is a
+  single `<text>` element, the cleanest thing in the vocabulary to
+  remove; the first three swap its letters, the last three delete it
+  and inject a shape. This is safe because all six non-NATO
+  affiliations map to SIDC "friend" (`SIDC_AFFILIATION_FOR`), so the
+  frame shape never varies. A test asserts all six still respond to
+  echelon, status and headquarters.
+
+  Supplies and Transport's circle radius (35) was NOT specified -
+  chosen to leave a clear margin inside the frame's own 100-unit height
+  while staying big enough for the X to read at map size. Its diagonals
+  end ON the circle, per "inside the circle only", which a test pins by
+  measuring each endpoint's distance from the centre.
+
+  **Ordnance was corrected live**: the first pass read "the decoy
+  glyph" literally and used milsymbol's own Decoy (three filled
+  triangles, from the `air` symbol_set) - "its booby trap not decoy -
+  and the colour affiliation remains standard as per land units and not
+  green". It now draws Mines and Obstacles' own Booby Trap shape, and
+  the shape itself was factored out of
+  `booby_trap_control_measure_svg()` into a shared `booby_trap_marks()`
+  so the two layers cannot drift apart. MINE_GREEN turns out to be that
+  LAYER's own rule rather than a property of the shape - `colour` was
+  already an argument - so Land Unit just passes its own affiliation
+  colour. Tests cover both directions: Ordnance never renders green,
+  and the mines layer's own Booby Trap still does.
+
 **Three synthetic entities built from Armoured Protected Vehicle,
 2026-09-03** (Land Equipment's own count moves to 54): three requests
 in one batch, all starting from the same real entity's glyph.

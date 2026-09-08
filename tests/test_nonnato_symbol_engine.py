@@ -3247,3 +3247,374 @@ class TestSideDesignationsCentreOnTheFrame(QgisTestCase):
         self.assertIn("M25,50 l150,0 0,100 -150,0 z", svg)
 
         self.assertEqual(nse._UNIT_FRAME_CENTRE_Y, 100)
+
+
+class TestArtilleryVariants(QgisTestCase):
+
+    """
+    Self Propelled Artillery and Parachute Field Artillery, added
+    2026-09-06 - both on the real `field_artillery` glyph.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _render(self, entity, left=None, right=None):
+
+        return nse.render_nonnato_unit_svg(
+            "friend", entity, "unspecified", "present", left, right, False
+        )
+
+
+    def test_both_keep_artillerys_own_filled_dot(self):
+
+        artillery = self._render("field_artillery")
+
+        dot = re.search(r"<circle[^>]*>", artillery).group(0)
+
+        for entity in (
+            nse.SELF_PROPELLED_ARTILLERY_ENTITY,
+            nse.PARACHUTE_FIELD_ARTILLERY_ENTITY,
+        ):
+
+            with self.subTest(entity=entity):
+
+                self.assertIn(dot, self._render(entity))
+
+
+    def test_both_resolve_to_artillerys_own_real_sidc(self):
+
+        for entity in (
+            nse.SELF_PROPELLED_ARTILLERY_ENTITY,
+            nse.PARACHUTE_FIELD_ARTILLERY_ENTITY,
+        ):
+
+            with self.subTest(entity=entity):
+
+                self.assertEqual(
+                    nse._UNIT_ENTITY_KEY_ALIASES[entity], "field_artillery"
+                )
+
+
+    def test_self_propelled_adds_three_wheels_on_the_apv_rule(self):
+
+        # "add three wheels (same as APV wheeled)" - that icon's own
+        # rule, applied to this frame: radius a third of the shape's
+        # semi-minor axis, tops touching its bottom edge, outer two
+        # inset one radius, middle centring the group.
+        svg = self._render(nse.SELF_PROPELLED_ARTILLERY_ENTITY)
+
+        wheels = [
+            tuple(float(v) for v in w)
+            for w in re.findall(r'<circle cx="(\S+?)" cy="(\S+?)" r="(\S+?)"', svg)
+        ]
+
+        # The artillery dot is a circle too, so four in total.
+        self.assertEqual(len(wheels), 4)
+
+        wheels = sorted(w for w in wheels if w[2] != 15)
+
+        self.assertEqual(len(wheels), 3)
+
+        radius = wheels[0][2]
+
+        self.assertAlmostEqual(radius, (150 - 50) / 2 / 3, places=3)
+
+        for x, y, r in wheels:
+
+            self.assertAlmostEqual(r, radius, places=6)
+            self.assertAlmostEqual(y - radius, 150, places=3)
+
+        self.assertAlmostEqual(wheels[0][0] - radius, 25, places=3)
+        self.assertAlmostEqual(wheels[2][0] + radius, 175, places=3)
+        self.assertAlmostEqual(wheels[1][0], 100, places=3)
+
+
+    def test_its_wheels_match_motorised_infantrys_own(self):
+
+        # Same layer, same frame - the two must not draw wheels at
+        # different sizes.
+        def wheel_radii(entity):
+            return {
+                float(r)
+                for r in re.findall(
+                    r'<circle cx="\S+?" cy="\S+?" r="(\S+?)"', self._render(entity)
+                )
+            } - {15.0}
+
+        self.assertEqual(
+            wheel_radii(nse.SELF_PROPELLED_ARTILLERY_ENTITY),
+            wheel_radii(nse.MOTORISED_INFANTRY_ENTITY),
+        )
+
+
+    def test_parachute_variant_reuses_the_parachute_units_own_glyph(self):
+
+        # "add the parachute symbol (from the Parachute unit)" - the
+        # same PATH, so it is visibly the same object. The transform
+        # differs on purpose since 2026-09-06: the variant's own canopy
+        # was resized to clear Artillery's dot, which the Parachute
+        # unit's own placement had no reason to allow for.
+        parachute_unit = self._render("parachute_rigger")
+        variant = self._render(nse.PARACHUTE_FIELD_ARTILLERY_ENTITY)
+
+        self.assertIn(nse._PARACHUTE_GLYPH_D, parachute_unit)
+        self.assertIn(nse._PARACHUTE_GLYPH_D, variant)
+
+        self.assertIn(f'transform="{nse._PARACHUTE_GLYPH_TRANSFORM}"', parachute_unit)
+        self.assertNotIn(f'transform="{nse._PARACHUTE_GLYPH_TRANSFORM}"', variant)
+
+
+    def test_the_parachute_variant_has_no_infantry_diagonals(self):
+
+        # It is built on Artillery, not on Infantry - the Parachute
+        # unit's own diagonals must not come with it.
+        variant = self._render(nse.PARACHUTE_FIELD_ARTILLERY_ENTITY)
+
+        self.assertNotIn("M25,50 L175,150", variant)
+
+
+class TestSignalJaggedLineMirrored(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_it_runs_from_the_other_two_corners(self):
+
+        # "horizontally invert the jagged line - it should touch the
+        # other two vertices of the rectangle" (2026-09-06). milsymbol
+        # draws it top-LEFT to bottom-RIGHT.
+        svg = nse.render_nonnato_unit_svg("friend", "signal")
+
+        self.assertIn(f'd="{nse._SIGNAL_JAGGED_LINE_MIRRORED_D}"', svg)
+        self.assertNotIn(f'd="{nse._SIGNAL_JAGGED_LINE_D}"', svg)
+
+
+    def test_it_is_a_true_horizontal_mirror(self):
+
+        def points(d):
+            numbers = [float(n) for n in re.findall(r"[\d.]+", d)]
+            return list(zip(numbers[0::2], numbers[1::2]))
+
+        original = points(nse._SIGNAL_JAGGED_LINE_D)
+        mirrored = points(nse._SIGNAL_JAGGED_LINE_MIRRORED_D)
+
+        centre = (25 + 175) / 2
+
+        self.assertEqual(
+            [(2 * centre - x, y) for x, y in original], mirrored
+        )
+
+
+class TestMilitaryPoliceDerivedEntities(QgisTestCase):
+
+    """
+    Six entities on Military Police's own framed glyph, added
+    2026-09-06 - three swapping its "MP" for other letters, three
+    swapping it for a shape.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _render(self, entity, echelon="unspecified", headquarters=False):
+
+        return nse.render_nonnato_unit_svg(
+            "friend", entity, echelon, "present", None, None, False, headquarters
+        )
+
+
+    def test_the_lettered_three_change_only_the_letters(self):
+
+        # "replace MP with IW, PO and I respectively".
+        police = self._render("military_police")
+
+        for entity, letters in nse._LETTERED_MILITARY_POLICE_ENTITIES.items():
+
+            with self.subTest(entity=entity):
+
+                svg = self._render(entity)
+
+                self.assertEqual(svg, police.replace(">MP</text>", f">{letters}</text>"))
+
+
+    def test_the_reglyphed_three_drop_the_lettering_entirely(self):
+
+        for entity in nse._MILITARY_POLICE_REGLYPHED:
+
+            with self.subTest(entity=entity):
+
+                svg = self._render(entity)
+
+                self.assertNotIn("</text>", svg)
+                self.assertIn("M25,50 l150,0 0,100 -150,0 z", svg)
+
+
+    def test_all_six_keep_echelon_status_and_headquarters(self):
+
+        # The reason they are built on a real render rather than as
+        # standalone SVGs.
+        entities = list(nse._LETTERED_MILITARY_POLICE_ENTITIES) + list(
+            nse._MILITARY_POLICE_REGLYPHED
+        )
+
+        for entity in entities:
+
+            with self.subTest(entity=entity):
+
+                plain = self._render(entity)
+
+                self.assertNotEqual(plain, self._render(entity, echelon="battalion"))
+                self.assertNotEqual(plain, self._render(entity, headquarters=True))
+
+
+    def test_supplies_and_transports_diagonals_stop_at_the_circle(self):
+
+        # "add a X (two diagonals) inside the circle only" - they must
+        # not run out to the frame's own corners.
+        svg = self._render(nse.SUPPLIES_TRANSPORT_ENTITY)
+
+        radius = float(
+            re.search(r'<circle[^>]*r="(\S+?)"', svg).group(1)
+        )
+
+        cross = re.findall(r'<path d="(M[^"]+)"', svg)[-1]
+
+        numbers = [float(n) for n in re.findall(r"[\d.]+", cross)]
+
+        for x, y in zip(numbers[0::2], numbers[1::2]):
+
+            # Every endpoint sits on the circle, not beyond it.
+            distance = ((x - 100) ** 2 + (y - 100) ** 2) ** 0.5
+
+            self.assertAlmostEqual(distance, radius, places=3)
+
+
+    def test_ordnance_uses_the_mines_layers_own_booby_trap_shape(self):
+
+        # "its booby trap not decoy" - literally the same geometry the
+        # Mines and Obstacles layer draws, not a copy of it. Compared on
+        # the shapes rather than the raw markup, since the unit render
+        # widens every stroke at the end (3 -> 3.9) and the mines layer
+        # has its own colour.
+        def shapes(svg):
+            return (
+                re.findall(r'<circle cx="(\S+?)" cy="(\S+?)" r="(\S+?)"', svg),
+                re.findall(r'<path d="([^"]+)"', svg),
+            )
+
+        ordnance_circles, ordnance_paths = shapes(
+            self._render(nse.ORDNANCE_ENTITY)
+        )
+        trap_circles, trap_paths = shapes(nse.booby_trap_control_measure_svg())
+
+        self.assertEqual(ordnance_circles, trap_circles)
+        self.assertEqual(len(trap_paths), 4)
+
+        # Every horn, plus the frame the Ordnance version draws around
+        # them.
+        for horn in trap_paths:
+            self.assertIn(horn, ordnance_paths)
+
+        self.assertEqual(len(ordnance_paths), len(trap_paths) + 1)
+
+
+    def test_ordnance_takes_the_affiliation_colour_not_mine_green(self):
+
+        # "the colour affiliation remains standard as per land units and
+        # not green" - MINE_GREEN is the mines layer's own rule, not a
+        # property of the shape.
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                svg = nse.render_nonnato_unit_svg(
+                    affiliation, nse.ORDNANCE_ENTITY, "unspecified", "present"
+                )
+
+                self.assertIn(colour, svg)
+                self.assertNotIn(nse.MINE_GREEN, svg)
+
+
+    def test_the_mines_layers_own_booby_trap_is_still_green(self):
+
+        # The refactor must not leak Land Unit's colouring back the
+        # other way.
+        self.assertIn(nse.MINE_GREEN, nse.booby_trap_control_measure_svg())
+
+
+    def test_remount_runs_from_the_top_corners_to_the_bottom_centre(self):
+
+        svg = self._render(nse.REMOUNT_VETERINARY_ENTITY)
+
+        mark = re.findall(r'<path d="(M[^"]+)"', svg)[-1]
+
+        numbers = [float(n) for n in re.findall(r"[\d.]+", mark)]
+
+        points = list(zip(numbers[0::2], numbers[1::2]))
+
+        self.assertEqual(points, [(25.0, 50.0), (100.0, 150.0), (175.0, 50.0)])
+
+
+class TestParachuteFieldArtillerySizing(QgisTestCase):
+
+    """
+    "reduce the size of the parachute canopy just enough that it is
+    clear of the dot and clear from the rectangle" (2026-09-06).
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def test_the_canopy_clears_the_dot_and_the_frame(self):
+
+        scale = nse._PARACHUTE_ARTILLERY_SCALE
+        half_stroke = scale * nse._PARACHUTE_STROKE_WIDTH / 2
+
+        top = (
+            nse._PARACHUTE_ARTILLERY_TRANSLATE_Y
+            + scale * nse._PARACHUTE_NATIVE_TOP
+            - half_stroke
+        )
+        bottom = (
+            nse._PARACHUTE_ARTILLERY_TRANSLATE_Y
+            + scale * nse._PARACHUTE_NATIVE_BOTTOM
+            + half_stroke
+        )
+
+        dot_bottom = 100 + nse._ARTILLERY_DOT_RADIUS + 3 / 2
+        frame_inner = nse._UNIT_FRAME_BOTTOM - 4 / 2
+
+        self.assertGreaterEqual(top, dot_bottom + nse._PARACHUTE_CLEARANCE - 0.001)
+        self.assertLessEqual(bottom, frame_inner - nse._PARACHUTE_CLEARANCE + 0.001)
+
+
+    def test_it_is_smaller_than_the_parachute_units_own(self):
+
+        self.assertLess(nse._PARACHUTE_ARTILLERY_SCALE, 0.8)
+
+
+    def test_it_stays_horizontally_centred(self):
+
+        centre = (
+            nse._PARACHUTE_ARTILLERY_TRANSLATE_X
+            + nse._PARACHUTE_ARTILLERY_SCALE * nse._PARACHUTE_NATIVE_CENTRE_X
+        )
+
+        self.assertAlmostEqual(centre, 100.0, places=6)

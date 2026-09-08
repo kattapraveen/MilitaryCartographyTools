@@ -36,7 +36,15 @@ from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     AIR_FORCE_ENTITY,
     MOTORISED_INFANTRY_ENTITY,
     MOUNTAIN_INFANTRY_ENTITY,
+    INFORMATION_WARFARE_ENTITY,
+    INTELLIGENCE_ENTITY,
+    ORDNANCE_ENTITY,
+    POSTAL_UNIT_ENTITY,
+    REMOUNT_VETERINARY_ENTITY,
+    SUPPLIES_TRANSPORT_ENTITY,
+    PARACHUTE_FIELD_ARTILLERY_ENTITY,
     RECCE_SUPPORT_WHEELED_ENTITY,
+    SELF_PROPELLED_ARTILLERY_ENTITY,
     STATIC_FORMATION_HQ_ENTITY,
     ENEMY_DESIGNATION_UNKNOWN_ENTITY,
     ENEMY_ECHELON_UNKNOWN_ENTITY,
@@ -66,6 +74,14 @@ SYNTHETIC_ENTITIES = (
     STATIC_FORMATION_HQ_ENTITY,
     MOUNTAIN_INFANTRY_ENTITY,
     RECCE_SUPPORT_WHEELED_ENTITY,
+    SELF_PROPELLED_ARTILLERY_ENTITY,
+    PARACHUTE_FIELD_ARTILLERY_ENTITY,
+    INFORMATION_WARFARE_ENTITY,
+    POSTAL_UNIT_ENTITY,
+    INTELLIGENCE_ENTITY,
+    SUPPLIES_TRANSPORT_ENTITY,
+    ORDNANCE_ENTITY,
+    REMOUNT_VETERINARY_ENTITY,
 )
 
 
@@ -103,10 +119,15 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
         # Infantry (Infantry's own real SIDC with a "^" added, also
         # 2026-09-06) and Recce & Support (Wheeled) (Mechanised
         # Infantry's own real SIDC plus those same wheels, also
-        # 2026-09-06) - none of the eleven has a matching real
-        # ground_unit key of its own. See the rules record's "Required
+        # 2026-09-06), and Self Propelled Artillery and Parachute
+        # Field Artillery (Artillery's own real SIDC plus wheels and a
+        # parachute respectively, also 2026-09-06), and six built on
+        # Military Police's own framed glyph - Information Warfare,
+        # Postal Unit, Intelligence, Supplies and Transport, Ordnance
+        # and Remount and Veterinary Corps (also 2026-09-06) - none of
+        # the nineteen has a matching real ground_unit key of its own. See the rules record's "Required
         # entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 31)
+        self.assertEqual(len(ENTITY_LABELS), 39)
 
         for entity in SYNTHETIC_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)

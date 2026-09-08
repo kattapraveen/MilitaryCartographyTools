@@ -16,15 +16,18 @@ logic this layer's renderer calls into via mct_nonnato_unit_svg()
 (expressions/nonnato_symbology_functions.py).
 
 Scope, deliberately narrow (see the rules record's "Required entities"
-section): 31 entities - the 20 APP-6E ground_unit entities the
-maintainer's reviewed check sheet confirmed, plus eleven with no
+section): 39 entities - the 20 APP-6E ground_unit entities the
+maintainer's reviewed check sheet confirmed, plus nineteen with no
 matching real ground_unit key of their own: the four Enemy entities
 (Info Unknown, and Echelon / Designation / Type Unknown added
 2026-09-06 - standalone frame variants with no APP-6E entity at all,
 differing only in where a "?" sits), Air Defence Artillery, Air Force,
 Motorised Infantry, Mountain Infantry, Recce & Support (Wheeled),
-Administration or Logistics Unit and Static Formation Headquarters (the
-last five all 2026-09-06). Every other Land Unit entity is out of scope
+Administration or Logistics Unit, Static Formation Headquarters, Self
+Propelled Artillery, Parachute Field Artillery, and six built on
+Military Police's own framed glyph - Information Warfare, Postal Unit,
+Intelligence, Supplies and Transport, Ordnance, and Remount and
+Veterinary Corps (the last thirteen all 2026-09-06). Every other Land Unit entity is out of scope
 until the maintainer adds it - this is not the full 187-entity
 vocabulary the NATO Land Unit layer offers.
 
@@ -83,7 +86,15 @@ from .nonnato_symbol_engine import (
     ADMIN_LOGISTICS_ENTITY,
     MOTORISED_INFANTRY_ENTITY,
     MOUNTAIN_INFANTRY_ENTITY,
+    INFORMATION_WARFARE_ENTITY,
+    INTELLIGENCE_ENTITY,
+    ORDNANCE_ENTITY,
+    POSTAL_UNIT_ENTITY,
+    REMOUNT_VETERINARY_ENTITY,
+    SUPPLIES_TRANSPORT_ENTITY,
+    PARACHUTE_FIELD_ARTILLERY_ENTITY,
     RECCE_SUPPORT_WHEELED_ENTITY,
+    SELF_PROPELLED_ARTILLERY_ENTITY,
     STATIC_FORMATION_HQ_ENTITY,
     stabilised_nonnato_size_expression,
 )
@@ -96,7 +107,7 @@ DEFAULT_ENTITY = "infantry"
 MARKER_SIZE_MM = 8.0
 
 # Display labels for the 20 real APP-6E entities the reviewed check
-# sheet confirmed, plus eleven entries with no matching real
+# sheet confirmed, plus nineteen entries with no matching real
 # ground_unit key of their own - see this module's own docstring for
 # the list. Every other entry's KEY is a real ground_unit key
 # sidc_2525e.py already defines (unchanged, so render_nonnato_unit_
@@ -151,6 +162,25 @@ ENTITY_LABELS = {
     # Motorised Infantry's own wheels under it - the wheeled
     # counterpart to "Light Armour/Recce & Support (Tracked)".
     RECCE_SUPPORT_WHEELED_ENTITY: "Recce & Support (Wheeled)",
+
+    # Synthetic, 2026-09-06: Artillery's own glyph with three
+    # wheels, and with the Parachute unit's own canopy - see
+    # nonnato_symbol_engine._self_propelled_wheels() and
+    # _parachute_over_artillery().
+    SELF_PROPELLED_ARTILLERY_ENTITY: "Self Propelled Artillery",
+    PARACHUTE_FIELD_ARTILLERY_ENTITY: "Parachute Field Artillery",
+
+    # Synthetic, 2026-09-06: all six built on Military Police's own
+    # framed glyph - the first three swap its "MP" for other
+    # letters, the last three swap it for a shape. Built on a real
+    # render, not standalone, so echelon/status/headquarters keep
+    # working - see nonnato_symbol_engine's own comment.
+    INFORMATION_WARFARE_ENTITY: "Information Warfare",
+    POSTAL_UNIT_ENTITY: "Postal Unit",
+    INTELLIGENCE_ENTITY: "Intelligence",
+    SUPPLIES_TRANSPORT_ENTITY: "Supplies and Transport",
+    ORDNANCE_ENTITY: "Ordnance",
+    REMOUNT_VETERINARY_ENTITY: "Remount and Veterinary Corps",
 
     # Synthetic, 2026-09-06: a bare circle at the frame's own height,
     # no APP-6E entity and no glyph inside - see

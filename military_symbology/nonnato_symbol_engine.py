@@ -690,6 +690,14 @@ MOUNTAIN_INFANTRY_ENTITY = "nonnato_mountain_infantry"
 # counterpart.
 RECCE_SUPPORT_WHEELED_ENTITY = "nonnato_recce_support_wheeled"
 
+# Requested live 2026-09-06: "Self Propelled Artillery - Use the
+# Artillery glyph (rectangle with a filled dot) - add three wheels (same
+# as APV wheeled)" and "Parachute Field Artillery - Use the Artillery
+# glyph - add the parachute symbol (from the Parachute unit - inserted
+# below the diagonals)". Both sit on the real `field_artillery` glyph.
+SELF_PROPELLED_ARTILLERY_ENTITY = "nonnato_self_propelled_artillery"
+PARACHUTE_FIELD_ARTILLERY_ENTITY = "nonnato_parachute_field_artillery"
+
 def _motorised_wheels(colour):
 
     """
@@ -757,11 +765,144 @@ def _mountain_chevron(colour):
     return mark, None
 
 
+def _self_propelled_wheels(colour):
+
+    """
+    Self Propelled Artillery's own three wheels - "add three wheels
+    (same as APV wheeled)".
+
+    "Same as APV wheeled" is read as that icon's own RULE, not its
+    literal radius: three circles, each sized a third of the shape's own
+    semi-minor axis, their tops touching its bottom edge, the outer two
+    inset one radius from its sides and the third centring the group.
+    Applied to the Land Unit frame that means radius 16.7, not the 6.7
+    the APV oval takes - the literal radius would draw three dots barely
+    a tenth of the frame's width, and would also clash with Motorised
+    Infantry's own wheels sitting on the same layer at the frame's own
+    scale. So this is Motorised Infantry's own two wheels with the
+    middle one restored, which is exactly what the APV rule gives here.
+    """
+
+    centre_x = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    wheels = "".join(
+        f'<circle cx="{x:g}" cy="{_VEHICLE_WHEEL_CENTRE_Y:g}" '
+        f'r="{_VEHICLE_WHEEL_RADIUS:g}" stroke-width="4" stroke="{colour}" '
+        'fill="none"></circle>'
+        for x in (
+            _VEHICLE_WHEEL_CENTRE_XS[0], centre_x, _VEHICLE_WHEEL_CENTRE_XS[1]
+        )
+    )
+
+    return wheels, _VEHICLE_WHEEL_CENTRE_Y + _VEHICLE_WHEEL_RADIUS
+
+
+# The Parachute unit's own canopy-and-lines glyph, exactly as milsymbol
+# emits it for `parachute_rigger` - the same path, so Parachute Field
+# Artillery's own parachute is visibly the same object, not a redrawing
+# of it.
+_PARACHUTE_GLYPH_D = (
+    "m 120,100 -20,20  m 0,0 -20,-20  m 0,0 c 0,-25 40,-25 40,0 H 80"
+)
+
+# The Parachute unit's own placement, for reference and for the test
+# that pins the two to the same path.
+_PARACHUTE_GLYPH_TRANSFORM = "translate(20, 49.5) scale(0.8)"
+
+# That path's own extent in its own coordinates. The canopy is a single
+# cubic from (80,100) to (120,100) with both controls at y=75, so its
+# own crown sits at t=0.5 - (100 + 3*75 + 3*75 + 100) / 8 = 81.25 - not
+# at the control points themselves.
+_PARACHUTE_NATIVE_TOP = 81.25
+_PARACHUTE_NATIVE_BOTTOM = 120
+_PARACHUTE_NATIVE_CENTRE_X = 100
+
+_PARACHUTE_NATIVE_HEIGHT = _PARACHUTE_NATIVE_BOTTOM - _PARACHUTE_NATIVE_TOP
+
+# milsymbol's own stroke width for this glyph, before the group's own
+# scale and before scale_svg_stroke_width()'s final widening.
+_PARACHUTE_STROKE_WIDTH = 3.75
+
+# Artillery's own filled dot, read off its real render.
+_ARTILLERY_DOT_CENTRE_Y = 100
+_ARTILLERY_DOT_RADIUS = 15
+_ARTILLERY_DOT_STROKE_WIDTH = 3
+
+# Resized 2026-09-06, on sight: "reduce the size of the parachute canopy
+# just enough that it is clear of the dot and clear from the rectangle".
+# At the Parachute unit's own 0.8 the canopy's crown sat about 3.5 units
+# behind the dot, because Artillery's dot is filled and 30 across where
+# Infantry's diagonal crossing - what that placement was designed
+# around - is a thin X.
+#
+# So the scale is DERIVED rather than picked: fit the glyph's own INK
+# (geometry plus a stroke that scales with it) into the clear band
+# between the dot's own bottom edge and the frame's own bottom edge,
+# leaving _PARACHUTE_CLEARANCE at each end.
+_PARACHUTE_CLEARANCE = 3
+
+_PARACHUTE_BAND_TOP = (
+    _ARTILLERY_DOT_CENTRE_Y
+    + _ARTILLERY_DOT_RADIUS
+    + _ARTILLERY_DOT_STROKE_WIDTH / 2
+    + _PARACHUTE_CLEARANCE
+)
+
+_PARACHUTE_BAND_BOTTOM = (
+    _UNIT_FRAME_BOTTOM - 4 / 2 - _PARACHUTE_CLEARANCE
+)
+
+# Ink height at scale s is s * (native height + one full stroke width),
+# half a stroke reaching past each end - so solving for the band gives
+# the scale directly.
+_PARACHUTE_ARTILLERY_SCALE = (_PARACHUTE_BAND_BOTTOM - _PARACHUTE_BAND_TOP) / (
+    _PARACHUTE_NATIVE_HEIGHT + _PARACHUTE_STROKE_WIDTH
+)
+
+_PARACHUTE_ARTILLERY_TRANSLATE_X = _PARACHUTE_NATIVE_CENTRE_X * (
+    1 - _PARACHUTE_ARTILLERY_SCALE
+)
+
+_PARACHUTE_ARTILLERY_TRANSLATE_Y = (
+    _PARACHUTE_BAND_TOP
+    + _PARACHUTE_ARTILLERY_SCALE * _PARACHUTE_STROKE_WIDTH / 2
+    - _PARACHUTE_ARTILLERY_SCALE * _PARACHUTE_NATIVE_TOP
+)
+
+
+def _parachute_over_artillery(colour):
+
+    """
+    Parachute Field Artillery's own parachute - "add the parachute
+    symbol (from the Parachute unit - inserted below the diagonals)",
+    resized to clear the dot above it and the frame below - see this
+    section's own comment for how the scale is derived.
+    """
+
+    transform = (
+        f"translate({_PARACHUTE_ARTILLERY_TRANSLATE_X:g}, "
+        f"{_PARACHUTE_ARTILLERY_TRANSLATE_Y:g}) "
+        f"scale({_PARACHUTE_ARTILLERY_SCALE:g})"
+    )
+
+    mark = (
+        f'<g transform="{transform}">'
+        f'<path d="{_PARACHUTE_GLYPH_D}" '
+        f'stroke-width="{_PARACHUTE_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+        "</g>"
+    )
+
+    return mark, None
+
+
 _UNIT_ENTITY_MARKS = {
     MOTORISED_INFANTRY_ENTITY: _motorised_wheels,
     MOUNTAIN_INFANTRY_ENTITY: _mountain_chevron,
     # The same wheels, on Mechanised Infantry's own glyph instead.
     RECCE_SUPPORT_WHEELED_ENTITY: _motorised_wheels,
+    SELF_PROPELLED_ARTILLERY_ENTITY: _self_propelled_wheels,
+    PARACHUTE_FIELD_ARTILLERY_ENTITY: _parachute_over_artillery,
 }
 
 
@@ -969,12 +1110,28 @@ AIR_DEFENSE_ARTILLERY_ENTITY = "nonnato_air_defense_artillery"
 # closing segment.
 AIR_FORCE_ENTITY = "nonnato_air_force"
 
+INFORMATION_WARFARE_ENTITY = "nonnato_information_warfare"
+POSTAL_UNIT_ENTITY = "nonnato_postal_unit"
+INTELLIGENCE_ENTITY = "nonnato_intelligence"
+
+SUPPLIES_TRANSPORT_ENTITY = "nonnato_supplies_transport"
+ORDNANCE_ENTITY = "nonnato_ordnance"
+REMOUNT_VETERINARY_ENTITY = "nonnato_remount_veterinary"
+
 _UNIT_ENTITY_KEY_ALIASES = {
     AIR_DEFENSE_ARTILLERY_ENTITY: "air_defense",
     AIR_FORCE_ENTITY: "aviation_fixed_wing",
     MOTORISED_INFANTRY_ENTITY: "infantry",
     MOUNTAIN_INFANTRY_ENTITY: "infantry",
     RECCE_SUPPORT_WHEELED_ENTITY: "armored_mechanized_tracked",
+    SELF_PROPELLED_ARTILLERY_ENTITY: "field_artillery",
+    PARACHUTE_FIELD_ARTILLERY_ENTITY: "field_artillery",
+    INFORMATION_WARFARE_ENTITY: "military_police",
+    POSTAL_UNIT_ENTITY: "military_police",
+    INTELLIGENCE_ENTITY: "military_police",
+    SUPPLIES_TRANSPORT_ENTITY: "military_police",
+    ORDNANCE_ENTITY: "military_police",
+    REMOUNT_VETERINARY_ENTITY: "military_police",
 }
 
 _ARMY_AVIATION_PROPELLER_SOLID_D = (
@@ -1043,12 +1200,180 @@ def add_artillery_center_dot(svg):
 # Dispatch tables - keyed on the feature's own entity, applied after
 # the echelon fixup (which is entity-independent) whenever that entity
 # is selected, regardless of affiliation/echelon/status.
+# Signal's own jagged line runs from the frame's top-LEFT corner to its
+# bottom-RIGHT one (`M25,50 100,110 100,90 175,150`, milsymbol's own
+# path). Mirrored horizontally about the frame's own centre line
+# 2026-09-06 - "horizontally invert the jagged line - it should touch
+# the other two vertices of the rectangle" - so it runs top-right to
+# bottom-left instead. The two middle vertices sit on x=100 and are
+# their own mirror image, which is why only the endpoints move.
+_SIGNAL_JAGGED_LINE_D = "M25,50 100,110 100,90 175,150"
+
+_SIGNAL_JAGGED_LINE_MIRRORED_D = "M175,50 100,110 100,90 25,150"
+
+
+def mirror_signal_jagged_line(svg):
+
+    """Signal's own jagged line, flipped to the frame's other diagonal - see above."""
+
+    return svg.replace(
+        f'd="{_SIGNAL_JAGGED_LINE_D}"',
+        f'd="{_SIGNAL_JAGGED_LINE_MIRRORED_D}"',
+        1,
+    )
+
+
+# Military Police's own glyph is the plain frame with a bold "MP" in the
+# middle (font-size 45, text-anchor middle - milsymbol's own). Three
+# more entities reuse it with a different pair of letters, requested
+# live 2026-09-06: "Information Warfare, Postal Unit and Intelligence -
+# use the Military Police Glyph, replace MP with IW, PO and I
+# respectively". Nothing but the letters changes: the text stays
+# centred, so a one- or two-letter label needs no repositioning.
+_MILITARY_POLICE_LETTERS = "MP"
+
+_LETTERED_MILITARY_POLICE_ENTITIES = {
+    INFORMATION_WARFARE_ENTITY: "IW",
+    POSTAL_UNIT_ENTITY: "PO",
+    INTELLIGENCE_ENTITY: "I",
+}
+
+
+def _relabel_military_police(letters):
+
+    def fixup(svg):
+
+        return svg.replace(
+            f">{_MILITARY_POLICE_LETTERS}</text>", f">{letters}</text>", 1
+        )
+
+    return fixup
+
+
+# Three more entities take Military Police's own FRAME but replace its
+# lettering with a shape of their own, requested live 2026-09-06:
+# "Supplies and Transport unit - standard rectangle, insert a circle in
+# the middle and add a X (two diagonals) inside the circle only",
+# "Ordnance unit - standard rectangle with the [booby trap] glyph
+# inside it" (said as "decoy" first, corrected the same day),
+# and "Remount and Veterinary corps unit - standard rectangle with \/ -
+# starting at the top corners and meeting at the center of the bottom
+# line of the rectangle".
+#
+# Built on a real entity's render rather than as standalone SVGs (the
+# way Administration or Logistics and Static Formation Headquarters
+# are) precisely so they keep everything milsymbol gives a framed unit:
+# echelon amplifiers, Planned status dashing, and the Headquarters flag
+# mast. Military Police is the donor because its own interior is a
+# single <text> element - the simplest thing in the vocabulary to
+# remove cleanly. Its frame is the same rectangle every Land Unit gets:
+# all six non-NATO affiliations map to SIDC "friend"
+# (SIDC_AFFILIATION_FOR), so the frame shape never varies.
+_MILITARY_POLICE_TEXT_PATTERN = re.compile(
+    r"<text\b[^>]*>" + _MILITARY_POLICE_LETTERS + r"</text>"
+)
+
+# "insert a circle in the middle and add a X (two diagonals) inside the
+# circle only". The radius is not specified - 35 leaves a clear margin
+# inside the frame's own 100-unit height while staying big enough for
+# the X to read at map size.
+_SUPPLIES_CIRCLE_RADIUS = 35
+
+
+def _supplies_transport_glyph(colour):
+
+    centre = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    # The diagonals end ON the circle, which is what "inside the circle
+    # only" asks for - they must not run out to the frame's corners the
+    # way Infantry's own do.
+    offset = _SUPPLIES_CIRCLE_RADIUS / (2 ** 0.5)
+
+    low, high = centre - offset, centre + offset
+    top, bottom = _UNIT_FRAME_CENTRE_Y - offset, _UNIT_FRAME_CENTRE_Y + offset
+
+    return (
+        f'<circle cx="{centre:g}" cy="{_UNIT_FRAME_CENTRE_Y:g}" '
+        f'r="{_SUPPLIES_CIRCLE_RADIUS:g}" stroke-width="3" stroke="{colour}" '
+        'fill="none"></circle>'
+        f'<path d="M{low:g},{top:g} L{high:g},{bottom:g} '
+        f'M{high:g},{top:g} L{low:g},{bottom:g}" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+
+def _ordnance_glyph(colour):
+
+    """
+    Mines and Obstacles' own Booby Trap shape, drawn in this layer's
+    own affiliation colour.
+
+    A first pass used milsymbol's own Decoy glyph, reading "the decoy
+    glyph" literally - corrected live the same day: "its booby trap not
+    decoy - and the colour affiliation remains standard as per land
+    units and not green". So it shares booby_trap_marks() with the
+    mines layer rather than copying it, and takes the colour it is
+    given: MINE_GREEN is that layer's own rule, not the shape's.
+
+    Its own extent (x/y 68.1..131.9) already sits inside the frame's
+    own 100-unit height with room to spare, so it needs no scaling or
+    repositioning.
+    """
+
+    return booby_trap_marks(colour)
+
+
+def _remount_veterinary_glyph(colour):
+
+    """Two lines from the frame's own top corners meeting at the middle of its bottom edge."""
+
+    centre = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    return (
+        f'<path d="M{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_TOP:g} '
+        f'L{centre:g},{_UNIT_FRAME_BOTTOM:g} '
+        f'L{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_TOP:g}" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+
+_MILITARY_POLICE_REGLYPHED = {
+    SUPPLIES_TRANSPORT_ENTITY: _supplies_transport_glyph,
+    ORDNANCE_ENTITY: _ordnance_glyph,
+    REMOUNT_VETERINARY_ENTITY: _remount_veterinary_glyph,
+}
+
+
+def _reglyph_military_police(draw):
+
+    """Swaps Military Police's own "MP" for a shape of this entity's own - see above."""
+
+    def fixup(svg):
+
+        colour = _injected_text_colour(svg)
+
+        return _inject_before_closing_svg(
+            _MILITARY_POLICE_TEXT_PATTERN.sub("", svg, count=1), draw(colour)
+        )
+
+    return fixup
+
+
 _ENTITY_FIXUPS = {
     "amphibious": remove_amphibious_oval,
     "aviation_fixed_wing": hollow_army_aviation_propeller,
     "parachute_rigger": composite_parachute_rigger,
     AIR_DEFENSE_ARTILLERY_ENTITY: add_artillery_center_dot,
     AIR_FORCE_ENTITY: open_air_force_propeller_arc,
+    "signal": mirror_signal_jagged_line,
+    **{
+        entity: _relabel_military_police(letters)
+        for entity, letters in _LETTERED_MILITARY_POLICE_ENTITIES.items()
+    },
+    **{
+        entity: _reglyph_military_police(draw)
+        for entity, draw in _MILITARY_POLICE_REGLYPHED.items()
+    },
 }
 
 
@@ -2836,6 +3161,35 @@ def render_nonnato_equipment_svg(
 # (Non-NATO)" layer, alongside the mine family below - see
 # mines_and_obstacles_layer_nonnato.py.
 
+def booby_trap_marks(colour):
+
+    """
+    Booby Trap's own shape without an SVG wrapper - a hollow circle and
+    four plain horns at 45/135/225/315 degrees, extending x/y 68.1 to
+    131.9 about the centre (100,100).
+
+    Factored out 2026-09-06 so Land Unit's own Ordnance entity can draw
+    the SAME shape rather than a copy of it - "Ordnance unit - standard
+    rectangle with the [booby trap] glyph inside it". `colour` is a
+    real argument there: on Mines and Obstacles this is always
+    MINE_GREEN, but on Land Unit it takes that layer's own affiliation
+    colour ("the colour affiliation remains standard as per land units
+    and not green").
+    """
+
+    horns = "".join(
+        f'<path d="{d}" stroke-width="3" stroke="{colour}" fill="none"></path>'
+        for d in (
+            "M115.6,84.4 L131.9,68.1",
+            "M84.4,84.4 L68.1,68.1",
+            "M84.4,115.6 L68.1,131.9",
+            "M115.6,115.6 L131.9,131.9",
+        )
+    )
+
+    return _mine_circle(colour, filled=False) + horns
+
+
 def booby_trap_control_measure_svg(colour=MINE_GREEN):
 
     """
@@ -2868,18 +3222,10 @@ def booby_trap_control_measure_svg(colour=MINE_GREEN):
     own filled one - the one real difference between the two shapes.
     """
 
-    horns = (
-        f'<path d="M115.6,84.4 L131.9,68.1" stroke-width="3" stroke="{colour}" fill="none"></path>'
-        f'<path d="M84.4,84.4 L68.1,68.1" stroke-width="3" stroke="{colour}" fill="none"></path>'
-        f'<path d="M84.4,115.6 L68.1,131.9" stroke-width="3" stroke="{colour}" fill="none"></path>'
-        f'<path d="M115.6,115.6 L131.9,131.9" stroke-width="3" stroke="{colour}" fill="none"></path>'
-    )
-
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
         'baseProfile="tiny" viewBox="46 46 108 108">'
-        + _mine_circle(colour, filled=False)
-        + horns
+        + booby_trap_marks(colour)
         + '</svg>'
     )
 
