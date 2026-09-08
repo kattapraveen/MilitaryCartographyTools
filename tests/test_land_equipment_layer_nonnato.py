@@ -39,6 +39,8 @@ from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     BRIDGE_LAYER_TANK_ENTITY,
     C_VEHICLE_ENTITY,
     LIGHT_RECCE_VEHICLE_ENTITY,
+    MOBILITY_SELF_PROPELLED,
+    MOBILITY_TRACKED,
     SIGINT_RADAR_ENTITY,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
@@ -252,7 +254,12 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["affiliation", "entity", "unique_designation", "rotation", "scale"]
+            [
+                "affiliation", "entity", "unique_designation",
+                # Tracked/Self-Propelled, added 2026-09-06.
+                "mobility",
+                "rotation", "scale",
+            ]
         )
 
 
@@ -655,3 +662,109 @@ class TestAddLandEquipmentLayerNonnato(QgisTestCase):
 
         self.assertEqual(len(matching), 1)
         self.assertEqual(matching[0].id(), first.id())
+
+
+class TestMobilityFieldOnTheLayer(QgisTestCase):
+
+    """The Tracked/Self-Propelled dropdown, added 2026-09-06."""
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        nonnato_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        nonnato_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _decoded_svg_for(self, layer, attributes):
+
+        import base64
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+        expr_context.setFeature(feature)
+
+        path, ok = layer.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name, expr_context, ""
+        )
+
+        self.assertTrue(ok, "expression failed to evaluate")
+        self.assertTrue(path.startswith("base64:"))
+
+        return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+
+    def test_the_field_offers_the_three_choices_and_defaults_to_none(self):
+
+        layer = build_land_equipment_layer_nonnato()
+
+        index = layer.fields().indexOf("mobility")
+
+        setup = layer.editorWidgetSetup(index)
+
+        self.assertEqual(setup.type(), "ValueMap")
+        self.assertEqual(
+            set(setup.config()["map"]),
+            {"None", "Tracked", "Self-Propelled"},
+        )
+
+        self.assertEqual(
+            layer.defaultValueDefinition(index).expression(), "''"
+        )
+
+
+    def test_the_mark_reaches_the_render_through_the_real_expression(self):
+
+        layer = build_land_equipment_layer_nonnato()
+
+        plain = self._decoded_svg_for(
+            layer, {"affiliation": "friend", "entity": "tank"}
+        )
+
+        for mobility in (MOBILITY_TRACKED, MOBILITY_SELF_PROPELLED):
+
+            with self.subTest(mobility=mobility):
+
+                marked = self._decoded_svg_for(
+                    layer,
+                    {
+                        "affiliation": "friend", "entity": "tank",
+                        "mobility": mobility,
+                    },
+                )
+
+                self.assertNotEqual(marked, plain)
+                self.assertGreater(marked.count("<path"), plain.count("<path"))
+
+
+    def test_a_null_mobility_renders_exactly_like_no_mark(self):
+
+        # coalesce() in the expression - a feature created before this
+        # field existed, or one left untouched, must render unchanged.
+        layer = build_land_equipment_layer_nonnato()
+
+        self.assertEqual(
+            self._decoded_svg_for(
+                layer, {"affiliation": "friend", "entity": "tank"}
+            ),
+            self._decoded_svg_for(
+                layer,
+                {"affiliation": "friend", "entity": "tank", "mobility": ""},
+            ),
+        )

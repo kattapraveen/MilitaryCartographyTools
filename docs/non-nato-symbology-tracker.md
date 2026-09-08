@@ -543,6 +543,74 @@ the Bar Mine smoke test passed. The match is now scoped to the root tag
 only; both halves are covered by tests
 (`TestViewboxExpansionLeavesDrawnRectanglesAlone`).
 
+**Mobility indicators: Tracked and Self-Propelled, 2026-09-06**: "we
+need to design two add-ons to land equipment / tracked and self
+propelled / both are added to the existing glyph at the bottom, so the
+unique designation text needs to shift if selected / they need to
+appear as choice - maybe from a dropdown in the dialog box / for
+tracked - we use the same glyph as in APV i.e. the ellipse but it is
+1/3 the size of the actual glyph / for self-propelled - we need to add
+a diamond or rhombus - size 1/3 of the standard rectangle view box".
+
+Not entities: ANY Land Equipment entity can carry one, so this is a new
+`mobility` field with its own three-value dropdown (None / Tracked /
+Self-Propelled) rather than more rows in the entity list. Stored as
+`""`/`"tracked"`/`"self_propelled"`; a NULL or empty value renders
+exactly as before, so features predating the field are unaffected.
+- **Tracked** is Armoured Protected Vehicle's own stadium at a third of
+  its size - 33.3 x 13.3, from its real 100 x 40 bounding box - drawn
+  with the same two cubic caps rather than approximated as an ellipse
+  or a rounded rectangle.
+- **Self-Propelled** is a hollow diamond with equal diagonals of 28.8 -
+  a third of milsymbol's own 108-wide standard viewBox (36), less a
+  20% trim asked for on sight ("reduce the size of rhombus by 20%"):
+  at the full 36 it stood nearly three times taller than the Tracked
+  mark beside it, which the two separate size rules had not made
+  obvious on paper.
+- Both touch the glyph's own bottom edge with no gap ("the oval and
+  rhombus should touch the glyph bottom", corrected live) - they are
+  part of the symbol, not a label hanging off it, whereas a designation
+  still stands clear of the whole thing.
+- **The designation shift came free.** It is placed from the SVG's own
+  measured ink, and the mark is part of that ink, so it drops below by
+  itself - which is what "the unique designation text needs to shift if
+  selected" asks for. For Armoured Protection Vehicle (Wheeled) the
+  mark takes the same `min_content_bottom` floor the designation
+  already had, since that icon's wheels are outside the SVG.
+
+**Real bug, reported live with a screenshot the same day**: "the very
+bottom extremity is getting clipped, however when we add the unique
+designation, it is ok". The first version grew the viewBox to the
+mark's own GEOMETRY, but a stroked path's ink reaches half a stroke
+width past that, and every stroke here is widened once more at the end
+by `scale_svg_stroke_width()` - so the mark's bottom edge hung ~1.95
+units outside the viewBox. A designation hid it by growing the box
+further down, which is exactly why it only showed up on unlabelled
+features. The viewBox now clears the mark by half its own final stroke
+width. The render sweep's viewBox-contains-the-ink invariant caught the
+same thing independently, and the regression test deliberately covers
+the NO-designation case, since that distinction is the whole bug.
+
+**Correction: there is no QGIS clipping trap, and there never was.**
+The Armoured Protection Vehicle (Wheeled) entry above records a
+conclusion that QGIS's own marker rendering clips to milsymbol's
+original declared draw area, which is why those wheels became separate
+QGIS symbol layers. That conclusion is **wrong**. Re-measured
+2026-09-06 before designing these marks, by injecting exactly those
+wheels into exactly that APV glyph and rendering the marker through a
+real map render at 4 / 6 / 8 / 9.6 / 12 / 20 / 40 mm on BOTH QGIS
+versions: the wheels draw in full every time, and the rendered ink
+grows with the viewBox exactly as it should. Declaring width/height on
+the root or omitting them makes no difference either. The maintainer
+confirmed independently ("the clipped wheels was an incorrect approach
+- it has been fixed since then"). So these marks are injected straight
+into the SVG, which is simpler and gets the designation shift for free.
+The wheels' own symbol-layer implementation is left as it is because it
+works and is tested - not because it is needed; simplifying it back to
+plain injection would remove `mct_nonnato_equipment_svg_height()` and
+both `min_content_bottom` arguments, and is worth doing if that code is
+ever touched again for another reason.
+
 **Mine icons (2026-08-31)** - checked milsymbol's actual current
 render for all three real mine entities against the maintainer's
 rules before changing anything:

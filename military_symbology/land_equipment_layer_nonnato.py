@@ -82,6 +82,7 @@ from .nonnato_symbol_engine import (
     BRIDGE_LAYER_TANK_ENTITY,
     C_VEHICLE_ENTITY,
     LIGHT_RECCE_VEHICLE_ENTITY,
+    MOBILITY_LABELS,
     SIGINT_RADAR_ENTITY,
     nonnato_entity_size_multiplier_expression,
     stabilised_nonnato_size_expression,
@@ -249,6 +250,19 @@ def _configure_attribute_form(layer):
         fields.indexOf("entity"), QgsDefaultValue(f"'{DEFAULT_ENTITY}'")
     )
 
+    # Tracked / Self-Propelled, added 2026-09-06 - "they need to appear
+    # as choice - maybe from a dropdown in the dialog box". Not entities
+    # (any entity can carry one), so this is its own field rather than
+    # more rows in the entity list. The empty string is the default and
+    # means no mark at all.
+    layer.setEditorWidgetSetup(
+        fields.indexOf("mobility"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(MOBILITY_LABELS)})
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("mobility"), QgsDefaultValue("''")
+    )
+
     configure_rotation_and_scale_fields(layer)
 
 
@@ -337,9 +351,13 @@ def _wheel_symbol_layers():
 
     designation_expression = 'upper(coalesce("unique_designation", \'\'))'
 
+    # Mobility is in here too: a Tracked/Self-Propelled mark grows the
+    # viewBox downward exactly the way a designation does, moving the
+    # marker's own anchor and so the hull the wheels have to stay with.
     rendered_height_expression = (
         'mct_nonnato_equipment_svg_height('
-        f'"affiliation","entity",{designation_expression}'
+        f'"affiliation","entity",{designation_expression},'
+        'coalesce("mobility", \'\')'
         ')'
     )
 
@@ -408,9 +426,15 @@ def _build_renderer():
 
     designation_expression = 'upper(coalesce("unique_designation", \'\'))'
 
+    # The Tracked/Self-Propelled mark, added 2026-09-06 - a fourth,
+    # optional argument to the same three render functions (see
+    # nonnato_symbol_engine.inject_mobility_indicator()).
+    mobility_expression = 'coalesce("mobility", \'\')'
+
     expression = (
         'mct_nonnato_equipment_svg('
-        f'"affiliation","entity",{designation_expression}'
+        f'"affiliation","entity",{designation_expression},'
+        f'{mobility_expression}'
         ')'
     )
 
@@ -431,12 +455,21 @@ def _build_renderer():
     # "across the board" per the maintainer's own instruction).
     amplified_width_expression = (
         'mct_nonnato_equipment_svg_width('
-        f'"affiliation","entity",{designation_expression}'
+        f'"affiliation","entity",{designation_expression},'
+        f'{mobility_expression}'
         ')'
     )
 
+    # The designation-less counterpart still carries the mobility mark:
+    # the ratio has to isolate what the DESIGNATION does to the icon's
+    # width, and a mark the feature really has belongs on both sides of
+    # it. (Neither mark widens the viewBox in practice - both are
+    # narrower than the glyphs they hang off - but that is a property
+    # of today's two marks, not something to bake in.)
     plain_width_expression = (
-        "mct_nonnato_equipment_svg_width(\"affiliation\",\"entity\",'')"
+        'mct_nonnato_equipment_svg_width('
+        f'"affiliation","entity",\'\',{mobility_expression}'
+        ')'
     )
 
     svg_layer.setDataDefinedProperty(
@@ -484,6 +517,7 @@ def build_land_equipment_layer_nonnato():
         QgsField("affiliation", QMetaType.Type.QString),
         QgsField("entity", QMetaType.Type.QString),
         QgsField("unique_designation", QMetaType.Type.QString),
+        QgsField("mobility", QMetaType.Type.QString),
         QgsField("rotation", QMetaType.Type.Double),
         QgsField("scale", QMetaType.Type.Double),
     ]

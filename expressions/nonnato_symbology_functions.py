@@ -194,10 +194,16 @@ def _render_equipment(values):
     entity = str(values[1])
     designation = values[2] if len(values) > 2 else None
 
+    # Added 2026-09-06 for the Tracked/Self-Propelled mobility marks.
+    # Positional and optional, like `designation` before it, so the
+    # "Mines and Obstacles (Non-NATO)" layer's own three-argument calls
+    # keep working untouched - mines never carry a mobility mark.
+    mobility = values[3] if len(values) > 3 else None
+
     try:
 
         svg = render_nonnato_equipment_svg(
-            affiliation, entity, designation=designation
+            affiliation, entity, designation=designation, mobility=mobility
         )
 
     except KeyError as error:
@@ -231,9 +237,11 @@ def mct_nonnato_equipment_svg(values, feature=None, parent=None):
     function itself needed no change, since it was always layer-
     agnostic; only which layer's own renderer calls it changed.
 
-    Arguments, the second optional: affiliation, entity, designation
-    (default none). See mct_nonnato_equipment_svg_width() below for the
-    icon-size stabilisation companion function.
+    Arguments, the last two optional: affiliation, entity, designation
+    (default none), mobility (default none - "tracked"/"self_propelled"
+    for the marks added 2026-09-06). See
+    mct_nonnato_equipment_svg_width() below for the icon-size
+    stabilisation companion function.
     """
 
     svg, error = _render_equipment(values)

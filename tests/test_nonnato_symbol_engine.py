@@ -2246,3 +2246,285 @@ class TestTextBoundsIgnoreDominantBaseline(QgisTestCase):
             top + height + nse._DESIGNATION_GAP + nse._DESIGNATION_FONT_SIZE,
             places=3,
         )
+
+
+class TestMobilityIndicators(QgisTestCase):
+
+    """
+    Tracked and Self-Propelled - the two marks any Land Equipment entity
+    can carry below its glyph, added 2026-09-06. Drawn straight into the
+    SVG: the "QGIS clips a shape added below milsymbol's own draw area"
+    conclusion that made Armoured Protection Vehicle (Wheeled)'s wheels
+    separate symbol layers was wrong, re-measured through a real map
+    render on both QGIS versions, and confirmed by the maintainer.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _added_path(self, entity, mobility):
+
+        plain = nse.render_nonnato_equipment_svg("friend", entity)
+        marked = nse.render_nonnato_equipment_svg(
+            "friend", entity, mobility=mobility
+        )
+
+        added = [
+            d for d in re.findall(r'<path d="([^"]+)"', marked)
+            if f'd="{d}"' not in plain
+        ]
+
+        self.assertEqual(len(added), 1, "expected exactly one added path")
+
+        return added[0]
+
+
+    def _numbers(self, path_d):
+
+        return [float(n) for n in re.findall(r"-?[\d.]+", path_d)]
+
+
+    def test_nothing_is_added_without_a_mobility_value(self):
+
+        plain = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        for empty in (None, "", "unknown_value"):
+
+            with self.subTest(mobility=empty):
+
+                self.assertEqual(
+                    nse.render_nonnato_equipment_svg(
+                        "friend", "tank", mobility=empty
+                    ),
+                    plain,
+                )
+
+
+    def test_both_marks_touch_the_glyphs_own_bottom(self):
+
+        # "the oval and rhombus should touch the glyph bottom" - no gap
+        # at all, unlike a designation, which stands clear of the whole
+        # icon.
+        plain = nse.render_nonnato_equipment_svg("friend", "tank")
+
+        _, top, _, height = nse._content_bounds(plain, None)
+
+        glyph_bottom = top + height
+
+        # The mark is positioned against the glyph's ink as measured at
+        # injection time, which is BEFORE scale_svg_stroke_width()'s own
+        # final, uniform 1.3x - so the finished outlines end up
+        # overlapping by half of that extra width, on both shapes
+        # equally. Which is what "touching" means for stroked geometry:
+        # a hair of overlap, never a gap.
+        half_added_stroke = 3 * (nse.DEFAULT_STROKE_SCALE - 1) / 2
+
+        for mobility in (nse.MOBILITY_TRACKED, nse.MOBILITY_SELF_PROPELLED):
+
+            with self.subTest(mobility=mobility):
+
+                numbers = self._numbers(self._added_path("tank", mobility))
+
+                # Every y in the added path, the smallest of which is
+                # the mark's own top edge.
+                ys = numbers[1::2]
+
+                self.assertAlmostEqual(
+                    min(ys), glyph_bottom, delta=half_added_stroke + 0.001
+                )
+
+                # ...and never a gap: the mark starts at or above the
+                # measured bottom, so the two always meet.
+                self.assertLessEqual(min(ys), glyph_bottom)
+
+
+    def test_tracked_is_apvs_own_stadium_at_a_third_of_its_size(self):
+
+        # "for tracked - we use the same glyph as in APV i.e. the
+        # ellipse but it is 1/3 the size of the actual glyph".
+        numbers = self._numbers(self._added_path("tank", nse.MOBILITY_TRACKED))
+
+        xs, ys = numbers[0::2], numbers[1::2]
+
+        self.assertAlmostEqual(max(xs) - min(xs), nse.TRACKED_WIDTH, places=3)
+        self.assertAlmostEqual(max(ys) - min(ys), nse.TRACKED_HEIGHT, places=3)
+
+        # A third of Armoured Protected Vehicle's own 100 x 40 bounding
+        # box, and the same shape - a stadium, drawn with its own two
+        # cubic caps, not an ellipse and not a rectangle.
+        self.assertAlmostEqual(nse.TRACKED_WIDTH, 100 / 3, places=6)
+        self.assertAlmostEqual(nse.TRACKED_HEIGHT, 40 / 3, places=6)
+
+        self.assertEqual(
+            self._added_path("tank", nse.MOBILITY_TRACKED).count("C"), 2
+        )
+
+
+    def test_self_propelled_is_a_diamond_a_third_of_the_standard_viewbox(self):
+
+        # "for self-propelled - we need to add a diamond or rhombus -
+        # size 1/3 of the standard rectangle view box".
+        path = self._added_path("tank", nse.MOBILITY_SELF_PROPELLED)
+
+        numbers = self._numbers(path)
+
+        xs, ys = numbers[0::2], numbers[1::2]
+
+        self.assertAlmostEqual(
+            max(xs) - min(xs), nse.SELF_PROPELLED_SIZE, places=3
+        )
+        self.assertAlmostEqual(
+            max(ys) - min(ys), nse.SELF_PROPELLED_SIZE, places=3
+        )
+
+        # A third of the standard 108 viewBox, less the 20% trim
+        # asked for once it was seen rendered.
+        self.assertAlmostEqual(
+            nse.SELF_PROPELLED_SIZE, 108 / 3 * 0.8, places=6
+        )
+
+        # Four straight sides, no curves.
+        self.assertNotIn("C", path)
+        self.assertEqual(path.count("L"), 3)
+
+
+    def test_a_mark_pushes_the_designation_down(self):
+
+        # "so the unique designation text needs to shift if selected" -
+        # this comes free, because the designation is placed from the
+        # SVG's own measured ink and the mark is part of that ink.
+        def baseline(mobility):
+            svg = nse.render_nonnato_equipment_svg(
+                "friend", "tank", "a1", mobility
+            )
+            return float(
+                re.search(r'<text x="\S+" y="(\S+)"[^>]*>A1</text>', svg).group(1)
+            )
+
+        plain = baseline(None)
+
+        for mobility in (nse.MOBILITY_TRACKED, nse.MOBILITY_SELF_PROPELLED):
+
+            with self.subTest(mobility=mobility):
+
+                self.assertGreater(baseline(mobility), plain)
+
+        # ...and further for the taller of the two marks.
+        self.assertGreater(
+            baseline(nse.MOBILITY_SELF_PROPELLED),
+            baseline(nse.MOBILITY_TRACKED),
+        )
+
+
+    def test_the_viewbox_grows_to_hold_the_marks_stroked_outline(self):
+
+        # WITHOUT a designation as well as with - that distinction is
+        # the whole bug this guards. The first version grew the viewBox
+        # to the mark's geometry and left its stroke hanging ~1.95 units
+        # outside, which a designation then hid by growing the box
+        # further down: "the very bottom extremity is getting clipped,
+        # however when we add the unique designation, it is ok"
+        # (reported with a screenshot, 2026-09-06).
+        for entity in ("tank", "howitzer", "armored_protected_vehicle"):
+
+            for mobility in (nse.MOBILITY_TRACKED, nse.MOBILITY_SELF_PROPELLED):
+
+                for designation in (None, "a1"):
+
+                    with self.subTest(
+                        entity=entity,
+                        mobility=mobility,
+                        designation=designation,
+                    ):
+
+                        self._assert_ink_inside_viewbox(
+                            nse.render_nonnato_equipment_svg(
+                                "friend", entity, designation, mobility
+                            )
+                        )
+
+
+    def _assert_ink_inside_viewbox(self, svg):
+
+        # _content_bounds() measures through QSvgRenderer, whose bounds
+        # include the stroke - so this really does check the drawn
+        # outline, not just the geometry.
+        vb_x, vb_y, vb_w, vb_h = (
+            float(value) for value in nse._VIEWBOX_PATTERN.search(svg).groups()
+        )
+
+        left, top, width, height = nse._content_bounds(svg, None)
+
+        self.assertGreaterEqual(left, vb_x - 0.01)
+        self.assertGreaterEqual(top, vb_y - 0.01)
+        self.assertLessEqual(left + width, vb_x + vb_w + 0.01)
+        self.assertLessEqual(top + height, vb_y + vb_h + 0.01)
+
+
+    def test_the_viewbox_clears_the_stroke_by_exactly_half_its_width(self):
+
+        # The specific number the clipping bug was short by, pinned so a
+        # future change to DEFAULT_STROKE_SCALE cannot silently
+        # reintroduce it.
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", "tank", mobility=nse.MOBILITY_SELF_PROPELLED
+        )
+
+        vb_y, vb_h = (
+            float(nse._VIEWBOX_PATTERN.search(svg).group(n)) for n in (2, 4)
+        )
+
+        lowest_geometry = max(
+            self._numbers(self._added_path("tank", nse.MOBILITY_SELF_PROPELLED))[1::2]
+        )
+
+        self.assertAlmostEqual(
+            vb_y + vb_h - lowest_geometry,
+            3 * nse.DEFAULT_STROKE_SCALE / 2,
+            places=3,
+        )
+
+
+    def test_the_mark_clears_apv_wheeleds_own_separate_wheels(self):
+
+        # Those wheels are symbol layers, so this SVG's measured ink
+        # stops at the hull - the mark has to be told where they end,
+        # the same way the designation already is.
+        wheel_bottom = nse.APV_WHEEL_CENTRE_Y + nse.APV_WHEEL_DIAMETER / 2
+
+        numbers = self._numbers(
+            self._added_path(nse.APV_WHEELED_ENTITY, nse.MOBILITY_TRACKED)
+        )
+
+        self.assertAlmostEqual(min(numbers[1::2]), wheel_bottom, places=3)
+
+
+    def test_it_takes_the_affiliation_colour(self):
+
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                svg = nse.render_nonnato_equipment_svg(
+                    "friend" if False else affiliation,
+                    "tank",
+                    mobility=nse.MOBILITY_TRACKED,
+                )
+
+                self.assertIn(colour, svg)
+
+
+    def test_the_dropdown_offers_exactly_none_tracked_and_self_propelled(self):
+
+        self.assertEqual(
+            nse.MOBILITY_LABELS,
+            {
+                "": "None",
+                nse.MOBILITY_TRACKED: "Tracked",
+                nse.MOBILITY_SELF_PROPELLED: "Self-Propelled",
+            },
+        )

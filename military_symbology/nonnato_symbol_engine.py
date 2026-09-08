@@ -1760,16 +1760,22 @@ def armoured_recce_vehicle_mark(svg):
 # drawn into the SVG at all - they are their own QGIS simple-marker
 # symbol layers, composed alongside this icon's own SVG marker layer by
 # land_equipment_layer_nonnato.py's own renderer. See APV_WHEEL_*
-# below for the geometry those layers read, and that module's own
-# _wheel_symbol_layers() for why: an SVG-internal circle drawn below
-# milsymbol's own declared draw area gets clipped by QGIS's own marker
-# rendering no matter what the viewBox says (a real bug, caught by a
-# smoke test, then chased through six different SVG-side workarounds
-# before the multi-layer approach - which is what this plugin's own
-# NATO side already does for exactly this kind of "add an element to a
-# milsymbol icon" job, e.g. c2_measures.py's own runway lines - settled
-# it). These constants stay here, beside the rest of this family's own
-# geometry, because they are read off the SAME oval.
+# below for the geometry those layers read.
+#
+# **Why they are symbol layers is now a historical answer, not a
+# technical one.** The original reason was a conclusion that QGIS clips
+# an SVG marker to milsymbol's own declared draw area, so circles drawn
+# below the hull could never show. **That conclusion was wrong** -
+# disproved 2026-09-06 by injecting exactly these circles into exactly
+# this glyph and rendering the marker through a real map render at
+# 4/6/8/9.6/12/20/40 mm on both QGIS versions: drawn in full every
+# time, ink growing with the viewBox (see inject_mobility_indicator(),
+# which relies on that). The maintainer confirmed independently. This
+# implementation is left alone because it works and is well tested; if
+# it is ever touched again, injecting the circles instead would remove
+# mct_nonnato_equipment_svg_height() and both min_content_bottom
+# arguments. These constants stay here, beside the rest of this
+# family's own geometry, because they are read off the SAME oval.
 #
 # Radius: 1/3 of the oval's own semi-minor axis (20) - "radii size can
 # be 1/3 of semi-minor axis". Centres: one radius below the oval's own
@@ -1816,14 +1822,6 @@ APV_WHEEL_STROKE_WIDTH = 3 * DEFAULT_STROKE_SCALE
 # _SYNTHETIC_VEHICLE_SVG below) rather than as an
 # _EQUIPMENT_ENTITY_FIXUPS entry.
 #
-# **Authoring the whole SVG is also what makes the wheels safe here.**
-# Armoured Protection Vehicle (Wheeled)'s own wheels had to become
-# separate QGIS symbol layers because they sat outside milsymbol's own
-# declared draw area and got clipped (see the comment above
-# APV_WHEEL_RADIUS). That constraint is milsymbol-specific: there is no
-# milsymbol draw area involved in an SVG this module writes end to end,
-# so plain <circle> elements render in full - the same reason Bar Mine's
-# own below-the-circle rectangle already works.
 #
 # "Similar dimensions as land unit" is read literally: the same
 # rectangle every Land Unit icon's own frame uses (150 wide x 100 tall,
@@ -2111,7 +2109,211 @@ def nonnato_entity_size_multiplier_expression(entities):
     return f"CASE {branches} ELSE 1 END" if branches else "1"
 
 
-def render_nonnato_equipment_svg(affiliation, entity, designation=None):
+# --- Mobility indicators: Tracked and Self-Propelled -------------------
+#
+# Requested live, 2026-09-06: "we need to design two add-ons to land
+# equipment / tracked and self propelled / both are added to the
+# existing glyph at the bottom, so the unique designation text needs to
+# shift if selected / they need to appear as choice - maybe from a
+# dropdown in the dialog box / for tracked - we use the same glyph as in
+# APV i.e. the ellipse but it is 1/3 the size of the actual glyph / for
+# self-propelled - we need to add a diamond or rhombus - size 1/3 of the
+# standard rectangle view box".
+#
+# Unlike everything else on this layer these are not entities: any
+# entity can carry one, so they are a separate "mobility" field with its
+# own dropdown, applied as a post-render addition here.
+#
+# **Drawn straight into the SVG, deliberately.** The record used to say
+# that a shape added below milsymbol's own declared draw area is clipped
+# by QGIS's marker rendering, which is why Armoured Protection Vehicle
+# (Wheeled)'s own wheels became separate QGIS symbol layers. That
+# conclusion was wrong - re-measured 2026-09-06 by injecting exactly
+# those wheels into the same APV glyph and rendering the marker through
+# a real map render at 4/6/8/9.6/12/20/40 mm on BOTH QGIS versions: the
+# wheels draw in full every time, and the rendered ink grows with the
+# viewBox exactly as it should. Declaring width/height on the root, or
+# omitting them, makes no difference either. The maintainer confirmed
+# independently ("the clipped wheels was an incorrect approach - it has
+# been fixed since then"). So there is no clipping trap to work around;
+# the wheels' own symbol-layer implementation is left alone because it
+# works and is tested, not because it is needed.
+#
+# Injecting rather than composing also gets the designation shift for
+# free: inject_centered_designation_below() measures the SVG's own real
+# ink, so a mobility mark that is part of the SVG pushes the text down
+# by itself, which is exactly what "the unique designation text needs to
+# shift if selected" asks for.
+MOBILITY_TRACKED = "tracked"
+MOBILITY_SELF_PROPELLED = "self_propelled"
+
+MOBILITY_LABELS = {
+    "": "None",
+    MOBILITY_TRACKED: "Tracked",
+    MOBILITY_SELF_PROPELLED: "Self-Propelled",
+}
+
+# Zero, by instruction - "the oval and rhombus should touch the glyph
+# bottom". They are part of the symbol, not a label hanging off it, so
+# there is no gap at all; a designation still sits clear of the whole
+# thing by its own _DESIGNATION_GAP.
+_MOBILITY_GAP = 0
+
+# "the same glyph as in APV i.e. the ellipse but it is 1/3 the size of
+# the actual glyph". Armoured Protected Vehicle's own glyph is not a
+# true ellipse but a stadium - `M125,80 C150,80 150,120 125,120 L75,120
+# C50,120 50,80 75,80 Z`, bounding box x 50..150 (100 wide) by y 80..120
+# (40 tall). Restated here about its own centre so it can be scaled and
+# placed anywhere: each pair is an offset from the centre.
+_APV_STADIUM_OUTLINE = (
+    (25, -20),
+    ((50, -20), (50, 20), (25, 20)),
+    (-25, 20),
+    ((-50, 20), (-50, -20), (-25, -20)),
+)
+
+_MOBILITY_SCALE = 1 / 3
+
+TRACKED_WIDTH = 100 * _MOBILITY_SCALE
+TRACKED_HEIGHT = 40 * _MOBILITY_SCALE
+
+# "size 1/3 of the standard rectangle view box" - the standard viewBox
+# is milsymbol's own 108 square, so 36 across, read as a true diamond
+# (equal diagonals), which is the literal reading of a single "size".
+#
+# Trimmed 20% after seeing it rendered ("reduce the size of rhombus by
+# 20%", live the same day): at a full 36 it stood nearly three times
+# taller than the Tracked mark beside it, which the two separate size
+# rules had not made obvious on paper.
+_SELF_PROPELLED_TRIM = 0.8
+
+SELF_PROPELLED_SIZE = (
+    _STANDARD_EQUIPMENT_VIEWBOX_WIDTH * _MOBILITY_SCALE * _SELF_PROPELLED_TRIM
+)
+
+
+def _tracked_path(centre_x, centre_y, colour):
+
+    """APV's own stadium at a third of its size - see this section's own comment."""
+
+    def point(offset):
+        dx, dy = offset
+        return (
+            f"{centre_x + dx * _MOBILITY_SCALE:g},"
+            f"{centre_y + dy * _MOBILITY_SCALE:g}"
+        )
+
+    start, right_cap, corner, left_cap = _APV_STADIUM_OUTLINE
+
+    d = (
+        f"M{point(start)} "
+        f"C{point(right_cap[0])} {point(right_cap[1])} {point(right_cap[2])} "
+        f"L{point(corner)} "
+        f"C{point(left_cap[0])} {point(left_cap[1])} {point(left_cap[2])} Z"
+    )
+
+    return (
+        f'<path d="{d}" stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+
+def _self_propelled_path(centre_x, centre_y, colour):
+
+    """A hollow diamond, its own diagonals SELF_PROPELLED_SIZE long."""
+
+    half = SELF_PROPELLED_SIZE / 2
+
+    d = (
+        f"M{centre_x:g},{centre_y - half:g} "
+        f"L{centre_x + half:g},{centre_y:g} "
+        f"L{centre_x:g},{centre_y + half:g} "
+        f"L{centre_x - half:g},{centre_y:g} Z"
+    )
+
+    return (
+        f'<path d="{d}" stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+
+_MOBILITY_MARKS = {
+    MOBILITY_TRACKED: (_tracked_path, TRACKED_HEIGHT),
+    MOBILITY_SELF_PROPELLED: (_self_propelled_path, SELF_PROPELLED_SIZE),
+}
+
+# A stroked path's own ink reaches half a stroke width past its
+# geometry, and every stroke in this module is widened once more at the
+# very end by scale_svg_stroke_width(). Growing the viewBox to the
+# mark's geometry alone therefore left its bottom edge hanging ~1.95
+# units outside - clipped on the map, but ONLY when no designation was
+# typed, since a designation grows the viewBox further down and
+# swallowed the overflow. Reported live with a screenshot 2026-09-06
+# ("the very bottom extremity is getting clipped, however when we add
+# the unique designation, it is ok") and caught by the render sweep's
+# own viewBox-contains-the-ink invariant in the same breath.
+_MOBILITY_HALF_STROKE = 3 * DEFAULT_STROKE_SCALE / 2
+
+
+def inject_mobility_indicator(
+    svg, mobility, colour, min_content_bottom=None
+):
+
+    """
+    Draws `mobility`'s own mark centred directly below `svg`'s own
+    actual drawn content, widening the viewBox downward to fit it -
+    the same "measure the real ink, then grow the viewBox" mechanism
+    inject_centered_designation_below() uses, and deliberately applied
+    BEFORE that one so the designation measures the mark too and drops
+    below it.
+
+    `min_content_bottom` carries the same meaning it does there: the
+    lowest point an icon reaches OUTSIDE this SVG, which for Armoured
+    Protection Vehicle (Wheeled) is its own separate wheel symbol
+    layers. Without it the mark would sit under the hull and through
+    the wheels.
+
+    Anything falsy, or an unknown value, leaves the SVG untouched.
+    """
+
+    mark = _MOBILITY_MARKS.get(mobility) if mobility else None
+
+    if mark is None:
+        return svg
+
+    draw, height = mark
+
+    match = _VIEWBOX_PATTERN.search(svg)
+
+    if not match:
+        return svg
+
+    vb_x, vb_y, vb_w, vb_h = (float(value) for value in match.groups())
+
+    content_x, content_y, content_w, content_h = _content_bounds(
+        svg, fallback=(vb_x, vb_y, vb_w, vb_h)
+    )
+
+    content_bottom = content_y + content_h
+
+    if min_content_bottom is not None:
+        content_bottom = max(content_bottom, min_content_bottom)
+
+    centre_x = content_x + content_w / 2
+    centre_y = content_bottom + _MOBILITY_GAP + height / 2
+
+    svg = _expand_viewbox_for_rect(
+        svg,
+        vb_x,
+        vb_y,
+        vb_w,
+        (centre_y + height / 2 + _MOBILITY_HALF_STROKE) - vb_y,
+    )
+
+    return _inject_before_closing_svg(svg, draw(centre_x, centre_y, colour))
+
+
+def render_nonnato_equipment_svg(
+    affiliation, entity, designation=None, mobility=None
+):
 
     """
     The full non-NATO Land Equipment render, mirroring render_nonnato_
@@ -2138,6 +2340,12 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
     since both used to have no consistent designation story of their
     own (the mines never took milsymbol's own uniqueDesignation option
     in the first place).
+
+    `mobility` ("tracked"/"self_propelled", or nothing) adds its own
+    mark below the glyph BEFORE the designation is placed, so the text
+    measures it as part of the icon and drops below it - see
+    inject_mobility_indicator(). Mines never carry one; the argument is
+    simply never passed from that layer.
     """
 
     is_mine = entity in MINE_ENTITIES
@@ -2170,12 +2378,17 @@ def render_nonnato_equipment_svg(affiliation, entity, designation=None):
         )
 
     # Armoured Protection Vehicle (Wheeled) draws lower than this SVG
-    # knows about - its own wheels are separate symbol layers, so the
-    # designation has to be told where they actually end.
+    # knows about - its own wheels are separate symbol layers, so both
+    # the mobility mark and the designation have to be told where they
+    # actually end.
     min_content_bottom = (
         APV_WHEEL_CENTRE_Y + APV_WHEEL_DIAMETER / 2
         if entity == APV_WHEELED_ENTITY
         else None
+    )
+
+    svg = inject_mobility_indicator(
+        svg, mobility, colour, min_content_bottom=min_content_bottom
     )
 
     svg = inject_centered_designation_below(
