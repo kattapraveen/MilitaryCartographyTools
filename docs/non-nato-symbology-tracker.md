@@ -423,17 +423,41 @@ to).
   designation instead of staying where they are" - a designation grows
   the SVG's own viewBox downward, which moves the marker's anchor (its
   viewBox centre) down and so shifts the ICON up, while a fixed wheel
-  offset stayed put. The wheels' own vertical offset is now computed
-  per feature from the icon's own RENDERED height, via a new
-  `mct_nonnato_equipment_svg_height()` expression function, so they
-  track the hull whatever the designation does. (2) The designation
-  itself is placed relative to the SVG's own measured content, which
-  now stops at the hull - so it tucked under the hull and straight
-  through the wheels. `inject_centered_designation_below()` grew a
-  `min_content_bottom` argument for exactly this: an icon whose drawn
-  extent is not all inside its own SVG passes the lowest point its
-  extra symbol layers actually reach, and the normal gap is measured
-  below THAT.
+  offset stayed put. The wheels' own vertical offset was then computed
+  per feature from the icon's own RENDERED height, via a
+  `mct_nonnato_equipment_svg_height()` expression function. (2) The
+  designation itself is placed relative to the SVG's own measured
+  content, which stopped at the hull - so it tucked under the hull and
+  straight through the wheels. `inject_centered_designation_below()`
+  grew a `min_content_bottom` argument for exactly this.
+
+  **ALL OF THE ABOVE WAS REVERTED 2026-09-06** - "simplify the apv
+  wheeled wheels back to plain injection". The clipping conclusion the
+  whole multi-layer approach rested on was wrong (see the Mobility
+  indicators entry below for the measurement that disproved it), and
+  both follow-on fixes existed ONLY to compensate for the wheels not
+  being in the SVG. The wheels are now three `<circle>` elements
+  injected by an ordinary `_EQUIPMENT_ENTITY_FIXUPS` entry
+  (`apv_wheeled_marks()`), exactly like Bridge Layer Tank's and
+  Armoured Recce Vehicle's own marks, and the designation clears them
+  by the same content-bounds measurement every other icon uses. Deleted
+  with them: `land_equipment_layer_nonnato._wheel_symbol_layers()` and
+  its seven supporting constants, the `mct_nonnato_equipment_svg_
+  height()` expression function and its `_viewbox_height()` helper, and
+  the `min_content_bottom` argument on BOTH
+  `inject_centered_designation_below()` and
+  `inject_mobility_indicator()` - about 190 lines net. The layer's
+  symbol is a single SVG marker layer again. Verified through a real
+  map render of the real layer, not just the SVG: wheels drawn in full,
+  with and without a designation and with a mobility mark.
+
+  **One migration note**: a QGIS project saved BEFORE this change
+  stores the old renderer - three simple-marker wheel layers plus
+  expressions calling `mct_nonnato_equipment_svg_height()`, which no
+  longer exists. Such a project will show doubled wheels and a broken
+  size expression. Re-add the layer. This is acceptable because the
+  branch is unmerged and under active development; it would not be if
+  it had shipped.
 
 All three keyed to synthetic entities (`BRIDGE_LAYER_TANK_ENTITY`,
 `ARMOURED_RECCE_VEHICLE_ENTITY`, `APV_WHEELED_ENTITY`, all

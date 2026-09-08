@@ -1358,93 +1358,6 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
         )
 
 
-    def test_apv_wheeled_svg_is_the_plain_apv_glyph(self):
-
-        # The three wheels are NOT drawn into the SVG - an SVG-internal
-        # circle below milsymbol's own declared draw area gets clipped
-        # by QGIS's own marker rendering whatever the viewBox says (a
-        # real bug, caught by a smoke test: "the circles below the
-        # ellipse are not visible... circles are being cropped"). They
-        # are their own simple-marker symbol layers instead - see
-        # land_equipment_layer_nonnato._wheel_symbol_layers() and its
-        # own tests - so this entity's own SVG is byte-identical to the
-        # plain APV render it aliases to.
-        wheeled = nse.render_nonnato_equipment_svg(
-            "friend", nse.APV_WHEELED_ENTITY
-        )
-        apv = nse.render_nonnato_equipment_svg(
-            "friend", "armored_protected_vehicle"
-        )
-
-        self.assertEqual(wheeled, apv)
-        self.assertEqual(wheeled.count("<circle"), 0)
-
-
-    def test_apv_wheel_geometry_constants_sit_on_the_ovals_own_edges(self):
-
-        # "three circles below the oval, slightly inside the edges,
-        # touching the oval, radii size can be 1/3 of semi-minor axis" -
-        # the oval spans x 75..125 and y 80..120, so the semi-minor axis
-        # is 20 and the radius 20/3. Each wheel's own top touches the
-        # oval's own straight bottom edge, and the outer two are inset
-        # exactly one radius from its own straight left/right edges.
-        radius = nse.APV_WHEEL_DIAMETER / 2
-
-        self.assertAlmostEqual(radius, 20 / 3)
-        self.assertAlmostEqual(nse.APV_WHEEL_CENTRE_Y - radius, 120)
-
-        left, middle, right = nse.APV_WHEEL_CENTRE_XS
-
-        self.assertAlmostEqual(left - radius, 75)
-        self.assertAlmostEqual(right + radius, 125)
-        self.assertAlmostEqual(middle, (left + right) / 2)
-
-
-    def test_apv_wheeled_designation_clears_the_wheels(self):
-
-        # The wheels are separate symbol layers, so this SVG's own
-        # measured content stops at the hull - without being told where
-        # the wheels really end, the designation tucks straight under
-        # the hull and through them. Reported live, 2026-09-03, right
-        # after the wheels themselves were fixed.
-        wheel_bottom = nse.APV_WHEEL_CENTRE_Y + nse.APV_WHEEL_DIAMETER / 2
-
-        wheeled = nse.render_nonnato_equipment_svg(
-            "friend", nse.APV_WHEELED_ENTITY, designation="a1"
-        )
-        plain = nse.render_nonnato_equipment_svg(
-            "friend", "armored_protected_vehicle", designation="a1"
-        )
-
-        def baseline(svg):
-            match = re.search(r'<text x="\S+" y="(\S+)"[^>]*>A1</text>', svg)
-            return float(match.group(1))
-
-        # The text's own top edge (baseline minus roughly a cap height)
-        # has to sit below the lowest point the wheels reach.
-        font_size = nse._DESIGNATION_FONT_SIZE
-
-        self.assertGreater(baseline(wheeled) - font_size, wheel_bottom)
-
-        # ...and it is pushed down purely because of the wheels - the
-        # plain APV, same glyph without them, sits higher.
-        self.assertGreater(baseline(wheeled), baseline(plain))
-
-
-    def test_designation_min_content_bottom_never_pulls_text_up(self):
-
-        # The override only ever lowers the text - an icon that already
-        # draws below the given floor keeps its own measured position.
-        base_svg = nse.render_nonnato_equipment_svg("friend", "tank")
-
-        without = nse.inject_centered_designation_below(base_svg, "a1", _FRIEND)
-        with_low_floor = nse.inject_centered_designation_below(
-            base_svg, "a1", _FRIEND, min_content_bottom=-999
-        )
-
-        self.assertEqual(without, with_low_floor)
-
-
     def test_apv_synthetic_entities_do_not_affect_the_plain_apv_render(self):
 
         # Regression guard for the alias mechanism, same as Air Defence
@@ -2489,20 +2402,6 @@ class TestMobilityIndicators(QgisTestCase):
         )
 
 
-    def test_the_mark_clears_apv_wheeleds_own_separate_wheels(self):
-
-        # Those wheels are symbol layers, so this SVG's measured ink
-        # stops at the hull - the mark has to be told where they end,
-        # the same way the designation already is.
-        wheel_bottom = nse.APV_WHEEL_CENTRE_Y + nse.APV_WHEEL_DIAMETER / 2
-
-        numbers = self._numbers(
-            self._added_path(nse.APV_WHEELED_ENTITY, nse.MOBILITY_TRACKED)
-        )
-
-        self.assertAlmostEqual(min(numbers[1::2]), wheel_bottom, places=3)
-
-
     def test_it_takes_the_affiliation_colour(self):
 
         for affiliation, colour in nse.AFFILIATION_COLOURS.items():
@@ -2528,3 +2427,165 @@ class TestMobilityIndicators(QgisTestCase):
                 nse.MOBILITY_SELF_PROPELLED: "Self-Propelled",
             },
         )
+
+
+class TestApvWheeledWheels(QgisTestCase):
+
+    """
+    Armoured Protection Vehicle (Wheeled)'s three wheels, drawn straight
+    into the SVG since 2026-09-06. They were three separate QGIS
+    simple-marker symbol layers for three days, on the strength of a
+    clipping conclusion that turned out to be wrong - see
+    apv_wheeled_marks().
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _wheels(self, svg):
+
+        return [
+            tuple(float(v) for v in wheel)
+            for wheel in re.findall(
+                r'<circle cx="(\S+?)" cy="(\S+?)" r="(\S+?)"', svg
+            )
+        ]
+
+
+    def test_three_wheels_are_drawn_into_the_svg(self):
+
+        svg = nse.render_nonnato_equipment_svg("friend", nse.APV_WHEELED_ENTITY)
+
+        self.assertEqual(len(self._wheels(svg)), 3)
+
+
+    def test_they_sit_on_the_ovals_own_edges(self):
+
+        # "add three circles below the oval, slightly inside the edges,
+        # touching the oval, radii size can be 1/3 of semi-minor axis" -
+        # the oval's straight bottom edge is y=120, its straight sides
+        # x=75 and x=125, and its semi-minor axis is 20.
+        wheels = self._wheels(
+            nse.render_nonnato_equipment_svg("friend", nse.APV_WHEELED_ENTITY)
+        )
+
+        (left_x, y, radius), (middle_x, _, _), (right_x, _, _) = wheels
+
+        # places=3, not exact: the numbers reach the SVG through "%g",
+        # which rounds them to six significant figures - so a coordinate
+        # near 126.667 carries about three decimals of precision.
+        self.assertAlmostEqual(radius, 20 / 3, places=3)
+        self.assertAlmostEqual(y - radius, 120, places=3)
+        self.assertAlmostEqual(left_x - radius, 75, places=3)
+        self.assertAlmostEqual(right_x + radius, 125, places=3)
+        self.assertAlmostEqual(middle_x, (left_x + right_x) / 2, places=3)
+
+
+    def test_the_plain_apv_never_grows_wheels(self):
+
+        plain = nse.render_nonnato_equipment_svg(
+            "friend", "armored_protected_vehicle"
+        )
+
+        self.assertEqual(self._wheels(plain), [])
+
+
+    def test_they_take_the_hulls_own_colour_and_line_weight(self):
+
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                svg = nse.render_nonnato_equipment_svg(
+                    affiliation, nse.APV_WHEELED_ENTITY
+                )
+
+                circles = re.findall(r"<circle[^>]*>", svg)
+
+                self.assertEqual(len(circles), 3)
+
+                for circle in circles:
+
+                    self.assertIn(f'stroke="{colour}"', circle)
+
+                    # The same width the hull itself ends up with, after
+                    # the module's own final uniform scaling.
+                    self.assertIn(
+                        f'stroke-width="{3 * nse.DEFAULT_STROKE_SCALE:g}"',
+                        circle,
+                    )
+
+
+    def test_the_designation_drops_below_them_without_being_told(self):
+
+        # The whole point of drawing them into the SVG: the designation
+        # measures the icon's own ink, so it clears the wheels with no
+        # min_content_bottom floor and no rendered-height expression.
+        wheeled = nse.render_nonnato_equipment_svg(
+            "friend", nse.APV_WHEELED_ENTITY, "a1"
+        )
+        plain = nse.render_nonnato_equipment_svg(
+            "friend", "armored_protected_vehicle", "a1"
+        )
+
+        def baseline(svg):
+            return float(
+                re.search(r'<text x="\S+" y="(\S+)"[^>]*>A1</text>', svg).group(1)
+            )
+
+        wheels = self._wheels(wheeled)
+
+        wheel_bottom = wheels[0][1] + wheels[0][2]
+
+        self.assertGreater(
+            baseline(wheeled) - nse._DESIGNATION_FONT_SIZE, wheel_bottom
+        )
+
+        # ...and lower than the same glyph without wheels.
+        self.assertGreater(baseline(wheeled), baseline(plain))
+
+
+    def test_a_mobility_mark_also_clears_them_on_its_own(self):
+
+        svg = nse.render_nonnato_equipment_svg(
+            "friend", nse.APV_WHEELED_ENTITY, mobility=nse.MOBILITY_TRACKED
+        )
+
+        wheels = self._wheels(svg)
+
+        wheel_bottom = wheels[0][1] + wheels[0][2]
+
+        mark_top = min(
+            float(n)
+            for n in re.findall(r"-?[\d.]+", re.findall(r'<path d="([^"]+)"', svg)[-1])[1::2]
+        )
+
+        self.assertGreaterEqual(mark_top, wheel_bottom - 0.001)
+
+
+    def test_the_viewbox_holds_the_wheels_stroked_outline(self):
+
+        # Same lesson the mobility mark's own clipping bug taught: grow
+        # for the stroke, not just the geometry.
+        for designation in (None, "a1"):
+
+            with self.subTest(designation=designation):
+
+                svg = nse.render_nonnato_equipment_svg(
+                    "friend", nse.APV_WHEELED_ENTITY, designation
+                )
+
+                vb_x, vb_y, vb_w, vb_h = (
+                    float(v) for v in nse._VIEWBOX_PATTERN.search(svg).groups()
+                )
+
+                left, top, width, height = nse._content_bounds(svg, None)
+
+                self.assertGreaterEqual(left, vb_x - 0.01)
+                self.assertGreaterEqual(top, vb_y - 0.01)
+                self.assertLessEqual(left + width, vb_x + vb_w + 0.01)
+                self.assertLessEqual(top + height, vb_y + vb_h + 0.01)

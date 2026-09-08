@@ -999,6 +999,15 @@ _DESIGNATION_GAP = 6.0
 # ink, which is half the CAP height.
 _CAP_HEIGHT_RATIO = 0.7
 
+# How far a stroked path's ink reaches past its own geometry, for the
+# shapes this module draws: half the width they are authored at (3),
+# times the uniform widening scale_svg_stroke_width() applies to
+# everything at the very end. Grow a viewBox by the geometry alone and
+# the outline hangs outside it - a real, reported bug (see
+# inject_mobility_indicator()), and the reason every injected shape
+# here adds this.
+_INJECTED_HALF_STROKE = 3 * DEFAULT_STROKE_SCALE / 2
+
 
 def designation_font_size_in_icon_units(viewbox_width, size_multiplier=1.0):
 
@@ -1260,7 +1269,7 @@ def _content_bounds(svg, fallback):
 
 
 def inject_centered_designation_below(
-    svg, designation, colour, min_content_bottom=None, size_multiplier=1.0
+    svg, designation, colour, size_multiplier=1.0
 ):
 
     """
@@ -1279,14 +1288,6 @@ def inject_centered_designation_below(
     viewBox sideways, mirroring symbol_engine.py's own supply-box
     convention (_fitted_font_size()) - a long designation gets smaller,
     not an ever-wider icon.
-
-    `min_content_bottom` is for an icon whose drawn extent is NOT all
-    inside this SVG: Armoured Protection Vehicle (Wheeled)'s own three
-    wheels are separate QGIS symbol layers (see land_equipment_layer_
-    nonnato._wheel_symbol_layers()), so measuring this SVG alone would
-    tuck the designation under the hull and straight through them.
-    Passing the lowest point those layers actually reach keeps the
-    normal gap below the WHOLE icon instead.
 
     `size_multiplier` is the icon's own per-entity marker multiplier
     (nonnato_entity_size_multiplier()). Together with the icon's own
@@ -1311,9 +1312,6 @@ def inject_centered_designation_below(
     )
 
     content_bottom = content_y + content_h
-
-    if min_content_bottom is not None:
-        content_bottom = max(content_bottom, min_content_bottom)
 
     text = str(designation).upper()
 
@@ -1756,47 +1754,71 @@ def armoured_recce_vehicle_mark(svg):
     return _inject_before_closing_svg(svg, mark)
 
 
-# Armoured Protection Vehicle (Wheeled)'s own three wheels are NOT
-# drawn into the SVG at all - they are their own QGIS simple-marker
-# symbol layers, composed alongside this icon's own SVG marker layer by
-# land_equipment_layer_nonnato.py's own renderer. See APV_WHEEL_*
-# below for the geometry those layers read.
+# Armoured Protection Vehicle (Wheeled)'s own three wheels - "add three
+# circles below the oval, slightly inside the edges, touching the oval,
+# radii size can be 1/3 of semi-minor axis". Radius is a third of the
+# oval's own semi-minor axis (20); the centres sit one radius below its
+# straight bottom edge (y=120) so each wheel's own top touches it, inset
+# one radius from its straight left/right edges (x=75/125), with the
+# middle wheel centring the group.
 #
-# **Why they are symbol layers is now a historical answer, not a
-# technical one.** The original reason was a conclusion that QGIS clips
-# an SVG marker to milsymbol's own declared draw area, so circles drawn
-# below the hull could never show. **That conclusion was wrong** -
-# disproved 2026-09-06 by injecting exactly these circles into exactly
-# this glyph and rendering the marker through a real map render at
-# 4/6/8/9.6/12/20/40 mm on both QGIS versions: drawn in full every
-# time, ink growing with the viewBox (see inject_mobility_indicator(),
-# which relies on that). The maintainer confirmed independently. This
-# implementation is left alone because it works and is well tested; if
-# it is ever touched again, injecting the circles instead would remove
-# mct_nonnato_equipment_svg_height() and both min_content_bottom
-# arguments. These constants stay here, beside the rest of this
-# family's own geometry, because they are read off the SAME oval.
-#
-# Radius: 1/3 of the oval's own semi-minor axis (20) - "radii size can
-# be 1/3 of semi-minor axis". Centres: one radius below the oval's own
-# straight bottom edge (y=120), so each wheel's own top touches it, and
-# inset one radius from its own straight left/right edges (x=75/125),
-# with the middle wheel centring the group.
+# **Simplified back to plain injection 2026-09-06**, at the maintainer's
+# own request. These were three separate QGIS simple-marker symbol
+# layers for three days, on the strength of a conclusion that QGIS clips
+# an SVG marker to milsymbol's own declared draw area so circles below
+# the hull could never show. That conclusion was WRONG - disproved by
+# injecting exactly these circles into exactly this glyph and rendering
+# the marker through a real map render at 4/6/8/9.6/12/20/40 mm on both
+# QGIS versions (drawn in full every time), and confirmed independently
+# by the maintainer. The symbol-layer version also needed two pieces of
+# machinery that exist ONLY to compensate for the wheels not being in
+# the SVG - a per-feature rendered-height expression function, and a
+# min_content_bottom floor on both the designation and the mobility
+# mark - and all of it is gone with this.
 _APV_WHEEL_RADIUS = 20 / 3
 
-APV_WHEEL_CENTRE_Y = 120 + _APV_WHEEL_RADIUS
+_APV_WHEEL_CENTRE_Y = 120 + _APV_WHEEL_RADIUS
 
-APV_WHEEL_CENTRE_XS = (
+_APV_WHEEL_CENTRE_XS = (
     75 + _APV_WHEEL_RADIUS,
     100,
     125 - _APV_WHEEL_RADIUS,
 )
 
-APV_WHEEL_DIAMETER = 2 * _APV_WHEEL_RADIUS
 
-# milsymbol's own stroke width for this family, after DEFAULT_STROKE_
-# SCALE - so the wheels match the hull's own line weight exactly.
-APV_WHEEL_STROKE_WIDTH = 3 * DEFAULT_STROKE_SCALE
+def apv_wheeled_marks(svg):
+
+    """
+    Three hollow wheels below the oval's own bottom edge - see this
+    section's own comment. Colour is read off the glyph's own existing
+    stroke, the same way every other fixup in this module does it.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    wheels = "".join(
+        f'<circle cx="{centre_x:g}" cy="{_APV_WHEEL_CENTRE_Y:g}" '
+        f'r="{_APV_WHEEL_RADIUS:g}" stroke-width="3" stroke="{colour}" '
+        'fill="none"></circle>'
+        for centre_x in _APV_WHEEL_CENTRE_XS
+    )
+
+    match = _VIEWBOX_PATTERN.search(svg)
+
+    if match:
+
+        vb_x, vb_y, vb_w, _ = (float(value) for value in match.groups())
+
+        svg = _expand_viewbox_for_rect(
+            svg,
+            vb_x,
+            vb_y,
+            vb_w,
+            (_APV_WHEEL_CENTRE_Y + _APV_WHEEL_RADIUS + _INJECTED_HALF_STROKE)
+            - vb_y,
+        )
+
+    return _inject_before_closing_svg(svg, wheels)
 
 
 # --- The Vehicle family: 'B' Vehicle, 'C' Vehicle, Light Recce Vehicle
@@ -2032,6 +2054,7 @@ _EQUIPMENT_ENTITY_FIXUPS = {
     "missile_launcher_medium": separate_missile_launcher_dome,
     BRIDGE_LAYER_TANK_ENTITY: bridge_layer_tank_mark,
     ARMOURED_RECCE_VEHICLE_ENTITY: armoured_recce_vehicle_mark,
+    APV_WHEELED_ENTITY: apv_wheeled_marks,
 }
 
 
@@ -2240,22 +2263,8 @@ _MOBILITY_MARKS = {
     MOBILITY_SELF_PROPELLED: (_self_propelled_path, SELF_PROPELLED_SIZE),
 }
 
-# A stroked path's own ink reaches half a stroke width past its
-# geometry, and every stroke in this module is widened once more at the
-# very end by scale_svg_stroke_width(). Growing the viewBox to the
-# mark's geometry alone therefore left its bottom edge hanging ~1.95
-# units outside - clipped on the map, but ONLY when no designation was
-# typed, since a designation grows the viewBox further down and
-# swallowed the overflow. Reported live with a screenshot 2026-09-06
-# ("the very bottom extremity is getting clipped, however when we add
-# the unique designation, it is ok") and caught by the render sweep's
-# own viewBox-contains-the-ink invariant in the same breath.
-_MOBILITY_HALF_STROKE = 3 * DEFAULT_STROKE_SCALE / 2
 
-
-def inject_mobility_indicator(
-    svg, mobility, colour, min_content_bottom=None
-):
+def inject_mobility_indicator(svg, mobility, colour):
 
     """
     Draws `mobility`'s own mark centred directly below `svg`'s own
@@ -2264,12 +2273,6 @@ def inject_mobility_indicator(
     inject_centered_designation_below() uses, and deliberately applied
     BEFORE that one so the designation measures the mark too and drops
     below it.
-
-    `min_content_bottom` carries the same meaning it does there: the
-    lowest point an icon reaches OUTSIDE this SVG, which for Armoured
-    Protection Vehicle (Wheeled) is its own separate wheel symbol
-    layers. Without it the mark would sit under the hull and through
-    the wheels.
 
     Anything falsy, or an unknown value, leaves the SVG untouched.
     """
@@ -2294,9 +2297,6 @@ def inject_mobility_indicator(
 
     content_bottom = content_y + content_h
 
-    if min_content_bottom is not None:
-        content_bottom = max(content_bottom, min_content_bottom)
-
     centre_x = content_x + content_w / 2
     centre_y = content_bottom + _MOBILITY_GAP + height / 2
 
@@ -2305,7 +2305,7 @@ def inject_mobility_indicator(
         vb_x,
         vb_y,
         vb_w,
-        (centre_y + height / 2 + _MOBILITY_HALF_STROKE) - vb_y,
+        (centre_y + height / 2 + _INJECTED_HALF_STROKE) - vb_y,
     )
 
     return _inject_before_closing_svg(svg, draw(centre_x, centre_y, colour))
@@ -2377,25 +2377,14 @@ def render_nonnato_equipment_svg(
             render_symbol_svg(sidc, options), entity
         )
 
-    # Armoured Protection Vehicle (Wheeled) draws lower than this SVG
-    # knows about - its own wheels are separate symbol layers, so both
-    # the mobility mark and the designation have to be told where they
-    # actually end.
-    min_content_bottom = (
-        APV_WHEEL_CENTRE_Y + APV_WHEEL_DIAMETER / 2
-        if entity == APV_WHEELED_ENTITY
-        else None
-    )
-
-    svg = inject_mobility_indicator(
-        svg, mobility, colour, min_content_bottom=min_content_bottom
-    )
+    # Order matters: the mark becomes part of the SVG's own ink, so the
+    # designation measures it and drops below it without being told.
+    svg = inject_mobility_indicator(svg, mobility, colour)
 
     svg = inject_centered_designation_below(
         svg,
         designation,
         colour,
-        min_content_bottom=min_content_bottom,
         size_multiplier=nonnato_entity_size_multiplier(entity),
     )
 

@@ -273,141 +273,6 @@ class TestBuildLandEquipmentLayerNonnato(QgisTestCase):
             self.assertNotIn(absent, field_names)
 
 
-    def test_apv_wheels_are_their_own_simple_marker_layers(self):
-
-        # Real bug this exists to prevent regressing: circles drawn
-        # INSIDE the SVG, below milsymbol's own declared draw area, are
-        # clipped by QGIS's own marker rendering whatever the viewBox
-        # says ("the circles below the ellipse are not visible... being
-        # cropped"). They are three separate simple-marker layers
-        # instead - the same multi-layer composition the NATO side
-        # already uses to add elements to a milsymbol icon.
-        layer = build_land_equipment_layer_nonnato()
-
-        symbol = layer.renderer().symbol()
-
-        self.assertEqual(symbol.symbolLayerCount(), 4)  # SVG + 3 wheels
-
-        for index in range(1, 4):
-
-            wheel = symbol.symbolLayer(index)
-
-            self.assertIsInstance(wheel, QgsSimpleMarkerSymbolLayer)
-            self.assertEqual(
-                wheel.shape(), QgsSimpleMarkerSymbolLayerBase.Shape.Circle
-            )
-
-
-    def test_apv_wheels_only_render_for_apv_wheeled(self):
-
-        # One shared symbol serves the whole layer, so the wheels
-        # collapse to size 0 for every other entity.
-        layer = build_land_equipment_layer_nonnato()
-
-        wheel = layer.renderer().symbol().symbolLayer(1)
-
-        size_property = wheel.dataDefinedProperties().property(
-            QgsSymbolLayer.Property.Size
-        )
-
-        for entity, expected_visible in (
-            (APV_WHEELED_ENTITY, True),
-            ("armored_protected_vehicle", False),
-            ("tank", False),
-        ):
-            with self.subTest(entity=entity):
-
-                feature = QgsFeature(layer.fields())
-                feature.setAttribute("entity", entity)
-
-                context = QgsExpressionContext()
-                context.appendScope(
-                    QgsExpressionContextUtils.layerScope(layer)
-                )
-                context.setFeature(feature)
-
-                size = size_property.valueAsDouble(context, 0.0)[0]
-
-                if expected_visible:
-                    self.assertGreater(size, 0)
-                else:
-                    self.assertEqual(size, 0)
-
-
-    def test_apv_wheels_stay_with_the_hull_when_a_designation_is_typed(self):
-
-        # Reported live, 2026-09-03: "when i add the unique designator
-        # in APV wheeled, the wheels shift and overlap on the text of
-        # unique designation instead of staying where they are". A
-        # designation grows the SVG's own viewBox downward, which moves
-        # the marker's anchor (its viewBox centre) DOWN and so shifts
-        # the icon itself UP - a fixed wheel offset would stay put and
-        # land on the text. The offset expression reads the icon's own
-        # rendered height instead, so it shrinks by the same amount.
-        layer = build_land_equipment_layer_nonnato()
-
-        wheel = layer.renderer().symbol().symbolLayer(1)
-
-        offset_property = wheel.dataDefinedProperties().property(
-            QgsSymbolLayer.Property.Offset
-        )
-
-        def offset_y_for(designation):
-
-            feature = QgsFeature(layer.fields())
-            feature.setAttribute("entity", APV_WHEELED_ENTITY)
-            feature.setAttribute("affiliation", "friend")
-            feature.setAttribute("unique_designation", designation)
-
-            context = QgsExpressionContext()
-            context.appendScope(QgsExpressionContextUtils.layerScope(layer))
-            context.setFeature(feature)
-
-            return float(
-                offset_property.valueAsString(context, "")[0].split(",")[1]
-            )
-
-        plain = offset_y_for("")
-        with_designation = offset_y_for("A1")
-
-        # Both still put the wheels BELOW the anchor...
-        self.assertGreater(plain, 0)
-        self.assertGreater(with_designation, 0)
-
-        # ...but the designation moves the anchor down, so the wheels
-        # must sit closer to it to stay on the hull.
-        self.assertLess(with_designation, plain)
-
-
-    def test_apv_wheels_follow_the_affiliation_colour(self):
-
-        layer = build_land_equipment_layer_nonnato()
-
-        wheel = layer.renderer().symbol().symbolLayer(1)
-
-        colour_property = wheel.dataDefinedProperties().property(
-            QgsSymbolLayer.Property.StrokeColor
-        )
-
-        for affiliation, expected in AFFILIATION_COLOURS.items():
-
-            with self.subTest(affiliation=affiliation):
-
-                feature = QgsFeature(layer.fields())
-                feature.setAttribute("entity", APV_WHEELED_ENTITY)
-                feature.setAttribute("affiliation", affiliation)
-
-                context = QgsExpressionContext()
-                context.appendScope(
-                    QgsExpressionContextUtils.layerScope(layer)
-                )
-                context.setFeature(feature)
-
-                self.assertEqual(
-                    colour_property.valueAsString(context, "")[0], expected
-                )
-
-
     def test_every_entity_renders_a_valid_symbol_path(self):
 
         layer = build_land_equipment_layer_nonnato()
@@ -768,3 +633,89 @@ class TestMobilityFieldOnTheLayer(QgisTestCase):
                 {"affiliation": "friend", "entity": "tank", "mobility": ""},
             ),
         )
+
+
+class TestApvWheeledOnTheLayer(QgisTestCase):
+
+    """
+    The wheels moved back into the SVG 2026-09-06 - so the layer's own
+    symbol is a single SVG marker layer again, with none of the
+    simple-marker machinery the earlier approach needed.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        nonnato_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        nonnato_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_the_symbol_has_exactly_one_layer(self):
+
+        # Hold the layer: dropping it takes the renderer with it.
+        layer = build_land_equipment_layer_nonnato()
+
+        symbol = layer.renderer().symbol()
+
+        self.assertEqual(symbol.symbolLayerCount(), 1)
+
+        self.assertNotIsInstance(
+            symbol.symbolLayer(0), QgsSimpleMarkerSymbolLayer
+        )
+
+
+    def test_no_expression_still_asks_for_a_rendered_height(self):
+
+        # mct_nonnato_equipment_svg_height() existed only to keep the
+        # wheel symbol layers pinned to a hull whose anchor moved. It is
+        # gone, and nothing may still reference it.
+        layer = build_land_equipment_layer_nonnato()
+
+        properties = layer.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties()
+
+        for key in properties.propertyKeys():
+
+            self.assertNotIn(
+                "svg_height", properties.property(key).expressionString()
+            )
+
+
+    def test_the_wheels_reach_the_render_through_the_icon_itself(self):
+
+        layer = build_land_equipment_layer_nonnato()
+
+        import base64
+
+        def svg_for(entity):
+            feature = QgsFeature(layer.fields())
+            feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+            feature.setAttribute("affiliation", "friend")
+            feature.setAttribute("entity", entity)
+
+            context = QgsExpressionContext()
+            context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+            context.setFeature(feature)
+
+            path, ok = layer.renderer().symbol().symbolLayer(
+                0
+            ).dataDefinedProperties().valueAsString(
+                QgsSymbolLayer.Property.Name, context, ""
+            )
+
+            self.assertTrue(ok)
+
+            return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+        self.assertEqual(svg_for(APV_WHEELED_ENTITY).count("<circle"), 3)
+        self.assertEqual(svg_for("armored_protected_vehicle").count("<circle"), 0)

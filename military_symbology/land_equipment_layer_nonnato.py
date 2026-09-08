@@ -54,28 +54,19 @@ from qgis.core import (
     QgsMarkerSymbol,
     QgsProject,
     QgsProperty,
-    QgsSimpleMarkerSymbolLayer,
-    QgsSimpleMarkerSymbolLayerBase,
     QgsSingleSymbolRenderer,
     QgsSvgMarkerSymbolLayer,
     QgsSymbolLayer,
-    QgsUnitTypes,
     QgsVectorLayer,
 )
 
-from qgis.PyQt.QtCore import QMetaType, QPointF
-from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtCore import QMetaType
 
 from ._control_measure_shared import configure_rotation_and_scale_fields
 from ._point_symbol_layer import default_insert_position
 from ..core._layer_utils import add_layer_at_default_position
 from .land_unit_layer_nonnato import AFFILIATION_LABELS
 from .nonnato_symbol_engine import (
-    AFFILIATION_COLOURS,
-    APV_WHEEL_CENTRE_XS,
-    APV_WHEEL_CENTRE_Y,
-    APV_WHEEL_DIAMETER,
-    APV_WHEEL_STROKE_WIDTH,
     APV_WHEELED_ENTITY,
     ARMOURED_RECCE_VEHICLE_ENTITY,
     B_VEHICLE_ENTITY,
@@ -279,149 +270,6 @@ _ENTITY_SIZE_MULTIPLIER_EXPRESSION = nonnato_entity_size_multiplier_expression(
 )
 
 
-# Armoured Protection Vehicle (Wheeled)'s own three wheels are their
-# own QGIS simple-marker symbol layers, NOT circles drawn into the
-# icon's own SVG - the same multi-layer composition this plugin's own
-# NATO side already uses whenever an element has to be added to a
-# milsymbol icon (c2_measures.py's own crossed runway lines are the
-# closest precedent). **This is not a style preference, it is the only
-# thing that works**: an SVG-internal circle drawn below milsymbol's
-# own declared draw area is clipped by QGIS's own marker rendering no
-# matter what the SVG's viewBox says - a real bug, caught by a smoke
-# test ("the circles below the ellipse are not visible - the full
-# circle is not being drawn, circles are being cropped"), then chased
-# through six SVG-side workarounds (growing the viewBox, leaving
-# width/height unchanged, dropping them entirely, circles-as-path-arcs,
-# a second SVG marker layer, text glyphs) that all failed the same way,
-# before the maintainer pointed at the NATO side's own established
-# answer. Confirmed against a real render.
-#
-# Geometry comes from nonnato_symbol_engine.py's own APV_WHEEL_*
-# constants, in milsymbol's own icon units, converted to millimetres
-# here against this layer's own MARKER_SIZE_MM. Everything scales with
-# the "scale" field exactly as the icon itself does; the wheels sit at
-# size 0 for every other entity, which is how one shared symbol serves
-# a whole layer's worth of different icons.
-_ICON_VIEWBOX_WIDTH = 108.0
-
-_MM_PER_ICON_UNIT = MARKER_SIZE_MM / _ICON_VIEWBOX_WIDTH
-
-# The same six-colour palette render_nonnato_equipment_svg() itself
-# resolves internally, restated as an expression so a plain QGIS marker
-# layer can follow it too - the wheels have to match whatever colour
-# the icon they hang off was drawn in.
-_AFFILIATION_COLOUR_EXPRESSION = "CASE " + " ".join(
-    f"WHEN \"affiliation\" = '{affiliation}' THEN '{colour}'"
-    for affiliation, colour in AFFILIATION_COLOURS.items()
-) + f" ELSE '{AFFILIATION_COLOURS['friend']}' END"
-
-# The SVG marker's own anchor is the CENTRE of its own viewBox, which
-# is what a wheel's own offset is measured from. Horizontally that is
-# fixed (the viewBox never grows sideways), but VERTICALLY it moves:
-# inject_centered_designation_below() grows the viewBox downward to fit
-# a typed designation, pushing the centre down and so shifting the icon
-# itself UP on the map. A wheel at a fixed offset would stay put and
-# end up over the text - reported live, 2026-09-03: "when i add the
-# unique designator in APV wheeled, the wheels shift and overlap on the
-# text of unique designation instead of staying where they are". So the
-# vertical offset is computed per feature from the icon's own RENDERED
-# height (mct_nonnato_equipment_svg_height()), not from a constant.
-_ICON_ANCHOR_X = 100.0
-
-# The viewBox's own y origin, which _expand_viewbox_for_rect() never
-# moves for a below-the-icon addition (it only ever extends the height).
-_ICON_VIEWBOX_Y = 46.0
-
-_SCALE_FACTOR_EXPRESSION = 'coalesce("scale", 100) / 100.0'
-
-
-def _wheel_symbol_layers():
-
-    """
-    One hollow circle marker layer per wheel - see this section's own
-    comment above. Each is sized/offset in millimetres from the icon's
-    own anchor, and data-defined so it collapses to nothing for every
-    entity except Armoured Protection Vehicle (Wheeled).
-
-    The vertical offset tracks the icon's own RENDERED height rather
-    than a constant, so the wheels stay locked to the hull when a typed
-    designation grows the viewBox and moves the anchor - see this
-    section's own comment on _ICON_VIEWBOX_Y.
-    """
-
-    designation_expression = 'upper(coalesce("unique_designation", \'\'))'
-
-    # Mobility is in here too: a Tracked/Self-Propelled mark grows the
-    # viewBox downward exactly the way a designation does, moving the
-    # marker's own anchor and so the hull the wheels have to stay with.
-    rendered_height_expression = (
-        'mct_nonnato_equipment_svg_height('
-        f'"affiliation","entity",{designation_expression},'
-        'coalesce("mobility", \'\')'
-        ')'
-    )
-
-    # The anchor's own y, in icon units: the middle of whatever viewBox
-    # this feature actually rendered with.
-    anchor_y_expression = (
-        f"({_ICON_VIEWBOX_Y:g} + ({rendered_height_expression}) / 2.0)"
-    )
-
-    offset_y_expression = (
-        f"({APV_WHEEL_CENTRE_Y:g} - {anchor_y_expression}) "
-        f"* {_MM_PER_ICON_UNIT:g} * ({_SCALE_FACTOR_EXPRESSION})"
-    )
-
-    layers = []
-
-    for centre_x in APV_WHEEL_CENTRE_XS:
-
-        wheel = QgsSimpleMarkerSymbolLayer(
-            QgsSimpleMarkerSymbolLayerBase.Shape.Circle
-        )
-
-        wheel.setSize(APV_WHEEL_DIAMETER * _MM_PER_ICON_UNIT)
-        wheel.setSizeUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
-
-        wheel.setFillColor(QColor(0, 0, 0, 0))
-        wheel.setStrokeWidth(APV_WHEEL_STROKE_WIDTH * _MM_PER_ICON_UNIT)
-        wheel.setStrokeWidthUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
-
-        offset_x = (centre_x - _ICON_ANCHOR_X) * _MM_PER_ICON_UNIT
-
-        # A static fallback for the undrawn case (a symbol inspected
-        # outside any feature context) - the data-defined pair below is
-        # what actually renders.
-        wheel.setOffset(QPointF(offset_x, 0.0))
-        wheel.setOffsetUnit(QgsUnitTypes.RenderUnit.RenderMillimeters)
-
-        wheel.setDataDefinedProperty(
-            QgsSymbolLayer.Property.Size,
-            QgsProperty.fromExpression(
-                f"CASE WHEN \"entity\" = '{APV_WHEELED_ENTITY}' THEN "
-                f"{APV_WHEEL_DIAMETER * _MM_PER_ICON_UNIT:g} * "
-                f"({_SCALE_FACTOR_EXPRESSION}) ELSE 0 END"
-            )
-        )
-
-        wheel.setDataDefinedProperty(
-            QgsSymbolLayer.Property.Offset,
-            QgsProperty.fromExpression(
-                f"format('%1,%2', {offset_x:g} * ({_SCALE_FACTOR_EXPRESSION}), "
-                f"{offset_y_expression})"
-            )
-        )
-
-        wheel.setDataDefinedProperty(
-            QgsSymbolLayer.Property.StrokeColor,
-            QgsProperty.fromExpression(_AFFILIATION_COLOUR_EXPRESSION)
-        )
-
-        layers.append(wheel)
-
-    return layers
-
-
 def _build_renderer():
 
     designation_expression = 'upper(coalesce("unique_designation", \'\'))'
@@ -494,9 +342,6 @@ def _build_renderer():
     )
 
     symbol.changeSymbolLayer(0, svg_layer)
-
-    for wheel in _wheel_symbol_layers():
-        symbol.appendSymbolLayer(wheel)
 
     return QgsSingleSymbolRenderer(symbol)
 

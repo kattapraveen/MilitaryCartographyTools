@@ -45,25 +45,6 @@ def _viewbox_width(svg):
     return float(match.group(1)) if match else 0.0
 
 
-def _viewbox_height(svg):
-
-    """
-    The rendered SVG's own declared height (viewBox's 4th number) - the
-    companion to _viewbox_width() above, needed for a different reason:
-    QGIS anchors an SVG marker on the CENTRE of its own viewBox, and
-    inject_centered_designation_below() grows that viewBox downward to
-    fit the designation text, which moves the centre down and so shifts
-    the icon itself UP on the map. Anything composed alongside the icon
-    as its own symbol layer (see land_equipment_layer_nonnato.py's own
-    _wheel_symbol_layers()) has to follow that shift, which means
-    knowing the height the icon actually rendered at.
-    """
-
-    match = re.search(r'viewBox="\S+ \S+ \S+ (\S+)"', svg)
-
-    return float(match.group(1)) if match else 0.0
-
-
 def _render_unit(values):
 
     """
@@ -271,39 +252,6 @@ def mct_nonnato_equipment_svg_width(values, feature=None, parent=None):
 
 
 @qgsfunction(
-    'mct_nonnato_equipment_svg_height',
-    group='Military Cartography Tools'
-)
-def mct_nonnato_equipment_svg_height(values, feature=None, parent=None):
-
-    """
-    The rendered HEIGHT of exactly the symbol mct_nonnato_equipment_
-    svg() would return, in milsymbol's own icon units - takes the same
-    argument list as its two siblings above.
-
-    Added 2026-09-03 for Armoured Protection Vehicle (Wheeled), whose
-    own three wheels are separate simple-marker symbol layers rather
-    than circles inside the SVG (see land_equipment_layer_nonnato.py's
-    own _wheel_symbol_layers() for why). Those layers are offset from
-    the map point, but the ICON is anchored on its own viewBox centre -
-    and that centre moves down as soon as a designation grows the
-    viewBox downward, shifting the icon up while a fixed offset would
-    leave the wheels behind, overlapping the designation text (reported
-    live: "when i add the unique designator in APV wheeled, the wheels
-    shift and overlap on the text of unique designation instead of
-    staying where they are"). Feeding this height into the wheels' own
-    offset expression keeps them locked to the hull.
-    """
-
-    svg, error = _render_equipment(values)
-
-    if error is not None:
-        return 0.0
-
-    return _viewbox_height(svg)
-
-
-@qgsfunction(
     'mct_nonnato_booby_trap_svg',
     group='Military Cartography Tools'
 )
@@ -393,7 +341,6 @@ _FUNCTIONS = [
     mct_nonnato_unit_svg_width,
     mct_nonnato_equipment_svg,
     mct_nonnato_equipment_svg_width,
-    mct_nonnato_equipment_svg_height,
     mct_nonnato_booby_trap_svg,
     mct_nonnato_pillbox_svg,
     mct_nonnato_pillbox_svg_width,
