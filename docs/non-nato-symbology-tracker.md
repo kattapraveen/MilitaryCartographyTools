@@ -349,6 +349,97 @@ sides, staying centred: 30 units wide (x=85..115) shrinks to 20
 (`_inset_missile_tier_line()`, called from each) - every other tiered
 family's own, visually identical tier line is untouched.
 
+**Land Unit expansion, 2026-09-06** (the layer's own count moves from
+23 to 31): six new entities, one new field, and two real bugs found
+while wiring them.
+
+**The Enemy family goes from one entity to four** - "enemy (info
+unknown) remains as is / enemy (echelon unknown) - add a "?" on top of
+the glyph / enemy (designation unknown) - add a "?" to the right center
+of the glyph (same place as unique designation right) / enemy (type
+unknown) - add a "?" in the center of the glyph". All four share the
+same two concentric rectangles and the same fixed hostile red, and none
+of them touches a SIDC. The "?" is sized to
+`_SIDE_DESIGNATION_FONT_SIZE` deliberately, not a constant of its own,
+because "same place as unique designation right" means it has to land
+on that anchor at that size - verified by a test comparing it against a
+real right designation. It is injected AFTER the side designations, so
+a typed right designation keeps its own anchor and the "?" steps
+outside it instead of colliding.
+
+**Five more Land Unit entities**, all requested the same day:
+- **Motorised Infantry** - "start with the infantry glyph, add the two
+  wheels under it (from the B vehicle or C vehicle glyphs in land
+  equipment)". Literally those wheels: the Vehicle family's own
+  `_VEHICLE_WHEEL_*` constants, reused with no re-derivation, because
+  the Land Unit frame and the Vehicle body are the SAME 150 x 100
+  rectangle (x 25..175, y 50..150). Synthetic over plain `infantry` -
+  APP-6E's own `infantry_motorized` exists but draws milsymbol's own
+  motorized modifier, not this scheme's wheels.
+- **Mountain Infantry** - "in the lower half of the rectangle add a "^"
+  or s small triangle with the bottom ends on the rectangle bottom
+  line, the height of the "mountain" is 1/3 of the rectangle height".
+  Drawn as an open "^" (the frame's own bottom line closes it), height
+  33.3. The BASE was not specified; set to twice the height, putting
+  both slopes at 45 degrees so it reads as a mountain rather than a
+  spike.
+- **Recce & Support (Wheeled)** - "start with mechanised infantry - add
+  the wheels of the motorised infantry to it". Mechanised Infantry is
+  this layer's own label for the real `armored_mechanized_tracked`, and
+  the wheels are the same function again - the wheeled counterpart to
+  the existing "Light Armour/Recce & Support (Tracked)".
+- **Administration or Logistics Unit** - "Add a simple circle - same
+  dimensions as the rectangle of land units, option to add unique
+  designation left/right as existing". A circle has only one dimension
+  to match against a 150 x 100 rectangle, so it matches the HEIGHT:
+  diameter 100 centred at (100,100), sharing the frame's top and bottom
+  edges. Affiliation-coloured normally, unlike the Enemy family.
+- **Static Formation Headquarters** - "Use a basic rectangle with flag
+  mast of headquarters - instead of right line of rectangle - replace
+  with a < the resulting rectangle looks like a flag". A standalone
+  pennant frame with no glyph inside and no SIDC, carrying its own copy
+  of the mast. The notch DEPTH was not specified; set to a fifth of the
+  frame's width. Its mast is copied from a real `headquarters=True`
+  render (`M25,150 L25,250`) rather than guessed, and a test pins that
+  path so a milsymbol update cannot shift it silently.
+
+**Headquarters is now a field on the layer** - "there is a choice for
+Headquarters in the NATO symbology wherein a flag mast is added to the
+glyph - implement the same in non-nato also - option for headquarters
+to be added in the dialog box". A Bool field with a CheckBox widget
+defaulting to false, exactly the convention
+`_point_symbol_layer.include_headquarters` already uses on the NATO
+side, passed straight through to `build_sidc()`'s own `headquarters`
+argument (SIDC Field S). **It has no effect on the four Enemy entities,
+Administration or Logistics, or Static Formation Headquarters** - none
+of them reaches a SIDC for milsymbol to amplify. Documented behaviour,
+covered by a test, not an oversight.
+
+**Real bug 1: the side designations were never centred on the frame.**
+Reported live - "even in normal headquarters - the unique designations
+should be center of the rectangle and not the entire glyph". They were
+centred on the icon's own MEASURED ink, and the HQ mast hangs 100 units
+below the frame, dragging that centre from 100 down to 150. Measuring
+the same way showed **the identical drift had been there all along for
+every echelon above "unspecified"** - a battalion's own amplifier sits
+above the frame and pulled the centre UP to 82.6, army_group to 82.0 -
+so this fixes considerably more than was reported. They now centre on
+`_UNIT_FRAME_CENTRE_Y`, which is safe because every Land Unit icon's
+frame occupies the same rectangle whatever the entity, echelon or
+affiliation (milsymbol's own `M25,50 l150,0 0,100 -150,0 z`, Enemy's
+own hand-built rectangle, and Administration or Logistics' circle all
+state the same numbers) - pinned by its own test.
+
+**Real bug 2: a NULL boolean field blanked the whole icon.** QGIS
+returns NULL from an expression function the moment ANY argument is
+NULL, so a feature whose checkbox had never been set rendered NOTHING.
+Field defaults only apply to features created through the attribute
+form - a pasted feature, a provider-level insert, or a project
+predating the field all arrive NULL. `"combined_arms"` had carried this
+latent blank-icon bug since it was added; adding `"headquarters"`
+beside it is what surfaced it. Both are now wrapped in
+`coalesce(..., false)`. Confirmed by direct expression evaluation.
+
 **Three synthetic entities built from Armoured Protected Vehicle,
 2026-09-03** (Land Equipment's own count moves to 54): three requests
 in one batch, all starting from the same real entity's glyph.

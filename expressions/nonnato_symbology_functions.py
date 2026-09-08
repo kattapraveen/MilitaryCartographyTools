@@ -66,6 +66,10 @@ def _render_unit(values):
     designation_right = values[5] if len(values) > 5 else None
     combined_arms = bool(values[6]) if len(values) > 6 and values[6] else False
 
+    # Positional and optional, like everything before it - added
+    # 2026-09-06 for the Headquarters flag mast.
+    headquarters = bool(values[7]) if len(values) > 7 and values[7] else False
+
     try:
 
         svg = render_nonnato_unit_svg(
@@ -76,6 +80,7 @@ def _render_unit(values):
             designation_left=designation_left,
             designation_right=designation_right,
             combined_arms=combined_arms,
+            headquarters=headquarters,
         )
 
     except KeyError as error:

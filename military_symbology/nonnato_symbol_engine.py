@@ -403,12 +403,33 @@ def is_synthetic_entity(entity):
 # the rules record.
 ENEMY_INFO_UNKNOWN_ENTITY = "enemy_info_unknown"
 
+# Three more of the same shape, requested live 2026-09-06: "let's expand
+# enemy (info unknown) in land units - enemy (info unknown) remains as
+# is / enemy (echelon unknown) - add a "?" on top of the glyph / enemy
+# (designation unknown) - add a "?" to the right center of the glyph
+# (same place as unique designation right) / enemy (type unknown) - add
+# a "?" in the center of the glyph". All four share the same two
+# concentric rectangles and the same fixed hostile red; they differ only
+# in where a question mark goes, or whether there is one at all.
+ENEMY_ECHELON_UNKNOWN_ENTITY = "enemy_echelon_unknown"
+ENEMY_DESIGNATION_UNKNOWN_ENTITY = "enemy_designation_unknown"
+ENEMY_TYPE_UNKNOWN_ENTITY = "enemy_type_unknown"
+
+ENEMY_ENTITIES = frozenset({
+    ENEMY_INFO_UNKNOWN_ENTITY,
+    ENEMY_ECHELON_UNKNOWN_ENTITY,
+    ENEMY_DESIGNATION_UNKNOWN_ENTITY,
+    ENEMY_TYPE_UNKNOWN_ENTITY,
+})
+
 _ENEMY_INFO_UNKNOWN_COLOUR = AFFILIATION_COLOURS["hostile"]
 
 
-def is_enemy_info_unknown(entity):
+def is_enemy_unknown(entity):
 
-    return entity == ENEMY_INFO_UNKNOWN_ENTITY
+    """True for any of the four Enemy entities - they all bypass SIDC and milsymbol entirely."""
+
+    return entity in ENEMY_ENTITIES
 
 
 def enemy_info_unknown_svg():
@@ -433,6 +454,352 @@ def enemy_info_unknown_svg():
         f'stroke-width="4" stroke="{colour}" fill="none"></rect>'
         '</svg>'
     )
+
+
+# Every Land Unit icon's own frame occupies the same rectangle in
+# milsymbol's path-space - 150 wide x 100 tall, x 25..175, y 50..150 -
+# whatever the entity, echelon or affiliation: milsymbol's own frame
+# path is `M25,50 l150,0 0,100 -150,0 z`, Enemy's own hand-built outer
+# rectangle states the same numbers, and Administration or Logistics'
+# circle is sized to match. Its own vertical centre is what the side
+# designations are centred on. See inject_side_designations().
+_UNIT_FRAME_TOP = 50
+_UNIT_FRAME_BOTTOM = 150
+_UNIT_FRAME_LEFT = 25
+_UNIT_FRAME_RIGHT = 175
+
+_UNIT_FRAME_CENTRE_Y = (_UNIT_FRAME_TOP + _UNIT_FRAME_BOTTOM) / 2
+
+# milsymbol's own Headquarters flag mast, copied exactly rather than
+# guessed: rendering any unit with headquarters=True adds
+# `M25,150 L25,250` at the frame's own stroke width - straight down
+# from the frame's bottom-left corner, as long again as the frame is
+# tall. Static Formation Headquarters needs its own copy because it
+# never reaches a SIDC for milsymbol to amplify.
+_HQ_MAST_LENGTH = _UNIT_FRAME_BOTTOM - _UNIT_FRAME_TOP
+
+
+def _hq_mast_path(colour):
+
+    return (
+        f'<path d="M{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} '
+        f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM + _HQ_MAST_LENGTH:g}" '
+        f'stroke-width="4" stroke="{colour}" fill="none"></path>'
+    )
+
+
+# Static Formation Headquarters - requested live 2026-09-06: "Use a
+# basic rectangle with flag mast of headquarters - instead of right line
+# of rectangle - replace with a < the resulting rectangle looks like a
+# flag". So the frame's own three other sides are drawn as usual and its
+# right side becomes a chevron notched inward, turning the rectangle
+# into a pennant. No entity glyph inside it, and no SIDC - a standalone
+# frame variant, the same shape of thing Enemy and Administration or
+# Logistics are.
+STATIC_FORMATION_HQ_ENTITY = "nonnato_static_formation_hq"
+
+# A fifth of the frame's own width. Not specified - "replace with a <"
+# fixes the shape but not the depth - so this is a starting value chosen
+# to read clearly as a pennant at map size.
+_STATIC_HQ_NOTCH_DEPTH = (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) / 5
+
+
+def static_formation_hq_svg(colour):
+
+    """A pennant-shaped frame plus the Headquarters mast - see this section's own comment."""
+
+    notch_x = _UNIT_FRAME_RIGHT - _STATIC_HQ_NOTCH_DEPTH
+
+    outline = (
+        f'<path d="M{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_TOP:g} '
+        f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_TOP:g} '
+        f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} '
+        f'L{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_BOTTOM:g} '
+        f'L{notch_x:g},{_UNIT_FRAME_CENTRE_Y:g} Z" '
+        f'stroke-width="4" stroke="{colour}" fill="none"></path>'
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="21 46 158 208">'
+        + outline
+        + _hq_mast_path(colour)
+        + '</svg>'
+    )
+
+
+# Administration or Logistics Unit - requested live 2026-09-06: "Add a
+# simple circle - same dimensions as the rectangle of land units, option
+# to add unique designation left/right as existing". A standalone frame
+# variant with no APP-6E entity and no glyph inside it, the same shape
+# of thing the Enemy family is - but affiliation-coloured normally, not
+# pinned to one colour.
+#
+# "Same dimensions as the rectangle" is read as the same VERTICAL extent
+# (the frame is 150 x 100 at x 25..175, y 50..150, and a circle has only
+# one dimension to match): diameter 100, centred at 100,100, so it fills
+# the frame's own height and shares its top and bottom edges. The left
+# and right designations then hang off it exactly as they do off a
+# rectangle, since inject_side_designations() measures whatever ink is
+# actually there.
+ADMIN_LOGISTICS_ENTITY = "nonnato_admin_logistics"
+
+_ADMIN_LOGISTICS_RADIUS = 50
+
+
+def admin_logistics_svg(colour):
+
+    """A single hollow circle at the Land Unit frame's own height - see this section's own comment."""
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="21 46 158 108">'
+        f'<circle cx="100" cy="100" r="{_ADMIN_LOGISTICS_RADIUS:g}" '
+        f'stroke-width="4" stroke="{colour}" fill="none"></circle>'
+        '</svg>'
+    )
+
+
+# The question mark the other three Enemy entities carry. Sized to
+# _SIDE_DESIGNATION_FONT_SIZE deliberately, not to a constant of its
+# own: "enemy (designation unknown) - add a ? to the right center of
+# the glyph (same place as unique designation right)" means it has to
+# land exactly where a real right designation would, at exactly that
+# size, and the other two match it so all three read as one family.
+#
+# Injected AFTER inject_side_designations(), and positioned from the
+# icon's own measured content the same way that function is - so with
+# no designation typed, "designation unknown" sits precisely on the
+# right designation's own anchor, and with one typed it steps outside
+# it rather than colliding.
+_ENEMY_QUESTION = "?"
+
+
+def _enemy_question_above(content, font_size, colour):
+
+    """"on top of the glyph" - centred horizontally, sitting clear above it."""
+
+    left, top, width, _ = content
+
+    return (
+        left + width / 2,
+        top - _DESIGNATION_GAP,
+        "middle",
+    )
+
+
+def _enemy_question_right(content, font_size, colour):
+
+    """"to the right center of the glyph (same place as unique designation right)"."""
+
+    left, top, width, height = content
+
+    return (
+        left + width + _DESIGNATION_GAP,
+        top + height / 2 + font_size * _CAP_HEIGHT_RATIO / 2,
+        "start",
+    )
+
+
+def _enemy_question_centre(content, font_size, colour):
+
+    """"in the center of the glyph"."""
+
+    left, top, width, height = content
+
+    return (
+        left + width / 2,
+        top + height / 2 + font_size * _CAP_HEIGHT_RATIO / 2,
+        "middle",
+    )
+
+
+_ENEMY_QUESTION_PLACEMENTS = {
+    ENEMY_ECHELON_UNKNOWN_ENTITY: _enemy_question_above,
+    ENEMY_DESIGNATION_UNKNOWN_ENTITY: _enemy_question_right,
+    ENEMY_TYPE_UNKNOWN_ENTITY: _enemy_question_centre,
+}
+
+
+def inject_enemy_question_mark(svg, entity, colour):
+
+    """
+    Adds the "?" that distinguishes Enemy (Echelon Unknown), (Designation
+    Unknown) and (Type Unknown) from plain Enemy (Info Unknown), which
+    carries none - see this section's own comment for the placements and
+    why the size is the side designation's own.
+    """
+
+    placement = _ENEMY_QUESTION_PLACEMENTS.get(entity)
+
+    if placement is None:
+        return svg
+
+    match = _VIEWBOX_PATTERN.search(svg)
+
+    if not match:
+        return svg
+
+    vb_x, vb_y, vb_w, vb_h = (float(value) for value in match.groups())
+
+    content = _content_bounds(svg, fallback=(vb_x, vb_y, vb_w, vb_h))
+
+    font_size = _SIDE_DESIGNATION_FONT_SIZE
+
+    x, baseline_y, anchor = placement(content, font_size, colour)
+
+    width = _designation_text_width(_ENEMY_QUESTION, font_size)
+    cap_height = font_size * _CAP_HEIGHT_RATIO
+
+    left = (
+        x - width / 2 if anchor == "middle"
+        else x - width if anchor == "end"
+        else x
+    )
+
+    svg = _expand_viewbox_for_rect(
+        svg, left, baseline_y - cap_height, width, cap_height
+    )
+
+    element = (
+        f'<text x="{x:g}" y="{baseline_y:g}" text-anchor="{anchor}" '
+        f'font-size="{font_size:g}" font-family="Arial" stroke="none" '
+        f'fill="{colour}">{_ENEMY_QUESTION}</text>'
+    )
+
+    return _inject_before_closing_svg(svg, element)
+
+
+# Requested live 2026-09-06: "Motorised Infantry - start with the
+# infantry glyph, add the two wheels under it (from the B vehicle or C
+# vehicle glyphs in land equipment)". APP-6E does have its own
+# `infantry_motorized`, but it draws milsymbol's own motorized modifier,
+# not this scheme's wheels - so this is a synthetic entity over plain
+# `infantry`, same pattern as Air Defence Artillery and Air Force.
+MOTORISED_INFANTRY_ENTITY = "nonnato_motorised_infantry"
+
+# Same pattern again, 2026-09-06: Infantry's own glyph with a "^" added
+# in the lower half - see _mountain_chevron().
+MOUNTAIN_INFANTRY_ENTITY = "nonnato_mountain_infantry"
+
+# And again, same day: "start with mechanised infantry - add the wheels
+# of the motorised infantry to it". Mechanised Infantry is this layer's
+# own label for the real `armored_mechanized_tracked`, and the wheels
+# are literally Motorised Infantry's own - so this pairs with the
+# existing "Light Armour/Recce & Support (Tracked)" as its wheeled
+# counterpart.
+RECCE_SUPPORT_WHEELED_ENTITY = "nonnato_recce_support_wheeled"
+
+def _motorised_wheels(colour):
+
+    """
+    Motorised Infantry's own two wheels below the frame - "add the two
+    wheels under it (from the B vehicle or C vehicle glyphs in land
+    equipment)", so literally those: the Vehicle family's own wheel
+    geometry, reused unchanged.
+
+    It lines up exactly because both shapes are the SAME rectangle -
+    Land Unit's frame and the Vehicle family's body are both 150 x 100
+    at x 25..175, y 50..150 - so the wheels already sit one radius below
+    its bottom edge and one radius inside each side, with no
+    re-derivation at all.
+
+    Stroke matches the FRAME's own 4 rather than an interior glyph's 3:
+    the wheels hang off the frame's bottom edge and read as part of that
+    outline. Deliberately NOT the Vehicle family's own compensated
+    stroke, which is scaled for a 166-wide viewBox and a 0.8 size
+    multiplier - neither applies on this layer.
+
+    Returns (markup, lowest point reached) - the wheels hang below the
+    frame, so the caller has to grow the viewBox for them.
+    """
+
+    wheels = "".join(
+        f'<circle cx="{centre_x:g}" cy="{_VEHICLE_WHEEL_CENTRE_Y:g}" '
+        f'r="{_VEHICLE_WHEEL_RADIUS:g}" stroke-width="4" stroke="{colour}" '
+        'fill="none"></circle>'
+        for centre_x in _VEHICLE_WHEEL_CENTRE_XS
+    )
+
+    return wheels, _VEHICLE_WHEEL_CENTRE_Y + _VEHICLE_WHEEL_RADIUS
+
+
+# Mountain Infantry - requested live 2026-09-06: "start with normal
+# infantry glyph - rectangle with diagonals - in the lower half of the
+# rectangle add a "^" or s small triangle with the bottom ends on the
+# rectangle bottom line, the height of the "mountain" is 1/3 of the
+# rectangle height". Drawn as an open "^" rather than a closed triangle:
+# its two ends sit ON the frame's own bottom line, which already closes
+# the shape, and "^" is the form the request names first.
+#
+# Height is a third of the frame's own 100. The base is twice that,
+# which puts both slopes at 45 degrees - not specified, chosen so it
+# reads as a mountain rather than a spike.
+_MOUNTAIN_HEIGHT = (_UNIT_FRAME_BOTTOM - _UNIT_FRAME_TOP) / 3
+
+_MOUNTAIN_HALF_BASE = _MOUNTAIN_HEIGHT
+
+
+def _mountain_chevron(colour):
+
+    """Mountain Infantry's own "^", sitting on the frame's bottom line."""
+
+    centre_x = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    mark = (
+        f'<path d="M{centre_x - _MOUNTAIN_HALF_BASE:g},{_UNIT_FRAME_BOTTOM:g} '
+        f'L{centre_x:g},{_UNIT_FRAME_BOTTOM - _MOUNTAIN_HEIGHT:g} '
+        f'L{centre_x + _MOUNTAIN_HALF_BASE:g},{_UNIT_FRAME_BOTTOM:g}" '
+        f'stroke-width="4" stroke="{colour}" fill="none"></path>'
+    )
+
+    # Entirely inside the frame, so nothing to grow the viewBox for.
+    return mark, None
+
+
+_UNIT_ENTITY_MARKS = {
+    MOTORISED_INFANTRY_ENTITY: _motorised_wheels,
+    MOUNTAIN_INFANTRY_ENTITY: _mountain_chevron,
+    # The same wheels, on Mechanised Infantry's own glyph instead.
+    RECCE_SUPPORT_WHEELED_ENTITY: _motorised_wheels,
+}
+
+
+def inject_unit_entity_marks(svg, entity, colour):
+
+    """
+    The scheme's own additions to a milsymbol unit glyph - Motorised
+    Infantry's wheels and Mountain Infantry's "^" so far.
+
+    Injected after the side designations so those stay centred on the
+    frame, the same ordering inject_enemy_question_mark() uses and for
+    the same reason.
+    """
+
+    mark = _UNIT_ENTITY_MARKS.get(entity)
+
+    if mark is None:
+        return svg
+
+    markup, lowest = mark(colour)
+
+    if lowest is not None:
+
+        match = _VIEWBOX_PATTERN.search(svg)
+
+        if match:
+
+            vb_x, vb_y, vb_w, _ = (float(value) for value in match.groups())
+
+            svg = _expand_viewbox_for_rect(
+                svg,
+                vb_x,
+                vb_y,
+                vb_w,
+                (lowest + 4 * DEFAULT_STROKE_SCALE / 2) - vb_y,
+            )
+
+    return _inject_before_closing_svg(svg, markup)
 
 
 # --- Echelon-specific fixup: Detachment (NATO's Team/Crew) -----------
@@ -605,6 +972,9 @@ AIR_FORCE_ENTITY = "nonnato_air_force"
 _UNIT_ENTITY_KEY_ALIASES = {
     AIR_DEFENSE_ARTILLERY_ENTITY: "air_defense",
     AIR_FORCE_ENTITY: "aviation_fixed_wing",
+    MOTORISED_INFANTRY_ENTITY: "infantry",
+    MOUNTAIN_INFANTRY_ENTITY: "infantry",
+    RECCE_SUPPORT_WHEELED_ENTITY: "armored_mechanized_tracked",
 }
 
 _ARMY_AVIATION_PROPELLER_SOLID_D = (
@@ -859,6 +1229,7 @@ def render_nonnato_unit_svg(
     designation_left=None,
     designation_right=None,
     combined_arms=False,
+    headquarters=False,
 ):
 
     """
@@ -883,12 +1254,32 @@ def render_nonnato_unit_svg(
     ignored"). Applied before Combined Arms, so both designations align
     with the unit glyph/frame itself rather than with Combined Arms' own
     indicator sitting above it.
+
+    `headquarters` is milsymbol's own flag-mast amplifier, passed
+    straight through to build_sidc() - the same Field S the NATO layers
+    already expose (see _point_symbol_layer.py's own
+    include_headquarters). Added 2026-09-06: "there is a choice for
+    Headquarters in the NATO symbology wherein a flag mast is added to
+    the glyph - implement the same in non-nato also". It has no effect
+    on the four Enemy entities, which never reach a SIDC at all.
     """
 
-    if is_enemy_info_unknown(entity):
+    if is_enemy_unknown(entity):
 
         svg = enemy_info_unknown_svg()
         combined_arms_colour = _ENEMY_INFO_UNKNOWN_COLOUR
+
+    elif entity in (ADMIN_LOGISTICS_ENTITY, STATIC_FORMATION_HQ_ENTITY):
+
+        combined_arms_colour = AFFILIATION_COLOURS.get(
+            affiliation, AFFILIATION_COLOURS["friend"]
+        )
+
+        svg = (
+            admin_logistics_svg(combined_arms_colour)
+            if entity == ADMIN_LOGISTICS_ENTITY
+            else static_formation_hq_svg(combined_arms_colour)
+        )
 
     else:
 
@@ -898,7 +1289,7 @@ def render_nonnato_unit_svg(
             symbol_set="ground_unit",
             echelon=echelon,
             status=status,
-            headquarters=False,
+            headquarters=headquarters,
             edition="2525E",
         )
 
@@ -915,8 +1306,19 @@ def render_nonnato_unit_svg(
         combined_arms_colour = colour
 
     svg = inject_side_designations(
-        svg, designation_left, designation_right, combined_arms_colour
+        svg,
+        designation_left,
+        designation_right,
+        combined_arms_colour,
+        centre_y=_UNIT_FRAME_CENTRE_Y,
     )
+
+    # After the designations, so a typed right designation keeps its own
+    # anchor and Enemy (Designation Unknown)'s own "?" steps outside it -
+    # see inject_enemy_question_mark().
+    svg = inject_enemy_question_mark(svg, entity, combined_arms_colour)
+
+    svg = inject_unit_entity_marks(svg, entity, combined_arms_colour)
 
     if combined_arms:
 
@@ -1354,7 +1756,9 @@ def inject_centered_designation_below(
 _SIDE_DESIGNATION_FONT_SIZE = 45.0
 
 
-def inject_side_designations(svg, left_text, right_text, colour):
+def inject_side_designations(
+    svg, left_text, right_text, colour, centre_y=None
+):
 
     """
     Land Unit's own two-sided replacement for milsymbol's single, side-
@@ -1374,6 +1778,19 @@ def inject_side_designations(svg, left_text, right_text, colour):
 
     Either argument may be empty/None on its own - only the side(s)
     actually supplied get a `<text>` element and widen the viewBox.
+
+    `centre_y` overrides the vertical centre. Land Unit passes its own
+    frame's centre (_UNIT_FRAME_CENTRE_Y), because the measured ink is
+    NOT what these should centre on - reported live 2026-09-06 against
+    the Headquarters flag mast ("even in normal headquarters - the
+    unique designations should be center of the rectangle and not the
+    entire glyph"). The mast hangs 100 units below the frame, which
+    dragged the measured centre from 100 down to 150. Measuring the
+    same way showed the identical drift had been there all along for
+    every echelon above "unspecified" too - a battalion's own amplifier
+    sits above the frame and pulled the centre UP to 82.6 - so this
+    fixes more than was reported. Without it the text is centred on the
+    icon's bounding box; with it, on the frame a reader actually sees.
 
     **The vertical centring is computed, not delegated to
     `dominant-baseline="middle"`** - fixed 2026-09-05, during a
@@ -1413,7 +1830,9 @@ def inject_side_designations(svg, left_text, right_text, colour):
         svg, fallback=(vb_x, vb_y, vb_w, vb_h)
     )
 
-    center_y = content_y + content_h / 2
+    center_y = (
+        content_y + content_h / 2 if centre_y is None else centre_y
+    )
     font_size = _SIDE_DESIGNATION_FONT_SIZE
     half_height = font_size * 1.2 / 2
 

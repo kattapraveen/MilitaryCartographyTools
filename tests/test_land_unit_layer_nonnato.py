@@ -31,9 +31,17 @@ from MilitaryCartographyTools.military_symbology.land_unit_layer_nonnato import 
     build_land_unit_layer_nonnato,
 )
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
+    ADMIN_LOGISTICS_ENTITY,
     AIR_DEFENSE_ARTILLERY_ENTITY,
     AIR_FORCE_ENTITY,
+    MOTORISED_INFANTRY_ENTITY,
+    MOUNTAIN_INFANTRY_ENTITY,
+    RECCE_SUPPORT_WHEELED_ENTITY,
+    STATIC_FORMATION_HQ_ENTITY,
+    ENEMY_DESIGNATION_UNKNOWN_ENTITY,
+    ENEMY_ECHELON_UNKNOWN_ENTITY,
     ENEMY_INFO_UNKNOWN_ENTITY,
+    ENEMY_TYPE_UNKNOWN_ENTITY,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
     build_sidc,
@@ -43,8 +51,21 @@ from MilitaryCartographyTools.military_symbology.sidc import (
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 
+# The four Enemy entities (2026-09-06: Info Unknown plus Echelon /
+# Designation / Type Unknown) never touch SIDC at all; the other two
+# have no matching real ground_unit key of their own either.
 SYNTHETIC_ENTITIES = (
-    ENEMY_INFO_UNKNOWN_ENTITY, AIR_DEFENSE_ARTILLERY_ENTITY, AIR_FORCE_ENTITY,
+    ENEMY_INFO_UNKNOWN_ENTITY,
+    ENEMY_ECHELON_UNKNOWN_ENTITY,
+    ENEMY_DESIGNATION_UNKNOWN_ENTITY,
+    ENEMY_TYPE_UNKNOWN_ENTITY,
+    AIR_DEFENSE_ARTILLERY_ENTITY,
+    AIR_FORCE_ENTITY,
+    MOTORISED_INFANTRY_ENTITY,
+    ADMIN_LOGISTICS_ENTITY,
+    STATIC_FORMATION_HQ_ENTITY,
+    MOUNTAIN_INFANTRY_ENTITY,
+    RECCE_SUPPORT_WHEELED_ENTITY,
 )
 
 
@@ -67,14 +88,25 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
     def test_count_matches_the_reviewed_list_plus_the_synthetic_entries(self):
 
         # 20 real entities the maintainer's reviewed check sheet
-        # confirmed, plus Enemy (Info Unknown) (no SIDC at all), Air
-        # Defence Artillery (Air Defence's real SIDC with Artillery's
-        # own dot fixed up on top, requested live 2026-09-02), and Air
-        # Force (Army Aviation's real SIDC with its own figure-of-8
-        # opened on the right, requested live 2026-09-03) - none of the
-        # three has a matching real ground_unit key of its own. See the
-        # rules record's "Required entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 23)
+        # confirmed, plus the four Enemy entities (Info Unknown, and
+        # Echelon / Designation / Type Unknown added 2026-09-06 - no
+        # SIDC at all, just two rectangles and a "?"), Air Defence
+        # Artillery (Air Defence's real SIDC with Artillery's own dot
+        # fixed up on top, requested live 2026-09-02), and Air Force
+        # (Army Aviation's real SIDC with its own figure-of-8 opened on
+        # the right, requested live 2026-09-03) and Motorised Infantry
+        # (Infantry's own real SIDC with the Vehicle family's own two
+        # wheels under it, requested live 2026-09-06) and Administration
+        # or Logistics Unit (a bare circle, no SIDC at all, also
+        # 2026-09-06) and Static Formation Headquarters (a pennant
+        # frame with the HQ mast, also 2026-09-06) and Mountain
+        # Infantry (Infantry's own real SIDC with a "^" added, also
+        # 2026-09-06) and Recce & Support (Wheeled) (Mechanised
+        # Infantry's own real SIDC plus those same wheels, also
+        # 2026-09-06) - none of the eleven has a matching real
+        # ground_unit key of its own. See the rules record's "Required
+        # entities" section.
+        self.assertEqual(len(ENTITY_LABELS), 31)
 
         for entity in SYNTHETIC_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)
@@ -166,7 +198,10 @@ class TestBuildLandUnitLayerNonnato(QgisTestCase):
             field_names,
             [
                 "affiliation", "entity", "echelon", "status",
-                "combined_arms", "unique_designation_left",
+                "combined_arms",
+                # The Headquarters flag mast, added 2026-09-06.
+                "headquarters",
+                "unique_designation_left",
                 "unique_designation_right", "rotation", "scale",
             ]
         )

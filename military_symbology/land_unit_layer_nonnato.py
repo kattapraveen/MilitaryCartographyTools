@@ -15,17 +15,24 @@ military_symbology/nonnato_symbol_engine.py for the actual rendering
 logic this layer's renderer calls into via mct_nonnato_unit_svg()
 (expressions/nonnato_symbology_functions.py).
 
-Scope for this first pass, deliberately narrow (see the rules record's
-"Required entities" section): the 20 APP-6E ground_unit entities the
-maintainer's reviewed check sheet confirmed, plus Enemy (Info
-Unknown), a standalone frame variant with no APP-6E entity at all.
-Every other Land Unit entity is out of scope until the maintainer adds
-it - this is not the full 187-entity vocabulary the NATO Land Unit
-layer offers.
+Scope, deliberately narrow (see the rules record's "Required entities"
+section): 31 entities - the 20 APP-6E ground_unit entities the
+maintainer's reviewed check sheet confirmed, plus eleven with no
+matching real ground_unit key of their own: the four Enemy entities
+(Info Unknown, and Echelon / Designation / Type Unknown added
+2026-09-06 - standalone frame variants with no APP-6E entity at all,
+differing only in where a "?" sits), Air Defence Artillery, Air Force,
+Motorised Infantry, Mountain Infantry, Recce & Support (Wheeled),
+Administration or Logistics Unit and Static Formation Headquarters (the
+last five all 2026-09-06). Every other Land Unit entity is out of scope
+until the maintainer adds it - this is not the full 187-entity
+vocabulary the NATO Land Unit layer offers.
 
-Not yet built (deliberately deferred, not an oversight): headquarters/
+Not yet built (deliberately deferred, not an oversight): the
 sector1/sector2 modifiers - worth adding once this layer is otherwise
-proven out, not before. Icon-size stabilisation for a typed
+proven out, not before. Headquarters WAS deferred here and is now
+built (2026-09-06): a Bool field feeding build_sidc()'s own Field S,
+same convention the NATO layers use. Icon-size stabilisation for a typed
 designation WAS missing at first ("No icon-size stabilisation for a
 typed designation yet" in an earlier version of this file), then fixed
 2026-09-02 once the maintainer actually hit it live - see
@@ -69,7 +76,15 @@ from ..core._layer_utils import add_layer_at_default_position
 from .nonnato_symbol_engine import (
     AIR_DEFENSE_ARTILLERY_ENTITY,
     AIR_FORCE_ENTITY,
+    ENEMY_DESIGNATION_UNKNOWN_ENTITY,
+    ENEMY_ECHELON_UNKNOWN_ENTITY,
     ENEMY_INFO_UNKNOWN_ENTITY,
+    ENEMY_TYPE_UNKNOWN_ENTITY,
+    ADMIN_LOGISTICS_ENTITY,
+    MOTORISED_INFANTRY_ENTITY,
+    MOUNTAIN_INFANTRY_ENTITY,
+    RECCE_SUPPORT_WHEELED_ENTITY,
+    STATIC_FORMATION_HQ_ENTITY,
     stabilised_nonnato_size_expression,
 )
 
@@ -81,16 +96,16 @@ DEFAULT_ENTITY = "infantry"
 MARKER_SIZE_MM = 8.0
 
 # Display labels for the 20 real APP-6E entities the reviewed check
-# sheet confirmed, plus Enemy (Info Unknown), Air Defence Artillery and
-# Air Force - three entries with no matching real ground_unit key of
-# their own. Every other entry's KEY is a real ground_unit key
+# sheet confirmed, plus eleven entries with no matching real
+# ground_unit key of their own - see this module's own docstring for
+# the list. Every other entry's KEY is a real ground_unit key
 # sidc_2525e.py already defines (unchanged, so render_nonnato_unit_
 # svg()'s own build_sidc() call resolves them directly) - only the
 # LABEL a user reads in the dropdown is renamed, same convention as
 # every other vocabulary dict in this project. See the rules record's
 # "Required entities"/"Renamed"/"Icon modifications" notes for where
 # each one of these came from, and nonnato_symbol_engine.py's own
-# comments for Enemy (Info Unknown) (no SIDC at all), Air Defence
+# comments for the Enemy family (no SIDC at all), Air Defence
 # Artillery (Air Defence's real SIDC, plus Artillery's own dot fixed up
 # on top - requested live 2026-09-02), and Air Force (Army Aviation's
 # real SIDC, with its own hollow figure-of-8 opened on the right -
@@ -119,6 +134,33 @@ ENTITY_LABELS = {
     "signal": "Signal",
     "special_operations_forces": "Special Operations Forces",
     ENEMY_INFO_UNKNOWN_ENTITY: "Enemy (Info Unknown)",
+    ENEMY_ECHELON_UNKNOWN_ENTITY: "Enemy (Echelon Unknown)",
+    ENEMY_DESIGNATION_UNKNOWN_ENTITY: "Enemy (Designation Unknown)",
+    ENEMY_TYPE_UNKNOWN_ENTITY: "Enemy (Type Unknown)",
+
+    # Synthetic, 2026-09-06: Infantry's own glyph with the Vehicle
+    # family's own two wheels under it - see nonnato_symbol_engine.
+    # inject_motorised_wheels().
+    MOTORISED_INFANTRY_ENTITY: "Motorised Infantry",
+
+    # Synthetic, 2026-09-06: Infantry's own glyph with a "^" in
+    # its lower half - see nonnato_symbol_engine._mountain_chevron().
+    MOUNTAIN_INFANTRY_ENTITY: "Mountain Infantry",
+
+    # Synthetic, 2026-09-06: Mechanised Infantry's own glyph with
+    # Motorised Infantry's own wheels under it - the wheeled
+    # counterpart to "Light Armour/Recce & Support (Tracked)".
+    RECCE_SUPPORT_WHEELED_ENTITY: "Recce & Support (Wheeled)",
+
+    # Synthetic, 2026-09-06: a bare circle at the frame's own height,
+    # no APP-6E entity and no glyph inside - see
+    # nonnato_symbol_engine.admin_logistics_svg().
+    ADMIN_LOGISTICS_ENTITY: "Administration or Logistics Unit",
+
+    # Synthetic, 2026-09-06: a pennant-shaped frame (the rectangle's own
+    # right side replaced by a "<") carrying the Headquarters mast -
+    # see nonnato_symbol_engine.static_formation_hq_svg().
+    STATIC_FORMATION_HQ_ENTITY: "Static Formation Headquarters",
 }
 
 # Six affiliations, not milsymbol's own four - see
@@ -209,6 +251,19 @@ def _configure_attribute_form(layer):
         fields.indexOf("combined_arms"), QgsDefaultValue("false")
     )
 
+    # milsymbol's own flag-mast amplifier (SIDC Field S), added
+    # 2026-09-06 - "there is a choice for Headquarters in the NATO
+    # symbology wherein a flag mast is added to the glyph - implement
+    # the same in non-nato also". Same widget and default the NATO
+    # layers use for it (_point_symbol_layer.include_headquarters).
+    layer.setEditorWidgetSetup(
+        fields.indexOf("headquarters"),
+        QgsEditorWidgetSetup("CheckBox", {})
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("headquarters"), QgsDefaultValue("false")
+    )
+
     configure_rotation_and_scale_fields(layer)
 
 
@@ -230,11 +285,23 @@ def _build_renderer():
         'upper(coalesce("unique_designation_right", \'\'))'
     )
 
+    # coalesce() around BOTH booleans, not just a tidy-up: QGIS returns
+    # NULL from an expression function the moment ANY argument is NULL,
+    # so a feature whose checkbox has never been set renders NOTHING at
+    # all. The field defaults only apply to features created through the
+    # attribute form - a pasted feature, a provider-level insert or a
+    # project predating the field all arrive NULL. Confirmed by direct
+    # evaluation 2026-09-06; "combined_arms" had carried this latent
+    # blank-icon bug since it was added, and adding "headquarters"
+    # beside it is what surfaced it.
+    combined_arms_expression = 'coalesce("combined_arms", false)'
+    headquarters_expression = 'coalesce("headquarters", false)'
+
     expression = (
         'mct_nonnato_unit_svg('
         '"affiliation","entity","echelon","status",'
         f'{designation_left_expression},{designation_right_expression},'
-        '"combined_arms"'
+        f'{combined_arms_expression},{headquarters_expression}'
         ')'
     )
 
@@ -262,14 +329,14 @@ def _build_renderer():
         'mct_nonnato_unit_svg_width('
         '"affiliation","entity","echelon","status",'
         f'{designation_left_expression},{designation_right_expression},'
-        '"combined_arms"'
+        f'{combined_arms_expression},{headquarters_expression}'
         ')'
     )
 
     plain_width_expression = (
         'mct_nonnato_unit_svg_width('
         '"affiliation","entity","echelon","status",'
-        '\'\',\'\',"combined_arms"'
+        f'\'\',\'\',{combined_arms_expression},{headquarters_expression}'
         ')'
     )
 
@@ -317,6 +384,7 @@ def build_land_unit_layer_nonnato():
         QgsField("echelon", QMetaType.Type.QString),
         QgsField("status", QMetaType.Type.QString),
         QgsField("combined_arms", QMetaType.Type.Bool),
+        QgsField("headquarters", QMetaType.Type.Bool),
         QgsField("unique_designation_left", QMetaType.Type.QString),
         QgsField("unique_designation_right", QMetaType.Type.QString),
         QgsField("rotation", QMetaType.Type.Double),

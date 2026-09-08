@@ -193,10 +193,16 @@ class TestCombinedArmsRect(QgisTestCase):
 
 class TestEnemyInfoUnknown(QgisTestCase):
 
-    def test_is_enemy_info_unknown(self):
+    def test_is_enemy_unknown_covers_all_four(self):
 
-        self.assertTrue(nse.is_enemy_info_unknown("enemy_info_unknown"))
-        self.assertFalse(nse.is_enemy_info_unknown("infantry"))
+        for entity in nse.ENEMY_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                self.assertTrue(nse.is_enemy_unknown(entity))
+
+        self.assertFalse(nse.is_enemy_unknown("infantry"))
+        self.assertEqual(len(nse.ENEMY_ENTITIES), 4)
 
 
     def test_svg_has_two_concentric_unfilled_rectangles(self):
@@ -2589,3 +2595,655 @@ class TestApvWheeledWheels(QgisTestCase):
                 self.assertGreaterEqual(top, vb_y - 0.01)
                 self.assertLessEqual(left + width, vb_x + vb_w + 0.01)
                 self.assertLessEqual(top + height, vb_y + vb_h + 0.01)
+
+
+class TestEnemyQuestionMarks(QgisTestCase):
+
+    """
+    Enemy (Echelon / Designation / Type Unknown), added 2026-09-06 -
+    the same two concentric rectangles Enemy (Info Unknown) has always
+    drawn, differing only in where a "?" goes.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _render(self, entity, left=None, right=None):
+
+        return nse.render_nonnato_unit_svg(
+            "hostile", entity, "unspecified", "present", left, right, False
+        )
+
+
+    def _question(self, svg):
+
+        match = re.search(
+            r'<text x="(\S+?)" y="(\S+?)" text-anchor="(\w+?)"[^>]*'
+            r'font-size="(\S+?)"[^>]*>\?</text>',
+            svg,
+        )
+
+        self.assertIsNotNone(match, "no question mark in the icon")
+
+        x, y, anchor, size = match.groups()
+
+        return float(x), float(y), anchor, float(size)
+
+
+    def test_info_unknown_is_untouched(self):
+
+        # "enemy (info unknown) remains as is".
+        svg = self._render(nse.ENEMY_INFO_UNKNOWN_ENTITY)
+
+        self.assertNotIn("?", svg)
+        self.assertEqual(svg.count("<rect"), 2)
+
+
+    def test_all_four_share_the_same_two_rectangles(self):
+
+        plain = self._render(nse.ENEMY_INFO_UNKNOWN_ENTITY)
+
+        rects = re.findall(r"<rect[^>]*>", plain)
+
+        for entity in nse.ENEMY_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                svg = self._render(entity)
+
+                self.assertEqual(re.findall(r"<rect[^>]*>", svg), rects)
+
+
+    def test_echelon_unknowns_mark_sits_above_the_glyph(self):
+
+        # "add a ? on top of the glyph".
+        svg = self._render(nse.ENEMY_ECHELON_UNKNOWN_ENTITY)
+
+        x, baseline, anchor, size = self._question(svg)
+
+        plain = self._render(nse.ENEMY_INFO_UNKNOWN_ENTITY)
+
+        left, top, width, _ = nse._content_bounds(plain, None)
+
+        self.assertEqual(anchor, "middle")
+        self.assertAlmostEqual(x, left + width / 2, places=3)
+
+        # Its own baseline is one gap above the glyph, so the whole
+        # glyph is clear below it. The delta is half of what
+        # scale_svg_stroke_width() adds to the frame's own 4-unit
+        # stroke at the very end - the mark is placed against the ink
+        # as measured BEFORE that final widening, same as every other
+        # injected element here.
+        half_added_stroke = 4 * (nse.DEFAULT_STROKE_SCALE - 1) / 2
+
+        self.assertAlmostEqual(
+            baseline,
+            top - nse._DESIGNATION_GAP,
+            delta=half_added_stroke + 0.001,
+        )
+
+        self.assertLess(baseline, top)
+
+
+    def test_designation_unknowns_mark_sits_where_a_right_designation_would(self):
+
+        # "add a ? to the right center of the glyph (same place as
+        # unique designation right)" - taken literally: same anchor,
+        # same baseline, same size as a real right designation.
+        marked = self._render(nse.ENEMY_DESIGNATION_UNKNOWN_ENTITY)
+
+        designated = self._render(nse.ENEMY_INFO_UNKNOWN_ENTITY, None, "1")
+
+        real = re.search(
+            r'<text x="(\S+?)" y="(\S+?)" text-anchor="(\w+?)"[^>]*'
+            r'font-size="(\S+?)"[^>]*>1</text>',
+            designated,
+        )
+
+        x, baseline, anchor, size = self._question(marked)
+
+        self.assertEqual(anchor, real.group(3))
+        self.assertAlmostEqual(x, float(real.group(1)), places=3)
+        self.assertAlmostEqual(baseline, float(real.group(2)), places=3)
+        self.assertAlmostEqual(size, float(real.group(4)), places=3)
+
+
+    def test_type_unknowns_mark_sits_in_the_middle(self):
+
+        # "add a ? in the center of the glyph".
+        svg = self._render(nse.ENEMY_TYPE_UNKNOWN_ENTITY)
+
+        x, baseline, anchor, size = self._question(svg)
+
+        left, top, width, height = nse._content_bounds(
+            self._render(nse.ENEMY_INFO_UNKNOWN_ENTITY), None
+        )
+
+        self.assertEqual(anchor, "middle")
+        self.assertAlmostEqual(x, left + width / 2, places=3)
+
+        # The cap box's own middle on the glyph's own middle, the same
+        # rule the side designations follow.
+        self.assertAlmostEqual(
+            baseline - size * nse._CAP_HEIGHT_RATIO / 2,
+            top + height / 2,
+            places=3,
+        )
+
+
+    def test_a_typed_designation_keeps_its_own_place(self):
+
+        # The "?" is injected AFTER the designations, so a real one is
+        # never displaced - and on Designation Unknown the "?" steps
+        # outside it instead of landing on top of it.
+        marked = self._render(nse.ENEMY_DESIGNATION_UNKNOWN_ENTITY, "A", "1")
+
+        plain = self._render(nse.ENEMY_INFO_UNKNOWN_ENTITY, "A", "1")
+
+        for text in ("A", "1"):
+
+            with self.subTest(designation=text):
+
+                pattern = r'<text x="(\S+?)" y="(\S+?)"[^>]*>' + text + "</text>"
+
+                self.assertEqual(
+                    re.search(pattern, marked).groups(),
+                    re.search(pattern, plain).groups(),
+                )
+
+        question_x, _, _, _ = self._question(marked)
+
+        designation_x = float(
+            re.search(r'<text x="(\S+?)"[^>]*>1</text>', marked).group(1)
+        )
+
+        self.assertGreater(question_x, designation_x)
+
+
+    def test_they_are_all_hostile_red_whatever_the_affiliation(self):
+
+        red = nse.AFFILIATION_COLOURS["hostile"]
+
+        for entity in nse.ENEMY_ENTITIES:
+
+            for affiliation in ("friend", "neutral", "unknown", "hostile"):
+
+                with self.subTest(entity=entity, affiliation=affiliation):
+
+                    svg = nse.render_nonnato_unit_svg(
+                        affiliation, entity, "unspecified", "present",
+                        None, None, False,
+                    )
+
+                    self.assertIn(red, svg)
+
+
+    def test_the_viewbox_holds_every_mark(self):
+
+        for entity in nse.ENEMY_ENTITIES:
+
+            for left, right in ((None, None), ("A", "1")):
+
+                with self.subTest(entity=entity, designations=(left, right)):
+
+                    svg = self._render(entity, left, right)
+
+                    vb_x, vb_y, vb_w, vb_h = (
+                        float(v)
+                        for v in nse._VIEWBOX_PATTERN.search(svg).groups()
+                    )
+
+                    l, t, w, h = nse._content_bounds(svg, None)
+
+                    self.assertGreaterEqual(l, vb_x - 0.01)
+                    self.assertGreaterEqual(t, vb_y - 0.01)
+                    self.assertLessEqual(l + w, vb_x + vb_w + 0.01)
+                    self.assertLessEqual(t + h, vb_y + vb_h + 0.01)
+
+
+class TestMotorisedInfantry(QgisTestCase):
+
+    """Infantry with the Vehicle family's own two wheels, added 2026-09-06."""
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _render(self, entity, left=None, right=None, echelon="unspecified"):
+
+        return nse.render_nonnato_unit_svg(
+            "friend", entity, echelon, "present", left, right, False
+        )
+
+
+    def test_it_is_infantrys_own_glyph_plus_two_wheels(self):
+
+        plain = self._render("infantry")
+        motorised = self._render(nse.MOTORISED_INFANTRY_ENTITY)
+
+        # Every path infantry draws is still there, untouched.
+        for path in re.findall(r"<path[^>]*>", plain):
+            self.assertIn(path, motorised)
+
+        self.assertEqual(plain.count("<circle"), 0)
+        self.assertEqual(motorised.count("<circle"), 2)
+
+
+    def test_the_wheels_are_the_vehicle_familys_own(self):
+
+        # "add the two wheels under it (from the B vehicle or C vehicle
+        # glyphs in land equipment)" - literally those, reusing the same
+        # constants, which line up because the Land Unit frame and the
+        # Vehicle body are the same 150 x 100 rectangle.
+        svg = self._render(nse.MOTORISED_INFANTRY_ENTITY)
+
+        wheels = [
+            tuple(float(v) for v in w)
+            for w in re.findall(r'<circle cx="(\S+?)" cy="(\S+?)" r="(\S+?)"', svg)
+        ]
+
+        expected_xs = sorted(nse._VEHICLE_WHEEL_CENTRE_XS)
+
+        for (x, y, radius), expected_x in zip(wheels, expected_xs):
+
+            self.assertAlmostEqual(x, expected_x, places=3)
+            self.assertAlmostEqual(y, nse._VEHICLE_WHEEL_CENTRE_Y, places=3)
+            self.assertAlmostEqual(radius, nse._VEHICLE_WHEEL_RADIUS, places=3)
+
+        # Their own tops touch the frame's own bottom edge (y=150).
+        self.assertAlmostEqual(
+            nse._VEHICLE_WHEEL_CENTRE_Y - nse._VEHICLE_WHEEL_RADIUS, 150, places=6
+        )
+
+
+    def test_it_resolves_to_infantrys_own_real_sidc(self):
+
+        self.assertEqual(
+            nse._UNIT_ENTITY_KEY_ALIASES[nse.MOTORISED_INFANTRY_ENTITY], "infantry"
+        )
+
+
+    def test_the_designations_stay_centred_on_the_frame(self):
+
+        # The wheels are injected AFTER the designations, so they never
+        # drag the side text down with them.
+        motorised = self._render(nse.MOTORISED_INFANTRY_ENTITY, "A", "1")
+        plain = self._render("infantry", "A", "1")
+
+        for text in ("A", "1"):
+
+            with self.subTest(designation=text):
+
+                pattern = r'<text x="(\S+?)" y="(\S+?)"[^>]*>' + text + "</text>"
+
+                self.assertEqual(
+                    re.search(pattern, motorised).groups(),
+                    re.search(pattern, plain).groups(),
+                )
+
+
+    def test_the_viewbox_holds_the_wheels(self):
+
+        for echelon in ("unspecified", "battalion"):
+
+            for designations in ((None, None), ("A", "1")):
+
+                with self.subTest(echelon=echelon, designations=designations):
+
+                    svg = self._render(
+                        nse.MOTORISED_INFANTRY_ENTITY, *designations,
+                        echelon=echelon,
+                    )
+
+                    vb_x, vb_y, vb_w, vb_h = (
+                        float(v)
+                        for v in nse._VIEWBOX_PATTERN.search(svg).groups()
+                    )
+
+                    l, t, w, h = nse._content_bounds(svg, None)
+
+                    self.assertGreaterEqual(l, vb_x - 0.01)
+                    self.assertGreaterEqual(t, vb_y - 0.01)
+                    self.assertLessEqual(l + w, vb_x + vb_w + 0.01)
+                    self.assertLessEqual(t + h, vb_y + vb_h + 0.01)
+
+
+class TestAdminLogisticsUnit(QgisTestCase):
+
+    """A bare circle at the Land Unit frame's own height, added 2026-09-06."""
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _render(self, left=None, right=None, affiliation="friend"):
+
+        return nse.render_nonnato_unit_svg(
+            "friend" if affiliation is None else affiliation,
+            nse.ADMIN_LOGISTICS_ENTITY,
+            "unspecified", "present", left, right, False,
+        )
+
+
+    def test_it_is_one_circle_and_nothing_else(self):
+
+        svg = self._render()
+
+        self.assertEqual(svg.count("<circle"), 1)
+        self.assertEqual(svg.count("<path"), 0)
+        self.assertEqual(svg.count("<rect"), 0)
+
+
+    def test_it_matches_the_frames_own_vertical_extent(self):
+
+        # "same dimensions as the rectangle of land units" - the frame
+        # is 150 x 100 at x 25..175, y 50..150, so the circle shares its
+        # top and bottom edges.
+        svg = self._render()
+
+        x, y, radius = (
+            float(v)
+            for v in re.search(
+                r'<circle cx="(\S+?)" cy="(\S+?)" r="(\S+?)"', svg
+            ).groups()
+        )
+
+        self.assertAlmostEqual(x, 100.0)
+        self.assertAlmostEqual(y, 100.0)
+        self.assertAlmostEqual(y - radius, 50.0)
+        self.assertAlmostEqual(y + radius, 150.0)
+
+
+    def test_it_follows_the_affiliation_colour(self):
+
+        # Unlike the Enemy family, this one is NOT pinned to a colour.
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                self.assertIn(colour, self._render(affiliation=affiliation))
+
+
+    def test_it_takes_both_side_designations(self):
+
+        # "option to add unique designation left/right as existing".
+        svg = self._render("A", "1")
+
+        self.assertIn(">A</text>", svg)
+        self.assertIn(">1</text>", svg)
+
+        left_x = float(re.search(r'<text x="(\S+?)"[^>]*>A</text>', svg).group(1))
+        right_x = float(re.search(r'<text x="(\S+?)"[^>]*>1</text>', svg).group(1))
+
+        # Measured off the CIRCLE's own edges (x 50..150), not the
+        # rectangle's - inject_side_designations() measures real ink.
+        self.assertLess(left_x, 50)
+        self.assertGreater(right_x, 150)
+
+
+class TestHeadquartersFlagMast(QgisTestCase):
+
+    """
+    milsymbol's own Field S amplifier, exposed on the non-NATO Land Unit
+    layer 2026-09-06 - "there is a choice for Headquarters in the NATO
+    symbology wherein a flag mast is added to the glyph - implement the
+    same in non-nato also".
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _render(self, entity="infantry", headquarters=False):
+
+        return nse.render_nonnato_unit_svg(
+            "friend", entity, "unspecified", "present", None, None,
+            False, headquarters,
+        )
+
+
+    def test_it_adds_a_mast_and_defaults_to_off(self):
+
+        plain = self._render()
+        hq = self._render(headquarters=True)
+
+        self.assertNotEqual(plain, hq)
+
+        # Off by default - the same icon as passing it explicitly False.
+        self.assertEqual(
+            plain,
+            nse.render_nonnato_unit_svg(
+                "friend", "infantry", "unspecified", "present", None, None, False
+            ),
+        )
+
+
+    def test_the_mast_reaches_below_the_frame(self):
+
+        hq = self._render(headquarters=True)
+
+        _, _, _, plain_height = nse._content_bounds(self._render(), None)
+        _, _, _, hq_height = nse._content_bounds(hq, None)
+
+        self.assertGreater(hq_height, plain_height)
+
+
+    def test_it_works_alongside_the_scheme_s_own_additions(self):
+
+        # Motorised Infantry's wheels are injected after milsymbol has
+        # already drawn the mast - both must survive.
+        svg = self._render(nse.MOTORISED_INFANTRY_ENTITY, headquarters=True)
+
+        self.assertEqual(svg.count("<circle"), 2)
+
+        self.assertNotEqual(
+            svg, self._render(nse.MOTORISED_INFANTRY_ENTITY)
+        )
+
+
+    def test_the_enemy_entities_ignore_it(self):
+
+        # They never reach a SIDC, so there is nothing for milsymbol to
+        # amplify - documented behaviour, not an oversight.
+        for entity in nse.ENEMY_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                self.assertEqual(
+                    self._render(entity), self._render(entity, headquarters=True)
+                )
+
+
+class TestStaticFormationHeadquarters(QgisTestCase):
+
+    """A pennant-shaped frame carrying the HQ mast, added 2026-09-06."""
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _render(self, left=None, right=None, affiliation="friend"):
+
+        return nse.render_nonnato_unit_svg(
+            affiliation, nse.STATIC_FORMATION_HQ_ENTITY,
+            "unspecified", "present", left, right, False,
+        )
+
+
+    def test_the_outline_is_the_frame_with_its_right_side_notched_in(self):
+
+        # "instead of right line of rectangle - replace with a < the
+        # resulting rectangle looks like a flag".
+        svg = self._render()
+
+        outline = re.findall(r'<path d="([^"]+)"', svg)[0]
+
+        numbers = [float(n) for n in re.findall(r"-?[\d.]+", outline)]
+
+        xs, ys = numbers[0::2], numbers[1::2]
+
+        # Three corners still at the frame's own edges...
+        self.assertAlmostEqual(min(xs), 25.0)
+        self.assertAlmostEqual(max(xs), 175.0)
+        self.assertAlmostEqual(min(ys), 50.0)
+        self.assertAlmostEqual(max(ys), 150.0)
+
+        # ...and the notch vertex on the centre line, inside the right
+        # edge, which is what makes it a pennant rather than a rectangle.
+        self.assertIn(100.0, ys)
+
+        notch_x = xs[ys.index(100.0)]
+
+        self.assertLess(notch_x, 175.0)
+        self.assertGreater(notch_x, 25.0)
+
+
+    def test_it_carries_milsymbols_own_headquarters_mast(self):
+
+        # Copied from a real HQ render rather than guessed - the same
+        # path milsymbol emits for headquarters=True.
+        real = nse.render_nonnato_unit_svg(
+            "friend", "infantry", "unspecified", "present", None, None, False, True
+        )
+
+        mast = re.search(r'<path d="(M25,150 L25,250)"', real)
+
+        self.assertIsNotNone(mast, "milsymbol's own mast path changed")
+
+        self.assertIn('d="M25,150 L25,250"', self._render())
+
+
+    def test_it_follows_the_affiliation_colour(self):
+
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                self.assertIn(colour, self._render(affiliation=affiliation))
+
+
+    def test_it_takes_both_side_designations_on_the_frames_own_centre(self):
+
+        svg = self._render("A", "1")
+
+        for text in ("A", "1"):
+
+            with self.subTest(designation=text):
+
+                baseline = float(
+                    re.search(
+                        r'<text x="\S+" y="(\S+)"[^>]*>' + text + "</text>", svg
+                    ).group(1)
+                )
+
+                cap = nse._SIDE_DESIGNATION_FONT_SIZE * nse._CAP_HEIGHT_RATIO
+
+                self.assertAlmostEqual(
+                    baseline - cap / 2, nse._UNIT_FRAME_CENTRE_Y, places=3
+                )
+
+
+class TestSideDesignationsCentreOnTheFrame(QgisTestCase):
+
+    """
+    "even in normal headquarters - the unique designations should be
+    center of the rectangle and not the entire glyph" (2026-09-06). They
+    used to centre on the icon's own measured ink, which the HQ mast and
+    every echelon amplifier both move.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        symbol_engine._svg_cache.clear()
+
+
+    def _baseline(self, svg, text):
+
+        return float(
+            re.search(
+                r'<text x="\S+" y="(\S+)"[^>]*>' + text + "</text>", svg
+            ).group(1)
+        )
+
+
+    def test_the_mast_no_longer_drags_them_down(self):
+
+        plain = nse.render_nonnato_unit_svg(
+            "friend", "infantry", "unspecified", "present", "A", "1", False
+        )
+        hq = nse.render_nonnato_unit_svg(
+            "friend", "infantry", "unspecified", "present", "A", "1", False, True
+        )
+
+        self.assertEqual(self._baseline(plain, "A"), self._baseline(hq, "A"))
+
+
+    def test_an_echelon_amplifier_no_longer_drags_them_up(self):
+
+        # The same drift, present since long before the mast existed:
+        # measured, a battalion's own amplifier moved the centre from
+        # 100 to 82.6.
+        baselines = {
+            echelon: self._baseline(
+                nse.render_nonnato_unit_svg(
+                    "friend", "infantry", echelon, "present", "A", "1", False
+                ),
+                "A",
+            )
+            for echelon in ("unspecified", "battalion", "army_group")
+        }
+
+        self.assertEqual(len(set(baselines.values())), 1)
+
+
+    def test_they_sit_on_the_frames_own_centre_for_every_entity(self):
+
+        from MilitaryCartographyTools.military_symbology import (
+            land_unit_layer_nonnato as layer_module,
+        )
+
+        cap = nse._SIDE_DESIGNATION_FONT_SIZE * nse._CAP_HEIGHT_RATIO
+
+        for entity in layer_module.ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", entity, "unspecified", "present", "A", "1", False
+                )
+
+                self.assertAlmostEqual(
+                    self._baseline(svg, "A") - cap / 2,
+                    nse._UNIT_FRAME_CENTRE_Y,
+                    places=3,
+                )
+
+
+    def test_the_frame_really_is_where_this_says_it_is(self):
+
+        # The constants are only safe because milsymbol's own frame path
+        # never moves - pinned here so a milsymbol update cannot shift
+        # it silently.
+        svg = nse.render_nonnato_unit_svg("friend", "infantry")
+
+        self.assertIn("M25,50 l150,0 0,100 -150,0 z", svg)
+
+        self.assertEqual(nse._UNIT_FRAME_CENTRE_Y, 100)
