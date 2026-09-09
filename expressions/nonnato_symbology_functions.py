@@ -186,10 +186,26 @@ def _render_equipment(values):
     # keep working untouched - mines never carry a mobility mark.
     mobility = values[3] if len(values) > 3 else None
 
+    # Added 2026-09-09 for Gap / Safe Lane and Minefield, which populate
+    # themselves with the selected mine type.
+    #
+    # This was MISSED when those entities were built: the layer's own
+    # expression passed a fifth argument and this function only ever
+    # read four, so the mine type was dropped here and both entities
+    # rendered as empty carriers whatever the dropdown said. Nothing
+    # caught it, because no test followed a mine type all the way from
+    # the field to the drawn symbol - see
+    # test_mines_and_obstacles_layer_nonnato.py's own regression test.
+    mine_type = values[4] if len(values) > 4 else None
+
     try:
 
         svg = render_nonnato_equipment_svg(
-            affiliation, entity, designation=designation, mobility=mobility
+            affiliation,
+            entity,
+            designation=designation,
+            mobility=mobility,
+            mine_type=mine_type,
         )
 
     except KeyError as error:

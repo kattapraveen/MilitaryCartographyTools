@@ -666,6 +666,30 @@ therefore skips the usual centred-below designation, or the value would
 be drawn twice. It also means arbitrary text can land in it, so the
 number shrinks to fit the frame like every other designation here.
 
+**Real bug, found 2026-09-09 while building the Office companion**: the
+mine type never reached either of the two entities that read it, so Gap
+/ Safe Lane and Minefield both rendered as EMPTY CARRIERS - a bridge or
+a frame with no mines in it - whatever the dropdown said.
+
+The Mines and Obstacles expression passes five arguments to
+`mct_nonnato_equipment_svg()`; `_render_equipment()` only ever read
+four, so `mine_type` was dropped between the layer and the renderer.
+The field, the dropdown and the engine were all correct in isolation.
+
+**Why the test suite missed it**: every test stopped on one side of the
+gap or the other. There were tests that the field exists, that the
+dropdown offers the right four values, that the LINE layer's mine runs
+respond to it, and that the engine draws mines when called directly -
+but none that followed a mine type from a feature attribute through the
+layer's own expression to the drawn symbol. That path was the only one
+that failed. Two regression tests now cover it, and both were confirmed
+to fail with the fix reverted.
+
+It surfaced because the Office companion exports every symbol by calling
+the engine directly, then diffs each file against what the layer's own
+expression renders - so the two paths disagreeing became visible
+immediately. That check lives in that project as `tools/verify.sh`.
+
 **A sixth layer: Mines and Obstacles Lines (Non-NATO)** - "Minefield
 (General) - this will be a line feature". Its own layer because a QGIS
 vector layer carries ONE geometry type and its sibling is points.

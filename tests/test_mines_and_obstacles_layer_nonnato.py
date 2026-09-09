@@ -33,6 +33,7 @@ from MilitaryCartographyTools.military_symbology.mines_and_obstacles_layer_nonna
     BRIDGE_ENTITIES,
     BOOBY_TRAP_ENTITY,
     LAYER_NAME,
+    MINE_TYPE_ENTITIES,
     ENTITY_LABELS,
     add_mines_and_obstacles_layer_nonnato,
     build_mines_and_obstacles_layer_nonnato,
@@ -204,6 +205,65 @@ class TestBuildMinesAndObstaclesLayerNonnato(QgisTestCase):
                 "unique_designation", "rotation", "scale",
             ]
         )
+
+
+    def test_the_selected_mine_type_reaches_the_drawn_symbol(self):
+
+        # A REGRESSION TEST, not a new feature's test. Gap / Safe Lane
+        # and Minefield shipped 2026-09-09 rendering as empty carriers
+        # whatever the dropdown said: the layer's expression passed a
+        # fifth argument for the mine type and
+        # nonnato_symbology_functions._render_equipment() only ever read
+        # four, so it was dropped between the two.
+        #
+        # Nothing caught it because every existing test stopped at one
+        # side or the other - the field exists, the dropdown offers the
+        # right values, the engine draws mines when called directly.
+        # This one follows a mine type the whole way, from the feature
+        # attribute to the drawn symbol, which is the only path that
+        # would have failed.
+        layer = build_mines_and_obstacles_layer_nonnato()
+
+        for entity in MINE_TYPE_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                empty = self._decoded_svg_for(
+                    layer, {"entity": entity, "mine_type": ""}
+                )
+                filled = self._decoded_svg_for(
+                    layer, {"entity": entity, "mine_type": "antitank"}
+                )
+
+                self.assertNotEqual(
+                    empty, filled,
+                    "the mine type made no difference to the symbol",
+                )
+
+                self.assertGreater(
+                    filled.count("<circle"), empty.count("<circle"),
+                    "no mines were drawn for a selected mine type",
+                )
+
+
+    def test_each_mine_type_draws_a_different_symbol(self):
+
+        # Antipersonnel and antitank differ by fill, "both" alternates -
+        # so all three have to be distinguishable, not merely non-empty.
+        layer = build_mines_and_obstacles_layer_nonnato()
+
+        for entity in MINE_TYPE_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                drawn = {
+                    mine_type: self._decoded_svg_for(
+                        layer, {"entity": entity, "mine_type": mine_type}
+                    )
+                    for mine_type in ("antipersonnel", "antitank", "both")
+                }
+
+                self.assertEqual(len(set(drawn.values())), 3)
 
 
     def test_no_echelon_status_or_combined_arms_field(self):
