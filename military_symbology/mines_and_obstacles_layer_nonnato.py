@@ -71,9 +71,16 @@ from ._control_measure_shared import (
     add_layer_if_absent,
     configure_rotation_and_scale_fields,
 )
+from .land_unit_layer_nonnato import AFFILIATION_LABELS
 from .nonnato_symbol_engine import (
     ANTITANK_MINE_BOOBY_TRAPPED_ENTITY,
     BAR_MINE_ENTITY,
+    BRIDGE_DEMOLISHED_ENTITY,
+    BRIDGE_PRELIMINARY_DEMOLITION_ENTITY,
+    BRIDGE_RESERVE_DEMOLITION_ENTITY,
+    GAP_SAFE_LANE_ENTITY,
+    MINEFIELD_WITH_NUMBER_ENTITY,
+    MINE_TYPE_LABELS,
     DIRECTIONAL_MINE_ENTITY,
     INFLUENCE_MINE_ANTI_PERSONNEL_ENTITY,
     INFLUENCE_MINE_ANTI_TANK_ENTITY,
@@ -91,7 +98,8 @@ BOOBY_TRAP_ENTITY = "booby_trap"
 
 DEFAULT_ENTITY = "land_mine"
 
-# The ten required entities - nine real/synthetic mines plus Booby
+# Sixteen entities as of 2026-09-09: the original ten - nine
+# real/synthetic mines plus Booby
 # Trap, moved in from Land Equipment (Non-NATO) and Control Measure
 # Points (Non-NATO) respectively - see this module's own docstring.
 # Real entity keys are unchanged (render_nonnato_equipment_svg()'s own
@@ -108,22 +116,73 @@ ENTITY_LABELS = {
     ANTITANK_MINE_BOOBY_TRAPPED_ENTITY: "Antitank Mine Booby Trapped",
     BAR_MINE_ENTITY: "Bar Mine",
     DIRECTIONAL_MINE_ENTITY: "Directional Mine",
+
+    # The bridge family, moved here from Land Equipment 2026-09-09 -
+    # "shift all bridges to mines and obstacles - but they retain the
+    # original colour affiliation not defaulting to green". `bridge` is
+    # the real APP-6E land_equipment entity, unchanged; the other three
+    # are synthetic variants of it - see nonnato_symbol_engine's own
+    # bridge-family comment.
+    "bridge": "Bridge",
+    BRIDGE_PRELIMINARY_DEMOLITION_ENTITY: "Bridge (Preliminary Demolition)",
+    BRIDGE_RESERVE_DEMOLITION_ENTITY: "Bridge (Reserve Demolition)",
+    BRIDGE_DEMOLISHED_ENTITY: "Bridge (Demolished)",
+
+    # Both added 2026-09-09. Gap/Safe Lane is the bridge with a
+    # minefield strip laid across it; Minefield draws its own count in
+    # the middle of a frame, read from "unique_designation" rather than
+    # a field of its own.
+    GAP_SAFE_LANE_ENTITY: "Gap / Safe Lane",
+    MINEFIELD_WITH_NUMBER_ENTITY: "Minefield (with number of mines)",
 }
+
+# Which entities read the "mine_type" field. Everything else ignores
+# it, the same way the mine family ignores "affiliation".
+MINE_TYPE_ENTITIES = frozenset({
+    GAP_SAFE_LANE_ENTITY,
+    MINEFIELD_WITH_NUMBER_ENTITY,
+})
+
+# Which entities read the "affiliation" field. Everything else on this
+# layer is fixed MINE_GREEN inside render_nonnato_equipment_svg()
+# (MINE_ENTITIES) or draws its own colour (Booby Trap), so the field is
+# simply ignored for them - passing it through costs nothing and keeps
+# one expression instead of two.
+BRIDGE_ENTITIES = frozenset({
+    "bridge",
+    BRIDGE_PRELIMINARY_DEMOLITION_ENTITY,
+    BRIDGE_RESERVE_DEMOLITION_ENTITY,
+    BRIDGE_DEMOLISHED_ENTITY,
+    # Its bridge half takes the affiliation colour; its minefield half
+    # stays green - "the mine field along with the rectangle will remain
+    # green, the bridge with X will only retain the affiliation colours".
+    GAP_SAFE_LANE_ENTITY,
+})
 
 # Every mine entity shares one designation field; Booby Trap never
 # takes a designation at all (mct_nonnato_booby_trap_svg() takes no
 # arguments) - its own branch below simply never references this.
 _DESIGNATION_EXPRESSION = 'upper(coalesce("unique_designation", \'\'))'
 
-# The affiliation argument every mct_nonnato_equipment_svg() call still
-# needs is a fixed literal, not a field reference - see this module's
-# own docstring for why there is no live "affiliation" field to read
-# from at all.
+_AFFILIATION_EXPRESSION = 'coalesce("affiliation", \'friend\')'
+
+# Read only by MINE_TYPE_ENTITIES; inert everywhere else. coalesce()
+# because a NULL argument blanks the whole icon.
+_MINE_TYPE_EXPRESSION = 'coalesce("mine_type", \'\')'
+
+# An "affiliation" field arrived 2026-09-09 with the bridge family,
+# which is the first thing on this layer whose colour is NOT fixed.
+# Every OTHER entity here still overrides it internally - the mine
+# family to MINE_GREEN (MINE_ENTITIES) and Booby Trap to its own green -
+# so one expression serves the whole layer and the field is simply
+# inert for them. coalesce() because a NULL argument would blank the
+# whole icon (see land_unit_layer_nonnato's own note on that).
 _NAME_EXPRESSION = (
     "CASE"
     f" WHEN \"entity\" = '{BOOBY_TRAP_ENTITY}' THEN mct_nonnato_booby_trap_svg()"
     " ELSE mct_nonnato_equipment_svg("
-    f"'friend',\"entity\",{_DESIGNATION_EXPRESSION})"
+    f"{_AFFILIATION_EXPRESSION},\"entity\",{_DESIGNATION_EXPRESSION},"
+    f"'',{_MINE_TYPE_EXPRESSION})"
     " END"
 )
 
@@ -160,8 +219,10 @@ _SIZE_EXPRESSION = (
     + stabilised_nonnato_size_expression(
         _MINE_SCALED_SIZE_EXPRESSION,
         'mct_nonnato_equipment_svg_width('
-        f'\'friend\',"entity",{_DESIGNATION_EXPRESSION})',
-        'mct_nonnato_equipment_svg_width(\'friend\',"entity",\'\')',
+        f'{_AFFILIATION_EXPRESSION},"entity",{_DESIGNATION_EXPRESSION},'
+        f"'',{_MINE_TYPE_EXPRESSION})",
+        f'mct_nonnato_equipment_svg_width({_AFFILIATION_EXPRESSION},"entity",'
+        f"'','',{_MINE_TYPE_EXPRESSION})",
     )
     + ")"
     " END"
@@ -177,12 +238,31 @@ def _configure_attribute_form(layer):
 
     fields = layer.fields()
 
+    # Only the bridge family reads this - see BRIDGE_ENTITIES.
+    layer.setEditorWidgetSetup(
+        fields.indexOf("affiliation"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(AFFILIATION_LABELS)})
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("affiliation"), QgsDefaultValue("'friend'")
+    )
+
     layer.setEditorWidgetSetup(
         fields.indexOf("entity"),
         QgsEditorWidgetSetup("ValueMap", {"map": _value_map(ENTITY_LABELS)})
     )
     layer.setDefaultValueDefinition(
         fields.indexOf("entity"), QgsDefaultValue(f"'{DEFAULT_ENTITY}'")
+    )
+
+    # Only Gap/Safe Lane and Minefield read this - see
+    # MINE_TYPE_ENTITIES.
+    layer.setEditorWidgetSetup(
+        fields.indexOf("mine_type"),
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(MINE_TYPE_LABELS)})
+    )
+    layer.setDefaultValueDefinition(
+        fields.indexOf("mine_type"), QgsDefaultValue("''")
     )
 
     configure_rotation_and_scale_fields(layer)
@@ -229,7 +309,9 @@ def build_mines_and_obstacles_layer_nonnato():
     )
 
     attributes = [
+        QgsField("affiliation", QMetaType.Type.QString),
         QgsField("entity", QMetaType.Type.QString),
+        QgsField("mine_type", QMetaType.Type.QString),
         QgsField("unique_designation", QMetaType.Type.QString),
         QgsField("rotation", QMetaType.Type.Double),
         QgsField("scale", QMetaType.Type.Double),

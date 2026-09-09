@@ -580,6 +580,122 @@ viewBox, sized to exactly what they draw, and the root width/height are
 restated to match (QGIS scales a marker by the declared WIDTH, and a
 mismatched pair leaves the two disagreeing about the icon's aspect).
 
+**Bridges, minefields, and a SIXTH layer, 2026-09-09.** One request
+covering three layers, plus one Land Unit addition.
+
+**Land Unit: Surveillance and Target Acquisition** - "start with a
+rectangle, make a triangle with the three vertices as center of the
+rectangle and the two bottom edges, add a dot in the center of the
+triangle (size half of the artillery unit dot); add a flag pennant on
+top without a mast". The dot sits at the triangle's own CENTROID, which
+is what "center of the triangle" means for a triangle - not the centre
+of its bounding box. The pennant's hoist stands on the triangle's apex,
+on the centre line where a mast would be, and points right. Trimmed 15%
+on sight, both dimensions, scaled about the hoist's foot so it stays
+attached. Land Unit's own count goes to 38.
+
+**The bridge family moves to Mines and Obstacles** - "shift all bridges
+to mines and obstacles - but they retain the original colour affiliation
+not defaulting to green". The real `bridge` entity moves across (Land
+Equipment 56 -> 55) and three synthetic variants join it:
+- **Preliminary Demolition** - two dashed parallel lines cut across the
+  bridge, "left bottom to right top", the pair straddling its centre so
+  the line BETWEEN them passes through (100,100). Dashes lengthened to
+  the branch's own established 8,3 - the pattern Bar Mine already uses -
+  and the gap between the pair cut 20%, both on sight.
+- **Reserve Demolition** - the same cuts, solid.
+- **Demolished** - Reserve plus the mirrored pair, making an X.
+
+**This reversed a deliberate decision.** The layer had NO "affiliation"
+field, recorded as dead weight because everything on it was fixed
+MINE_GREEN. The bridges are the first thing there whose colour is not
+fixed, so the field arrives; every other entity still overrides it
+internally (the mine family to MINE_GREEN, Booby Trap to its own), so
+one expression serves the layer and the field is simply inert for them.
+The test that asserted the field's ABSENCE is replaced by one proving
+only the bridges respond to it.
+
+**Gap/Safe Lane** - and a lesson about reading a spec. The words were
+"start with a bridge in land equipment, add two X inside the parallel
+lines of the bridge, now draw a rectangle across the bridge... two mines
+on each side; the bridge with cross is over the rectangle". Built from
+those words with the bridge left horizontal, which put the strip
+vertical and the mines above and below - and a clarifying question was
+asked in that same wrong frame, so the answer confirmed the error. The
+maintainer's own sketch settled it: the BRIDGE is vertical (milsymbol's
+glyph a quarter turn round), the STRIP is horizontal, and the mines sit
+two to the LEFT of the bridge and two to the RIGHT. **When a geometric
+spec has a chosen orientation, ask for the sketch before building.**
+
+Three further things the sketch and its follow-ups settled:
+- **The strip is drawn as two three-sided halves**, each open toward the
+  bridge, NOT as one rectangle behind it. The bridge is two thin lines,
+  so its channel is transparent and a rectangle behind it showed
+  straight through; SVG has no opaque mask that would work over an
+  unknown map background. The sketch shows the strip's edges simply
+  stopping at the bridge, so they stop.
+- **The bridge is widened for this entity only** - milsymbol's own 10
+  unit gap leaves ~5 clear once both strokes are counted, and an X
+  inside that is a sliver. Opened to 30.
+- **The X's centre ON the strip's own edges** - "align the center of Xs
+  with the top and bottom lines of the rectangle". An earlier "X, gap of
+  half of X width, then X" was read as a measurement ACROSS the bridge
+  and declared impossible; it was ALONG it. Read the axis before
+  declaring a constraint unsatisfiable.
+- **It is the one icon on the branch that mixes two colours** - "the
+  mine field along with the rectangle will remain green, the bridge with
+  X will only retain the affiliation colours". The obstacle is an
+  obstacle whoever laid it; the bridge belongs to somebody.
+
+**Minefield (with number of mines)** - a frame with the count in it and
+a chevron band below, mines running along the band. Drawn as a complete
+standalone SVG: the Military Police donor trick used elsewhere does not
+work here, because Land Equipment renders carry no frame at all and the
+framed ground_unit entities are the wrong symbol_set for this layer's
+render path. Specified as a chevron "1.5 times rectangle", but the
+sketch draws it nearer 1.1 and it was settled there - at 1.5 the arms
+reach well past the rectangle and it stops reading as one symbol. Five
+mines, one at the apex and two down each arm, inset from the tips.
+Fixed MINE_GREEN, per "default colour is green", by joining
+MINE_ENTITIES rather than getting a colour rule of its own.
+
+**The count comes from `unique_designation`** - "the number field can be
+pulled from the unique designation, we dont need to create a new field
+for it" - which removed a whole argument from the plumbing. That entity
+therefore skips the usual centred-below designation, or the value would
+be drawn twice. It also means arbitrary text can land in it, so the
+number shrinks to fit the frame like every other designation here.
+
+**A sixth layer: Mines and Obstacles Lines (Non-NATO)** - "Minefield
+(General) - this will be a line feature". Its own layer because a QGIS
+vector layer carries ONE geometry type and its sibling is points.
+
+**It is the branch's first symbol with no SVG at all.** Two
+QgsSimpleLineSymbolLayer offset either side of the digitised line are
+the "two parallel lines"; one QgsMarkerLineSymbolLayer per mine type
+populates it. Alternation falls out of offsetting the antitank run half
+an interval along the line. Each run is sized to zero when its type is
+not selected - the same "every slot is always present, an unused one
+gets size 0" pattern obstacle_control_measures.py already uses, and for
+the same reason: a symbol's layers are fixed at build time while
+mine_type varies per feature. The interval is set for the WORST case
+("both", where the effective spacing halves) rather than tuned for a
+single type.
+
+**Mine types are two, not the NATO six** - "use only antipersonnel and
+anti-tank" - with four dropdown options: None, Antitank, Antipersonnel,
+Both (alternating). None is the default, the same convention the
+mobility field uses for "no mark".
+
+**Four viewBox defects, all caught by the render sweep and none by
+eye**: the Gap bridge is drawn at milsymbol's 3.75 stroke rather than
+the 3 most injected marks use; the minefield chevron's arms end ON A
+SLANT, so a butt cap reaches sideways as well as along and half a
+stroke of margin is not enough; the frame is drawn at 4; and a long
+designation put the minefield's number at x = -318. **A stroke's
+allowance must come from the width THAT shape is drawn at, not a shared
+constant.**
+
 **Three synthetic entities built from Armoured Protected Vehicle,
 2026-09-03** (Land Equipment's own count moves to 54): three requests
 in one batch, all starting from the same real entity's glyph.

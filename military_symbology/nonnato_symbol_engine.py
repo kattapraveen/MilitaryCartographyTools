@@ -148,6 +148,16 @@ DIRECTIONAL_MINE_ENTITY = "nonnato_directional_mine"
 # Every mine-family entity, real or synthetic - checked by
 # render_nonnato_equipment_svg() to apply the green-not-affiliation
 # rule regardless of which of the two groups an entity is in.
+MINEFIELD_WITH_NUMBER_ENTITY = "nonnato_minefield_with_number"
+
+# The LINE counterpart - "Minefield (General) - this will be a line
+# feature - type of mines will be required input, draw two parallel
+# lines, populate the mines as per selection" (2026-09-09). It has no
+# SVG of its own at all: a line symbol built from QGIS primitives
+# draws it, so that it follows whatever the user digitises. The key
+# lives here only so both layers name it from one place.
+MINEFIELD_GENERAL_ENTITY = "nonnato_minefield_general"
+
 MINE_ENTITIES = frozenset({
     "land_mine",                    # Antipersonnel Mine
     "antitank_mine",                # Antitank Mine
@@ -158,6 +168,11 @@ MINE_ENTITIES = frozenset({
     ANTITANK_MINE_BOOBY_TRAPPED_ENTITY,
     BAR_MINE_ENTITY,
     DIRECTIONAL_MINE_ENTITY,
+    # Green like the rest of the obstacle family - "default colour is
+    # green" (2026-09-09). Declared here rather than as its own rule so
+    # it goes through exactly the same colour override every other mine
+    # already does.
+    MINEFIELD_WITH_NUMBER_ENTITY,
 })
 
 _MINE_R = 22
@@ -1407,6 +1422,7 @@ INTELLIGENCE_ENTITY = "nonnato_intelligence"
 SUPPLIES_TRANSPORT_ENTITY = "nonnato_supplies_transport"
 ORDNANCE_ENTITY = "nonnato_ordnance"
 REMOUNT_VETERINARY_ENTITY = "nonnato_remount_veterinary"
+STA_ENTITY = "nonnato_surveillance_target_acquisition"
 
 _UNIT_ENTITY_KEY_ALIASES = {
     AIR_DEFENSE_ARTILLERY_ENTITY: "air_defense",
@@ -1423,6 +1439,7 @@ _UNIT_ENTITY_KEY_ALIASES = {
     SUPPLIES_TRANSPORT_ENTITY: "military_police",
     ORDNANCE_ENTITY: "military_police",
     REMOUNT_VETERINARY_ENTITY: "military_police",
+    STA_ENTITY: "military_police",
     # Both were standalone hand-built SVGs until 2026-09-06 - see
     # admin_logistics_fixup() for why they moved onto a real render.
     ADMIN_LOGISTICS_ENTITY: "military_police",
@@ -1666,10 +1683,84 @@ def _remount_veterinary_glyph(colour):
     )
 
 
+# Surveillance and Target Acquisition - requested live 2026-09-09:
+# "start with a rectangle, make a triangle with the three vertices as
+# center of the rectangle and the two bottom edges, add a dot in the
+# center of the triangle (size half of the artillery unit dot); add a
+# flag pennant on top without a mast - so sort of isosceles triangle to
+# the right - width 2/5 of the triangle, height - just enough so as to
+# not touch the top of the rectangle".
+
+# Half of Artillery's own r=15 dot, as specified.
+_STA_DOT_RADIUS = _ARTILLERY_DOT_RADIUS / 2
+
+# Trimmed 15% on sight, 2026-09-09 - "reduce the size of the pennant
+# flag by 15% - overall dimensions", so BOTH dimensions, scaled about
+# the hoist's own foot so it stays attached to the triangle's apex.
+_STA_PENNANT_SCALE = 0.85
+
+# "width 2/5 of the triangle" - the triangle spans the frame's own full
+# width, so 2/5 of 150, before the trim.
+_STA_PENNANT_WIDTH = (
+    (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) * 2 / 5 * _STA_PENNANT_SCALE
+)
+
+# "height - just enough so as to not touch the top of the rectangle":
+# the pennant's own hoist ran from the triangle's own apex up to one
+# clearance short of the frame's own top edge, and that full height is
+# what the trim is taken off.
+_STA_PENNANT_CLEARANCE = 4
+
+_STA_PENNANT_HEIGHT = (
+    _UNIT_FRAME_CENTRE_Y - (_UNIT_FRAME_TOP + _STA_PENNANT_CLEARANCE)
+) * _STA_PENNANT_SCALE
+
+
+def _surveillance_target_acquisition_glyph(colour):
+
+    centre_x = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    # "three vertices as center of the rectangle and the two bottom
+    # edges" - the apex at the frame's own centre, the base its own two
+    # bottom corners.
+    triangle = (
+        f'<path d="M{centre_x:g},{_UNIT_FRAME_CENTRE_Y:g} '
+        f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} '
+        f'L{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_BOTTOM:g} Z" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+    # The centroid of those three vertices - what "center of the
+    # triangle" means for a triangle, not the centre of its bounding box.
+    dot_y = (_UNIT_FRAME_CENTRE_Y + 2 * _UNIT_FRAME_BOTTOM) / 3
+
+    dot = (
+        f'<circle cx="{centre_x:g}" cy="{dot_y:g}" '
+        f'r="{_STA_DOT_RADIUS:g}" stroke-width="3" stroke="{colour}" '
+        f'fill="{colour}"></circle>'
+    )
+
+    # "a flag pennant on top without a mast" - its own hoist stands on
+    # the triangle's apex, on the centre line where a mast would be, and
+    # it points right.
+    hoist_top = _UNIT_FRAME_CENTRE_Y - _STA_PENNANT_HEIGHT
+
+    pennant = (
+        f'<path d="M{centre_x:g},{_UNIT_FRAME_CENTRE_Y:g} '
+        f'L{centre_x:g},{hoist_top:g} '
+        f'L{centre_x + _STA_PENNANT_WIDTH:g},'
+        f'{(hoist_top + _UNIT_FRAME_CENTRE_Y) / 2:g} Z" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+    return triangle + dot + pennant
+
+
 _MILITARY_POLICE_REGLYPHED = {
     SUPPLIES_TRANSPORT_ENTITY: _supplies_transport_glyph,
     ORDNANCE_ENTITY: _ordnance_glyph,
     REMOUNT_VETERINARY_ENTITY: _remount_veterinary_glyph,
+    STA_ENTITY: _surveillance_target_acquisition_glyph,
 }
 
 
@@ -1772,6 +1863,24 @@ def combined_arms_rect_svg(echelon, colour):
 def _inject_before_closing_svg(svg, addition):
 
     return svg.replace("</svg>", addition + "</svg>", 1)
+
+
+def _inject_after_opening_svg(svg, addition):
+
+    """
+    Same, but FIRST in document order - so the addition draws UNDER
+    everything the icon already has. SVG has no z-index; paint order is
+    document order, which is the only way to put something behind a
+    glyph. Gap/Safe Lane needs it: "the bridge with cross is over the
+    rectangle - so the rectangle is hidden under the bridge".
+    """
+
+    root_end = svg.find(">")
+
+    if root_end == -1:
+        return svg
+
+    return svg[: root_end + 1] + addition + svg[root_end + 1:]
 
 
 _VIEWBOX_PATTERN = re.compile(
@@ -2565,11 +2674,131 @@ B_VEHICLE_ENTITY = "nonnato_b_vehicle"
 C_VEHICLE_ENTITY = "nonnato_c_vehicle"
 LIGHT_RECCE_VEHICLE_ENTITY = "nonnato_light_recce_vehicle"
 
+# --- Mine type, and the minefield symbols that populate with it ------
+#
+# Requested live 2026-09-09. The NATO side offers six mine types
+# (obstacle_control_measures.py); the maintainer scoped this side to two
+# - "use only antipersonnel and anti-tank" - which are exactly the two
+# this layer already draws as full-size entities, so the small glyphs
+# below are those same shapes at a smaller radius: Antipersonnel Mine is
+# a hollow circle, Antitank Mine a filled one.
+MINE_TYPE_ANTIPERSONNEL = "antipersonnel"
+MINE_TYPE_ANTITANK = "antitank"
+
+# "accommodate the mines linearly and alternately in case of using both
+# anti-tank and anti-personnel" (2026-09-09) - so a third choice, which
+# lays the two down in turn along the row. The NATO side words its own
+# version the same way ("placed alternately when combined").
+MINE_TYPE_BOTH = "both"
+
+# "mine type needs 4 options, none, anti-tank, anti-personnel, both"
+# (2026-09-09). None draws the symbol with no mines in it at all, and
+# is the default - same convention as the mobility field, where the
+# empty string means "no mark".
+MINE_TYPE_NONE = ""
+
+MINE_TYPE_LABELS = {
+    MINE_TYPE_NONE: "None",
+    MINE_TYPE_ANTITANK: "Antitank",
+    MINE_TYPE_ANTIPERSONNEL: "Antipersonnel",
+    MINE_TYPE_BOTH: "Both (alternating)",
+}
+
+_MINE_TYPE_SEQUENCES = {
+    MINE_TYPE_ANTIPERSONNEL: (MINE_TYPE_ANTIPERSONNEL,),
+    MINE_TYPE_ANTITANK: (MINE_TYPE_ANTITANK,),
+    MINE_TYPE_BOTH: (MINE_TYPE_ANTIPERSONNEL, MINE_TYPE_ANTITANK),
+}
+
+# A quarter of the full-size mine circle, so a row of them reads as a
+# scatter of mines rather than as more symbols, and two still leave
+# clear margin inside the band they sit in.
+_SMALL_MINE_RADIUS = _MINE_R / 4
+
+
+def _small_mine(x, y, mine_type, colour, radius=None):
+
+    filled = colour if mine_type == MINE_TYPE_ANTITANK else "none"
+
+    return (
+        f'<circle cx="{x:g}" cy="{y:g}" '
+        f'r="{radius if radius is not None else _SMALL_MINE_RADIUS:g}" '
+        f'stroke-width="3" stroke="{colour}" fill="{filled}"></circle>'
+    )
+
+
+def _mines_along(start, end, count, mine_type, colour, first=0, radius=None):
+
+    """
+    `count` mines spaced evenly along the segment from `start` to `end`,
+    inset half a step at each end so the row sits INSIDE the band rather
+    than starting on its own corner.
+
+    `first` is the index this run starts at, so a second row continues
+    the alternation rather than restarting it.
+    """
+
+    (x0, y0), (x1, y1) = start, end
+
+    # None, or anything unrecognised, draws no mines at all.
+    sequence = _MINE_TYPE_SEQUENCES.get(mine_type)
+
+    if not sequence:
+        return ""
+
+    mines = ""
+
+    for index in range(count):
+
+        t = (index + 0.5) / count
+
+        mines += _small_mine(
+            x0 + (x1 - x0) * t,
+            y0 + (y1 - y0) * t,
+            sequence[(first + index) % len(sequence)],
+            colour,
+            radius=radius,
+        )
+
+    return mines
+
+
+# The bridge family - requested live 2026-09-09, along with the move of
+# the real `bridge` entity itself from Land Equipment to Mines and
+# Obstacles ("shift all bridges to mines and obstacles - but they retain
+# the original colour affiliation not defaulting to green"). All three
+# are the real bridge glyph with lines drawn across it:
+#
+#   Preliminary Demolition  "add two dashed parallel lines across the
+#                            bridge - left bottom to right top in the
+#                            center of the bridge"
+#   Reserve Demolition      "start with bridge (preliminary demolition)
+#                            and convert the dashed lines to solid"
+#   Demolished              "start with Bridge (Reserve Demolition) -
+#                            add two more vertically mirrored parallel
+#                            lines making an X of parallel lines"
+BRIDGE_PRELIMINARY_DEMOLITION_ENTITY = "nonnato_bridge_preliminary_demolition"
+BRIDGE_RESERVE_DEMOLITION_ENTITY = "nonnato_bridge_reserve_demolition"
+BRIDGE_DEMOLISHED_ENTITY = "nonnato_bridge_demolished"
+
+# Also on the bridge glyph, but with a minefield laid across it -
+# "start with a bridge in land equipment, add two X inside the parallel
+# lines of the bridge, now draw a rectangle across the bridge -
+# selection of mines as per minefield general - populate the rectangle
+# with the mines as per selection - two mines on each side; the bridge
+# with cross is over the rectangle - so the rectangle is hidden under
+# the bridge".
+GAP_SAFE_LANE_ENTITY = "nonnato_gap_safe_lane"
+
 _EQUIPMENT_ENTITY_KEY_ALIASES = {
     SIGINT_RADAR_ENTITY: "radar",
     BRIDGE_LAYER_TANK_ENTITY: "armored_protected_vehicle",
     ARMOURED_RECCE_VEHICLE_ENTITY: "armored_protected_vehicle",
     APV_WHEELED_ENTITY: "armored_protected_vehicle",
+    BRIDGE_PRELIMINARY_DEMOLITION_ENTITY: "bridge",
+    BRIDGE_RESERVE_DEMOLITION_ENTITY: "bridge",
+    BRIDGE_DEMOLISHED_ENTITY: "bridge",
+    GAP_SAFE_LANE_ENTITY: "bridge",
 }
 
 # This is the SAME small-number-of-entities-need-a-different-
@@ -3104,6 +3333,468 @@ _SYNTHETIC_VEHICLE_SVG = {
 }
 
 
+# The real bridge glyph is two flared brackets facing each other -
+# `m 70,115 10,-10 40,0 10,10 m -60,-30 10,10 40,0 10,-10` - so its own
+# two parallel lines run along y=95 and y=105 from x=80 to 120, and the
+# flares reach out to x 70..130 and y 85..115.
+_BRIDGE_SPAN_CENTRE_X = 100
+
+# milsymbol's own bridge path, matched so Gap/Safe Lane can swap it for
+# a widened copy.
+_BRIDGE_PATH_PATTERN = re.compile(
+    r'<path d="m 70,115 10,-10 40,0 10,10 m -60,-30 10,10 40,0 10,-10"'
+    r'[^>]*></path>'
+)
+_BRIDGE_FLARE_TOP = 85
+_BRIDGE_FLARE_BOTTOM = 115
+
+# "left bottom to right top", so each cut rises to the right. The pair
+# straddles the bridge's own centre, half a gap either side, and the
+# line BETWEEN them passes through (100,100) - the bridge's own middle.
+#
+# The gap came down 20% on sight, 2026-09-09 ("reduce the gap by 20%
+# between the parallel lines"), from 14 to 11.2 - at 14 the Demolished
+# variant's two crossing pairs read as a busy star rather than an X of
+# parallel lines.
+_DEMOLITION_CUT_RUN = 20
+_DEMOLITION_CUT_GAP = 14 * 0.8
+
+# Longer than the 6,5 the first draft used ("longer dashes", same day).
+# This is the branch's own established long-dash pattern, the one Bar
+# Mine already uses: dash 8 against the scheme's standard 4, with the
+# standard 3-unit gap rather than a proportionally longer one.
+_DEMOLITION_DASH_PATTERN = "8,3"
+
+
+def _demolition_cuts(colour, dashed=False, mirrored=False):
+
+    """
+    The pair of parallel lines cut across the bridge - see this
+    section's own comment. `mirrored` flips them about the bridge's own
+    vertical centre line, which is what turns Reserve Demolition's pair
+    into Demolished's X.
+    """
+
+    half_run = _DEMOLITION_CUT_RUN / 2
+    half_gap = _DEMOLITION_CUT_GAP / 2
+
+    dash = (
+        f' stroke-dasharray="{_DEMOLITION_DASH_PATTERN}"' if dashed else ""
+    )
+
+    cuts = ""
+
+    for offset in (-half_gap, half_gap):
+
+        bottom_x = _BRIDGE_SPAN_CENTRE_X + offset - half_run
+        top_x = _BRIDGE_SPAN_CENTRE_X + offset + half_run
+
+        if mirrored:
+            bottom_x, top_x = top_x, bottom_x
+
+        cuts += (
+            f'<path d="M{bottom_x:g},{_BRIDGE_FLARE_BOTTOM:g} '
+            f'L{top_x:g},{_BRIDGE_FLARE_TOP:g}" stroke-width="3" '
+            f'stroke="{colour}" fill="none"{dash}></path>'
+        )
+
+    return cuts
+
+
+def _bridge_demolition_fixup(dashed=False, demolished=False):
+
+    def fixup(svg):
+
+        colour = _injected_text_colour(svg)
+
+        cuts = _demolition_cuts(colour, dashed=dashed)
+
+        if demolished:
+            cuts += _demolition_cuts(colour, mirrored=True)
+
+        return _inject_before_closing_svg(svg, cuts)
+
+    return fixup
+
+
+# Minefield (with number of mines), drawn from the maintainer's own
+# reference sketch (2026-09-09): "start with a standard rectangle,
+# insert the given number in the center of the rectangle, below the
+# rectangle, add two parallel lines shaped ^, size of ^ is 1.5 times
+# rectangle, the selected type of mines are populated linearly inside
+# these parallel lines; default colour is green".
+#
+# The sketch settles the details the words leave open: the INNER
+# chevron's own apex touches the rectangle's bottom edge at its centre,
+# the outer one hangs below it, and the mines run along the band
+# between them - one at the apex and two down each arm, alternating
+# type. Five is what the sketch draws, and it sits in the "about 5-6
+# mines whichever fit properly, at least 4" the maintainer asked for.
+
+# Specified as "1.5 times rectangle", but the maintainer's own sketch
+# draws it closer to 1.1 and settled it there on sight (2026-09-09) -
+# at 1.5 the arms reach well past the rectangle and the symbol stops
+# reading as one thing.
+_MINEFIELD_CHEVRON_SCALE = 1.1
+
+_MINEFIELD_CHEVRON_HALF_WIDTH = (
+    (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) * _MINEFIELD_CHEVRON_SCALE / 2
+)
+
+# The sketch's own arms drop about 0.79 for every unit they run out,
+# which is what gives it the flat-topped "^" rather than a spike.
+_MINEFIELD_CHEVRON_DROP = _MINEFIELD_CHEVRON_HALF_WIDTH * 0.79
+
+# Wide enough for a mine to sit inside it with clear margin.
+_MINEFIELD_BAND_WIDTH = 30
+
+_MINEFIELD_MINE_RADIUS = 8
+
+_MINEFIELD_MINE_COUNT = 5
+
+_MINEFIELD_NUMBER_FONT_SIZE = 60
+
+
+def _chevron_path(apex_y, colour):
+
+    return (
+        f'<path d="M{_UNIT_FRAME_LEFT + (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) / 2 - _MINEFIELD_CHEVRON_HALF_WIDTH:g},'
+        f'{apex_y + _MINEFIELD_CHEVRON_DROP:g} '
+        f'L{_UNIT_FRAME_LEFT + (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) / 2:g},{apex_y:g} '
+        f'L{_UNIT_FRAME_LEFT + (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) / 2 + _MINEFIELD_CHEVRON_HALF_WIDTH:g},'
+        f'{apex_y + _MINEFIELD_CHEVRON_DROP:g}" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+
+def _mines_along_chevron(apex_y, count, mine_type, colour):
+
+    """
+    `count` mines spread along the band's own midline - a two-segment
+    path - with one landing exactly on the apex when the count is odd,
+    which is what the sketch draws.
+    """
+
+    centre_x = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    apex = (centre_x, apex_y)
+    left = (
+        centre_x - _MINEFIELD_CHEVRON_HALF_WIDTH,
+        apex_y + _MINEFIELD_CHEVRON_DROP,
+    )
+    right = (
+        centre_x + _MINEFIELD_CHEVRON_HALF_WIDTH,
+        apex_y + _MINEFIELD_CHEVRON_DROP,
+    )
+
+    sequence = _MINE_TYPE_SEQUENCES.get(mine_type)
+
+    if not sequence:
+        return ""
+
+    per_arm = (count - 1) // 2
+
+    # The outermost mine stops short of the arm's own tip rather than
+    # sitting on it - the sketch insets them, and a mine centred on the
+    # end hangs half of itself off the band.
+    reach = per_arm + 0.6
+
+    mines = ""
+    index = 0
+
+    # Down the left arm, inward to the apex, then out along the right -
+    # so the alternation reads continuously across the whole band.
+    for step in range(per_arm, 0, -1):
+
+        t = step / reach
+
+        mines += _small_mine(
+            apex[0] + (left[0] - apex[0]) * t,
+            apex[1] + (left[1] - apex[1]) * t,
+            sequence[index % len(sequence)],
+            colour,
+            radius=_MINEFIELD_MINE_RADIUS,
+        )
+        index += 1
+
+    mines += _small_mine(
+        apex[0], apex[1], sequence[index % len(sequence)], colour,
+        radius=_MINEFIELD_MINE_RADIUS,
+    )
+    index += 1
+
+    for step in range(1, per_arm + 1):
+
+        t = step / reach
+
+        mines += _small_mine(
+            apex[0] + (right[0] - apex[0]) * t,
+            apex[1] + (right[1] - apex[1]) * t,
+            sequence[index % len(sequence)],
+            colour,
+            radius=_MINEFIELD_MINE_RADIUS,
+        )
+        index += 1
+
+    return mines
+
+
+def minefield_with_number_svg(colour, mine_type=None, number=None):
+
+    """
+    The whole icon, authored here rather than decorating a milsymbol
+    render - see this section's own comment for the geometry.
+
+    Standalone because nothing in the vocabulary supplies what it needs:
+    Land Equipment renders carry no frame at all (`frame: False`), and
+    the framed ground_unit entities are the wrong symbol_set for this
+    layer's own render path. Everything it draws is its own anyway - a
+    rectangle, a number, a chevron band and a row of mines.
+    """
+
+    centre_x = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    inner_apex = _UNIT_FRAME_BOTTOM
+    outer_apex = inner_apex + _MINEFIELD_BAND_WIDTH
+
+    marks = _chevron_path(inner_apex, colour) + _chevron_path(outer_apex, colour)
+
+    marks += _mines_along_chevron(
+        inner_apex + _MINEFIELD_BAND_WIDTH / 2,
+        _MINEFIELD_MINE_COUNT,
+        mine_type,
+        colour,
+    )
+
+    if number not in (None, ""):
+
+        text = str(number)
+
+        # It comes from the designation field, so nothing stops a user
+        # typing prose into it. Shrink to fit the frame rather than let
+        # it run off the icon - the same treatment every other
+        # designation on this branch gets.
+        font_size = _designation_font_size(
+            text,
+            (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) * 0.85,
+            _MINEFIELD_NUMBER_FONT_SIZE,
+        )
+
+        baseline = _UNIT_FRAME_CENTRE_Y + font_size * _CAP_HEIGHT_RATIO / 2
+
+        marks += (
+            f'<text x="{centre_x:g}" y="{baseline:g}" text-anchor="middle" '
+            f'font-size="{font_size:g}" font-family="Arial" '
+            f'font-weight="bold" stroke="none" fill="{colour}">'
+            f"{_escape_text(text)}</text>"
+        )
+
+    frame = (
+        f'<rect x="{_UNIT_FRAME_LEFT:g}" y="{_UNIT_FRAME_TOP:g}" '
+        f'width="{_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT:g}" '
+        f'height="{_UNIT_FRAME_BOTTOM - _UNIT_FRAME_TOP:g}" '
+        f'stroke-width="4" stroke="{colour}" fill="none"></rect>'
+    )
+
+    # A full stroke either side, not half: the arms end on a slant, so
+    # the cap reaches sideways as well as along. Caught by the render
+    # sweep's own viewBox-contains-the-ink invariant.
+    left = centre_x - _MINEFIELD_CHEVRON_HALF_WIDTH - 2 * _INJECTED_HALF_STROKE
+    right = centre_x + _MINEFIELD_CHEVRON_HALF_WIDTH + 2 * _INJECTED_HALF_STROKE
+
+    # The frame is drawn at 4, not the 3 the chevron uses, so its own
+    # top edge reaches higher than _INJECTED_HALF_STROKE allows for.
+    top = _UNIT_FRAME_TOP - 4 * DEFAULT_STROKE_SCALE / 2
+    # A full stroke, for the same reason the sides need one: the arms
+    # end on a slant, so the cap reaches past the geometry in both axes.
+    bottom = (
+        outer_apex + _MINEFIELD_CHEVRON_DROP + 2 * _INJECTED_HALF_STROKE
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        f'baseProfile="tiny" viewBox="{left:g} {top:g} '
+        f'{right - left:g} {bottom - top:g}">'
+        + frame + marks + "</svg>"
+    )
+
+
+# Gap/Safe Lane, drawn from the maintainer's own reference sketch
+# (2026-09-09). The first build read "a rectangle across the bridge"
+# with the bridge left horizontal, which put the rectangle vertical and
+# the mines above and below. The sketch settles it the other way round:
+#
+#   * the BRIDGE is vertical - milsymbol's own glyph turned a quarter
+#     turn, its flares opening at top and bottom;
+#   * the RECTANGLE is horizontal, running across it, and passes BEHIND
+#     it, so the bridge's own channel hides the middle of it;
+#   * the mines sit two to the LEFT of the bridge and two to the RIGHT,
+#     inside the rectangle - which is what "two mines on each side"
+#     meant, the sides being the bridge's own;
+#   * the two X's sit IN the bridge's channel, one above the rectangle
+#     and one below, rather than side by side.
+#
+# The bridge is widened from milsymbol's own 10-unit gap - "widen the
+# bridge to accommodate the Xs" - since an X in a 10-unit channel is a
+# sliver once both strokes are counted.
+_GAP_BRIDGE_HALF_GAP = 15
+
+# milsymbol's own flare: 10 units out and 10 along, at each end.
+_GAP_BRIDGE_FLARE = 10
+
+_GAP_BRIDGE_TOP = 58
+_GAP_BRIDGE_BOTTOM = 142
+
+# The minefield strip. Full frame width, so the mine rows either side of
+# the bridge have room without crowding its channel.
+_GAP_RECT_LEFT = _UNIT_FRAME_LEFT
+_GAP_RECT_RIGHT = _UNIT_FRAME_RIGHT
+_GAP_RECT_HALF_HEIGHT = 18
+
+# "reduce the size of Xs as much as feasible - they should not touch the
+# lines of the bridge". The channel is 30 wide; at half-width 10 the X
+# clears each bridge line by 5 less its own half-stroke.
+_GAP_CROSS_HALF = 10
+
+# "align the center of Xs with the top and bottom lines of the
+# rectangle" (2026-09-09) - so each X straddles one of the strip's own
+# long edges rather than sitting clear of it. The earlier "X, gap of
+# half of X width, then X" was measured ALONG the bridge, not across
+# it, which is the axis these two sit on.
+
+# The sketch draws its mines filling well over half the strip's own
+# height, which is what makes them read as mines rather than dots.
+_GAP_MINE_RADIUS = 10
+
+# The vertical bridge is drawn at milsymbol's own 3.75, not the 3 most
+# injected marks use, and its flare tips carry a line join on top of
+# that - so the viewBox needs its own allowance rather than the shared
+# _INJECTED_HALF_STROKE. Caught by the render sweep, not by eye.
+_GAP_BRIDGE_HALF_STROKE = 3.75 * DEFAULT_STROKE_SCALE
+
+
+def _gap_vertical_bridge(colour):
+
+    """milsymbol's own bridge, turned a quarter turn and widened - see this section's own comment."""
+
+    left = _BRIDGE_SPAN_CENTRE_X - _GAP_BRIDGE_HALF_GAP
+    right = _BRIDGE_SPAN_CENTRE_X + _GAP_BRIDGE_HALF_GAP
+
+    bracket = (
+        "M{outer:g},{flare_top:g} L{inner:g},{top:g} "
+        "L{inner:g},{bottom:g} L{outer:g},{flare_bottom:g}"
+    )
+
+    d = " ".join(
+        bracket.format(
+            outer=inner + direction * _GAP_BRIDGE_FLARE,
+            inner=inner,
+            top=_GAP_BRIDGE_TOP,
+            bottom=_GAP_BRIDGE_BOTTOM,
+            flare_top=_GAP_BRIDGE_TOP - _GAP_BRIDGE_FLARE,
+            flare_bottom=_GAP_BRIDGE_BOTTOM + _GAP_BRIDGE_FLARE,
+        )
+        for inner, direction in ((left, -1), (right, 1))
+    )
+
+    return (
+        f'<path d="{d}" stroke-width="3.75" stroke="{colour}" '
+        'fill="none"></path>'
+    )
+
+
+def _gap_safe_lane_fixup(svg, mine_type=None, colour=None):
+
+    # Two-coloured, by instruction (2026-09-09): "the mine field along
+    # with the rectangle will remain green, the bridge with X will only
+    # retain the affiliation colours". So this is the one icon on the
+    # branch that mixes MINE_GREEN with an affiliation colour - the
+    # obstacle is an obstacle whoever laid it, while the bridge belongs
+    # to somebody.
+    colour = colour or _injected_text_colour(svg)
+
+    minefield_colour = MINE_GREEN
+
+    top = _UNIT_FRAME_CENTRE_Y - _GAP_RECT_HALF_HEIGHT
+    bottom = _UNIT_FRAME_CENTRE_Y + _GAP_RECT_HALF_HEIGHT
+
+    bridge_left = _BRIDGE_SPAN_CENTRE_X - _GAP_BRIDGE_HALF_GAP
+    bridge_right = _BRIDGE_SPAN_CENTRE_X + _GAP_BRIDGE_HALF_GAP
+
+    # Drawn as two three-sided halves, each open toward the bridge,
+    # rather than one rectangle behind it. SVG has no opaque mask that
+    # would work over an unknown map background, and the sketch shows
+    # the strip's own edges simply stopping at the bridge - so they
+    # stop.
+    beneath = ""
+
+    for outer, inner in (
+        (_GAP_RECT_LEFT, bridge_left), (_GAP_RECT_RIGHT, bridge_right)
+    ):
+        beneath += (
+            f'<path d="M{inner:g},{top:g} L{outer:g},{top:g} '
+            f'L{outer:g},{bottom:g} L{inner:g},{bottom:g}" '
+            f'stroke-width="3" stroke="{minefield_colour}" '
+            'fill="none"></path>'
+        )
+
+    # Two mines each side of the bridge, on the rectangle's own centre
+    # line. The second run continues the alternation rather than
+    # restarting it, which is what the sketch shows: hollow, filled |
+    # hollow, filled.
+    for run, (run_left, run_right) in enumerate(
+        (
+            (_GAP_RECT_LEFT, bridge_left),
+            (bridge_right, _GAP_RECT_RIGHT),
+        )
+    ):
+        beneath += _mines_along(
+            (run_left, _UNIT_FRAME_CENTRE_Y),
+            (run_right, _UNIT_FRAME_CENTRE_Y),
+            2,
+            mine_type,
+            minefield_colour,
+            first=run * 2,
+            radius=_GAP_MINE_RADIUS,
+        )
+
+    over = _gap_vertical_bridge(colour)
+
+    # One X above the rectangle and one below, inside the channel.
+    for centre_y in (top, bottom):
+        over += (
+            f'<path d="M{_BRIDGE_SPAN_CENTRE_X - _GAP_CROSS_HALF:g},'
+            f'{centre_y - _GAP_CROSS_HALF:g} '
+            f'L{_BRIDGE_SPAN_CENTRE_X + _GAP_CROSS_HALF:g},'
+            f'{centre_y + _GAP_CROSS_HALF:g} '
+            f'M{_BRIDGE_SPAN_CENTRE_X + _GAP_CROSS_HALF:g},'
+            f'{centre_y - _GAP_CROSS_HALF:g} '
+            f'L{_BRIDGE_SPAN_CENTRE_X - _GAP_CROSS_HALF:g},'
+            f'{centre_y + _GAP_CROSS_HALF:g}" '
+            f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+        )
+
+    # milsymbol's own horizontal bridge is dropped - the vertical one
+    # replaces it entirely.
+    svg = _BRIDGE_PATH_PATTERN.sub("", svg, count=1)
+
+    svg = _expand_viewbox_for_rect(
+        svg,
+        _GAP_RECT_LEFT - _INJECTED_HALF_STROKE,
+        _GAP_BRIDGE_TOP - _GAP_BRIDGE_FLARE - _GAP_BRIDGE_HALF_STROKE,
+        (_GAP_RECT_RIGHT - _GAP_RECT_LEFT) + 2 * _INJECTED_HALF_STROKE,
+        (_GAP_BRIDGE_BOTTOM + _GAP_BRIDGE_FLARE)
+        - (_GAP_BRIDGE_TOP - _GAP_BRIDGE_FLARE)
+        + 2 * _GAP_BRIDGE_HALF_STROKE,
+    )
+
+    # The rectangle and its mines go UNDER; the bridge and its crosses
+    # go over, which is what hides the strip's middle.
+    return _inject_before_closing_svg(
+        _inject_after_opening_svg(svg, beneath), over
+    )
+
+
 _EQUIPMENT_ENTITY_FIXUPS = {
     "antipersonnel_land_mine": unfilled_antipersonnel_fragmentation_mine,
     SIGINT_RADAR_ENTITY: add_radar_center_mast,
@@ -3118,7 +3809,18 @@ _EQUIPMENT_ENTITY_FIXUPS = {
     "missile_launcher_medium": separate_missile_launcher_dome,
     BRIDGE_LAYER_TANK_ENTITY: bridge_layer_tank_mark,
     ARMOURED_RECCE_VEHICLE_ENTITY: armoured_recce_vehicle_mark,
+    BRIDGE_PRELIMINARY_DEMOLITION_ENTITY: _bridge_demolition_fixup(dashed=True),
+    BRIDGE_RESERVE_DEMOLITION_ENTITY: _bridge_demolition_fixup(),
+    BRIDGE_DEMOLISHED_ENTITY: _bridge_demolition_fixup(demolished=True),
     APV_WHEELED_ENTITY: apv_wheeled_marks,
+}
+
+
+# Fixups that need an input the plain table cannot carry - a mine type
+# so far. They take a keyword signature so render_nonnato_equipment_svg()
+# can call them uniformly.
+_MINE_TYPE_FIXUPS = {
+    GAP_SAFE_LANE_ENTITY: _gap_safe_lane_fixup,
 }
 
 
@@ -3376,7 +4078,7 @@ def inject_mobility_indicator(svg, mobility, colour):
 
 
 def render_nonnato_equipment_svg(
-    affiliation, entity, designation=None, mobility=None
+    affiliation, entity, designation=None, mobility=None, mine_type=None
 ):
 
     """
@@ -3405,6 +4107,18 @@ def render_nonnato_equipment_svg(
     own (the mines never took milsymbol's own uniqueDesignation option
     in the first place).
 
+    Minefield (with number of mines) reads its own count from
+    `designation` rather than from a field of its own - "the number
+    field can be pulled from the unique designation, we dont need to
+    create a new field for it" (2026-09-09). That entity therefore does
+    NOT also get the usual centred-below designation, or the value
+    would be drawn twice.
+
+    `mine_type` ("antipersonnel"/"antitank"/"both") is read only by the
+    entities that draw a scatter of mines - Gap/Safe Lane so far. It is
+    a separate argument rather than a fixup-table lookup because a fixup
+    only ever sees the SVG.
+
     `mobility` ("tracked"/"self_propelled", or nothing) adds its own
     mark below the glyph BEFORE the designation is placed, so the text
     measures it as part of the icon and drops below it - see
@@ -3420,7 +4134,13 @@ def render_nonnato_equipment_svg(
 
     synthetic = _SYNTHETIC_MINE_SVG.get(entity) or _SYNTHETIC_VEHICLE_SVG.get(entity)
 
-    if synthetic:
+    if entity == MINEFIELD_WITH_NUMBER_ENTITY:
+
+        svg = minefield_with_number_svg(
+            colour, mine_type=mine_type, number=designation
+        )
+
+    elif synthetic:
 
         svg = synthetic(colour)
 
@@ -3441,16 +4161,27 @@ def render_nonnato_equipment_svg(
             render_symbol_svg(sidc, options), entity
         )
 
+        # A few entities need an input the plain fixup table cannot
+        # carry - see _MINE_TYPE_FIXUPS.
+        mine_type_fixup = _MINE_TYPE_FIXUPS.get(entity)
+
+        if mine_type_fixup:
+            svg = mine_type_fixup(svg, mine_type=mine_type, colour=colour)
+
     # Order matters: the mark becomes part of the SVG's own ink, so the
     # designation measures it and drops below it without being told.
     svg = inject_mobility_indicator(svg, mobility, colour)
 
-    svg = inject_centered_designation_below(
-        svg,
-        designation,
-        colour,
-        size_multiplier=nonnato_entity_size_multiplier(entity),
-    )
+    # Minefield (with number of mines) has already drawn `designation`
+    # as its own count, in the middle of its frame.
+    if entity != MINEFIELD_WITH_NUMBER_ENTITY:
+
+        svg = inject_centered_designation_below(
+            svg,
+            designation,
+            colour,
+            size_multiplier=nonnato_entity_size_multiplier(entity),
+        )
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 

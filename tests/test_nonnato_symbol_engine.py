@@ -1985,10 +1985,15 @@ class TestDesignationSizeIsUniformOnTheMap(QgisTestCase):
             mines_and_obstacles_layer_nonnato as layer_module,
         )
 
-        # Booby Trap never carries a designation at all.
+        # Booby Trap never carries a designation at all, and Minefield
+        # draws its own inside the frame as a count rather than below
+        # the icon as a label - so neither has a designation to measure.
         entities = [
             entity for entity in layer_module.ENTITY_LABELS
-            if entity != layer_module.BOOBY_TRAP_ENTITY
+            if entity not in (
+                layer_module.BOOBY_TRAP_ENTITY,
+                nse.MINEFIELD_WITH_NUMBER_ENTITY,
+            )
         ]
 
         sizes = {

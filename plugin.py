@@ -59,6 +59,9 @@ from .military_symbology.control_measure_points_layer_nonnato import (
 from .military_symbology.mines_and_obstacles_layer_nonnato import (
     add_mines_and_obstacles_layer_nonnato,
 )
+from .military_symbology.mines_and_obstacles_lines_layer_nonnato import (
+    add_mines_and_obstacles_lines_layer_nonnato,
+)
 from .military_symbology.aviation_layer_nonnato import (
     add_aviation_layer_nonnato,
 )
@@ -232,6 +235,7 @@ class MilitaryCartographyTools:
         self.nonnato_control_measure_points_action = None
         self.nonnato_mines_and_obstacles_action = None
         self.nonnato_aviation_action = None
+        self.nonnato_mines_and_obstacles_lines_action = None
 
         # "Control Measures" nests as its own flyout submenu (like Sub
         # Grid below) rather than a single QAction, since Appendix H's
@@ -369,6 +373,7 @@ class MilitaryCartographyTools:
         self._setup_nonnato_control_measure_points_action()
         self._setup_nonnato_mines_and_obstacles_action()
         self._setup_nonnato_aviation_action()
+        self._setup_nonnato_mines_and_obstacles_lines_action()
         self._setup_control_measures_menu()
 
         # Assembles every action built above (all built with
@@ -1168,6 +1173,24 @@ class MilitaryCartographyTools:
                 "automatically from its attributes"
             ),
             callback=self.create_nonnato_mines_and_obstacles,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_mines_and_obstacles_lines_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # mines_and_obstacles_lines_layer_nonnato.py. Added 2026-09-09
+        # for Minefield (General), which is a LINE feature and so cannot
+        # share the point layer next to it.
+        self.nonnato_mines_and_obstacles_lines_action = self._build_action(
+            "nonnato_mines_and_obstacles_lines.svg",
+            "Mines and Obstacles (Lines)",
+            tooltip=(
+                "Add a Mines and Obstacles Lines (Non-NATO) layer for "
+                "minefields drawn as lines rather than placed as points"
+            ),
+            callback=self.create_nonnato_mines_and_obstacles_lines,
             standalone=False
         )
 
@@ -2499,6 +2522,16 @@ class MilitaryCartographyTools:
         add_mines_and_obstacles_layer_nonnato(
             self.iface
         )
+
+
+    def create_nonnato_mines_and_obstacles_lines(self):
+
+        """
+        Add a "Mines and Obstacles Lines (Non-NATO)" layer, ready for
+        drawing Minefield (General) as a line.
+        """
+
+        add_mines_and_obstacles_lines_layer_nonnato(self.iface)
 
 
     def create_nonnato_aviation(self):

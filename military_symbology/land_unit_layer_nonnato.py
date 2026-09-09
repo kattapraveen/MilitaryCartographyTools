@@ -16,20 +16,27 @@ logic this layer's renderer calls into via mct_nonnato_unit_svg()
 (expressions/nonnato_symbology_functions.py).
 
 Scope, deliberately narrow (see the rules record's "Required entities"
-section): 39 entities - the 20 APP-6E ground_unit entities the
-maintainer's reviewed check sheet confirmed, plus nineteen with no
-matching real ground_unit key of their own: the four Enemy entities
-(Info Unknown, and Echelon / Designation / Type Unknown added
-2026-09-06 - standalone frame variants with no APP-6E entity at all,
-differing only in where a "?" sits), Air Defence Artillery, Air Force,
-Motorised Infantry, Mountain Infantry, Recce & Support (Wheeled),
-Administration or Logistics Unit, Static Formation Headquarters, Self
-Propelled Artillery, Parachute Field Artillery, and six built on
-Military Police's own framed glyph - Information Warfare, Postal Unit,
-Intelligence, Supplies and Transport, Ordnance, and Remount and
-Veterinary Corps (the last thirteen all 2026-09-06). Every other Land Unit entity is out of scope
-until the maintainer adds it - this is not the full 187-entity
-vocabulary the NATO Land Unit layer offers.
+section): 38 entities - the 19 APP-6E ground_unit entities the
+maintainer's reviewed check sheet confirmed and this layer still
+carries, plus nineteen with no matching real ground_unit key of their
+own: the four Enemy entities (Info Unknown, and Echelon / Designation /
+Type Unknown added 2026-09-06 - standalone frame variants with no
+APP-6E entity at all, differing only in where a "?" sits), Air Defence
+Artillery, Motorised Infantry, Mountain Infantry, Recce & Support
+(Wheeled), Administration or Logistics Unit, Static Formation
+Headquarters, Self Propelled Artillery, Parachute Field Artillery, and
+seven built on Military Police's own framed glyph - Information
+Warfare, Postal Unit, Intelligence, Supplies and Transport, Ordnance,
+Remount and Veterinary Corps, and Surveillance and Target Acquisition
+(added 2026-09-09).
+
+Army Aviation and Air Force MOVED OUT 2026-09-06 to the new "Aviation
+(Non-NATO)" layer - see aviation_layer_nonnato.py - which is why the
+real-entity count here is 19 rather than the 20 the check sheet lists.
+
+Every other Land Unit entity is out of scope until the maintainer adds
+it - this is not the full 187-entity vocabulary the NATO Land Unit
+layer offers.
 
 Not yet built (deliberately deferred, not an oversight): the
 sector1/sector2 modifiers - worth adding once this layer is otherwise
@@ -90,6 +97,7 @@ from .nonnato_symbol_engine import (
     ORDNANCE_ENTITY,
     POSTAL_UNIT_ENTITY,
     REMOUNT_VETERINARY_ENTITY,
+    STA_ENTITY,
     SUPPLIES_TRANSPORT_ENTITY,
     PARACHUTE_FIELD_ARTILLERY_ENTITY,
     RECCE_SUPPORT_WHEELED_ENTITY,
@@ -106,8 +114,8 @@ DEFAULT_ENTITY = "infantry"
 MARKER_SIZE_MM = 8.0
 
 # Display labels for the 20 real APP-6E entities the reviewed check
-# sheet confirmed, plus nineteen entries with no matching real
-# ground_unit key of their own - see this module's own docstring for
+# sheet confirmed and still carried here, plus nineteen entries with no
+# matching real ground_unit key of their own - see this module's own docstring for
 # the list. Every other entry's KEY is a real ground_unit key
 # sidc_2525e.py already defines (unchanged, so render_nonnato_unit_
 # svg()'s own build_sidc() call resolves them directly) - only the
@@ -178,6 +186,7 @@ ENTITY_LABELS = {
     SUPPLIES_TRANSPORT_ENTITY: "Supplies and Transport",
     ORDNANCE_ENTITY: "Ordnance",
     REMOUNT_VETERINARY_ENTITY: "Remount and Veterinary Corps",
+    STA_ENTITY: "Surveillance and Target Acquisition",
 
     # Synthetic, 2026-09-06: a bare circle at the frame's own height,
     # no APP-6E entity and no glyph inside - see

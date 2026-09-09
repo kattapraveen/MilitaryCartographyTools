@@ -40,6 +40,7 @@ from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     ORDNANCE_ENTITY,
     POSTAL_UNIT_ENTITY,
     REMOUNT_VETERINARY_ENTITY,
+    STA_ENTITY,
     SUPPLIES_TRANSPORT_ENTITY,
     PARACHUTE_FIELD_ARTILLERY_ENTITY,
     RECCE_SUPPORT_WHEELED_ENTITY,
@@ -80,6 +81,7 @@ SYNTHETIC_ENTITIES = (
     SUPPLIES_TRANSPORT_ENTITY,
     ORDNANCE_ENTITY,
     REMOUNT_VETERINARY_ENTITY,
+    STA_ENTITY,
 )
 
 
@@ -128,7 +130,7 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
         # and Remount and Veterinary Corps (also 2026-09-06) - none of
         # the nineteen has a matching real ground_unit key of its own. See the rules record's "Required
         # entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 37)
+        self.assertEqual(len(ENTITY_LABELS), 38)
 
         for entity in SYNTHETIC_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)

@@ -30,6 +30,7 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import nonnato_symbology_functions
 from MilitaryCartographyTools.military_symbology.mines_and_obstacles_layer_nonnato import (
+    BRIDGE_ENTITIES,
     BOOBY_TRAP_ENTITY,
     LAYER_NAME,
     ENTITY_LABELS,
@@ -92,7 +93,7 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
         # 3 real mine entities + 6 synthetic mine icons (moved from
         # Land Equipment) + Booby Trap (moved from Control Measure
         # Points) - see this module's own docstring.
-        self.assertEqual(len(ENTITY_LABELS), 10)
+        self.assertEqual(len(ENTITY_LABELS), 16)
 
         for entity in SYNTHETIC_ENTITIES | REAL_MINE_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)
@@ -193,21 +194,61 @@ class TestBuildMinesAndObstaclesLayerNonnato(QgisTestCase):
 
         self.assertEqual(
             field_names,
-            ["entity", "unique_designation", "rotation", "scale"]
+            [
+                # "affiliation" arrived 2026-09-09 with the bridges.
+                "affiliation",
+                "entity",
+                # "mine_type" arrived 2026-09-09 with Gap/Safe Lane and
+                # Minefield.
+                "mine_type",
+                "unique_designation", "rotation", "scale",
+            ]
         )
 
 
-    def test_no_affiliation_echelon_status_or_combined_arms_field(self):
+    def test_no_echelon_status_or_combined_arms_field(self):
 
-        # No "affiliation" field at all - every entity here is fixed
-        # MINE_GREEN, so a field that could never change the render
-        # would be dead weight - see this module's own docstring.
+        # This layer had no "affiliation" field either until 2026-09-09,
+        # when the bridge family arrived - the first thing here whose
+        # colour is not fixed. Echelon, status and Combined Arms remain
+        # meaningless for everything on it.
         layer = build_mines_and_obstacles_layer_nonnato()
 
         field_names = [field.name() for field in layer.fields()]
 
-        for absent in ("affiliation", "echelon", "status", "combined_arms"):
+        for absent in ("echelon", "status", "combined_arms"):
             self.assertNotIn(absent, field_names)
+
+
+    def test_only_the_bridges_read_the_affiliation_field(self):
+
+        # Every other entity overrides it internally - the mine family
+        # to MINE_GREEN, Booby Trap to its own green - so the field is
+        # inert for them rather than absent.
+        from MilitaryCartographyTools.military_symbology import (
+            nonnato_symbol_engine as nse,
+        )
+
+        for entity in ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                if entity in BRIDGE_ENTITIES:
+
+                    friend = nse.render_nonnato_equipment_svg("friend", entity)
+                    hostile = nse.render_nonnato_equipment_svg("hostile", entity)
+
+                    self.assertNotEqual(friend, hostile)
+                    self.assertIn(
+                        nse.AFFILIATION_COLOURS["hostile"], hostile
+                    )
+
+                elif entity != BOOBY_TRAP_ENTITY:
+
+                    self.assertEqual(
+                        nse.render_nonnato_equipment_svg("friend", entity),
+                        nse.render_nonnato_equipment_svg("hostile", entity),
+                    )
 
 
     def test_every_entity_renders_a_valid_symbol_path(self):

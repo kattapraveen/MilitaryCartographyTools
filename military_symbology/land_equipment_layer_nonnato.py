@@ -22,13 +22,17 @@ them are unchanged (layer-agnostic); only which QGIS layer offers them
 changed.
 
 Scope, deliberately narrow (see the rules record's "Required entities"
-section): 56 entities - 6 non-tiered real APP-6E entities, 14 weapon
+section): 55 entities - 5 non-tiered real APP-6E entities, 14 weapon
 families with real Light/Medium/Heavy siblings (42 entities, each
 family's own tier renamed up one per the settled weapon-tier rule -
 Machine Gun included, its own tiers oddly bare-keyed ("light"/
 "medium"/"heavy", not "machine_gun_light" etc.) in the 2525E table but
 real siblings all the same - see the rules record's 2026-09-02
 correction of an earlier, wrong "not one of the tiered families" call),
+The `bridge` entity moved OUT 2026-09-09 to Mines and Obstacles, with
+the three demolition variants built on it - "shift all bridges to mines
+and obstacles".
+
 three synthetic entities built from Armoured Protected Vehicle's own
 oval glyph (Bridge Layer Tank, Armoured Recce Vehicle, Armoured
 Protection Vehicle (Wheeled), added 2026-09-03), three FULLY synthetic
@@ -92,7 +96,7 @@ DEFAULT_ENTITY = "tank"
 # still works exactly as before - 100% now means THIS size, not 8.0mm.
 MARKER_SIZE_MM = 8.0 * 1.2
 
-# Display labels for the 56 confirmed entities (54 Land Equipment's
+# Display labels for the 55 confirmed entities (53 Land Equipment's
 # own, plus Jammer/Radar) - see this module's own docstring and
 # docs/non-nato-symbology-tracker.md's "Required entities"/"Weapon
 # light/medium/heavy tiers actually applied" notes for where every one
@@ -103,7 +107,7 @@ MARKER_SIZE_MM = 8.0 * 1.2
 # tier is a genuinely separate real APP-6E entity key, so there is one
 # dropdown row per tier, not a second field.
 ENTITY_LABELS = {
-    # --- Non-tiered real entities (6) - Land Equipment's own separate
+    # --- Non-tiered real entities (5) - Land Equipment's own separate
     # "radar" entry (a physical radar system, distinct from SIGINT's
     # own Radar platform below) was removed 2026-09-02, at the
     # maintainer's own request, once the two read as visually the same
@@ -118,7 +122,6 @@ ENTITY_LABELS = {
     # Vehicle and 'C' Vehicle" - see the Vehicle-family block below. ---
     "antennae": "Antennae",
     "armored_protected_vehicle": "Armoured Protected Vehicle",
-    "bridge": "Bridge",
     "flame_thrower": "Flame Thrower",
     "improvised_explosives_device": "Improvised Explosives Device",
     "pack_animals": "Pack Animals",
