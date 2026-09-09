@@ -78,7 +78,6 @@ from ._point_symbol_layer import default_insert_position
 from ..core._layer_utils import add_layer_at_default_position
 from .nonnato_symbol_engine import (
     AIR_DEFENSE_ARTILLERY_ENTITY,
-    AIR_FORCE_ENTITY,
     ENEMY_DESIGNATION_UNKNOWN_ENTITY,
     ENEMY_ECHELON_UNKNOWN_ENTITY,
     ENEMY_INFO_UNKNOWN_ENTITY,
@@ -124,12 +123,10 @@ MARKER_SIZE_MM = 8.0
 ENTITY_LABELS = {
     "air_defense": "Air Defence",
     AIR_DEFENSE_ARTILLERY_ENTITY: "Air Defence Artillery",
-    AIR_FORCE_ENTITY: "Air Force",
     "ammunition": "Ammunition",
     "amphibious": "Amphibious",
     "armor_mechanized": "Armour",
     "armored_mechanized_tracked": "Mechanised Infantry",
-    "aviation_fixed_wing": "Army Aviation",
     "counterintelligence": "Counterintelligence",
     "electronic_warfare": "Electronic Warfare",
     "engineer": "Engineer",
@@ -237,7 +234,18 @@ def _value_map(labels):
     return {label: value for value, label in labels.items()}
 
 
-def _configure_attribute_form(layer):
+def configure_unit_attribute_form(layer, entity_labels, default_entity):
+
+    """
+    The Land Unit dialog - affiliation, entity, echelon, status,
+    Combined Arms, Headquarters, plus rotation and scale.
+
+    Parameterised on the entity list 2026-09-06 so the "Aviation
+    (Non-NATO)" layer can present exactly the same dialog over its own
+    entities: "same rules as land unit i.e. same dialog box
+    replicated". Nothing but the entity dropdown differs between the
+    two.
+    """
 
     fields = layer.fields()
 
@@ -251,10 +259,10 @@ def _configure_attribute_form(layer):
 
     layer.setEditorWidgetSetup(
         fields.indexOf("entity"),
-        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(ENTITY_LABELS)})
+        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(entity_labels)})
     )
     layer.setDefaultValueDefinition(
-        fields.indexOf("entity"), QgsDefaultValue(f"'{DEFAULT_ENTITY}'")
+        fields.indexOf("entity"), QgsDefaultValue(f"'{default_entity}'")
     )
 
     layer.setEditorWidgetSetup(
@@ -297,7 +305,7 @@ def _configure_attribute_form(layer):
     configure_rotation_and_scale_fields(layer)
 
 
-def _build_renderer():
+def build_unit_renderer():
 
     # Field values are passed straight through - affiliation/entity/
     # echelon/status all use the same stored keys render_nonnato_unit_
@@ -315,6 +323,15 @@ def _build_renderer():
         'upper(coalesce("unique_designation_right", \'\'))'
     )
 
+    # Every field reference feeding the render functions is coalesced to
+    # its own default, for the same reason the booleans below are: QGIS
+    # returns NULL from an expression function the moment ANY argument
+    # is NULL. echelon/status were still bare references until
+    # 2026-09-06, when building the Aviation layer's own tests surfaced
+    # it - a feature with no echelon set rendered nothing at all.
+    echelon_expression = 'coalesce("echelon", \'unspecified\')'
+    status_expression = 'coalesce("status", \'present\')'
+
     # coalesce() around BOTH booleans, not just a tidy-up: QGIS returns
     # NULL from an expression function the moment ANY argument is NULL,
     # so a feature whose checkbox has never been set renders NOTHING at
@@ -329,7 +346,8 @@ def _build_renderer():
 
     expression = (
         'mct_nonnato_unit_svg('
-        '"affiliation","entity","echelon","status",'
+        '"affiliation","entity",'
+        f'{echelon_expression},{status_expression},'
         f'{designation_left_expression},{designation_right_expression},'
         f'{combined_arms_expression},{headquarters_expression}'
         ')'
@@ -357,7 +375,8 @@ def _build_renderer():
     # ratio).
     amplified_width_expression = (
         'mct_nonnato_unit_svg_width('
-        '"affiliation","entity","echelon","status",'
+        '"affiliation","entity",'
+        f'{echelon_expression},{status_expression},'
         f'{designation_left_expression},{designation_right_expression},'
         f'{combined_arms_expression},{headquarters_expression}'
         ')'
@@ -365,7 +384,8 @@ def _build_renderer():
 
     plain_width_expression = (
         'mct_nonnato_unit_svg_width('
-        '"affiliation","entity","echelon","status",'
+        '"affiliation","entity",'
+        f'{echelon_expression},{status_expression},'
         f'\'\',\'\',{combined_arms_expression},{headquarters_expression}'
         ')'
     )
@@ -396,15 +416,19 @@ def _build_renderer():
     return QgsSingleSymbolRenderer(symbol)
 
 
-def build_land_unit_layer_nonnato():
+def build_unit_style_layer(layer_name, entity_labels, default_entity):
 
-    """A fresh, empty "Land Unit (Non-NATO)" layer - never added to the project itself, see add_land_unit_layer_nonnato()."""
+    """
+    A fresh, empty layer carrying the full Land Unit dialog and
+    renderer - shared with "Aviation (Non-NATO)" since 2026-09-06, which
+    differs only in its name and its own entity list.
+    """
 
     crs = QgsProject.instance().crs()
 
     layer = QgsVectorLayer(
         f"Point?crs={crs.authid()}",
-        LAYER_NAME,
+        layer_name,
         "memory"
     )
 
@@ -425,11 +449,18 @@ def build_land_unit_layer_nonnato():
 
     layer.updateFields()
 
-    _configure_attribute_form(layer)
+    configure_unit_attribute_form(layer, entity_labels, default_entity)
 
-    layer.setRenderer(_build_renderer())
+    layer.setRenderer(build_unit_renderer())
 
     return layer
+
+
+def build_land_unit_layer_nonnato():
+
+    """A fresh, empty "Land Unit (Non-NATO)" layer - never added to the project itself, see add_land_unit_layer_nonnato()."""
+
+    return build_unit_style_layer(LAYER_NAME, ENTITY_LABELS, DEFAULT_ENTITY)
 
 
 def add_land_unit_layer_nonnato(iface):

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- the Aviation (Non-NATO) layer's own shared shape: the figure-of-8
+       every entity on it is built from, over Rotary Wing's own mast -->
+  <path d="M12,10 L18,7.6 c3,0 3,4.8 0,4.8 L12,10 6,12.4 c-3,0 -3,-4.8 0,-4.8 Z"
+        fill="none" stroke="#1f3a5f" stroke-width="1.7"/>
+  <path d="M12,10 L12,19 M8,19 L16,19"
+        fill="none" stroke="#1f3a5f" stroke-width="1.7"/>
+</svg>

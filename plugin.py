@@ -59,6 +59,9 @@ from .military_symbology.control_measure_points_layer_nonnato import (
 from .military_symbology.mines_and_obstacles_layer_nonnato import (
     add_mines_and_obstacles_layer_nonnato,
 )
+from .military_symbology.aviation_layer_nonnato import (
+    add_aviation_layer_nonnato,
+)
 from .military_symbology.sustainment_control_measures import (
     add_sustainment_points_layer,
 )
@@ -228,6 +231,7 @@ class MilitaryCartographyTools:
         self.nonnato_land_action = None
         self.nonnato_control_measure_points_action = None
         self.nonnato_mines_and_obstacles_action = None
+        self.nonnato_aviation_action = None
 
         # "Control Measures" nests as its own flyout submenu (like Sub
         # Grid below) rather than a single QAction, since Appendix H's
@@ -364,6 +368,7 @@ class MilitaryCartographyTools:
         self._setup_nonnato_land_action()
         self._setup_nonnato_control_measure_points_action()
         self._setup_nonnato_mines_and_obstacles_action()
+        self._setup_nonnato_aviation_action()
         self._setup_control_measures_menu()
 
         # Assembles every action built above (all built with
@@ -1167,6 +1172,27 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_nonnato_aviation_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/aviation_layer_nonnato.py. Added
+        # 2026-09-06: "make a separate layer called aviation / move army
+        # aviation and airforce into that, same rules as land unit i.e.
+        # same dialog box replicated" - so it presents the Land Unit
+        # dialog exactly, over its own eight entities.
+        self.nonnato_aviation_action = self._build_action(
+            "nonnato_aviation.svg",
+            "Aviation",
+            tooltip=(
+                "Add an Aviation (Non-NATO) layer (8 entities) that "
+                "renders each point's own symbol automatically from "
+                "its attributes"
+            ),
+            callback=self.create_nonnato_aviation,
+            standalone=False
+        )
+
+
     def _setup_control_measures_menu(self):
 
         # "Control Measures" nests as its own flyout submenu (same
@@ -1687,6 +1713,7 @@ class MilitaryCartographyTools:
                     self.nonnato_land_action,
                     self.nonnato_control_measure_points_action,
                     self.nonnato_mines_and_obstacles_action,
+                    self.nonnato_aviation_action,
                 ],
             ),
             # Print Production stays last, always (2026-08-09, at the
@@ -2470,6 +2497,17 @@ class MilitaryCartographyTools:
         """
 
         add_mines_and_obstacles_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_aviation(self):
+        """
+        Add an "Aviation (Non-NATO)" layer, ready for placing symbols
+        with QGIS's own native point editing tools.
+        """
+
+        add_aviation_layer_nonnato(
             self.iface
         )
 

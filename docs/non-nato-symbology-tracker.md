@@ -519,6 +519,67 @@ existing glyphs, and one resize.
   colour. Tests cover both directions: Ordnance never renders green,
   and the mines layer's own Booby Trap still does.
 
+**A FIFTH layer: Aviation (Non-NATO), 2026-09-06** - "Insert in land
+equipment - or better make a separate layer called aviation / move army
+aviation and airforce into that, same rules as land unit i.e. same
+dialog box replicated".
+
+"Same dialog box replicated" is taken literally: the layer SHARES Land
+Unit's own `build_unit_style_layer()`, `configure_unit_attribute_form()`
+and `build_unit_renderer()` rather than copying them, so every field,
+widget, default and expression is identical by construction and cannot
+drift. Land Unit's own count drops 39 -> 37 as Army Aviation and Air
+Force move across; Aviation carries eight.
+
+- **Army Aviation** (`aviation_fixed_wing`) - "let's start with the army
+  aviation glyph - use only the figure of 8 inside the rectangle", which
+  is what it already drew (the hollow-propeller fixup had settled that
+  on 2026-09-01). No change beyond the move.
+- **Air Force** - the same figure-of-8 with its right arc opened, moved
+  unchanged.
+- **Six new mast-carrying entities**, all the figure-of-8 with a mast
+  hanging from it: Rotary Wing (plain inverted T), Attack / Utility /
+  Light Helicopter (the same T flanked by "AH" / "UH" / "LH"), Fixed
+  Wing (the bar trimmed to the right of the mast, so an L rather than a
+  T) and UAV/RPV/Drone (the whole mast flipped upward - which works
+  because the figure-of-8 is symmetric about the crossing point, so
+  nothing else needs mirroring).
+
+**Rotary Wing took four live corrections**, and each one generalised to
+the whole family:
+1. "the mast should touch the figure of 8" - the first draft anchored it
+   at y=112, the lobes' own lowest point. But the lobes only reach 112
+   at their WIDEST; along the centre line the shape passes through
+   exactly one point, the crossing at (100,100) where the two lobes
+   meet. That is why it looked detached despite 112 being a real edge of
+   the glyph.
+2. "increase the length of the mast by 50%" - 28 -> 42.
+3. "increase the mast length by another 30%" - 42 -> 54.6.
+4. "i dont want the rectangle" - the frame is removed, making these the
+   only Land Unit-style icons on the branch with no frame at all.
+
+**The frame's removal orphaned milsymbol's own amplifiers**, which then
+drew in empty space - the echelon bars well above the glyph, the
+Headquarters mast as a detached line down at the left. Re-anchoring both
+to the figure-of-8 was built and rendered first; the maintainer settled
+it the other way on sight - "this glyph - other than the unique
+identifiers, nothing else is needed - so no need to check headquarters
+etc" - so they are REMOVED. The side designations are the only amplifier
+these six keep, and they already centre on `_UNIT_FRAME_CENTRE_Y` (100),
+which is exactly the figure-of-8's own centre, so they needed nothing.
+
+The layer's own echelon/status/headquarters fields still exist, because
+the dialog is replicated wholesale - they simply have no effect on those
+six entities. Army Aviation and Air Force keep their frames and honour
+all of them.
+
+**Stripping the amplifiers left milsymbol's own viewBox oversized** - it
+had grown to fit bars that are no longer drawn, which would shift the
+glyph off the marker's own anchor. So these six declare their own
+viewBox, sized to exactly what they draw, and the root width/height are
+restated to match (QGIS scales a marker by the declared WIDTH, and a
+mismatched pair leaves the two disagreeing about the icon's aspect).
+
 **Three synthetic entities built from Armoured Protected Vehicle,
 2026-09-03** (Land Equipment's own count moves to 54): three requests
 in one batch, all starting from the same real entity's glyph.

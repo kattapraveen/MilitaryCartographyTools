@@ -33,7 +33,6 @@ from MilitaryCartographyTools.military_symbology.land_unit_layer_nonnato import 
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     ADMIN_LOGISTICS_ENTITY,
     AIR_DEFENSE_ARTILLERY_ENTITY,
-    AIR_FORCE_ENTITY,
     MOTORISED_INFANTRY_ENTITY,
     MOUNTAIN_INFANTRY_ENTITY,
     INFORMATION_WARFARE_ENTITY,
@@ -68,7 +67,6 @@ SYNTHETIC_ENTITIES = (
     ENEMY_DESIGNATION_UNKNOWN_ENTITY,
     ENEMY_TYPE_UNKNOWN_ENTITY,
     AIR_DEFENSE_ARTILLERY_ENTITY,
-    AIR_FORCE_ENTITY,
     MOTORISED_INFANTRY_ENTITY,
     ADMIN_LOGISTICS_ENTITY,
     STATIC_FORMATION_HQ_ENTITY,
@@ -103,7 +101,10 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
     def test_count_matches_the_reviewed_list_plus_the_synthetic_entries(self):
 
-        # 20 real entities the maintainer's reviewed check sheet
+        # Army Aviation and Air Force MOVED to the new "Aviation
+        # (Non-NATO)" layer 2026-09-06, taking the count from 39 to 37.
+        #
+        # 18 real entities of the maintainer's reviewed check sheet
         # confirmed, plus the four Enemy entities (Info Unknown, and
         # Echelon / Designation / Type Unknown added 2026-09-06 - no
         # SIDC at all, just two rectangles and a "?"), Air Defence
@@ -127,7 +128,7 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
         # and Remount and Veterinary Corps (also 2026-09-06) - none of
         # the nineteen has a matching real ground_unit key of its own. See the rules record's "Required
         # entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 39)
+        self.assertEqual(len(ENTITY_LABELS), 37)
 
         for entity in SYNTHETIC_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)

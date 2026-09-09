@@ -479,12 +479,26 @@ _UNIT_FRAME_CENTRE_Y = (_UNIT_FRAME_TOP + _UNIT_FRAME_BOTTOM) / 2
 _HQ_MAST_LENGTH = _UNIT_FRAME_BOTTOM - _UNIT_FRAME_TOP
 
 
+# The mast is drawn at the FRAME's own stroke width, not an interior
+# glyph's - so its ink reaches further past its geometry than
+# _INJECTED_HALF_STROKE allows for. Getting that wrong left it 0.65
+# units outside the viewBox; caught by the render sweep, 2026-09-06.
+_HQ_MAST_STROKE_WIDTH = 4
+
+_HQ_MAST_HALF_STROKE = _HQ_MAST_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+
+_HQ_MAST_D = (
+    f"M{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} "
+    f"L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM + _HQ_MAST_LENGTH:g}"
+)
+
+
 def _hq_mast_path(colour):
 
     return (
-        f'<path d="M{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} '
-        f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM + _HQ_MAST_LENGTH:g}" '
-        f'stroke-width="4" stroke="{colour}" fill="none"></path>'
+        f'<path d="{_HQ_MAST_D}" '
+        f'stroke-width="{_HQ_MAST_STROKE_WIDTH:g}" stroke="{colour}" '
+        'fill="none"></path>'
     )
 
 
@@ -504,9 +518,27 @@ STATIC_FORMATION_HQ_ENTITY = "nonnato_static_formation_hq"
 _STATIC_HQ_NOTCH_DEPTH = (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) / 5
 
 
-def static_formation_hq_svg(colour):
+def static_formation_hq_fixup(svg):
 
-    """A pennant-shaped frame plus the Headquarters mast - see this section's own comment."""
+    """
+    Static Formation Headquarters' own pennant frame plus the mast -
+    "instead of right line of rectangle - replace with a < the
+    resulting rectangle looks like a flag".
+
+    Converted 2026-09-06 from a standalone hand-built SVG to a fixup on
+    a real render, same as admin_logistics_fixup(). Only the frame's own
+    `d` changes, so its stroke and any Planned dashing come along
+    untouched.
+
+    The mast is added here only if milsymbol has not already drawn one -
+    this entity always carries it, but a user can also tick
+    Headquarters, and drawing it twice would double its stroke.
+    """
+
+    attributes = _unit_frame_attributes(svg)
+
+    if attributes is None:
+        return svg
 
     notch_x = _UNIT_FRAME_RIGHT - _STATIC_HQ_NOTCH_DEPTH
 
@@ -515,17 +547,38 @@ def static_formation_hq_svg(colour):
         f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_TOP:g} '
         f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} '
         f'L{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_BOTTOM:g} '
-        f'L{notch_x:g},{_UNIT_FRAME_CENTRE_Y:g} Z" '
-        f'stroke-width="4" stroke="{colour}" fill="none"></path>'
+        f'L{notch_x:g},{_UNIT_FRAME_CENTRE_Y:g} Z"'
+        f"{attributes}></path>"
     )
 
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
-        'baseProfile="tiny" viewBox="21 46 158 208">'
-        + outline
-        + _hq_mast_path(colour)
-        + '</svg>'
-    )
+    svg = _replace_unit_frame(_strip_military_police_lettering(svg), outline)
+
+    if _HQ_MAST_D in svg:
+        return svg
+
+    colour = _injected_text_colour(svg)
+
+    # milsymbol sized the viewBox for a frame-only icon, so the mast
+    # this entity always draws itself falls outside it - clipped from
+    # its own bottom edge down. Only when Headquarters is UNTICKED, since
+    # milsymbol grows the box itself when it draws the mast; that is
+    # exactly the case the render sweep caught, 2026-09-06.
+    match = _VIEWBOX_PATTERN.search(svg)
+
+    if match:
+
+        vb_x, vb_y, vb_w, _ = (float(value) for value in match.groups())
+
+        svg = _expand_viewbox_for_rect(
+            svg,
+            vb_x,
+            vb_y,
+            vb_w,
+            (_UNIT_FRAME_BOTTOM + _HQ_MAST_LENGTH + _HQ_MAST_HALF_STROKE)
+            - vb_y,
+        )
+
+    return _inject_before_closing_svg(svg, _hq_mast_path(colour))
 
 
 # Administration or Logistics Unit - requested live 2026-09-06: "Add a
@@ -547,16 +600,48 @@ ADMIN_LOGISTICS_ENTITY = "nonnato_admin_logistics"
 _ADMIN_LOGISTICS_RADIUS = 50
 
 
-def admin_logistics_svg(colour):
+def admin_logistics_fixup(svg):
 
-    """A single hollow circle at the Land Unit frame's own height - see this section's own comment."""
+    """
+    Administration or Logistics' own circle, REPLACING milsymbol's own
+    frame rectangle - "Add a simple circle - same dimensions as the
+    rectangle of land units".
 
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
-        'baseProfile="tiny" viewBox="21 46 158 108">'
-        f'<circle cx="100" cy="100" r="{_ADMIN_LOGISTICS_RADIUS:g}" '
-        f'stroke-width="4" stroke="{colour}" fill="none"></circle>'
-        '</svg>'
+    Converted 2026-09-06 from a standalone hand-built SVG to a fixup on
+    a real render ("ok, convert them"), so it picks up everything
+    milsymbol gives a framed unit: echelon amplifiers, the Headquarters
+    flag mast, and Planned status - the last of which works because the
+    frame element's own attributes, `stroke-dasharray="8,12"` included,
+    are carried straight onto the circle.
+
+    The Headquarters mast has to MOVE, though. milsymbol hangs it off
+    the frame's own bottom-left corner (25,150), which for a rectangle
+    is on the outline but for this circle is well outside it - it drew
+    as a line floating beside the symbol, caught on the first render of
+    the conversion. It is re-anchored to the circle's own lowest point
+    instead, which is the frame's own bottom edge at its centre.
+    """
+
+    attributes = _unit_frame_attributes(svg)
+
+    if attributes is None:
+        return svg
+
+    centre_x = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    circle = (
+        f'<circle cx="{centre_x:g}" '
+        f'cy="{_UNIT_FRAME_CENTRE_Y:g}" r="{_ADMIN_LOGISTICS_RADIUS:g}"'
+        f"{attributes}></circle>"
+    )
+
+    svg = _replace_unit_frame(_strip_military_police_lettering(svg), circle)
+
+    return svg.replace(
+        f'd="{_HQ_MAST_D}"',
+        f'd="M{centre_x:g},{_UNIT_FRAME_BOTTOM:g} '
+        f'L{centre_x:g},{_UNIT_FRAME_BOTTOM + _HQ_MAST_LENGTH:g}"',
+        1,
     )
 
 
@@ -1110,6 +1195,211 @@ AIR_DEFENSE_ARTILLERY_ENTITY = "nonnato_air_defense_artillery"
 # closing segment.
 AIR_FORCE_ENTITY = "nonnato_air_force"
 
+# The Aviation family, requested live 2026-09-06 for a layer of its own.
+# Every one of them is Army Aviation's own hollow figure-of-8 with a
+# mast added, differing only in what hangs off it:
+#
+#   Rotary Wing        "use the figure of 8 and add an inverted T below
+#                       it, centered with the figure of 8"
+#   Attack Helicopter  "add A and H to the left and right of the
+#                       horizontal line of the mast base, vertically
+#                       center aligned with the horizontal line"
+#   Utility Helicopter  the same, "replace A with U"
+#   Light Helicopter    the same, "replace A with L"
+#   Fixed Wing         "only the base of mast - the horizontal line, is
+#                       only to the right of the mast, the left line
+#                       segment is trimmed something line L instead of
+#                       inverted T"
+#   UAV/RPV/Drone      "only that it is vertically flipped - so T with
+#                       the figure of 8 below it"
+#
+# None of them carries a frame, an echelon amplifier or the Headquarters
+# mast - "this glyph - other than the unique identifiers, nothing else
+# is needed". The side designations are the only amplifier they keep.
+ROTARY_WING_ENTITY = "nonnato_rotary_wing"
+ATTACK_HELICOPTER_ENTITY = "nonnato_attack_helicopter"
+UTILITY_HELICOPTER_ENTITY = "nonnato_utility_helicopter"
+LIGHT_HELICOPTER_ENTITY = "nonnato_light_helicopter"
+FIXED_WING_ENTITY = "nonnato_fixed_wing"
+UAV_ENTITY = "nonnato_uav"
+
+AVIATION_ENTITIES = (
+    ROTARY_WING_ENTITY,
+    ATTACK_HELICOPTER_ENTITY,
+    UTILITY_HELICOPTER_ENTITY,
+    LIGHT_HELICOPTER_ENTITY,
+    FIXED_WING_ENTITY,
+    UAV_ENTITY,
+)
+
+# Where the mast meets the figure-of-8. The lobes run y 88..112, but
+# only at their own widest - along the centre line the shape passes
+# through exactly one point, the crossing at (100,100) where the two
+# lobes meet. The first draft started the mast at 112 and it hung in
+# clear space below the glyph; corrected live: "the mast should touch
+# the figure of 8".
+_FIGURE_OF_EIGHT_CROSSING_Y = 100
+
+# Lengthened twice on sight the same day - "increase the length of the
+# mast by 50%" (28 -> 42), then "increase the mast length by another
+# 30%" (42 -> 54.6). The bar is 40 across, about half the figure-of-8's
+# own 82.5 width, so it reads as a base rather than competing with the
+# lobes.
+_ROTARY_WING_STEM_LENGTH = 54.6
+_ROTARY_WING_BAR_HALF_WIDTH = 20
+
+# The helicopters' own flanking letters. Sized well below the side
+# designations' own 45 so they read as part of the glyph rather than as
+# labels hung off it. They stand clear of the bar's own ends by
+# _DESIGNATION_GAP, read at call time - that constant is declared with
+# the rest of the designation machinery, much further down this module.
+_HELICOPTER_LETTER_FONT_SIZE = 28
+
+# With the frame gone, milsymbol's own amplifiers have nothing to hang
+# off. Re-anchoring them to the figure-of-8 was tried first; the
+# maintainer settled it differently the same day - "this glyph - other
+# than the unique identifiers, nothing else is needed - so no need to
+# check headquarters etc" - so they are REMOVED instead. The Aviation
+# layer's own echelon/status/headquarters fields still exist (it
+# replicates the Land Unit dialog), they simply have no effect here.
+#
+# milsymbol's own echelon group, matched on the stroke-width that
+# follows the transform so this cannot catch an entity glyph's own
+# wrapper group (which carries no stroke attributes).
+_ECHELON_GROUP_PATTERN = re.compile(
+    r'<g transform="translate\(0,0\)" stroke-width=[^>]*>.*?</g>', re.S
+)
+
+_HQ_MAST_PATH_PATTERN = re.compile(
+    r'<path d="' + re.escape(_HQ_MAST_D) + r'"[^>]*></path>'
+)
+
+# Stripping those leaves milsymbol's own viewBox oversized - it grew to
+# fit amplifiers that are no longer drawn, which would shift the glyph
+# off the marker's own anchor. So these entities declare their own,
+# sized to exactly what they draw.
+_AVIATION_VIEWBOX_X = 21
+_AVIATION_VIEWBOX_WIDTH = 158
+
+_AVIATION_VIEWBOX_MARGIN = 4
+
+
+def _aviation_mast(colour, bar="both", flipped=False, letters=None):
+
+    """
+    The mast and its base, as markup plus the furthest point it reaches
+    from the figure-of-8 - see this section's own comment for the
+    variants.
+
+    `flipped` sends the mast UP from the crossing instead of down, which
+    is all "vertically flipped" needs: the figure-of-8 itself is
+    symmetric about that point.
+    """
+
+    centre_x = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+
+    direction = -1 if flipped else 1
+
+    foot = _FIGURE_OF_EIGHT_CROSSING_Y + direction * _ROTARY_WING_STEM_LENGTH
+
+    left = (
+        centre_x if bar == "right" else centre_x - _ROTARY_WING_BAR_HALF_WIDTH
+    )
+    right = centre_x + _ROTARY_WING_BAR_HALF_WIDTH
+
+    mark = (
+        f'<path d="M{centre_x:g},{_FIGURE_OF_EIGHT_CROSSING_Y:g} '
+        f'L{centre_x:g},{foot:g} '
+        f'M{left:g},{foot:g} L{right:g},{foot:g}" '
+        f'stroke-width="3" stroke="{colour}" fill="none"></path>'
+    )
+
+    reach = foot + direction * _INJECTED_HALF_STROKE
+
+    if letters:
+
+        cap = _HELICOPTER_LETTER_FONT_SIZE * _CAP_HEIGHT_RATIO
+
+        # Centred ON the bar, so the baseline sits half a cap height
+        # below it - the same rule the side designations follow.
+        baseline = foot + cap / 2
+
+        for text, x, anchor in (
+            (letters[0], left - _DESIGNATION_GAP, "end"),
+            (letters[1], right + _DESIGNATION_GAP, "start"),
+        ):
+            mark += (
+                f'<text x="{x:g}" y="{baseline:g}" text-anchor="{anchor}" '
+                f'font-size="{_HELICOPTER_LETTER_FONT_SIZE:g}" '
+                f'font-family="Arial" stroke="none" fill="{colour}">'
+                f"{text}</text>"
+            )
+
+        reach = max(reach, baseline)
+
+    return mark, reach
+
+
+def _aviation_glyph(bar="both", flipped=False, letters=None):
+
+    """One Aviation entity's own fixup - see this section's own comment."""
+
+    def fixup(svg):
+
+        svg = hollow_army_aviation_propeller(svg)
+
+        colour = _injected_text_colour(svg)
+
+        mark, reach = _aviation_mast(
+            colour, bar=bar, flipped=flipped, letters=letters
+        )
+
+        svg = _replace_unit_frame(svg, "")
+
+        svg = _ECHELON_GROUP_PATTERN.sub("", svg, count=1)
+        svg = _HQ_MAST_PATH_PATTERN.sub("", svg, count=1)
+
+        top = min(_UNIT_FRAME_TOP - _AVIATION_VIEWBOX_MARGIN, reach)
+        bottom = max(_UNIT_FRAME_BOTTOM + _AVIATION_VIEWBOX_MARGIN, reach)
+
+        svg = _VIEWBOX_PATTERN.sub(
+            f'viewBox="{_AVIATION_VIEWBOX_X:g} {top:g} '
+            f'{_AVIATION_VIEWBOX_WIDTH:g} {bottom - top:g}"',
+            svg,
+            count=1,
+        )
+
+        # The root width/height have to follow the viewBox, or they
+        # describe an icon milsymbol sized for amplifiers that are no
+        # longer drawn - QGIS scales a marker by the declared WIDTH, and
+        # a mismatched pair leaves the two disagreeing about the icon's
+        # own aspect. milsymbol emits them at 1:1 with the viewBox here,
+        # so they are simply restated.
+        root_end = svg.find(">")
+
+        root_tag = svg[: root_end + 1]
+
+        svg = _WIDTH_HEIGHT_PATTERN.sub(
+            f'width="{_AVIATION_VIEWBOX_WIDTH:g}" height="{bottom - top:g}"',
+            root_tag,
+            count=1,
+        ) + svg[root_end + 1:]
+
+        return _inject_before_closing_svg(svg, mark)
+
+    return fixup
+
+
+_AVIATION_FIXUPS = {
+    ROTARY_WING_ENTITY: _aviation_glyph(),
+    ATTACK_HELICOPTER_ENTITY: _aviation_glyph(letters="AH"),
+    UTILITY_HELICOPTER_ENTITY: _aviation_glyph(letters="UH"),
+    LIGHT_HELICOPTER_ENTITY: _aviation_glyph(letters="LH"),
+    FIXED_WING_ENTITY: _aviation_glyph(bar="right"),
+    UAV_ENTITY: _aviation_glyph(flipped=True),
+}
+
+
 INFORMATION_WARFARE_ENTITY = "nonnato_information_warfare"
 POSTAL_UNIT_ENTITY = "nonnato_postal_unit"
 INTELLIGENCE_ENTITY = "nonnato_intelligence"
@@ -1121,6 +1411,7 @@ REMOUNT_VETERINARY_ENTITY = "nonnato_remount_veterinary"
 _UNIT_ENTITY_KEY_ALIASES = {
     AIR_DEFENSE_ARTILLERY_ENTITY: "air_defense",
     AIR_FORCE_ENTITY: "aviation_fixed_wing",
+    **{entity: "aviation_fixed_wing" for entity in AVIATION_ENTITIES},
     MOTORISED_INFANTRY_ENTITY: "infantry",
     MOUNTAIN_INFANTRY_ENTITY: "infantry",
     RECCE_SUPPORT_WHEELED_ENTITY: "armored_mechanized_tracked",
@@ -1132,6 +1423,10 @@ _UNIT_ENTITY_KEY_ALIASES = {
     SUPPLIES_TRANSPORT_ENTITY: "military_police",
     ORDNANCE_ENTITY: "military_police",
     REMOUNT_VETERINARY_ENTITY: "military_police",
+    # Both were standalone hand-built SVGs until 2026-09-06 - see
+    # admin_logistics_fixup() for why they moved onto a real render.
+    ADMIN_LOGISTICS_ENTITY: "military_police",
+    STATIC_FORMATION_HQ_ENTITY: "military_police",
 }
 
 _ARMY_AVIATION_PROPELLER_SOLID_D = (
@@ -1237,6 +1532,40 @@ _LETTERED_MILITARY_POLICE_ENTITIES = {
     POSTAL_UNIT_ENTITY: "PO",
     INTELLIGENCE_ENTITY: "I",
 }
+
+
+# milsymbol's own frame path for a ground unit, and the pattern that
+# finds that ONE element so a fixup can rewrite or replace it. Every
+# other attribute on it - stroke width, colour, and the
+# `stroke-dasharray="8,12"` milsymbol adds for Planned status - is
+# carried over untouched, which is how the frame-replacing entities
+# below keep working with status.
+_UNIT_FRAME_PATH_D = "M25,50 l150,0 0,100 -150,0 z"
+
+_UNIT_FRAME_PATH_PATTERN = re.compile(
+    r'<path d="' + re.escape(_UNIT_FRAME_PATH_D) + r'"([^>]*)></path>'
+)
+
+
+def _unit_frame_attributes(svg):
+
+    """The frame element's own attributes, or None if this icon has no frame."""
+
+    match = _UNIT_FRAME_PATH_PATTERN.search(svg)
+
+    return match.group(1) if match else None
+
+
+def _replace_unit_frame(svg, element):
+
+    """Swaps milsymbol's own frame element for `element` - see above."""
+
+    return _UNIT_FRAME_PATH_PATTERN.sub(element, svg, count=1)
+
+
+def _strip_military_police_lettering(svg):
+
+    return _MILITARY_POLICE_TEXT_PATTERN.sub("", svg, count=1)
 
 
 def _relabel_military_police(letters):
@@ -1365,6 +1694,7 @@ _ENTITY_FIXUPS = {
     "parachute_rigger": composite_parachute_rigger,
     AIR_DEFENSE_ARTILLERY_ENTITY: add_artillery_center_dot,
     AIR_FORCE_ENTITY: open_air_force_propeller_arc,
+    **_AVIATION_FIXUPS,
     "signal": mirror_signal_jagged_line,
     **{
         entity: _relabel_military_police(letters)
@@ -1374,6 +1704,8 @@ _ENTITY_FIXUPS = {
         entity: _reglyph_military_police(draw)
         for entity, draw in _MILITARY_POLICE_REGLYPHED.items()
     },
+    ADMIN_LOGISTICS_ENTITY: admin_logistics_fixup,
+    STATIC_FORMATION_HQ_ENTITY: static_formation_hq_fixup,
 }
 
 
@@ -1593,18 +1925,6 @@ def render_nonnato_unit_svg(
 
         svg = enemy_info_unknown_svg()
         combined_arms_colour = _ENEMY_INFO_UNKNOWN_COLOUR
-
-    elif entity in (ADMIN_LOGISTICS_ENTITY, STATIC_FORMATION_HQ_ENTITY):
-
-        combined_arms_colour = AFFILIATION_COLOURS.get(
-            affiliation, AFFILIATION_COLOURS["friend"]
-        )
-
-        svg = (
-            admin_logistics_svg(combined_arms_colour)
-            if entity == ADMIN_LOGISTICS_ENTITY
-            else static_formation_hq_svg(combined_arms_colour)
-        )
 
     else:
 

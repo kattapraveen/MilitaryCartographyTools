@@ -129,11 +129,15 @@ class TestPluginLifecycle(QgisTestCase):
                 # entities stopped justifying a separate action. Mines
                 # and Obstacles added 2026-09-03, consolidating the mine
                 # family (from Land) and Booby Trap (from Control
-                # Measure Points) onto their own layer.
+                # Measure Points) onto their own layer. Aviation added
+                # 2026-09-06, taking Army Aviation and Air Force out of
+                # Land Unit and adding six mast-carrying entities of its
+                # own.
                 "non_nato_symbols": [
                     "Land",
                     "Control Measure Points",
                     "Mines and Obstacles",
+                    "Aviation",
                 ],
             }
 
