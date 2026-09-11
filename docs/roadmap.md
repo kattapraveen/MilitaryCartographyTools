@@ -12038,6 +12038,9 @@ package contents checked - the guide present, `user-guide.dc.html`,
 `tests/`, `tools/` and dev cruft absent; `metadata.txt` parsed with
 `configparser` before packaging (the 1.3.1 lesson). Tagged `v1.4.0`.
 
+**Uploaded by the maintainer 2026-09-11, security checks cleared on the
+first attempt.** Awaiting moderator approval.
+
 ---
 
 ## Suggested near-term order
