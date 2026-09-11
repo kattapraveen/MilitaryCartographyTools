@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  html, body { margin: 0; padding: 0; background: #f6f4ee; }
+  * { box-sizing: border-box; }
+  a { color: #3f5d3b; text-decoration: none; border-bottom: 1px solid rgba(63,93,59,0.35); }
+  a:hover { color: #1b1e19; border-bottom-color: #1b1e19; }
+  ::selection { background: #dbe4d6; }
+</style>
+</helmet>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#3f5d3b"></rect><g stroke="#f6f4ee" stroke-width="3.5" fill="none"><path d="M36,30 A22,22 0 0 0 36,74"></path><path d="M20,52 L34,52"></path><path d="M52,52 L88,52"></path><path d="M62,86 L96,86 M79,86 L79,64"></path></g><polygon points="96,52 84,46 84,58" fill="#f6f4ee"></polygon></svg></template>
+<div style="font-family:ui-sans-serif,system-ui,'Segoe UI',Helvetica,Arial,sans-serif;color:#1b1e19;background:#f6f4ee;min-height:100vh;-webkit-font-smoothing:antialiased">
+
+  <sc-if value="{{ hasClassification }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#1b1e19;color:#f6f4ee;text-align:center;padding:7px 16px;font-size:12px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase">{{ classificationText }}</div>
+  </sc-if>
+
+  <header style="border-bottom:1px solid #ded9cb;background:#fffefb">
+    <div style="max-width:1240px;margin:0 auto;padding:40px 28px 34px;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;justify-content:space-between">
+      <div style="max-width:640px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#3f5d3b;margin-bottom:14px">QGIS Plugin &middot; Version 1.4.0</div>
+        <h1 style="margin:0;font-size:40px;line-height:1.08;font-weight:700;letter-spacing:-0.02em">Military Cartography Tools</h1>
+        <div style="margin-top:6px;font-size:26px;font-weight:400;color:#5c635a;letter-spacing:-0.01em">User Guide</div>
+        <p style="margin:18px 0 0;font-size:16px;line-height:1.6;color:#3f463c;text-wrap:pretty">Everything the plugin does, in plain language &mdash; and, in <a href="#diagrams">Section 11</a>, exactly where to click to draw each of the hand-built line and area symbols.</p>
+      </div>
+      <div style="display:grid;gap:10px;font-size:13px;min-width:230px">
+        <div style="display:flex;gap:10px;align-items:baseline"><span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#8a9184;min-width:74px">Needs</span><span>QGIS 3.44 or later</span></div>
+        <div style="display:flex;gap:10px;align-items:baseline"><span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#8a9184;min-width:74px">Standards</span><span>MIL&#8209;STD&#8209;2525D/E, APP&#8209;6D/E</span></div>
+        <div style="display:flex;gap:10px;align-items:baseline"><span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#8a9184;min-width:74px">Network</span><span>None. Fully offline.</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div style="max-width:1240px;margin:0 auto;padding:0 28px;display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start">
+
+    <nav style="flex:1 1 210px;max-width:250px;position:sticky;top:0;align-self:flex-start;padding:34px 0 40px;font-size:13.5px;line-height:1.5">
+      <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#8a9184;margin-bottom:14px">Contents</div>
+      <div style="display:grid;gap:9px">
+        <a href="#start" style="border:none">1. Before you start</a>
+        <a href="#install" style="border:none">2. Installing the plugin</a>
+        <a href="#toolbar" style="border:none">3. The toolbar</a>
+        <a href="#grids" style="border:none">4. Military grids</a>
+        <a href="#navtools" style="border:none">5. Position and bearing</a>
+        <a href="#terrain" style="border:none">6. Terrain analysis</a>
+        <a href="#sensors" style="border:none">7. Sensor coverage</a>
+        <a href="#print" style="border:none">8. Maps for printing</a>
+        <a href="#waypoints" style="border:none">9. Waypoints (GPX/KML)</a>
+        <a href="#symbols" style="border:none">10. Unit symbols</a>
+        <a href="#measures" style="border:none">11. Control measures</a>
+        <a href="#diagrams" style="border:none;padding-left:12px;border-left:2px solid #cfd6c9">&mdash; Where to click</a>
+        <a href="#reference" style="border:none;padding-left:12px;border-left:2px solid #cfd6c9">&mdash; Group reference</a>
+        <a href="#expressions" style="border:none">12. Expression functions</a>
+        <a href="#problems" style="border:none">13. When things look wrong</a>
+        <a href="#glossary" style="border:none">14. Words and shortenings</a>
+      </div>
+    </nav>
+
+    <main style="flex:999 1 560px;min-width:0;padding:34px 0 90px">
+
+      <section id="start" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">01</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Before you start</h2>
+        <p style="margin:0 0 16px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">This plugin turns QGIS into a military mapping tool. It does five kinds of job: it reads and writes grid references, it draws military grids, it studies the ground from elevation data, it lays out printable map sheets, and it draws NATO tactical symbology.</p>
+        <p style="margin:0 0 20px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">You do not need to be a GIS expert. You do need to know three QGIS habits, because the plugin leans on them rather than replacing them.</p>
+
+        <div style="display:grid;gap:14px;margin-bottom:24px">
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Layers live in the Layers panel</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Every tool here adds one or more layers down the left-hand side of QGIS. Tick a layer to show it, untick to hide it. Drag a layer up the list to draw it on top of the others.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">You must switch editing on before you can draw</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Click the layer once to select it, then click the yellow pencil on the QGIS toolbar. Now the drawing tools wake up. Click the pencil again when you have finished, and say <strong>Save</strong> when asked.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">A symbol is just a row of attributes</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">You never pick a picture from a palette. You place a point, a line or an area, and then fill in a short form &mdash; side, type, status, name. The plugin draws the correct symbol from what you typed, and redraws it the moment you change your mind.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #3f5d3b;background:#eef2ec;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6">
+          <div><strong>Nothing leaves your machine.</strong> There are no web services, no downloads and no telemetry anywhere in this plugin. It works on an air-gapped machine, which is the point.</div>
+        </div>
+      </section>
+
+      <section id="install" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">02</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Installing the plugin</h2>
+        <p style="margin:0 0 18px;font-size:15.5px;line-height:1.68;color:#3f463c">You need QGIS 3.44 or later. There are two ways in.</p>
+
+        <h3 style="margin:0 0 10px;font-size:16.5px;font-weight:600">From inside QGIS (easiest)</h3>
+        <ol style="margin:0 0 24px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Open <strong>Plugins &rarr; Manage and Install Plugins</strong>.</li>
+          <li>Search for <em>Military Cartography Tools</em>.</li>
+          <li>Click <strong>Install Plugin</strong>.</li>
+        </ol>
+
+        <h3 style="margin:0 0 10px;font-size:16.5px;font-weight:600">By hand, from a folder</h3>
+        <ol style="margin:0 0 20px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>In QGIS, go to <strong>Settings &rarr; User Profiles &rarr; Open Active Profile Folder</strong>.</li>
+          <li>Open <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px;background:#f0eee6;padding:1px 5px;border-radius:3px">python/plugins</span> inside it, and copy the whole <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px;background:#f0eee6;padding:1px 5px;border-radius:3px">MilitaryCartographyTools</span> folder in there.</li>
+          <li>Restart QGIS, then open <strong>Plugins &rarr; Manage and Install Plugins &rarr; Installed</strong> and tick <strong>Military Cartography Tools</strong>.</li>
+        </ol>
+        <p style="margin:0;font-size:15px;line-height:1.68;color:#3f463c">A new toolbar appears. If you cannot see it, right-click any empty part of the QGIS toolbar area and tick <em>Military Cartography Tools</em>. Every tool is also listed under <strong>Plugins &rarr; Military Cartography Tools</strong>.</p>
+        <p style="margin:14px 0 0;font-size:15px;line-height:1.68;color:#3f463c">To open this guide again, click <strong>User Guide</strong> on the toolbar &mdash; the blue book with a question mark. It is also under <strong>Help &rarr; Plugins</strong>. The guide is a file inside the plugin and opens in your web browser, so it works with no network.</p>
+      </section>
+
+      <section id="toolbar" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">03</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">The toolbar</h2>
+        <p style="margin:0 0 20px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Three plain buttons, then six drop-down buttons. Click a drop-down to open its menu, then pick the tool you want. Nothing is hidden anywhere else: the same six menus sit under <strong>Plugins &rarr; Military Cartography Tools</strong>.</p>
+
+        <div style="display:grid;gap:1px;background:#ded9cb;border:1px solid #ded9cb;border-radius:5px;overflow:hidden;font-size:14.5px">
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#f0eee6;padding:10px 16px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:0.1em;text-transform:uppercase;color:#6b7265"><div>Button</div><div>What is inside</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">About</div><div style="color:#5c635a">Version and licence information.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">User Guide</div><div style="color:#5c635a">Opens this guide in your web browser.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">Symbology Edition</div><div style="color:#5c635a">Choose MIL&#8209;STD&#8209;2525D/APP&#8209;6D or MIL&#8209;STD&#8209;2525E/APP&#8209;6E. Affects <em>new</em> symbol layers only &mdash; see <a href="#edition">Section 10</a>.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">Grid</div><div style="color:#5c635a">UTM Grid, MGRS 100 km Grid, Sub Grid (10 km / 5 km / 1 km), Clear Grid.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">Navigation</div><div style="color:#5c635a">Coordinate Probe, Bearing / Range.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">Terrain Analysis</div><div style="color:#5c635a">Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage, Regenerate Sensor Coverage.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">Waypoints</div><div style="color:#5c635a">Import Waypoints, Export Waypoints.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">Print Production</div><div style="color:#5c635a">New Military Layout, Map Sheet Series.</div></div>
+          <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:16px;background:#fffefb;padding:13px 16px"><div style="font-weight:600">NATO Symbols</div><div style="color:#5c635a">The eight point-symbol domains (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) and the whole Control Measures menu.</div></div>
+        </div>
+        <p style="margin:18px 0 0;font-size:15px;line-height:1.68;color:#3f463c">Each print layout window gets its own small toolbar as well, with <strong>Add / Remove Grid Frame</strong>, <strong>Insert Symbol</strong> and the <strong>Military Layout Settings</strong> panel toggle.</p>
+      </section>
+
+      <section id="grids" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">04</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Military grids</h2>
+        <p style="margin:0 0 22px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">These four entries draw the grids a military map is read against. They work on <strong>whatever the map window is showing right now</strong>, so pan and zoom to your area of interest first, then switch a grid on.</p>
+
+        <div style="display:grid;gap:14px;margin-bottom:22px">
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">UTM Grid</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">The Grid Zone Designator boxes, such as <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">37M</span>. Normally 6&deg; wide by 8&deg; tall. The two exceptions the standard itself makes are drawn correctly: over south-west Norway <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">31V</span> is narrow and <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">32V</span> is wide; over Svalbard three zones do not exist at all and their neighbours are widened to cover the gap.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">MGRS 100 km Grid</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">The lettered 100 km squares inside each zone. Switching this on brings the UTM grid up too, because the 100 km squares are built from it.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Sub Grid &rarr; 10 km / 5 km / 1 km</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">The working grid lines, with tick numbers drawn on the map. Pick the spacing that suits your scale. This also brings the UTM grid up, because sub-grid lines are generated one zone at a time.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Clear Grid</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Removes every grid layer at once and resets all the tick marks. Use it before you build grids for a new area.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #b58900;background:#fdf8e8;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6">
+          <div><strong>Moved to a new area and the grid looks wrong?</strong> Each grid is built once for the area you were looking at, then simply shown or hidden. Pan to the new area, run <strong>Clear Grid</strong>, and switch the grids back on to rebuild them there.</div>
+        </div>
+      </section>
+
+      <section id="navtools" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">05</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Position and bearing</h2>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Coordinate Probe</h3>
+        <p style="margin:0 0 12px;font-size:15.5px;line-height:1.68;color:#3f463c">Reads off the grid reference of any point you click.</p>
+        <ol style="margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Click the crosshair in the <strong>Navigation</strong> menu. The tool now stays switched on, like QGIS&rsquo;s own Identify tool.</li>
+          <li>Click anywhere on the map. A window opens listing that click: latitude and longitude, and the MGRS reference to the nearest metre.</li>
+          <li>The MGRS reference is copied to your clipboard automatically, ready to paste into a signal or a message.</li>
+        </ol>
+        <p style="margin:0 0 26px;font-size:15px;line-height:1.68;color:#3f463c">Keep clicking and the list keeps growing, newest at the top. <strong>Double-click any row</strong> to copy that row&rsquo;s reference again. Closing the window only hides it &mdash; your next click brings it back with the whole list intact. Choose a different tool when you want the probe to stop.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Bearing / Range</h3>
+        <p style="margin:0 0 12px;font-size:15.5px;line-height:1.68;color:#3f463c">Gives you the distance and all three azimuths between two points.</p>
+        <ol style="margin:0 0 16px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Click the tool, then click your <strong>from</strong> point. A blue cross marks it.</li>
+          <li>Click your <strong>to</strong> point. A red X marks it, an arrow is drawn between the two, and the reading is logged.</li>
+          <li>Click again anywhere to start a fresh pair. The old pair is cleared, not added to.</li>
+        </ol>
+        <div style="display:grid;grid-template-columns:minmax(110px,150px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:16px">
+          <div style="font-weight:600">From / To</div><div style="color:#5c635a">Latitude, longitude and full MGRS for each point.</div>
+          <div style="font-weight:600">True Az</div><div style="color:#5c635a">Azimuth to true (geographic) north.</div>
+          <div style="font-weight:600">Grid Az</div><div style="color:#5c635a">Azimuth to UTM grid north.</div>
+          <div style="font-weight:600">Mag Az</div><div style="color:#5c635a">Azimuth to magnetic north, using the World Magnetic Model for today&rsquo;s date.</div>
+          <div style="font-weight:600">Distance</div><div style="color:#5c635a">Distance across the curved earth, in metres.</div>
+        </div>
+        <p style="margin:0;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Both grid and magnetic azimuth are worked out <strong>at the from point</strong> &mdash; the same convention as the grid-magnetic-angle diagram on a paper map. All four figures are true earth-surface values, not flat-map approximations. The window keeps every reading until you press <strong>Clear</strong>.</p>
+      </section>
+      <section id="terrain" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">06</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Terrain analysis</h2>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #b02a2a;background:#fbeeee;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:22px">
+          <div><strong>Every tool in this section needs a DEM.</strong> A DEM is an elevation raster &mdash; a picture of the ground where each pixel holds a height. Load one into your project first. The plugin will not fetch one for you, because it never touches the network. See <a href="#dem">Getting a DEM</a> below.</div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Tanaka Contours</h3>
+        <p style="margin:0 0 14px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Contour lines that get thicker where the slope faces straight into the light or straight away from it, and thinner where it runs side-on. The result reads as relief without needing any shading underneath.</p>
+        <div style="display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:14px">
+          <div style="font-weight:600">DEM layer</div><div style="color:#5c635a">Any elevation raster in your project.</div>
+          <div style="font-weight:600">Contour interval</div><div style="color:#5c635a">Height between one contour and the next, in metres.</div>
+          <div style="font-weight:600">Segment length</div><div style="color:#5c635a">How finely each line is chopped up so the thickness can change smoothly along it. Smaller is smoother but slower.</div>
+          <div style="font-weight:600">Light azimuth</div><div style="color:#5c635a">Where the light comes from, in degrees. 315&deg; (north-west) by default, the usual cartographic convention.</div>
+          <div style="font-weight:600">Min / Max width</div><div style="color:#5c635a">Line thickness in millimetres at the thinnest and thickest case.</div>
+          <div style="font-weight:600">Style</div><div style="color:#5c635a"><strong>Elevation colour</strong> (default) &mdash; blue below sea level, then green, yellow, brown, red, white going up. <strong>Monochrome</strong> &mdash; the classic grey Tanaka look. <strong>Illuminated overlay</strong> &mdash; black and white lines that blend with whatever is beneath, so use it over a Hypsometric Tint or the lines will be nearly invisible.</div>
+          <div style="font-weight:600">Add as new layer</div><div style="color:#5c635a">Off by default, so running the tool again corrects the layer you already have. Tick it to keep the old one and compare.</div>
+        </div>
+        <div style="display:flex;gap:12px;border-left:3px solid #b58900;background:#fdf8e8;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:28px">
+          <div><strong>This one can take a long time.</strong> A big DEM with a fine interval is a lot of work, and QGIS will just look busy rather than showing progress. The two costly settings are contour interval and segment length. Start coarse, check it looks right, then refine &mdash; or crop the DEM to your area first.</div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Hypsometric Tint</h3>
+        <p style="margin:0 0 14px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">The filled version of the same idea &mdash; solid colour bands by height, so the space between contours is no longer blank. Made to sit <em>underneath</em> Tanaka Contours; generate both over the same ground and they complete each other. New layers always go to the bottom of the Layers panel, so they never bury your grids.</p>
+        <div style="display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:28px">
+          <div style="font-weight:600">Opacity</div><div style="color:#5c635a">0&ndash;100%. Lower it to let a base map show through.</div>
+          <div style="font-weight:600">Stepped colour ramp</div><div style="color:#5c635a">Off gives a smooth blend. Tick it for hard-edged bands, the published atlas look.</div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Hillshade Combinations</h3>
+        <p style="margin:0 0 14px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">QGIS&rsquo;s own hillshade lights the ground from one direction, which hides any ridge running the same way as the light. This tool runs the calculation from two directions (north-west and north-east) or three (adding south) and averages them, so nothing is lost in the shadow of the light itself.</p>
+        <p style="margin:0 0 28px;font-size:15px;line-height:1.68;color:#3f463c">It arrives in grey with an Overlay blend already set. If a Hypsometric Tint is already in your project, the new layer is placed directly above it and the two combine into coloured, textured relief with no further work.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Line of Sight</h3>
+        <p style="margin:0 0 12px;font-size:15.5px;line-height:1.68;color:#3f463c">Can this observer see that target?</p>
+        <ol style="margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Click the tool, then click the <strong>observer</strong> (blue cross).</li>
+          <li>Click the <strong>target</strong> (red X). The check runs straight away.</li>
+          <li>The answer is drawn as a line: <span style="color:#2e7d4f;font-weight:600">green where the target is visible</span>, <span style="color:#b02a2a;font-weight:600">red where it is blocked</span>. The window gives the distance and, if blocked, roughly how far along the first obstruction sits.</li>
+        </ol>
+        <div style="display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:14px">
+          <div style="font-weight:600">Observer height</div><div style="color:#5c635a">Height above the ground at the observer, in metres. 1.7 by default &mdash; eye height for a standing person.</div>
+          <div style="font-weight:600">Target height</div><div style="color:#5c635a">Height above the ground at the target. 0 by default &mdash; ground level.</div>
+        </div>
+        <p style="margin:0 0 28px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Change a height and press <strong>Generate</strong> to run it again without re-clicking. The check allows for the curve of the earth and for the way light bends in the atmosphere, so a low target far enough away is correctly reported as hidden even over flat open ground. Water is treated as its surface, not its bed. You can pan and zoom freely between the two clicks.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Viewshed</h3>
+        <p style="margin:0 0 14px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Where Line of Sight checks one target, Viewshed sweeps every direction and shades the ground that is actually visible. Ground out of range, or hidden behind a hill, is left blank rather than filled &mdash; that blank ground is your dead ground.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c">Click the tool, then click the observer. That is all &mdash; each click is a complete analysis on its own.</p>
+        <div style="display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:28px">
+          <div style="font-weight:600">Max distance</div><div style="color:#5c635a">How far out to sweep, in metres. 5,000 by default; up to 500,000.</div>
+          <div style="font-weight:600">Opacity</div><div style="color:#5c635a">How solid the shading is. 65% by default so the terrain still reads through it.</div>
+          <div style="font-weight:600">Colour</div><div style="color:#5c635a">Green by default. Change it to tell several observers apart.</div>
+          <div style="font-weight:600">Outline only</div><div style="color:#5c635a">Draws just the edge of the visible area. Honest but scattered &mdash; a real viewshed breaks into many small pieces that a solid fill visually glues together.</div>
+        </div>
+
+        <h3 id="dem" style="margin:0 0 10px;font-size:18px;font-weight:600;scroll-margin-top:20px">Getting a DEM</h3>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">If you have no elevation data yet, the usual routes are QGIS&rsquo;s own <strong>Data Source Manager</strong> (a WCS connection), or a downloader plugin such as <strong>SRTM Downloader</strong> from <strong>Plugins &rarr; Manage and Install Plugins</strong>. Both need internet access, so do this before you go off the network.</p>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">For depth below sea level, SRTM will not help &mdash; it holds land only and leaves water flat. The common free source is <strong>GMRT</strong>. There is no dedicated QGIS plugin for it, so use the GMRT MapTool website to draw an area and download a GeoTIFF, then add that as a raster layer.</p>
+        <p style="margin:0;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Two things to know once you have depth data. Depths arrive as negative heights, and both Line of Sight and Viewshed deliberately lift anything below zero up to sea level &mdash; an observer on water sits on the surface, not the seabed. And the Hypsometric Tint already has a below-sea-level band, so it colours correctly with no extra setup.</p>
+      </section>
+
+      <section id="sensors" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">07</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Sensor coverage</h2>
+        <p style="margin:0 0 20px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Viewshed answers &ldquo;what can this one observer see&rdquo;. Sensor Coverage answers &ldquo;what does this whole laydown cover&rdquo; &mdash; several sensors plotted together, with their coverage merged into one picture.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Setting it up</h3>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c">Open <strong>Sensor Coverage</strong>, pick your DEM, and tick which of the three levels you need. The plugin makes a <em>Sensor Points</em> layer for each. That is the whole dialogue &mdash; everything else happens on the layers themselves.</p>
+        <div style="display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:14px">
+          <div style="font-weight:600">Low Level</div><div style="color:#5c635a">Detects up to 3,300 m (10,000 ft) above itself.</div>
+          <div style="font-weight:600">Medium Level</div><div style="color:#5c635a">3,300 m to 7,000 m (10,000&ndash;25,000 ft) above itself.</div>
+          <div style="font-weight:600">High Level</div><div style="color:#5c635a">Above 7,000 m (25,000 ft).</div>
+        </div>
+        <div style="display:flex;gap:12px;border-left:3px solid #3f5d3b;background:#eef2ec;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:26px">
+          <div><strong>These bands are measured from the aerial, not from sea level.</strong> A radar on a 5 m mast at sea level reaches 3,305 m, so an aircraft at 3,500 m is above it and out of reach. Put the same radar on a 2,000 m plateau and it reaches 5,305 m, and that same aircraft is comfortably inside its picture. Siting a sensor higher lifts its whole band with it.</div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Plotting sensors</h3>
+        <ol style="margin:0 0 14px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Select the <strong>Sensor Points</strong> layer for the level you want.</li>
+          <li>Switch editing on, then place each sensor with QGIS&rsquo;s ordinary <strong>Add Point Feature</strong> tool.</li>
+          <li>Fill in the form for each one.</li>
+          <li><strong>Save the layer.</strong> Coverage is drawn only when you save.</li>
+        </ol>
+        <div style="display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:18px">
+          <div style="font-weight:600">Affiliation</div><div style="color:#5c635a">Friend, Hostile, Neutral or Unknown. Sets the colour, and decides which other sensors this one will merge with.</div>
+          <div style="font-weight:600">Sensor height</div><div style="color:#5c635a">Height of the aerial above the ground it stands on, in metres. The DEM supplies the ground height under it.</div>
+          <div style="font-weight:600">Max detection height</div><div style="color:#5c635a">How far above itself it can detect. Capped to its own band, so you cannot accidentally give a low-level point a high-level reach.</div>
+          <div style="font-weight:600">Maximum range</div><div style="color:#5c635a">That sensor&rsquo;s own range in metres, 30,000 by default. Deliberately not tied to the level &mdash; a man-portable set and a long-range ground-based one can both be low level.</div>
+          <div style="font-weight:600">Unique designation</div><div style="color:#5c635a">Optional name. Leave it blank and the sensor is simply not labelled.</div>
+          <div style="font-weight:600">Lat / Lon / MGRS</div><div style="color:#5c635a">Filled in for you and kept up to date as the sensor moves. Read-only &mdash; move the point to change them.</div>
+        </div>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #b02a2a;background:#fbeeee;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:26px">
+          <div><strong>No coverage showing? You have almost certainly not saved.</strong> Placing or moving a sensor does nothing visible until you save the layer (<strong>Layer &rarr; Save Layer Edits</strong>, or switch the pencil off). Saving is the trigger because each sensor is a full viewshed calculation, and redoing that while you drag a point would make dragging unusable. To redraw without editing anything &mdash; after reopening a project, say &mdash; use <strong>Regenerate Sensor Coverage</strong>.</div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Reading the result</h3>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Coverage is drawn as an <strong>outline, not a filled shape</strong>. A laydown is several big overlapping areas stacked over the very terrain you are judging them against, and a fill washes all of that out even when see-through. The perimeter is the information.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Colour follows MIL&#8209;STD&#8209;2525 side &mdash; <span style="color:#2b5fa8;font-weight:600">friend blue</span>, <span style="color:#b02a2a;font-weight:600">hostile red</span>, <span style="color:#2e7d4f;font-weight:600">neutral green</span>, <span style="color:#b58900;font-weight:600">unknown yellow</span> &mdash; and the three levels are told apart by the line instead: low is a thin short dash, medium a heavier long dash, high a solid 0.6 mm line.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty"><strong>Coverage merges only between sensors on the same side.</strong> Two friendly radars fuse into one perimeter; a friendly and a hostile one covering the same ground stay two separate overlapping shapes. Each sensor labels its own stretch of the outline, so two merged radars give you one perimeter with a name on each half. A sensor swallowed entirely inside a larger friendly one contributes no perimeter, so it gets no label.</p>
+        <div style="display:flex;gap:12px;border-left:3px solid #b58900;background:#fdf8e8;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:18px">
+          <div><strong>A suspiciously straight or rectangular edge means you ran out of terrain.</strong> Analysis stops at the edge of your DEM, corners included. Check the sensor&rsquo;s range against your DEM&rsquo;s extent before reading anything into that shape.</div>
+        </div>
+        <div style="display:flex;gap:12px;border-left:3px solid #b02a2a;background:#fbeeee;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6">
+          <div><strong>Sensor points are temporary until you make them permanent.</strong> Saving the project keeps the layer, its fields and its styling &mdash; but not the sensors you placed. To keep a laydown, right-click each Sensor Points layer &rarr; <strong>Make Permanent</strong>, save it to a GeoPackage, then save the project. Do not rename the layer afterwards; coverage is matched by name. The coverage layers themselves need nothing &mdash; they are rebuilt from the points.</div>
+        </div>
+        <p style="margin:18px 0 0;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Two notes on what this tool claims. Radar refraction uses the 4/3-earth model, which pushes the horizon about 15% further out than an optical sightline. And the target is modelled as flying level at a fixed altitude, so a mountain taller than that altitude genuinely hides what is behind it. Aerial tilt, beam width and radio path loss are deliberately not modelled &mdash; they need figures nobody has to hand, and guessing them produces a confident-looking contour built on invented numbers. This tool models geometry only.</p>
+      </section>
+
+      <section id="print" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">08</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Maps for printing</h2>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">New Military Layout</h3>
+        <p style="margin:0 0 14px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">QGIS&rsquo;s own &ldquo;New Layout&rdquo; asks for a name and gives you a blank page. This one asks a few questions and gives you a finished military map sheet.</p>
+        <div style="display:grid;grid-template-columns:minmax(120px,170px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:16px">
+          <div style="font-weight:600">Name</div><div style="color:#5c635a">Duplicates get a number added automatically.</div>
+          <div style="font-weight:600">Page size</div><div style="color:#5c635a">Custom, A0, A3, A4 or Arch E.</div>
+          <div style="font-weight:600">Orientation</div><div style="color:#5c635a">Landscape or portrait.</div>
+          <div style="font-weight:600">Width / Height</div><div style="color:#5c635a">Editable only when page size is Custom.</div>
+          <div style="font-weight:600">Scale</div><div style="color:#5c635a">Pick a common one or type your own, such as <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">1:50000</span>.</div>
+          <div style="font-weight:600">Heading 1 / 2</div><div style="color:#5c635a">Optional. Always printed in capitals however you type it. Leave both blank for no heading.</div>
+          <div style="font-weight:600">Classification</div><div style="color:#5c635a">None, UNCLASSIFIED, RESTRICTED, CONFIDENTIAL, SECRET or TOP SECRET &mdash; printed as a bold banner top and bottom.</div>
+        </div>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.68;color:#3f463c">Every layout it builds already contains:</p>
+        <ul style="margin:0 0 16px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>a <strong>north arrow</strong> that turns to true north by itself as the map rotates or its grid convergence changes;</li>
+          <li>a <strong>scale bar</strong>, sized sensibly for the scale you chose;</li>
+          <li>a <strong>metadata block</strong> (bottom left) with datum, projection, units, scale, project file and page size;</li>
+          <li>the <strong>centre-of-map</strong> grid reference (bottom right);</li>
+          <li>a <strong>neatline</strong> that tracks the map frame exactly;</li>
+          <li>a light <strong>geographic graticule</strong>, spaced automatically, kept visually distinct from the UTM/MGRS grid;</li>
+          <li>a small <strong>grid position diagram</strong> showing where this sheet sits in the grid hierarchy, with the sheet&rsquo;s own footprint outlined on it to scale;</li>
+          <li><strong>classification banners</strong>, if you chose one.</li>
+        </ul>
+        <p style="margin:0 0 26px;font-size:15px;line-height:1.68;color:#3f463c">Margins are worked out from whatever combination of heading and banners you picked, so the map always fills the space that is left rather than leaving dead paper.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Changing a layout afterwards</h3>
+        <p style="margin:0 0 26px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Every layout window has a <strong>Military Layout Settings</strong> panel with the same fields as the creation dialogue. Change what you like and press <strong>Apply</strong> to update the layout in place &mdash; page size, scale, heading, classification &mdash; instead of starting a new layout for every revision. Your pan position survives a resize. If you close the panel, the toolbar button brings it back.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">The layout toolbar</h3>
+        <div style="display:grid;gap:9px 18px;font-size:14.5px;line-height:1.6;margin-bottom:26px">
+          <div><strong>Add Grid Frame</strong> <span style="color:#5c635a">&mdash; puts tick marks and grid numbers around the edge of the map, spaced for the print scale, and hides the on-map tick labels for this layout only. This is the normal topographic convention: numbers on the neatline, not written over the map. <strong>Remove Grid Frame</strong> undoes it.</span></div>
+          <div><strong>Insert Symbol</strong> <span style="color:#5c635a">&mdash; drops a MIL&#8209;STD&#8209;2525 symbol straight onto the page for a legend key or a callout. Pick Affiliation, Symbol Set and Entity, click Insert, then drag it where you want. It is a plain picture, not a map feature, so it has no echelon, status or modifier options &mdash; build the symbol on a map layer if you need those.</span></div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Map Sheet Series</h3>
+        <p style="margin:0 0 14px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Produces a whole numbered set of sheets tiling the area you are looking at, edge to edge with no gaps or overlap &mdash; for covering a large area of operations rather than making one sheet at a time. It asks the same questions as New Military Layout, and every sheet in the series shares those answers.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Each sheet is registered as its own print layout. They are not opened for you &mdash; a large series would mean dozens of windows at once &mdash; so find them under <strong>Project &rarr; Layouts Manager</strong>.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty"><strong>Sheets are named after real grid squares</strong>, not an invented numbering scheme: <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">37M EN #1</span> means Grid Zone Designator 37M, 100 km square EN. The number on the end separates sheets that fall in the same square, and it restarts at 1 for each new square so it never implies an order across the series.</p>
+        <p style="margin:0;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">A combination of page size and scale that would make more than 200 sheets is refused rather than quietly grinding away. Zoom in, or choose a smaller-scale map.</p>
+      </section>
+
+      <section id="waypoints" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">09</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Waypoints (GPX / KML)</h2>
+        <p style="margin:0 0 18px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Two separate actions, for moving points between QGIS and a GPS set or ATAK. Both attach an MGRS grid reference, because neither file format has any idea of one.</p>
+        <h3 style="margin:0 0 10px;font-size:17px;font-weight:600">Import Waypoints</h3>
+        <ol style="margin:0 0 20px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Click the tool, then <strong>Browse&hellip;</strong> and pick a <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">.gpx</span> or <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">.kml</span> file.</li>
+          <li>Click <strong>Import</strong>. A new point layer arrives, named after the file, with every field the file already had plus a new <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">mgrs</span> field worked out from each point&rsquo;s position.</li>
+        </ol>
+        <h3 style="margin:0 0 10px;font-size:17px;font-weight:600">Export Waypoints</h3>
+        <ol style="margin:0 0 18px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Click the tool, choose a point layer from your project, and choose <strong>GPX</strong> or <strong>KML</strong>.</li>
+          <li><strong>Browse&hellip;</strong> for where to save it, then click <strong>Export</strong>.</li>
+          <li>Each waypoint&rsquo;s <strong>name</strong> &mdash; the field a GPS set or ATAK actually shows on screen &mdash; is set to its MGRS reference. Any name the layer already had is kept alongside it as a description.</li>
+        </ol>
+        <p style="margin:0;font-size:15px;line-height:1.68;color:#3f463c">Zipped KML (<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">.kmz</span>) is not supported, and routes and tracks inside a GPX file are not imported &mdash; only standalone waypoints.</p>
+      </section>
+      <section id="symbols" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">10</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Unit symbols</h2>
+        <p style="margin:0 0 18px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">The eight entries in the <strong>NATO Symbols</strong> menu &mdash; Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace &mdash; each add one or more point layers. Every point you put on one of these layers draws itself as the correct military symbol, worked out from the attributes you fill in.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Placing a symbol</h3>
+        <ol style="margin:0 0 18px;padding-left:22px;font-size:15px;line-height:1.7;color:#3f463c">
+          <li>Click the domain you want in the <strong>NATO Symbols</strong> menu. The layer or layers appear, empty and ready.</li>
+          <li>Select the layer, switch editing on, and click a position with QGIS&rsquo;s own <strong>Add Point Feature</strong> tool.</li>
+          <li>Fill in the form that pops up. The symbol appears as soon as the attributes are saved &mdash; there is no regenerate step.</li>
+        </ol>
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.68;color:#3f463c">To change a symbol later, open the attribute table or the identify form and edit the fields. Snapping, undo and vertex editing all work as normal, because these are ordinary QGIS point layers.</p>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">The fields every layer has</h3>
+        <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:18px">
+          <div style="font-weight:600">Affiliation</div><div style="color:#5c635a">Friend, Hostile, Neutral or Unknown &mdash; this is what gives you the blue, red, green or yellow frame.</div>
+          <div style="font-weight:600">Entity</div><div style="color:#5c635a">What the thing actually is. Open the dropdown to see the whole vocabulary for that domain.</div>
+          <div style="font-weight:600">Status</div><div style="color:#5c635a">Present, or Planned &mdash; planned symbols draw with a dashed outline.</div>
+          <div style="font-weight:600">Unique designation</div><div style="color:#5c635a">Free text label, such as <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">1-501 IN</span>.</div>
+          <div style="font-weight:600">Rotation</div><div style="color:#5c635a">Degrees clockwise from north. Turns the whole symbol as one picture &mdash; echelon ticks and text included &mdash; not just the icon inside.</div>
+          <div style="font-weight:600">Scale</div><div style="color:#5c635a">Percentage of the symbol&rsquo;s normal size. 100 is normal.</div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Extra fields, where the standard allows them</h3>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Not every field applies to every domain &mdash; a battalion has an echelon, a single aircraft does not &mdash; so each layer only shows the fields its own part of the standard defines.</p>
+        <div style="display:grid;gap:9px 18px;font-size:14.5px;line-height:1.6;color:#3f463c;margin-bottom:18px">
+          <div><strong>Echelon</strong> <span style="color:#5c635a">&mdash; Team/Crew up through Theatre, plus Command. Land Unit and the Boundary line measure only.</span></div>
+          <div><strong>Headquarters</strong> <span style="color:#5c635a">&mdash; a tick box marking the symbol as a headquarters element. The four Land layers.</span></div>
+          <div><strong>Sector 1 / Sector 2 Modifier</strong> <span style="color:#5c635a">&mdash; a second, smaller icon beside the main one: a ship&rsquo;s warfare role, a submarine&rsquo;s propulsion, a radar or jammer category. Each has an explicit <em>(None)</em> option.</span></div>
+          <div><strong>Dimension</strong> <span style="color:#5c635a">&mdash; SIGINT only. Its four entities mean the same thing in every dimension, so this field says whether this one is a space, air, land, sea surface or subsurface intercept.</span></div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:18px;font-weight:600">Which entries give you which layers</h3>
+        <div style="display:grid;gap:1px;background:#ded9cb;border:1px solid #ded9cb;border-radius:5px;overflow:hidden;font-size:14px;margin-bottom:18px">
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#f0eee6;padding:10px 16px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:0.1em;text-transform:uppercase;color:#6b7265"><div>Menu entry</div><div>Layers added</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">Space</div><div style="color:#5c635a">Space</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">Air</div><div style="color:#5c635a">Air</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">Land</div><div style="color:#5c635a">Land Unit, Land Civilian, Land Equipment, Land Installation &mdash; four layers from one click</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">Sea Surface</div><div style="color:#5c635a">Sea Surface</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">Subsurface</div><div style="color:#5c635a">Subsurface, Mine Warfare &mdash; two layers from one click</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">Activities</div><div style="color:#5c635a">Activities</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">SIGINT</div><div style="color:#5c635a">SIGINT</div></div>
+          <div style="display:grid;grid-template-columns:minmax(90px,120px) minmax(0,1fr);gap:16px;background:#fffefb;padding:11px 16px"><div style="font-weight:600">Cyberspace</div><div style="color:#5c635a">Cyberspace</div></div>
+        </div>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">All of these carry the full vocabulary of their part of the standard, with one exception: <strong>Land Unit</strong> is still a curated common-vocabulary subset organised by function &mdash; manoeuvre, fires, air defence, combat support, intelligence, combat service support. Nothing is missing from the drawing engine; it is only the list that is shorter.</p>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #3f5d3b;background:#eef2ec;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:20px">
+          <div><strong>These layers hold your data, so the plugin will never overwrite one.</strong> Everything else in this plugin is worked out from a DEM or a grid and can safely be rebuilt. These hold hand-placed operational information, so clicking a menu entry again when the layer already exists gives you a warning instead of a fresh empty layer. Rename the existing one first if you genuinely want a second.</div>
+        </div>
+
+        <h3 id="edition" style="margin:0 0 10px;font-size:18px;font-weight:600;scroll-margin-top:20px">Symbology edition</h3>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">The <strong>Symbology Edition</strong> button picks which standard <em>newly added</em> layers are built against: MIL&#8209;STD&#8209;2525D / APP&#8209;6D, which is the default, or MIL&#8209;STD&#8209;2525E / APP&#8209;6E. It is remembered between sessions.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty"><strong>Changing it never touches a layer already in your project.</strong> Each layer&rsquo;s rendering is fixed the moment it is created, so old work keeps drawing exactly as it always did. Both editions can live side by side: add <em>Air</em> once under each and you get two layers, named <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">Air (2525D/6D)</span> and <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">Air (2525E/6E)</span>. A symbol cannot mix editions, because the standard itself defines the vocabularies differently.</p>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">2525E&rsquo;s vocabulary is noticeably larger than 2525D&rsquo;s in places, Land Unit especially, and it drops a few codes 2525D retired. APP&#8209;6E is not built as a separate vocabulary &mdash; it is close enough to 2525E that the one edition serves both.</p>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #b58900;background:#fdf8e8;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6">
+          <div><strong>Not built: METOC.</strong> Appendix I &mdash; meteorological and oceanographic symbols, so pressure systems, fronts, sea ice, wave heights &mdash; is not included. The underlying symbol library has no support for it, so all 400-odd symbols would have to be hand-drawn. Say the word if you need it.</div>
+        </div>
+      </section>
+
+      <section id="measures" style="margin-bottom:48px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">11</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Control measures</h2>
+        <p style="margin:0 0 18px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Unit symbols say what is where. Control measures say what the ground is <em>for</em> &mdash; boundaries, phase lines, objectives, minefields, obstacles, fire support areas, mission tasks. The whole of the standard&rsquo;s Appendix H is built, and the <strong>Control Measures</strong> menu has one entry per logical group so the list never becomes one unmanageable pile.</p>
+        <p style="margin:0 0 20px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Each entry adds the layers that group needs &mdash; typically a <strong>Lines</strong> layer, an <strong>Areas</strong> layer and a <strong>Points</strong> layer, though plenty of groups only need one or two. Every layer arrives empty and ready. Clicking an entry again is safe: each layer is checked on its own, so you only get back whichever ones are missing.</p>
+
+        <h3 style="margin:0 0 12px;font-size:18px;font-weight:600">How a control measure gets drawn</h3>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Always the same three moves, whatever the measure: <strong>draw the geometry, pick the Entity, fill in the rest of the form.</strong> You use QGIS&rsquo;s own <strong>Add Line Feature</strong>, <strong>Add Polygon Feature</strong> or <strong>Add Point Feature</strong> tool &mdash; there is no special drawing mode to learn. The Entity field is what decides which symbol your geometry becomes.</p>
+        <div style="display:grid;grid-template-columns:minmax(130px,180px) minmax(0,1fr);gap:9px 18px;font-size:14.5px;line-height:1.55;margin-bottom:18px">
+          <div style="font-weight:600">Affiliation</div><div style="color:#5c635a">Friend blue, Hostile red, Neutral green, Unknown yellow, and &mdash; unique to control measures &mdash; <strong>Unspecified</strong>, which draws black and is the default. Colour only; the shape never changes.</div>
+          <div style="font-weight:600">Entity</div><div style="color:#5c635a">Which measure this is. Different for every layer.</div>
+          <div style="font-weight:600">Status</div><div style="color:#5c635a">Present draws solid, Planned draws dashed. A few measures are <em>always</em> dashed by definition &mdash; Probable Line of Deployment, Coordinated Fire Line, Decoy/Dummy, Follow and Assume, Counterattack &mdash; and those ignore this field.</div>
+          <div style="font-weight:600">Unique designation</div><div style="color:#5c635a">The name. Always printed in capitals however you type it, because the standard requires it. Where it goes depends on the measure.</div>
+          <div style="font-weight:600">Echelon</div><div style="color:#5c635a">Lines layers. Draws the amplifier &mdash; I, II, X, XX and so on &mdash; used by Boundary, Battle Position and Strong Point.</div>
+          <div style="font-weight:600">Rotation, Scale</div><div style="color:#5c635a">Points layers only. Lines and Areas take their angle and size from the geometry you drew, so they have neither.</div>
+        </div>
+        <div style="display:flex;gap:12px;border-left:3px solid #3f5d3b;background:#eef2ec;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:18px">
+          <div><strong>Length and area fill themselves in.</strong> Lines layers have a <strong>Length (km)</strong> field; Areas layers have <strong>Area (km&sup2;)</strong> and <strong>Perimeter (km)</strong>. All three are worked out the moment you finish drawing, and kept right if you reshape the feature later. Nothing to type.</div>
+        </div>
+        <div style="display:flex;gap:12px;border-left:3px solid #b58900;background:#fdf8e8;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-bottom:22px">
+          <div><strong>Two things behave differently from the unit symbols.</strong> Obstacles draw <strong>green</strong> rather than in the affiliation colour, and have their own <strong>Colour</strong> field so you can switch any single one to black &mdash; the water crossing sites default to black, since a crossing is the opposite of an obstacle. And on the Sustainment, Supply and Mission Task point layers, friendly, neutral and unknown all draw <strong>black</strong> while hostile draws red, which is the standard&rsquo;s own rule for those tables.</div>
+        </div>
+
+        <h3 style="margin:0 0 12px;font-size:18px;font-weight:600">Labels cut real gaps in the line</h3>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Wherever a letter or a name sits on a line or a perimeter &mdash; a boundary&rsquo;s echelon, the &ldquo;B&rdquo; on a Block, the ring numbers on a safe-distance zone &mdash; the line is genuinely <em>cut away</em> behind it, not covered with a painted box. Whatever is underneath shows through cleanly. The same goes for the hatched fills: No Fire Area and the contaminated areas cut their hatching away behind the label.</p>
+        <p style="margin:0 0 22px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Text also stays upright however you draw the geometry. Draw a bearing line right to left, or steeply downhill, and the letter still reads level rather than upside down.</p>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #b02a2a;background:#fbeeee;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6">
+          <div><strong>How exact are these?</strong> The point symbols on every Points layer are drawn by the same verified symbol library as the unit symbols, so they are specification-exact. The <strong>Lines and Areas are hand-built in QGIS</strong> &mdash; checked one table at a time against the standard&rsquo;s own template pictures, not just its text, but still a rendition rather than a spec-exact one. Where something is approximated deliberately, this guide says so. The usual simplifications: a label that the standard repeats on every segment is drawn once instead, because a route traced along a real road has dozens of segments; and the info boxes for controlling headquarters, effective times, widths and altitudes are not modelled anywhere in the appendix.</div>
+        </div>
+      </section>
+      <sc-if value="{{ showDiagrams }}" hint-placeholder-val="{{ true }}">
+      <section id="diagrams" style="margin-bottom:58px;scroll-margin-top:20px">
+        <h2 style="margin:0 0 14px;font-size:24px;font-weight:700;letter-spacing:-0.015em">Where to click</h2>
+        <p style="margin:0 0 14px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">Most lines and areas are simply drawn where you want them: click along the boundary, and the symbol follows your path. But a number of the hand-built symbols are <strong>constructed</strong> from your clicks rather than drawn along them &mdash; your first click might be a centre, your third might set a depth. Get the order wrong and you get a valid-looking symbol facing the wrong way.</p>
+        <p style="margin:0 0 22px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">Every one of those is below. Draw them with QGIS&rsquo;s ordinary <strong>Add Line Feature</strong> tool, clicking the numbered points in order, then right-click to finish.</p>
+
+        <div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))">
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Contain <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Clicks 1 and 2 are the two ends of the opening, so the line between them is the diameter. Click 3 sets the arrow&rsquo;s length and which side the opening faces &mdash; the arc always bulges away from it.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="70" y1="34" x2="70" y2="126" stroke="#c9c3b2" stroke-width="1" stroke-dasharray="3 3"></line>
+              <path d="M70,34 A46,46 0 0 0 70,126" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <path d="M36,47 L47,58 M24,80 L39,80 M36,113 L47,102" stroke="#1b1e19" stroke-width="1.8"></path>
+              <line x1="70" y1="80" x2="100" y2="80" stroke="#b02a2a" stroke-width="2.2"></line>
+              <line x1="142" y1="80" x2="184" y2="80" stroke="#b02a2a" stroke-width="2.2"></line>
+              <polygon points="192,80 178,74 178,86" fill="#b02a2a"></polygon>
+              <text x="121" y="85" font-size="13" font-weight="700" fill="#b02a2a" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">ENY</text>
+              <circle cx="70" cy="34" r="4.5" fill="#b58900"></circle><text x="80" y="30" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="70" cy="126" r="4.5" fill="#b58900"></circle><text x="80" y="140" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="200" cy="110" r="4.5" fill="#b58900"></circle><text x="208" y="124" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Retain <span style="color:#8a9184;font-weight:400">&middot; 2 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Click 1 is the centre. Click 2 is both the radius and where the arc starts. It sweeps 300&deg; clockwise from there, leaving a 60&deg; opening, ticks pointing outward.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="100" y1="84" x2="100" y2="34" stroke="#c9c3b2" stroke-width="1" stroke-dasharray="3 3"></line>
+              <path d="M100,34 A50,50 0 1 1 56.7,59" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <path d="M125,40.7 L130,32 M150,84 L160,84 M75,127.3 L70,136 M50,84 L40,84" stroke="#1b1e19" stroke-width="1.8"></path>
+              <polygon points="60,52 59,67 48,60" fill="#1b1e19"></polygon>
+              <rect x="117" y="118" width="17" height="17" fill="#fffefb"></rect>
+              <text x="125" y="131" font-size="14" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">R</text>
+              <circle cx="100" cy="84" r="4.5" fill="#b58900"></circle><text x="106" y="98" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="100" cy="34" r="4.5" fill="#b58900"></circle><text x="108" y="30" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Secure, Occupy, Isolate <span style="color:#8a9184;font-weight:400">&middot; 2 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Same construction as Retain, but sweeping 330&deg; for a 30&deg; opening. Occupy replaces the arrowhead with <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">&gt;&lt;</span>; Isolate adds inward-facing triangles off the arc.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="100" y1="84" x2="100" y2="34" stroke="#c9c3b2" stroke-width="1" stroke-dasharray="3 3"></line>
+              <path d="M100,34 A50,50 0 1 1 75,40.7" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <polygon points="78,36 70,49 64,37" fill="#1b1e19"></polygon>
+              <polygon points="135,120 149,124 143,112" fill="none" stroke="#1b1e19" stroke-width="1.6"></polygon>
+              <polygon points="150,90 158,78 164,92" fill="none" stroke="#1b1e19" stroke-width="1.6"></polygon>
+              <rect x="105" y="122" width="17" height="17" fill="#fffefb"></rect>
+              <text x="113" y="135" font-size="14" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">S</text>
+              <circle cx="100" cy="84" r="4.5" fill="#b58900"></circle><text x="106" y="98" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="100" cy="34" r="4.5" fill="#b58900"></circle><text x="108" y="30" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Block, Penetrate <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Clicks 1 and 2 set the crossbar. Click 3 sets how deep the stem runs. The letter sits in the crossbar. Penetrate is the same shape with a <strong>P</strong>, and an arrowhead where the stem meets the bar.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="40" y1="50" x2="152" y2="50" stroke="#1b1e19" stroke-width="2.4"></line>
+              <line x1="178" y1="50" x2="200" y2="50" stroke="#1b1e19" stroke-width="2.4"></line>
+              <text x="165" y="56" font-size="15" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">B</text>
+              <line x1="120" y1="50" x2="120" y2="130" stroke="#1b1e19" stroke-width="2.4"></line>
+              <circle cx="40" cy="50" r="4.5" fill="#b58900"></circle><text x="44" y="40" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="200" cy="50" r="4.5" fill="#b58900"></circle><text x="204" y="40" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="120" cy="130" r="4.5" fill="#b58900"></circle><text x="128" y="140" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Disrupt, Clear <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Clicks 1 and 2 set the base line, click 3 the depth. Three arrows, letter on the middle one. <strong>Click 1 and 2 the way round you want the long arrow to fall</strong> &mdash; it sits nearest click 1.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="40" y1="124" x2="200" y2="124" stroke="#1b1e19" stroke-width="2.4"></line>
+              <line x1="70" y1="124" x2="70" y2="52" stroke="#1b1e19" stroke-width="2.2"></line>
+              <polygon points="70,44 64,58 76,58" fill="#1b1e19"></polygon>
+              <line x1="120" y1="124" x2="120" y2="76" stroke="#1b1e19" stroke-width="2.2"></line>
+              <polygon points="120,68 114,82 126,82" fill="#1b1e19"></polygon>
+              <line x1="170" y1="124" x2="170" y2="92" stroke="#1b1e19" stroke-width="2.2"></line>
+              <polygon points="170,84 164,98 176,98" fill="#1b1e19"></polygon>
+              <rect x="126" y="94" width="17" height="18" fill="#fffefb"></rect>
+              <text x="134" y="108" font-size="14" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">D</text>
+              <circle cx="40" cy="124" r="4.5" fill="#b58900"></circle><text x="42" y="142" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="200" cy="124" r="4.5" fill="#b58900"></circle><text x="204" y="142" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="120" cy="68" r="4.5" fill="#b58900" opacity="0.55"></circle><text x="128" y="64" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Fix <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">The arrowhead is at click 1. A straight stretch carries the <strong>F</strong>, then the shaft waves its way to click 2. Click 3 sets how deep the waves run.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="56" y1="84" x2="64" y2="84" stroke="#1b1e19" stroke-width="2.2"></line>
+              <line x1="88" y1="84" x2="100" y2="84" stroke="#1b1e19" stroke-width="2.2"></line>
+              <polygon points="44,84 60,77 60,91" fill="#1b1e19"></polygon>
+              <text x="76" y="89" font-size="15" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">F</text>
+              <path d="M100,84 L122,56 L146,112 L170,56 L192,84" fill="none" stroke="#1b1e19" stroke-width="2.2"></path>
+              <circle cx="44" cy="84" r="4.5" fill="#b58900"></circle><text x="44" y="106" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="192" cy="84" r="4.5" fill="#b58900"></circle><text x="198" y="98" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="146" cy="112" r="4.5" fill="#b58900" opacity="0.55"></circle><text x="152" y="126" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Bypass <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Clicks 1 and 2 are the two <strong>arrow tips</strong>, not the corners. Click 3 sets how deep the symbol runs. The letter sits on the line joining the two arrows. Either order works.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <path d="M50,62 L80,112 L104,112 M136,112 L160,112 L190,62" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <polygon points="44,52 55.3,59.2 45.1,65.4" fill="#1b1e19"></polygon>
+              <polygon points="196,52 194.9,65.4 184.7,59.2" fill="#1b1e19"></polygon>
+              <text x="120" y="118" font-size="15" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">B</text>
+              <circle cx="44" cy="52" r="4.5" fill="#b58900"></circle><text x="50" y="44" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="196" cy="52" r="4.5" fill="#b58900"></circle><text x="186" y="44" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="120" cy="138" r="4.5" fill="#b58900" opacity="0.55"></circle><text x="128" y="148" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Breach, Canalize <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Bypass again, with the arrowheads replaced by a slanting bar across each tip. <strong>Breach&rsquo;s pair closes</strong> as it runs outward; <strong>Canalize&rsquo;s opens</strong>. Which way they lean comes from the geometry, so either click order gives the same symbol.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <path d="M50,62 L80,112 L104,112 M136,112 L160,112 L190,62" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <line x1="38" y1="60" x2="58" y2="44" stroke="#1b1e19" stroke-width="2.4"></line>
+              <line x1="202" y1="60" x2="182" y2="44" stroke="#1b1e19" stroke-width="2.4"></line>
+              <text x="120" y="118" font-size="15" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">B</text>
+              <circle cx="44" cy="52" r="4.5" fill="#b58900"></circle><text x="30" y="80" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="196" cy="52" r="4.5" fill="#b58900"></circle><text x="206" y="80" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="120" cy="138" r="4.5" fill="#b58900" opacity="0.55"></circle><text x="128" y="148" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Delay, Retire, Withdraw <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">One shape, four letters &mdash; <strong>D</strong>, <strong>R</strong>, <strong>W</strong>, <strong>WP</strong>. Arrowhead at click 1, shaft to click 2 with the letter set into it, then a semicircle on from click 2.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="52" y1="58" x2="92" y2="58" stroke="#1b1e19" stroke-width="2.4"></line>
+              <line x1="118" y1="58" x2="156" y2="58" stroke="#1b1e19" stroke-width="2.4"></line>
+              <polygon points="40,58 56,51 56,65" fill="#1b1e19"></polygon>
+              <text x="105" y="64" font-size="15" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">D</text>
+              <path d="M156,58 A35,35 0 0 1 156,128" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <line x1="191" y1="93" x2="208" y2="112" stroke="#c9c3b2" stroke-width="1" stroke-dasharray="3 3"></line>
+              <circle cx="40" cy="58" r="4.5" fill="#b58900"></circle><text x="38" y="42" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="156" cy="58" r="4.5" fill="#b58900"></circle><text x="156" y="42" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="212" cy="116" r="4.5" fill="#b58900"></circle><text x="212" y="136" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin-top:10px"><strong>The arc always leaves click 2 square to the shaft.</strong> So click 3 decides how big the arc is and which side of the shaft it falls on &mdash; but not which way it points. Only its distance across the shaft counts. Click it on the shaft&rsquo;s own line and no arc is drawn at all.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Cover, Guard, Screen <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Click one end, then the <strong>centre</strong>, then the other end. The centre keeps a gap wide enough for a unit symbol, which you place yourself if you want one. Letters either side; a lightning bolt runs out to each end.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <rect x="100" y="64" width="40" height="40" fill="none" stroke="#c9c3b2" stroke-width="1" stroke-dasharray="3 3"></rect>
+              <path d="M84,86 L70,72 L60,98 L46,74 L38,86" fill="none" stroke="#1b1e19" stroke-width="2.2"></path>
+              <polygon points="26,86 40,80 40,92" fill="#1b1e19"></polygon>
+              <path d="M156,86 L170,72 L180,98 L194,74 L202,86" fill="none" stroke="#1b1e19" stroke-width="2.2"></path>
+              <polygon points="214,86 200,80 200,92" fill="#1b1e19"></polygon>
+              <text x="92" y="91" font-size="15" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">C</text>
+              <text x="148" y="91" font-size="15" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">C</text>
+              <circle cx="26" cy="86" r="4.5" fill="#b58900"></circle><text x="22" y="70" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="120" cy="84" r="4.5" fill="#b58900"></circle><text x="116" y="126" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="214" cy="86" r="4.5" fill="#b58900"></circle><text x="210" y="70" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Follow and Assume / Support <span style="color:#8a9184;font-weight:400">&middot; 2 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px"><strong>Click 1 is the tip</strong>, click 2 the rear. Assume&rsquo;s tag is plain, its line dashed and its head an outlined double chevron; Support&rsquo;s tag is notched, its line solid and its head a filled triangle.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <rect x="40" y="66" width="26" height="36" fill="none" stroke="#1b1e19" stroke-width="2.2"></rect>
+              <line x1="66" y1="84" x2="168" y2="84" stroke="#1b1e19" stroke-width="2.2" stroke-dasharray="8 6"></line>
+              <path d="M168,64 L192,84 L168,104" fill="none" stroke="#1b1e19" stroke-width="2.2"></path>
+              <path d="M154,64 L178,84 L154,104" fill="none" stroke="#1b1e19" stroke-width="2.2"></path>
+              <circle cx="196" cy="84" r="4.5" fill="#b58900"></circle><text x="198" y="118" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="40" cy="84" r="4.5" fill="#b58900"></circle><text x="34" y="118" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+            </svg>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin-top:10px">The tag and the head are a <strong>fixed size on the page</strong>; only the line between them stretches. Assume&rsquo;s line stays dashed whether the feature is present or planned &mdash; the one place here where a dash does not mean &ldquo;planned&rdquo;.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Counterattack <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">The arrow runs from click 3 back to an arrowhead at <strong>click 1</strong>, with CATK along it, dashed throughout. By Fire adds a bracket just past the tip with a small solid arrow through it.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <polyline points="204,64 120,110 52,74" fill="none" stroke="#1b1e19" stroke-width="2.4" stroke-dasharray="8 6"></polyline>
+              <polygon points="40,69 53.7,68.7 48.3,79.3" fill="#1b1e19"></polygon>
+              <text x="86" y="80" font-size="12.5" font-weight="700" fill="#1b1e19" text-anchor="middle" transform="rotate(-27 86 80)" font-family="ui-sans-serif, system-ui, sans-serif">CATK</text>
+              <circle cx="40" cy="69" r="4.5" fill="#b58900"></circle><text x="34" y="56" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="120" cy="110" r="4.5" fill="#b58900"></circle><text x="116" y="130" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="204" cy="64" r="4.5" fill="#b58900"></circle><text x="208" y="54" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Seize <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Click 1 carries a circle, and the curve starts on that circle&rsquo;s edge rather than at its centre. It runs through click 2 to an arrowhead at click 3, with <strong>S</strong> on the curve.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <circle cx="56" cy="110" r="14" fill="none" stroke="#1b1e19" stroke-width="2.2"></circle>
+              <path d="M70,104 Q120,44 196,92" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <polygon points="202,96 188.6,94.6 195,84.4" fill="#1b1e19"></polygon>
+              <rect x="112" y="56" width="18" height="18" fill="#fffefb"></rect>
+              <text x="121" y="70" font-size="14" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">S</text>
+              <circle cx="56" cy="110" r="4.5" fill="#b58900"></circle><text x="42" y="136" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="120" cy="50" r="4.5" fill="#b58900" opacity="0.55"></circle><text x="128" y="44" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="202" cy="96" r="4.5" fill="#b58900"></circle><text x="204" y="118" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Weapon / Sensor Range Fans <span style="color:#8a9184;font-weight:400">&middot; 1 click</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">One click for the centre; everything else is typed. Up to <strong>five rings</strong>, each with a left angle, a right angle, a range in metres and an optional altitude.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <path d="M81,117.5 A45,45 0 0 1 159,117.5" fill="none" stroke="#1b1e19" stroke-width="2.2"></path>
+              <path d="M50.7,100 A80,80 0 0 1 189.3,100" fill="none" stroke="#1b1e19" stroke-width="2.2"></path>
+              <path d="M120,140 L81,117.5 M120,140 L159,117.5 M81,117.5 L50.7,100 M159,117.5 L189.3,100" stroke="#1b1e19" stroke-width="2.2"></path>
+              <line x1="120" y1="140" x2="120" y2="52" stroke="#1b1e19" stroke-width="1.6"></line>
+              <polygon points="120,44 114,58 126,58" fill="#1b1e19"></polygon>
+              <text x="128" y="122" font-size="8.5" font-weight="600" fill="#3f463c" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">RG 3000</text>
+              <text x="128" y="132" font-size="8.5" font-weight="600" fill="#3f463c" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ALT 500</text>
+              <text x="128" y="84" font-size="8.5" font-weight="600" fill="#3f463c" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">RG 8000</text>
+              <text x="128" y="94" font-size="8.5" font-weight="600" fill="#3f463c" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ALT 3000</text>
+              <circle cx="120" cy="140" r="4.5" fill="#b58900"></circle><text x="100" y="146" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+            </svg>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin-top:10px">Angles are <strong>compass bearings</strong>, clockwise from north; a ring left at 0/360 draws a full circle, and a sector may cross north (300 &rarr; 60). Range is real ground distance, so the fan grows and shrinks with the map. Each ring&rsquo;s straight sides span only its own band, so an outer ring never draws through the inner ones. Blank rings draw nothing; for more than five, place a second fan at the same point.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Minimum Safe Distance Zones <span style="color:#8a9184;font-weight:400">&middot; 1 click</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">One click for the centre, then up to five <strong>ranges in metres</strong>. Each draws a circle at that true ground distance, with the range written into a break in the ring, level with the centre and to its right. A sixth ring means a second zone at the same point.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <circle cx="110" cy="80" r="26" fill="none" stroke="#1b1e19" stroke-width="2"></circle>
+              <circle cx="110" cy="80" r="46" fill="none" stroke="#1b1e19" stroke-width="2"></circle>
+              <circle cx="110" cy="80" r="68" fill="none" stroke="#1b1e19" stroke-width="2"></circle>
+              <rect x="122" y="72" width="30" height="16" fill="#fffefb"></rect>
+              <text x="136" y="85" font-size="9" font-weight="600" fill="#1b1e19" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">500m</text>
+              <rect x="142" y="72" width="32" height="16" fill="#fffefb"></rect>
+              <text x="157" y="85" font-size="9" font-weight="600" fill="#1b1e19" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1000m</text>
+              <rect x="164" y="72" width="32" height="16" fill="#fffefb"></rect>
+              <text x="180" y="85" font-size="9" font-weight="600" fill="#1b1e19" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">2500m</text>
+              <circle cx="110" cy="80" r="4.5" fill="#b58900"></circle><text x="98" y="72" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Base Defense Zone <span style="color:#8a9184;font-weight:400">&middot; 2 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Click 1 is the centre, click 2 sets the radius. It sits on the <strong>Lines</strong> layer, not Areas, because a centre-plus-radius pair is a two-point line. The standard fixes this zone&rsquo;s size; the plugin deliberately lets you size it to the ground it covers.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <circle cx="110" cy="84" r="60" fill="none" stroke="#1b1e19" stroke-width="2.4"></circle>
+              <line x1="110" y1="84" x2="170" y2="84" stroke="#c9c3b2" stroke-width="1" stroke-dasharray="3 3"></line>
+              <rect x="92" y="62" width="36" height="16" fill="#fffefb"></rect>
+              <text x="110" y="75" font-size="12" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">BDZ</text>
+              <circle cx="110" cy="84" r="4.5" fill="#b58900"></circle><text x="98" y="100" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="170" cy="84" r="4.5" fill="#b58900"></circle><text x="176" y="100" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Navigational <span style="color:#8a9184;font-weight:400">&middot; 2 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">The hazard-marker Z. Click the two corners and the run between them is drawn, then a fixed <strong>6 mm</strong> flank at each corner. The two flanks are 180&deg; apart, so the symbol reads the same whichever way round you click.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <line x1="80" y1="60" x2="170" y2="110" stroke="#1b1e19" stroke-width="2.4"></line>
+              <line x1="80" y1="60" x2="67.8" y2="28.2" stroke="#1b1e19" stroke-width="2.4"></line>
+              <line x1="170" y1="110" x2="182.2" y2="141.8" stroke="#1b1e19" stroke-width="2.4"></line>
+              <text x="44" y="34" font-size="9" fill="#8a9184" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">6mm</text>
+              <text x="192" y="140" font-size="9" fill="#8a9184" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">6mm</text>
+              <circle cx="80" cy="60" r="4.5" fill="#b58900"></circle><text x="86" y="56" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="170" cy="110" r="4.5" fill="#b58900"></circle><text x="154" y="122" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+            </svg>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin-top:10px">The flanks stay 6 mm on the page at any zoom &mdash; the standard&rsquo;s own rule that the symbol &ldquo;varies only in length&rdquo;. Only the middle run grows.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Fortified Position <span style="color:#8a9184;font-weight:400">&middot; 2 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Your two clicks are the two <strong>front corners</strong>. A leg of fixed depth trails back from each. Only the distance between your points changes the symbol; its depth never does.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <text x="120" y="34" font-size="10" fill="#8a9184" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">enemy side</text>
+              <line x1="70" y1="64" x2="180" y2="64" stroke="#1b1e19" stroke-width="2.6"></line>
+              <line x1="70" y1="64" x2="70" y2="118" stroke="#1b1e19" stroke-width="2.6"></line>
+              <line x1="180" y1="64" x2="180" y2="118" stroke="#1b1e19" stroke-width="2.6"></line>
+              <path d="M96,140 L154,140" stroke="#c9c3b2" stroke-width="1.4"></path>
+              <polygon points="162,140 150,135 150,145" fill="#c9c3b2"></polygon>
+              <text x="120" y="134" font-size="9" fill="#8a9184" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">digitising direction</text>
+              <circle cx="70" cy="64" r="4.5" fill="#b58900"></circle><text x="58" y="58" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="180" cy="64" r="4.5" fill="#b58900"></circle><text x="188" y="58" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+            </svg>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin-top:10px"><strong>The front is always on the left of the direction you digitise.</strong> So click left to right along the front with the enemy above the line. The standard only says the front &ldquo;typically faces enemy forces&rdquo;, which two points cannot express, so the plugin fixes a consistent convention instead. <strong>Fortified Line</strong> follows the same rule, with as many points as you like.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Principal Direction of Fire <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Click a far point, then the <strong>vertex</strong>, then the other far point. You get a two-armed arrow with both heads pointing away from the vertex.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <path d="M120,120 L36,44 M120,120 L204,44" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <polygon points="30,38 45.9,44.3 37.9,53.3" fill="#1b1e19"></polygon>
+              <polygon points="210,38 202.1,53.3 194.1,44.3" fill="#1b1e19"></polygon>
+              <circle cx="30" cy="38" r="4.5" fill="#b58900"></circle><text x="36" y="34" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="120" cy="120" r="4.5" fill="#b58900"></circle><text x="116" y="140" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="210" cy="38" r="4.5" fill="#b58900"></circle><text x="198" y="34" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Decoy / Dummy <span style="color:#8a9184;font-weight:400">&middot; 3 clicks</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">Drag out two arms from a shared vertex: one arm end, the vertex, the other arm end. <strong>Always dashed</strong> &mdash; a decoy is a simulated, not-actually-occupied construct, so Status makes no difference.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <polyline points="44,120 120,44 196,120" fill="none" stroke="#1b1e19" stroke-width="2.4" stroke-dasharray="8 6"></polyline>
+              <circle cx="44" cy="120" r="4.5" fill="#b58900"></circle><text x="36" y="140" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+              <circle cx="120" cy="44" r="4.5" fill="#b58900"></circle><text x="116" y="34" font-size="12" font-weight="700" fill="#8a6b00">2</text>
+              <circle cx="196" cy="120" r="4.5" fill="#b58900"></circle><text x="200" y="140" font-size="12" font-weight="700" fill="#8a6b00">3</text>
+            </svg>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:14px 16px 16px">
+            <div style="font-weight:600;font-size:15px">Battle Position, Strong Point <span style="color:#8a9184;font-weight:400">&middot; polygon</span></div>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin:4px 0 10px">An ordinary polygon &mdash; but the <strong>echelon amplifier is drawn where you started digitising</strong>, set into a real gap in the perimeter. Start the polygon where you want the amplifier to appear.</div>
+            <svg viewBox="0 0 240 160" style="width:100%;height:auto;display:block">
+              <path d="M56,48 L190,42 L204,116 L100,138 L34,104 L46,60" fill="none" stroke="#1b1e19" stroke-width="2.4"></path>
+              <rect x="44" y="38" width="22" height="18" fill="#fffefb"></rect>
+              <text x="55" y="52" font-size="13" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">II</text>
+              <rect x="110" y="70" width="56" height="18" fill="#fffefb"></rect>
+              <text x="138" y="84" font-size="12" font-weight="700" fill="#1b1e19" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif">(P) MARS</text>
+              <circle cx="46" cy="60" r="4.5" fill="#b58900"></circle><text x="28" y="74" font-size="12" font-weight="700" fill="#8a6b00">1</text>
+            </svg>
+            <div style="font-size:13px;line-height:1.5;color:#5c635a;margin-top:10px">Battle Position also has a <strong>Prepared</strong> field: set it and the name gets a <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">(P)</span> prefix and the outline draws dashed even if Status is still Present &mdash; &ldquo;prepared but not occupied&rdquo; is its own dashed variant in the standard. <strong>Strong Point</strong> adds a spiked border around the whole outline, always pointing outward whichever way you digitised.</div>
+          </div>
+
+        </div>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #3f5d3b;background:#eef2ec;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-top:22px">
+          <div><strong>Everything else is drawn the obvious way.</strong> Boundaries, phase lines, routes, corridors, all the areas &mdash; click along the line or around the area and the symbol follows your path. Two habits are worth knowing: <strong>Overhead Wire</strong> is the one line that puts a pylon at <em>every</em> vertex, so a multi-segment run gets a tower at each bend; and a few point symbols are not centred on your click but sit entirely <em>above</em> it, because their anchor is the tip of a cone at the bottom &mdash; Downed Aircrew Pick-Up Point and the five Fires Points.</div>
+        </div>
+      </section>
+      </sc-if>
+      <section id="reference" style="margin-bottom:58px;scroll-margin-top:20px">
+        <h2 style="margin:0 0 14px;font-size:24px;font-weight:700;letter-spacing:-0.015em">Control measures: group reference</h2>
+        <p style="margin:0 0 20px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">One entry per group in the <strong>Control Measures</strong> menu. Use this to find which entry to click for the measure you want.</p>
+
+        <div style="display:grid;gap:14px">
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">C2 Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Lines:</strong> Boundary, Light Line. <strong>Areas:</strong> Area of Operations, Named Area of Interest, Target Area of Interest, Airfield Zone. <strong>Points:</strong> all 22 command-and-control point types &mdash; Checkpoint, Contact / Coordination / Decision Point, Fly-To Point, Rally Point and the rest.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px"><strong>Boundary</strong> takes the near unit&rsquo;s name in <em>Unique designation</em> and the far unit&rsquo;s in <em>Far designation</em>, stacked above and below the echelon amplifier, and the whole label repeats along a long boundary. The area measures print their fixed abbreviation plus your name &mdash; <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">AO BUFFALO</span>. NAI and TAI draw whatever shape you digitise rather than a forced hexagon. Airfield Zone is the exception: no abbreviation, a crossed-runway icon at the centre, and <em>Unique designation</em> means the runway length (<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">750M</span>), printed just outside the boundary.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Maneuver Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Lines:</strong> Forward Line of Troops (FLOT), Line of Contact (LOC), Phase Line, FEBA, Principal Direction of Fire, Support by Fire Position, Attack by Fire Position, Ambush. <strong>Areas:</strong> plain Area, Assembly Area, the Joint / Submarine action areas, Drop / Extraction / Landing / Pickup Zone, Fortified Area, Limited Access Area.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">FLOT is one continuous chain of touching arcs. <strong>LOC is two chains</strong> with a gap between them, bulging toward the opposite side &mdash; a <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">)(</span> shape &mdash; one always black and one always red, since both sides are shown at once and affiliation does not apply. Fortified Area&rsquo;s toothed outline is real computed geometry, not a styling trick. Only <em>Occupied Assembly Area with Offset Units</em> is missing: it needs a second, separately-connected leader line the layers do not support yet.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Defensive Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Areas:</strong> Battle Position, Strong Point, Engagement Area. <strong>Lines:</strong> Contain, Retain. <strong>Points:</strong> Observation Post / Outpost with its reconnaissance, forward observer, CBRN, sensor-listening and combat variants, plus Target Reference Point.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px"><strong>Contain and Retain are on the Lines layer, not Areas</strong> &mdash; neither is a boundary you digitise, so neither fits the polygon-per-symbol model. Both scale entirely with the radius, so they keep their proportions whatever size you draw them. See <a href="#diagrams">Where to click</a>.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Offensive Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Lines:</strong> Axis of Advance and Direction of Attack (six sub-types each &mdash; airborne/aviation, attack helicopter, main attack, supporting attack, feint, enemy), Final Coordination Line, Limit of Advance, Line of Departure, LD/LC, Probable Line of Deployment, Infiltration Lane. <strong>Areas:</strong> Assault Position, Attack Position, Objective Area. <strong>Points:</strong> Point of Departure.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px"><strong>Direction of Attack</strong> is drawn for real &mdash; a thin line with a small open chevron head. <strong>Axis of Advance</strong> is approximated: the standard builds a variable-width tapered ribbon from up to 50 anchor points, and this is a single-width line along your path, so the taper and the small per-type decorations are not reproduced. Probable Line of Deployment is always dashed, in both present and planned status.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Maneuver Control Measures II</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Lines:</strong> Search Area / Reconnaissance Area, Airhead Line, Bridgehead Line, Holding Line, Release Line. <strong>Areas:</strong> Encirclement, Penetration Box.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">The &ldquo;II&rdquo; is only there because the standard gives two different sections the identical title &mdash; it is not a lesser or optional set. Airhead Line gets one centred label rather than one at each end.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Airspace Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Lines:</strong> the corridor and route family &mdash; Air Corridor, Low-Level Transit Route, Minimum-Risk Route, Safe Lane, SAAFR, Transit Corridor, UA Route &mdash; plus IFF Off / On Line and Base Defense Zone. <strong>Areas:</strong> 12 zones &mdash; HIDACZ, ROZ, AARROZ, UA-ROZ, the Weapon Engagement Zone family (WEZ, FEZ, JEZ, MEZ, LOMEZ, HIMEZ, SHORADEZ) and Weapons Free Zone. <strong>Points:</strong> all 26 &mdash; ACP, CCP, TACAN, CAP, AEW, Tanking, Orbit and its variants, and the rest.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">The routes keep the measure type, colour and name, and drop the taper, the endpoint circles and the width/altitude/time boxes &mdash; place separate ACP or CCP points at the ends if you want them shown. <strong>Weapons Free Zone</strong> gets a genuine hatched fill, because its template requires one. Only three points show a designation: ACP and CCP inside the circle, TACAN outside at top right &mdash; typing one on any other entry has no visible effect.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Maritime Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Lines:</strong> Navigational, plus the Bearing Line family &mdash; Bearing, Electronic, Electronic Warfare, Acoustic, Acoustic (Ambiguous), Torpedo, Electro-Optical Intercept, Jammer, Radio Detention Finder. <strong>Points:</strong> the whole vocabulary, 105 symbols.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px"><strong>No Areas layer</strong> &mdash; this table&rsquo;s content never reaches an areas heading. 105 points is far too many for one list, so the form asks in two steps: <strong>pick a Group first, and the Entity list offers only that group&rsquo;s symbols</strong> &mdash; General, Sub-Surface Warfare, Search, Sonobuoys, Reference Points, Subsurface Stations, Surface Stations, Routes, Emergency, Hazard, Sea Subsurface Returns. The longest list you ever face is 17. Change the Group after choosing an Entity and the combination is rejected on save until you pick from the new list. Group is a real attribute, so you can filter and style by it.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Fire Support Coordination Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Areas:</strong> Airspace Coordination Area, Free Fire Area, No Fire Area, Restricted Fire Area, Position Area For Artillery. <strong>Lines:</strong> Fire Support Coordination Line, No Fire Line, Battlefield Coordination Line, Restrictive Fire Line, Coordinated Fire Line, Munition Flight Path.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">Draw whichever boundary shape you like &mdash; the standard&rsquo;s separate irregular, rectangular and circular codes render identically once only the boundary differs. <strong>No Fire Area</strong> has a real hatched fill, and its label masks the hatch. <strong>Position Area For Artillery labels all four sides</strong>, sitting on the outline with the line breaking around it, as its template draws it. Where the name goes relative to the abbreviation follows the standard per type: FSCL puts it first (<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">MND(S) FSCL</span>), the others put it last (<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">NFL II CORPS</span>). Coordinated Fire Line is always dashed.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Target Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Points:</strong> Point / Single Target, Nuclear Target, Fire Support Station, and the Fires Points family (Firing, Hide, Launch, Reload, Survey Control Point). <strong>Lines:</strong> Linear Target, Linear Smoke Target, Final Protective Fire. <strong>Areas:</strong> Area Target, Series or Group of Targets, Smoke, Bomb Area, Fire Support Area.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">The five Fires Points <strong>draw above where you click</strong> &mdash; their anchor is the tip of the cone at the bottom, not the centre. All three lines get a perpendicular tick at both ends. For <em>Series or Group of Targets</em>, place the individual targets it groups as their own features; only the boundary and name are drawn here.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Target Acquisition Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">AREAS &middot; RANGE FANS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">12 area types, all the same &ldquo;outline + prefix + optional name&rdquo; construction: Artillery Target Intelligence Zone, Call For Fire Zone, Censor Zone, Critical Friendly Zone, Dead Space Area, Sensor Zone, Target Build-up Area, Target Value Area, Zone of Responsibility, Terminally Guided Munition Footprint, Blue Kill Box, Purple Kill Box. <strong>Weapon / Sensor Range Fans</strong> comes with the same menu entry &mdash; see <a href="#diagrams">Where to click</a>.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Obstacle Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; AREAS &middot; MINEFIELDS &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">The largest group, over four layers. <strong>Points:</strong> 15 &mdash; the mine family, Booby Trap, Engineer Regulating Point, the tetrahedrons and dragon&rsquo;s teeth, Tower Low and High, Trip Wire, Abatis. <strong>Areas:</strong> the four serrated zones (Belt, Zone, Free Zone, Restricted Zone), the mined-area family, UXO Area, two freeform dynamic minefields. <strong>Minefields:</strong> the box-and-glyph family &mdash; Completed / Planned, Known Enemy, Suspected or Templated Enemy, Dummy &mdash; each with a mine type. <strong>Lines:</strong> the nine wire obstacles, both antitank ditches, the antitank wall, Obstacle Line, Mine Cluster, the four obstacle effects (Block, Disrupt, Fix, Turn), the three Obstacle Bypass variants, Bridge or Gap, the four Roadblock states, and the water crossing sites.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px"><strong>These draw green</strong>, with a per-feature Colour field to switch any one to black; the water crossing sites default to black. Every point here uses <em>Rotation</em> and <em>Scale</em>, and Trip Wire and Abatis draw at a fixed page size oriented by Rotation rather than growing with a digitised line. Bridge / Assault Crossing and Lane / Raft Site are each one entry covering two codes the standard draws identically.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Field Fortification Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Points:</strong> Shelter, Shelter Above Ground, Shelter Below Ground, Fort. <strong>Lines:</strong> Fortified Line (a crenellated rampart following every bend) and Fortified Position (two front corners, fixed depth). Affiliation-coloured &mdash; the obstacle green does not apply here.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">CBRN Defense Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">POINTS &middot; CONTAMINATED AREAS &middot; MINIMUM SAFE DISTANCE ZONES &middot; RADIATION DOSE RATE CONTOURS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Points:</strong> 18 &mdash; the chemical, biological, nuclear and radiological event markers with their toxic-industrial-material variants, a Nuclear Fallout Producing Event, and ten decontamination point types. <strong>Contaminated Areas:</strong> seven, one per agent plus the TIM variants.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">Contaminated areas get a <strong>yellow hatched fill</strong> &mdash; the standard&rsquo;s colour for contamination, not an affiliation colour &mdash; with the matching B / C / N / R triangle centred inside and the hatching cut away behind it. <strong>The triangle sizes itself to the area</strong>: a steady 12 mm wherever there is room, shrinking only as far as needed to keep 1 mm of clear space at any zoom. A long thin or crescent-shaped area shrinks its glyph sooner than its size suggests, because the fit is measured against the largest circle that fits inside the shape.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">For <strong>Radiation Dose Rate Contours</strong>, draw each contour as its own polygon &mdash; three dose rates are three features &mdash; and put the bare number in <em>Unique designation</em> (<span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">300</span>, not <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">300cGy</span>; the unit is added for you). This is the one field in the whole appendix not forced to capitals, because the case of &ldquo;cGy&rdquo; carries meaning. Note that Nuclear Event and Nuclear Fallout Producing Event draw the same icon &mdash; that is the standard&rsquo;s own doing.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Sustainment Points &middot; Supply Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">POINTS &middot; SUPPLY ROUTES &middot; SUSTAINMENT AREAS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Sustainment Points:</strong> 16 &mdash; Ambulance Exchange Point, Ammunition Supply Point, Casualty Collection Point, Logistics Release Point, MEDEVAC Pick-Up Point, Traffic Control Post and the rest. <strong>Supply Points:</strong> 18 &mdash; General and Medical Supply Point plus the supply classes. <strong>Supply Routes:</strong> Main and Alternate Supply Route, each plain or with one-way, two-way or alternating traffic arrows, plus Convoy (moving or halted). <strong>Sustainment Areas:</strong> seven holding and support areas.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px"><strong>The supply classes are two separate vocabularies</strong> &mdash; NATO Class I to V plus Multiple Supply Class, and US Class I to X. They share roman numerals and mean different things, so every entry says which standard it belongs to. NATO Multiple Supply Class Point draws the same plain box as General Supply Point, with no icon of its own; the <em>Supply class</em> field is what tells them apart. Pick one to three classes, or ALL &mdash; three is the template&rsquo;s own limit.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">Route labels and arrows are drawn <strong>once, centred</strong>, and stay upright whichever way you draw the line &mdash; the standard repeats them on every segment, which is unreadable on a route traced along a real road. Sustainment area lettering is not uniform: the three support areas use an abbreviation (RSA, BSA, DSA) and take no designation, while the holding areas and FARP spell their name out and take one on a line beneath. There is no &ldquo;DHA&rdquo; or &ldquo;RHA&rdquo;.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Mission Tasks</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES &middot; POINTS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a"><strong>Points:</strong> only three &mdash; Destroy, Interdict, Neutralize. <strong>Lines:</strong> the other 24 &mdash; Block, Disrupt, Fix, Penetrate, Clear, Bypass, Breach, Canalize, Secure, Occupy, Isolate, Delay, Retire, Withdraw, Withdraw Under Pressure, Relief in Place, Cover, Guard, Screen, Follow and Assume, Follow and Support, Counterattack, Counterattack by Fire, Seize.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px">Nearly all of these are constructed from your clicks rather than drawn along them &mdash; <a href="#diagrams">Where to click</a> covers every one. Each carries its own letter, set into a real gap cut in the shaft or arc.</div>
+            <div style="font-size:14px;line-height:1.6;color:#3f463c;margin-top:10px"><strong>These are not the obstacle effects.</strong> Block, Disrupt and Fix each appear twice in the standard, under different codes and different drawn forms. The Obstacles layer&rsquo;s versions draw green; these draw black. <em>Relief in Place</em> is the Delay shape with no letter, so its line runs unbroken, plus a second arrow pointing back the other way, with RIP in the middle &mdash; and that text grows with the symbol up to 24pt. <em>Security</em> itself draws nothing, because the standard gives it no template, so there is no entry for it.</div>
+          </div>
+
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Deception &middot; Intelligence Control Measures</div>
+            <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;color:#8a9184;letter-spacing:0.06em;margin-bottom:8px">LINES</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">One symbol each. <strong>Decoy / Dummy</strong> &mdash; a dashed tent shape, always dashed. <strong>Intelligence Coordination Line</strong> &mdash; <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">ICL</span> plus your designation at both ends, the same construction as the Battlefield Coordination Line.</div>
+          </div>
+
+        </div>
+
+        <div style="display:flex;gap:12px;border-left:3px solid #b58900;background:#fdf8e8;padding:14px 16px;border-radius:0 4px 4px 0;font-size:14.5px;line-height:1.6;margin-top:22px">
+          <div><strong>No AEGIS-only symbols anywhere.</strong> The standard marks a handful of entries &ldquo;AEGIS only&rdquo; &mdash; naval combat-system display constructs rather than general-purpose symbology. None of them are offered. If you placed one before they were withdrawn, the feature keeps its attribute value but no longer appears in the dropdown. Two other deliberate omissions: <em>Position and Intended Movement Route</em>, because the underlying library maps it to the wrong picture and a wrong symbol is worse than none; and <em>Decoy/Dummy and Feint</em>, which modifies another separately-drawn measure rather than standing alone.</div>
+        </div>
+      </section>
+
+      <sc-if value="{{ showExpressions }}" hint-placeholder-val="{{ true }}">
+      <section id="expressions" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">12</div>
+        <h2 style="margin:0 0 16px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Expression functions</h2>
+        <p style="margin:0 0 18px;font-size:15.5px;line-height:1.68;color:#3f463c;text-wrap:pretty">These let you use the plugin&rsquo;s calculations inside QGIS&rsquo;s own expressions &mdash; in a label, a field calculator, a layout item. You do not need them for ordinary work; they are there when you want to build something the dialogues do not cover. Find them under the <strong>Military Cartography Tools</strong> group in the expression editor (the <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">fx</span> button on any field). Arguments in square brackets can be left out.</p>
+
+        <h3 style="margin:0 0 10px;font-size:16.5px;font-weight:600">From a latitude and longitude</h3>
+        <div style="display:grid;gap:1px;background:#ded9cb;border:1px solid #ded9cb;border-radius:5px;overflow:hidden;font-size:14px;margin-bottom:20px">
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs(lat, lon)</div><div style="color:#5c635a">Full MGRS string, e.g. <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px">37M DQ 75135 15087</span></div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs_zone(lat, lon)</div><div style="color:#5c635a">Grid Zone Designator, e.g. <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px">37M</span></div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs_square(lat, lon)</div><div style="color:#5c635a">100 km square, e.g. <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px">DQ</span></div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs_easting(lat, lon)</div><div style="color:#5c635a">Easting digits at full precision</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs_northing(lat, lon)</div><div style="color:#5c635a">Northing digits at full precision</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_grid_convergence(lat, lon)</div><div style="color:#5c635a">UTM grid convergence, decimal degrees</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_magnetic_declination(lat, lon, [date])</div><div style="color:#5c635a">Magnetic declination from the World Magnetic Model. <em>date</em> is an ISO string such as <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px">'2026-07-27'</span>; leave it out for today</div></div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:16.5px;font-weight:600">From an MGRS string, going back the other way</h3>
+        <div style="display:grid;gap:1px;background:#ded9cb;border:1px solid #ded9cb;border-radius:5px;overflow:hidden;font-size:14px;margin-bottom:20px">
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs_to_point(mgrs)</div><div style="color:#5c635a">Point geometry, WGS84</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs_lat(mgrs)</div><div style="color:#5c635a">Latitude</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_mgrs_lon(mgrs)</div><div style="color:#5c635a">Longitude</div></div>
+        </div>
+
+        <h3 style="margin:0 0 10px;font-size:16.5px;font-weight:600">From a print layout&rsquo;s map</h3>
+        <p style="margin:0 0 12px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">All of these take a layout name first, and most take an optional map item id last for layouts with more than one map &mdash; leave it out to use the first. <strong>These are live:</strong> use one in a layout label and it updates as you pan, zoom or rescale. This is what drives the metadata block and the centre-of-map label in every military layout.</p>
+        <div style="display:grid;gap:1px;background:#ded9cb;border:1px solid #ded9cb;border-radius:5px;overflow:hidden;font-size:14px;margin-bottom:14px">
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_map_center_mgrs(layout, [precision], [map])</div><div style="color:#5c635a">Map centre in MGRS. <em>precision</em> 2 to 5, from 1 km down to 1 m; 5 by default</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_map_scale(layout, [map])</div><div style="color:#5c635a">Scale as <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px">1:N</span></div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_map_rotation(layout, [map])</div><div style="color:#5c635a">Rotation in degrees</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_map_width / mct_map_height(layout, [map])</div><div style="color:#5c635a">Extent width and height, in the map&rsquo;s own units</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_map_center_lat / _lon(layout, [map])</div><div style="color:#5c635a">Centre latitude and longitude</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_map_convergence(layout, [map])</div><div style="color:#5c635a">Grid convergence at the map&rsquo;s centre</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_map_magnetic_declination(layout, [date], [map])</div><div style="color:#5c635a">Declination at the map&rsquo;s centre. Note <em>date</em> comes <strong>before</strong> the map id here</div></div>
+        </div>
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;background:#f0eee6;border:1px solid #ded9cb;border-radius:4px;padding:10px 12px;margin-bottom:20px;color:#3f463c;overflow-x:auto">[% mct_map_scale(@layout_name) %]</div>
+
+        <h3 style="margin:0 0 10px;font-size:16.5px;font-weight:600">Symbology and measurement</h3>
+        <div style="display:grid;gap:1px;background:#ded9cb;border:1px solid #ded9cb;border-radius:5px;overflow:hidden;font-size:14px;margin-bottom:16px">
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_build_sidc(affiliation, entity, symbol_set, echelon, status, headquarters, [sector1], [sector2])</div><div style="color:#5c635a">A 20-character SIDC built from named parts</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_sidc_svg(sidc)</div><div style="color:#5c635a">The rendered symbol, as a path you can use directly as an SVG marker</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_area_km2($geometry)</div><div style="color:#5c635a">A polygon&rsquo;s true area in km&sup2;</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_perimeter_km($geometry)</div><div style="color:#5c635a">A polygon&rsquo;s true perimeter in km</div></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;background:#fffefb;padding:10px 14px"><div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">mct_length_km($geometry)</div><div style="color:#5c635a">A line&rsquo;s true length in km</div></div>
+        </div>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.68;color:#3f463c;text-wrap:pretty">The last three measure against the <strong>project&rsquo;s</strong> coordinate system, since a bare geometry carries none of its own. That is correct for any layer this plugin creates, because they are always built in the project&rsquo;s CRS. If you reuse them on a layer whose CRS was later changed independently, reproject the layer to match first.</p>
+        <p style="margin:0;font-size:15px;line-height:1.68;color:#3f463c">Every function returns a short error string &mdash; <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">Layout not found</span>, <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px">Need latitude, longitude</span> &mdash; rather than failing silently, so a wrong argument shows up in the label instead of leaving you guessing.</p>
+      </section>
+      </sc-if>
+
+      <section id="problems" style="margin-bottom:58px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">13</div>
+        <h2 style="margin:0 0 18px;font-size:27px;font-weight:700;letter-spacing:-0.015em">When things look wrong</h2>
+        <div style="display:grid;gap:14px">
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">I cannot draw anything &mdash; the tools are greyed out</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Select the layer in the Layers panel, then switch editing on with the yellow pencil. QGIS&rsquo;s drawing tools only work on the one selected editable layer.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">My sensor coverage has not appeared</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Save the layer edits. Coverage is only drawn on save, because each sensor is a full viewshed calculation. After reopening a project, use <strong>Regenerate Sensor Coverage</strong>.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">My sensors vanished when I reopened the project</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Sensor Points layers are temporary until you make them permanent. Right-click each one &rarr; <strong>Make Permanent</strong>, save to a GeoPackage, then save the project. Do not rename the layer afterwards &mdash; coverage is matched by name.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">A coverage or viewshed edge is suspiciously straight</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">You have run out of terrain. Analysis stops at the edge of your DEM. Check the sensor&rsquo;s range against the DEM&rsquo;s extent before reading anything into that shape.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">A terrain tool refuses to run</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">There is no elevation raster in the project, or the one you picked does not cover the ground you clicked. See <a href="#dem">Getting a DEM</a>.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Tanaka Contours seems to have frozen QGIS</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">It is probably still working &mdash; there is no progress bar. A big DEM with a fine contour interval and a short segment length is a great deal of computation. Crop the DEM to your area, or start with a coarser interval.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">My grid does not line up with the area I have moved to</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Grids are built once for the extent you were viewing. Run <strong>Clear Grid</strong>, then switch them back on where you are now.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Illuminated overlay contours are almost invisible</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">That style is meant to blend with what is beneath it. Put a Hypsometric Tint underneath, or choose Elevation colour or Monochrome instead.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">A menu entry warned me instead of adding a layer</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">That layer already exists and holds your hand-placed data, so it will not be replaced. Rename the existing one if you genuinely want a second.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">My designation is not showing on a point symbol</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Some icons have nowhere to put one. Among the airspace points only ACP, CCP and TACAN show a designation; typing one elsewhere has no effect. The US supply classes are similar &mdash; their icons have no internal text position, so theirs draws outside the box.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">My symbol is the right shape but facing the wrong way</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">For points, set <em>Rotation</em>. For a constructed line, you clicked the points in the wrong order &mdash; check <a href="#diagrams">Where to click</a>. Remember the two fixed conventions: fortifications put the front on the <strong>left</strong> of the digitising direction, and the Delay family&rsquo;s arc leaves click 2 square to the shaft whatever angle you clicked click 3 at.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">A maritime point refuses to save</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">The Entity has to belong to the Group you chose. If you changed the Group after picking an Entity, pick again from the new list.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">A CBRN triangle is much smaller than I expected</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Long thin or crescent-shaped areas shrink their glyph sooner than their size suggests, because the fit is measured against the largest circle that fits inside the shape. That is what keeps the clear space around it honest at any zoom.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Map Sheet Series refused to run</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Your page size and scale would make more than 200 sheets. Zoom in to a smaller extent, or choose a smaller-scale map.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">My series sheets are nowhere to be found</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">They are registered but not opened, since a large series would mean dozens of windows. Open them from <strong>Project &rarr; Layouts Manager</strong>.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Grid numbers are written across my printed map</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Use <strong>Add Grid Frame</strong> in the layout window. It puts the numbers on the neatline and hides the on-map labels for that layout only.</div>
+          </div>
+          <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">The toolbar has disappeared</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">Right-click any empty part of the QGIS toolbar area and tick <em>Military Cartography Tools</em>. Everything is also under <strong>Plugins &rarr; Military Cartography Tools</strong>.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="glossary" style="margin-bottom:20px;scroll-margin-top:20px">
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#3f5d3b;letter-spacing:0.14em;margin-bottom:8px">14</div>
+        <h2 style="margin:0 0 18px;font-size:27px;font-weight:700;letter-spacing:-0.015em">Words and shortenings</h2>
+        <div style="display:grid;grid-template-columns:minmax(120px,160px) minmax(0,1fr);gap:10px 20px;font-size:14.5px;line-height:1.58">
+          <div style="font-weight:600">CRS</div><div style="color:#5c635a">Coordinate reference system &mdash; the projection and datum a layer&rsquo;s coordinates are measured in.</div>
+          <div style="font-weight:600">DEM</div><div style="color:#5c635a">Digital elevation model. An elevation raster: a picture of the ground where each pixel holds a height.</div>
+          <div style="font-weight:600">DTG</div><div style="color:#5c635a">Date-time group, e.g. <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">051030Z</span>.</div>
+          <div style="font-weight:600">Digitise</div><div style="color:#5c635a">To draw a feature by clicking its points on the map.</div>
+          <div style="font-weight:600">Extent</div><div style="color:#5c635a">The rectangle of ground a map window or a layer covers.</div>
+          <div style="font-weight:600">GZD</div><div style="color:#5c635a">Grid Zone Designator &mdash; the big lettered and numbered UTM zone box, e.g. <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px">37M</span>.</div>
+          <div style="font-weight:600">Graticule</div><div style="color:#5c635a">Lines of latitude and longitude, as opposed to a projected grid.</div>
+          <div style="font-weight:600">Hypsometric</div><div style="color:#5c635a">Coloured by height.</div>
+          <div style="font-weight:600">Layout</div><div style="color:#5c635a">QGIS&rsquo;s word for a page you are preparing to print.</div>
+          <div style="font-weight:600">MGRS</div><div style="color:#5c635a">Military Grid Reference System &mdash; the grid reference military maps are read in.</div>
+          <div style="font-weight:600">Neatline</div><div style="color:#5c635a">The border ruled around the edge of a printed map.</div>
+          <div style="font-weight:600">Raster / Vector</div><div style="color:#5c635a">A raster is made of pixels (a photo, a DEM). A vector is made of points, lines and areas.</div>
+          <div style="font-weight:600">SIDC</div><div style="color:#5c635a">Symbol identification code &mdash; the 20-character code that identifies one military symbol exactly.</div>
+          <div style="font-weight:600">Tanaka</div><div style="color:#5c635a">A contour style where line thickness varies with how the slope faces the light, so the lines themselves show relief.</div>
+          <div style="font-weight:600">UTM</div><div style="color:#5c635a">Universal Transverse Mercator &mdash; the projection MGRS is built on.</div>
+          <div style="font-weight:600">Viewshed</div><div style="color:#5c635a">The ground visible from a given point. What is left blank is dead ground.</div>
+          <div style="font-weight:600">WMM</div><div style="color:#5c635a">World Magnetic Model &mdash; what the plugin uses to work out magnetic declination for a date.</div>
+        </div>
+      </section>
+
+
+    </main>
+  </div>
+
+  <footer style="border-top:1px solid #ded9cb;background:#fffefb">
+    <div style="max-width:1240px;margin:0 auto;padding:26px 28px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;font-size:13px;color:#6b7265">
+      <div>Military Cartography Tools 1.4.0 &mdash; User Guide</div>
+      <div>Licensed GPL&#8209;2.0+. Runs entirely offline.</div>
+    </div>
+  </footer>
+
+  <sc-if value="{{ hasClassification }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#1b1e19;color:#f6f4ee;text-align:center;padding:7px 16px;font-size:12px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase">{{ classificationText }}</div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;classification&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;None&quot;,&quot;UNCLASSIFIED&quot;,&quot;RESTRICTED&quot;,&quot;CONFIDENTIAL&quot;,&quot;SECRET&quot;,&quot;TOP SECRET&quot;],&quot;default&quot;:&quot;None&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Document&quot;},&quot;showClickDiagrams&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Sections&quot;},&quot;showExpressionReference&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Sections&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const c = this.props.classification ?? "None";
+    return {
+      classificationText: c,
+      hasClassification: c !== "None" && !!c,
+      showDiagrams: this.props.showClickDiagrams ?? true,
+      showExpressions: this.props.showExpressionReference ?? true
+    };
+  }
+}
+</script>
+</body>
+</html>

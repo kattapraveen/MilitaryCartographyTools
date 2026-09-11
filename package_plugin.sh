@@ -56,6 +56,11 @@ find "$STAGE_DIR" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || t
 find "$STAGE_DIR" -name "*.pyc" -delete
 find "$STAGE_DIR" -name ".DS_Store" -delete
 
+# The user guide's editable source (docs/user-guide.dc.html) only renders
+# in Claude Design - what ships is its compiled build,
+# docs/user-guide-offline.html.
+find "$STAGE_DIR" -name "*.dc.html" -delete
+
 OUT_DIR="$REPO_ROOT/dist"
 OUT_ZIP="$OUT_DIR/${PLUGIN_NAME}-${VERSION}.zip"
 mkdir -p "$OUT_DIR"

@@ -2,11 +2,18 @@
 
 """
 Tests for the plugin's own wiring: the initGui()/unload() cycle,
-toolbar action set/order, the coordinate probe tool + its log
-dialog, and the per-Layout-Designer toolbar/dock panel.
+toolbar action set/order, the User Guide menu entry, the
+coordinate probe tool + its log dialog, and the per-Layout-Designer
+toolbar/dock panel.
 
 Military Cartography Tools
 """
+
+import json
+import re
+import tempfile
+from pathlib import Path
+from unittest import mock
 
 from qgis.core import QgsProject, QgsCoordinateReferenceSystem, QgsPrintLayout, QgsLayoutItemMap
 from qgis.PyQt.QtCore import Qt
@@ -14,6 +21,7 @@ from qgis.PyQt.QtWidgets import QMainWindow, QApplication, QDialog
 
 from .qgis_test_case import QgisTestCase, FakeIface, make_canvas
 
+from MilitaryCartographyTools import plugin as plugin_module
 from MilitaryCartographyTools.plugin import MilitaryCartographyTools
 
 
@@ -30,12 +38,13 @@ def make_plugin():
 
 class TestPluginLifecycle(QgisTestCase):
 
-    def test_init_gui_only_the_about_action_is_standalone_on_the_toolbar(self):
+    def test_init_gui_grouped_tools_are_not_standalone_on_the_toolbar(self):
 
-        # Housekeeping (2026-08-08): every other action now lives
-        # inside one of six grouped toolbar buttons instead of the
-        # toolbar directly - see test_init_gui_builds_expected_groups
-        # for the group contents themselves.
+        # Housekeeping (2026-08-08): every tool now lives inside one of
+        # six grouped toolbar buttons instead of the toolbar directly -
+        # see test_init_gui_builds_expected_groups for the group
+        # contents themselves. Only About, User Guide and the Symbology
+        # Edition switch stand alone.
         plugin, iface, window, canvas = make_plugin()
 
         plugin.initGui()
@@ -289,6 +298,188 @@ class TestPluginLifecycle(QgisTestCase):
         plugin.unload()
         plugin.initGui()
         plugin.unload()
+
+
+class TestUserGuide(QgisTestCase):
+
+    def test_user_guide_is_in_both_menus_and_next_to_about_on_the_toolbar(self):
+
+        plugin, iface, window, canvas = make_plugin()
+
+        plugin.initGui()
+
+        try:
+
+            self.assertIn(plugin.user_guide_action, iface.menu_actions)
+            self.assertIn(
+                plugin.user_guide_action,
+                iface.pluginHelpMenu().actions()
+            )
+            self.assertEqual(
+                [action.text() for action in plugin.toolbar.actions()[:3]],
+                [
+                    "Military Cartography Tools",
+                    "User Guide",
+                    "Symbology Edition",
+                ]
+            )
+
+        finally:
+
+            plugin.unload()
+
+
+    def test_reload_cycles_leave_no_stale_help_menu_entries(self):
+
+        # Help -> Plugins is QGIS's menu, so it outlives unload() -
+        # an entry not removed there would pile up on every reload.
+        plugin, iface, window, canvas = make_plugin()
+
+        plugin.initGui()
+        plugin.unload()
+
+        self.assertIsNone(plugin.user_guide_action)
+        self.assertEqual(iface.pluginHelpMenu().actions(), [])
+        self.assertEqual(iface.menu_actions, [])
+
+        plugin.initGui()
+
+        try:
+
+            self.assertEqual(len(iface.pluginHelpMenu().actions()), 1)
+
+        finally:
+
+            plugin.unload()
+
+
+    def test_opens_the_shipped_guide_as_a_local_file(self):
+
+        plugin, iface, window, canvas = make_plugin()
+
+        with mock.patch.object(
+            plugin_module.QDesktopServices, "openUrl", return_value=True
+        ) as open_url, mock.patch.object(
+            plugin_module.QMessageBox, "warning"
+        ) as warning:
+
+            plugin.show_user_guide()
+
+        url = open_url.call_args.args[0]
+
+        self.assertTrue(url.isLocalFile())
+        self.assertEqual(
+            Path(url.toLocalFile()),
+            plugin.plugin_dir / "docs" / "user-guide-offline.html"
+        )
+        self.assertTrue(Path(url.toLocalFile()).is_file())
+        warning.assert_not_called()
+
+
+    def test_missing_guide_warns_instead_of_failing_silently(self):
+
+        plugin, iface, window, canvas = make_plugin()
+
+        with tempfile.TemporaryDirectory() as empty_dir:
+
+            plugin.plugin_dir = Path(empty_dir)
+
+            with mock.patch.object(
+                plugin_module.QDesktopServices, "openUrl"
+            ) as open_url, mock.patch.object(
+                plugin_module.QMessageBox, "warning"
+            ) as warning:
+
+                plugin.show_user_guide()
+
+        open_url.assert_not_called()
+        warning.assert_called_once()
+
+
+    def test_browser_refusing_to_open_it_also_warns(self):
+
+        plugin, iface, window, canvas = make_plugin()
+
+        with mock.patch.object(
+            plugin_module.QDesktopServices, "openUrl", return_value=False
+        ), mock.patch.object(
+            plugin_module.QMessageBox, "warning"
+        ) as warning:
+
+            plugin.show_user_guide()
+
+        warning.assert_called_once()
+
+
+    def test_shipped_guide_loads_nothing_from_the_network(self):
+
+        # The guide tells the reader the plugin runs fully offline, and
+        # is read on air-gapped machines - a remote script, stylesheet
+        # or image would contradict it and silently fail there. The
+        # bundle stores its page JSON-escaped, hence the optional
+        # backslash before the quote.
+        guide = (
+            Path(plugin_module.__file__).parent
+            / "docs" / "user-guide-offline.html"
+        )
+        html = guide.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            re.findall(r"""(?:src|href)=\\?["']https?://[^"'\\]*""", html),
+            []
+        )
+
+        # Libraries the bundler lifted from a CDN (React) are listed by
+        # their original URL; each must also be carried inline, or the
+        # page falls back to fetching it.
+        ext = re.search(
+            r'<script type="__bundler/ext_resources">(.*?)</script>',
+            html,
+            re.S
+        )
+
+        if ext is not None:
+
+            manifest = json.loads(re.search(
+                r'<script type="__bundler/manifest">(.*?)</script>',
+                html,
+                re.S
+            ).group(1))
+
+            for resource in json.loads(ext.group(1)):
+
+                with self.subTest(resource=resource["id"]):
+
+                    self.assertIn(resource["uuid"], manifest)
+
+
+    def test_shipped_guide_is_marked_for_detect_secrets(self):
+
+        # The Plugin Repository runs detect-secrets on every upload, and
+        # the bundle's inlined libraries are long base64 strings that it
+        # reports as "Base64 High Entropy String" - a finding costs a
+        # version number. The marker must end the manifest's own line.
+        # Claude Design's bundler does not add it: after rebuilding
+        # there, run tools/rebuild_user_guide.py.
+        html = (
+            Path(plugin_module.__file__).parent
+            / "docs" / "user-guide-offline.html"
+        ).read_text(encoding="utf-8")
+
+        manifest_line = re.search(
+            r'<script type="__bundler/manifest">\n([^\n]*)',
+            html
+        )
+
+        if manifest_line is None:
+
+            self.skipTest("the guide is no longer a manifest bundle")
+
+        self.assertTrue(
+            manifest_line.group(1).endswith(
+                "</script><!-- pragma: allowlist secret -->"
+            )
+        )
 
 
 class TestCoordinateProbeWiring(QgisTestCase):

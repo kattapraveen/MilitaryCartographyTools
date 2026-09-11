@@ -20,7 +20,7 @@ import unittest
 from qgis.core import QgsApplication, QgsProject, QgsCoordinateReferenceSystem
 from qgis.gui import QgsMapCanvas
 from qgis.PyQt.QtCore import QObject, pyqtSignal
-from qgis.PyQt.QtWidgets import QToolBar
+from qgis.PyQt.QtWidgets import QMenu, QToolBar
 
 
 _qgs_app = None
@@ -138,6 +138,10 @@ class FakeIface(QObject):
         self.menu_actions = []
         self.opened_layouts = []
 
+        # Stands in for QGIS's own Help -> Plugins submenu, which the
+        # plugin adds to but does not own.
+        self._plugin_help_menu = QMenu(window)
+
 
     def mainWindow(self):
 
@@ -174,6 +178,11 @@ class FakeIface(QObject):
             self.menu_actions.remove(
                 action
             )
+
+
+    def pluginHelpMenu(self):
+
+        return self._plugin_help_menu
 
 
     def removeToolBarIcon(self, action):
