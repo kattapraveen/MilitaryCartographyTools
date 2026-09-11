@@ -70,6 +70,9 @@ including every expression function's exact signature.
 
 - [User Guide](docs/user-guide.md) — how to use every tool and expression
   function.
+- A plain-language HTML edition of the guide ships inside the plugin and
+  opens from the **User Guide** button on the toolbar, or **Help → Plugins
+  → User Guide**. It is a local file and needs no network.
 - [Developer Guide](docs/developer-guide.md) — running the test suite, and
   PyQGIS/QGIS 4.x API gotchas found while building this plugin.
 - [Roadmap](docs/roadmap.md) — phase-by-phase project status.

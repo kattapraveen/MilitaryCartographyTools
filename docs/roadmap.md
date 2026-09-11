@@ -11968,6 +11968,78 @@ moderator approval.
 
 ---
 
+## 1.4.0 — the HTML user guide ships inside the plugin (2026-09-11)
+
+The maintainer wrote a plain-language HTML user guide (in Claude Design)
+and asked for it to be part of the plugin. Minor bump rather than patch:
+it adds a capability, where 1.3.1 only fixed existing ones.
+
+**What ships.** `docs/user-guide-offline.html` - a self-contained bundle
+with React and its own runtime inlined, nothing fetched from the
+network - opened by a new **User Guide** action. The action sits on the
+toolbar straight after About, in the plugin's Plugins submenu, and under
+QGIS's own **Help → Plugins**. It uses QGIS's standard help icon
+(`mActionHelpContents.svg`) at the maintainer's request, rather than a
+custom one.
+
+**Opened in the system browser, not a dock.** The bundle unpacks itself
+with JavaScript, which `QTextBrowser` cannot run, and neither QtWebKit
+nor QtWebEngine is dependably present across QGIS 3 and QGIS 4 builds.
+`QDesktopServices.openUrl()` on a local file works the same on an
+air-gapped machine. A missing file, or a browser that refuses it, gets a
+message naming the path rather than a silent no-op.
+
+**Unload has to remove it from Help → Plugins too.** That menu belongs
+to QGIS, not the plugin, so it outlives `unload()`; without the removal,
+every Plugin Reloader cycle would add another "User Guide" entry. A test
+runs init/unload/init and counts the entries.
+
+**The editable source is `docs/user-guide.dc.html`**, which renders only
+in Claude Design and is stripped from the package by
+`package_plugin.sh`. Claude Design's bundler was not available locally,
+so the offline file is rebuilt by `tools/rebuild_user_guide.py`, which
+substitutes the new page template into the existing bundle (whose
+inlined scripts do not change when the text does). That rebuild was
+proved first: rebuilt from the unchanged source, it rendered identical
+text and identical DOM to the shipped file.
+
+**detect-secrets flags the bundle, and the first scan missed it.** The
+three inlined libraries sit as long base64 strings on the manifest's one
+line and read as three "Base64 High Entropy String" findings. The
+pre-commit source scan reported none only because plain `detect-secrets
+scan` reads git-tracked files and the guide was still untracked; the
+scan over the extracted package (`--all-files`, which is what an upload
+amounts to, having no git index) caught it. The Plugin Repository runs
+detect-secrets on every upload, so this would have been a finding.
+Fixed with `<!-- pragma: allowlist secret -->` ending that line - after
+the manifest's closing `</script>`, not inside it, where it would break
+the JSON. A `nextline` marker cannot work: detect-secrets requires it
+alone on the line above, which is the `<script>` tag. The rebuild tool
+adds the marker, and a test fails without it, since Claude Design's own
+bundler will not add it. **Lesson: scan with `--all-files`, or scan the
+package - a plain scan of the checkout skips anything not yet
+committed.** Guide changes: version 1.4.0 in the header and footer; §2 says how
+to reopen the guide; §3 now reads "three plain buttons" and lists User
+Guide. `docs/user-guide.md` got the same, plus Regenerate Sensor
+Coverage, which its toolbar table had been missing since 1.3.0.
+
+**Guarded by tests**: the shipped guide must contain no `src`/`href` to
+`http(s)://` - including JSON-escaped ones inside the bundle - and every
+CDN library the bundler lifted must be carried inline, since the guide
+itself tells the reader the plugin runs fully offline; and its manifest
+line must end with the detect-secrets marker.
+
+**Verification**: 1556/1556 on QGIS 4.2.1 and 3.44.12 from the checkout,
+and again from the extracted `dist/MilitaryCartographyTools-1.4.0.zip`
+(3 skipped there, the `tools/`-dependent 2525E tests, as always);
+Bandit 1.9.4 no issues (44,234 LOC) and detect-secrets 1.5.0
+`--all-files` no findings, on both the source and the extracted package;
+package contents checked - the guide present, `user-guide.dc.html`,
+`tests/`, `tools/` and dev cruft absent; `metadata.txt` parsed with
+`configparser` before packaging (the 1.3.1 lesson). Tagged `v1.4.0`.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

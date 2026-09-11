@@ -42,12 +42,18 @@ Plugins**, search for "Military Cartography Tools" — or manually:
    tick **Military Cartography Tools**.
 3. A new toolbar appears with the plugin's tools.
 
+To open the HTML user guide from inside QGIS, click **User Guide** on the
+toolbar (QGIS's standard help icon, a blue book with a question mark) or
+use **Help → Plugins → User Guide**. It is a file shipped inside the
+plugin (`docs/user-guide-offline.html`) and opens in your web browser, so
+it needs no network.
+
 ---
 
 ## The toolbar, at a glance
 
-The toolbar has one standalone icon (About / plugin info) plus six
-grouped dropdown buttons — click a button to open its menu, then pick
+The toolbar has three standalone buttons (About, User Guide and
+Symbology Edition) plus six grouped dropdown buttons — click a button to open its menu, then pick
 the specific tool. The same six groups are mirrored as submenus under
 **Plugins → Military Cartography Tools**, so every tool is reachable
 from either place.
@@ -57,10 +63,11 @@ Left to right:
 | Icon | Button | Opens |
 |---|---|---|
 | Grid with a highlighted square + crosshair | *(standalone)* | About / plugin info |
+| Blue book with a question mark | *(standalone)* | **User Guide** — opens the HTML user guide in your web browser |
 | Toggle switch | *(standalone)* | **Symbology Edition** — MIL-STD-2525D/APP-6D or MIL-STD-2525E/APP-6E; picks which standard newly added symbology layers use, see [below](#tactical-graphics---point-symbol-layers) |
 | 3×3 grid | **Grid** | UTM Grid, MGRS 100km Grid, Sub Grid (10km/5km/1km spacing, itself a nested flyout), Clear Grid |
 | Compass rose | **Navigation** | Coordinate Probe, Bearing / Range |
-| Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage |
+| Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage, Regenerate Sensor Coverage |
 | Location pin | **Waypoints** | Import Waypoints, Export Waypoints |
 | Printed sheet with a folded corner | **Print Production** | New Military Layout, Map Sheet Series |
 | Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/E and APP-6D/E point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |

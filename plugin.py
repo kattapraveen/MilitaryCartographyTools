@@ -13,12 +13,13 @@ it under the terms of the GNU General Public License v2 or later.
 import configparser
 from pathlib import Path
 
-from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtGui import QAction, QIcon, QActionGroup
+from qgis.PyQt.QtCore import Qt, QUrl
+from qgis.PyQt.QtGui import QAction, QIcon, QActionGroup, QDesktopServices
 from qgis.PyQt.QtWidgets import QMessageBox, QToolButton, QMenu, QToolBar, QDialog
 from qgis.PyQt import sip
 from qgis.core import (
     Qgis,
+    QgsApplication,
     QgsMessageLog,
     QgsLayoutItemMap,
     QgsLayoutItemPicture,
@@ -159,6 +160,10 @@ PLUGIN_NAME = _cfg.get("general", "name")
 PLUGIN_VERSION = _cfg.get("general", "version")
 PLUGIN_ID = _plugin_dir.name
 
+# The self-contained HTML guide that ships in docs/ - compiled output,
+# never hand-edited (see .claude/skills/military-cartography-user-guide).
+USER_GUIDE_PATH = Path("docs") / "user-guide-offline.html"
+
 
 class MilitaryCartographyTools:
     """
@@ -173,6 +178,7 @@ class MilitaryCartographyTools:
 
         self.toolbar = None
         self.action = None
+        self.user_guide_action = None
 
         self.utm_action = None
         self.mgrs100k_action = None
@@ -307,6 +313,7 @@ class MilitaryCartographyTools:
         )
 
         self._setup_main_action()
+        self._setup_user_guide_action()
         self._setup_grid_toggle_actions()
         self._setup_sub_grid_menu()
         self._setup_clear_action()
@@ -479,6 +486,40 @@ class MilitaryCartographyTools:
 
         self.toolbar.addAction(
             self.action
+        )
+
+
+    def _setup_user_guide_action(self):
+
+        # On the toolbar straight after About, in this plugin's Plugins
+        # submenu, and under Help -> Plugins, where QGIS users look for
+        # a plugin's documentation. QGIS's own help icon rather than a
+        # custom one, so it reads as help at a glance.
+        self.user_guide_action = QAction(
+            QgsApplication.getThemeIcon("/mActionHelpContents.svg"),
+            "User Guide",
+            self.iface.mainWindow()
+        )
+
+        self.user_guide_action.setToolTip(
+            "Open the Military Cartography Tools user guide in your web browser"
+        )
+
+        self.user_guide_action.triggered.connect(
+            self.show_user_guide
+        )
+
+        self.iface.addPluginToMenu(
+            PLUGIN_NAME,
+            self.user_guide_action
+        )
+
+        self.iface.pluginHelpMenu().addAction(
+            self.user_guide_action
+        )
+
+        self.toolbar.addAction(
+            self.user_guide_action
         )
 
 
@@ -1790,7 +1831,7 @@ class MilitaryCartographyTools:
         # the Plugins menu directly, only ever added into their own
         # group's QMenu, so detaching each group's single menuAction()
         # here is sufficient - nothing further to do per child action.
-        for action in [self.action] + [
+        for action in [self.action, self.user_guide_action] + [
             menu.menuAction() for menu in self.group_menus.values()
         ]:
 
@@ -1800,6 +1841,17 @@ class MilitaryCartographyTools:
                     PLUGIN_NAME,
                     action
                 )
+
+        if self.user_guide_action is not None:
+
+            # Help -> Plugins belongs to QGIS, not to this plugin, so
+            # it outlives unload() - without this, every Plugin
+            # Reloader cycle would leave another "User Guide" entry.
+            self.iface.pluginHelpMenu().removeAction(
+                self.user_guide_action
+            )
+
+            self.user_guide_action = None
 
 
         if self.toolbar is not None:
@@ -3001,6 +3053,35 @@ class MilitaryCartographyTools:
         self.layout_panels.pop(
             designer,
             None
+        )
+
+
+    def show_user_guide(self):
+        """
+        Open the bundled HTML user guide in the system web browser.
+
+        A browser rather than a dock inside QGIS: the guide unpacks
+        itself with JavaScript, which QTextBrowser cannot run, and
+        neither QtWebKit nor QtWebEngine is dependably present across
+        QGIS 3 and QGIS 4 builds. It is a local file, so it opens the
+        same on an air-gapped machine.
+        """
+
+        guide = self.plugin_dir / USER_GUIDE_PATH
+
+        if guide.is_file() and QDesktopServices.openUrl(
+            QUrl.fromLocalFile(str(guide))
+        ):
+
+            return
+
+        QMessageBox.warning(
+            self.iface.mainWindow(),
+            PLUGIN_NAME,
+            "The user guide could not be opened.\n\n"
+            f"It should be at:\n{guide}\n\n"
+            "If the file is there, open it in any web browser. "
+            "If it is missing, reinstall the plugin."
         )
 
 
