@@ -12043,6 +12043,39 @@ first attempt.** Awaiting moderator approval.
 
 ---
 
+## Combined Arms draws on the frameless Aviation glyphs (2026-09-12)
+
+Found while building the Office companion's Aviation layer, not in
+QGIS - reported here rather than fixed, since that work is deliberately
+kept out of this repository.
+
+The six mast-carrying Aviation entities (Rotary Wing, Attack/Utility/
+Light Helicopter, Fixed Wing, UAV) draw no frame: `_aviation_glyph()`
+removes it, and takes the echelon amplifier and the Headquarters mast
+with it - "this glyph - other than the unique identifiers, nothing else
+is needed". **Combined Arms is applied after that fixup**, so ticking
+it still injects the rectangle, which then floats above a symbol with
+no frame to sit on.
+
+**Not treated as a defect.** The maintainer's own reasoning, 2026-09-12:
+"the user is aware of which glyph he or she wants to draw, hence even
+if the option is there and the user selects it incorrectly - it is not
+a plugin error". To be corrected at some point rather than urgently -
+non-NATO is not integrated into the plugin or released yet, so there is
+no shipped behaviour to preserve: "i can always make this correction".
+
+**Shape of the fix, when it is wanted:** skip the Combined Arms
+injection in `render_nonnato_unit_svg()` for the entities whose fixup
+removes the frame. Small; not worth a release of its own.
+
+**The Office companion already suppresses it**, in its dialog rather
+than its renderer - the controls grey out on those six, while its
+render path still reproduces exactly what this plugin produces, which
+is what keeps its byte-for-byte verification against this code
+meaningful. That divergence is deliberate and accepted: "the users of
+qgis plugin and the office plugin may not be the same, so it is ok if
+there are deviations between the two".
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
