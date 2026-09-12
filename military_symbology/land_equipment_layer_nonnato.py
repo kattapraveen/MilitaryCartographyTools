@@ -22,27 +22,24 @@ them are unchanged (layer-agnostic); only which QGIS layer offers them
 changed.
 
 Scope, deliberately narrow (see the rules record's "Required entities"
-section): 55 entities - 5 non-tiered real APP-6E entities, 14 weapon
-families with real Light/Medium/Heavy siblings (42 entities, each
-family's own tier renamed up one per the settled weapon-tier rule -
-Machine Gun included, its own tiers oddly bare-keyed ("light"/
-"medium"/"heavy", not "machine_gun_light" etc.) in the 2525E table but
-real siblings all the same - see the rules record's 2026-09-02
-correction of an earlier, wrong "not one of the tiered families" call),
+section): 55 entities - 5 non-tiered real APP-6E entities, 13 weapon
+families with real Light/Medium/Heavy siblings (39 entities, each
+family's own tier renamed up one per the settled weapon-tier rule),
+Machine Gun's own three tiers built on APP-6E's RIFLE glyph rather
+than its real machine_gun one (2026-09-12 - see ENTITY_LABELS' own
+comment and the rules record), three synthetic entities built from
+Armoured Protected Vehicle's own oval glyph (Bridge Layer Tank,
+Armoured Recce Vehicle, Armoured Protection Vehicle (Wheeled), added
+2026-09-03), three FULLY synthetic Vehicle-family entities that
+replaced APP-6E's own real "vehicle" entity ('B' Vehicle, 'C' Vehicle,
+Light Recce Vehicle, 2026-09-05), plus Jammer and Radar (Land-scoped
+SIGINT), merged in here 2026-09-02 once a two-entity layer stopped
+justifying its own module ("merge sigint glyphs (since there are only
+two) with land equipment"). Not the full 189-entity NATO vocabulary.
+
 The `bridge` entity moved OUT 2026-09-09 to Mines and Obstacles, with
 the three demolition variants built on it - "shift all bridges to mines
 and obstacles".
-
-three synthetic entities built from Armoured Protected Vehicle's own
-oval glyph (Bridge Layer Tank, Armoured Recce Vehicle, Armoured
-Protection Vehicle (Wheeled), added 2026-09-03), three FULLY synthetic
-Vehicle-family entities that replaced APP-6E's own real "vehicle"
-entity ('B' Vehicle, 'C' Vehicle, Light Recce Vehicle, 2026-09-05) -
-plus Jammer and
-Radar (Land-scoped SIGINT), merged
-in here 2026-09-02 once a two-entity layer stopped justifying its own
-module ("merge sigint glyphs (since there are only two) with land
-equipment"). Not the full 189-entity NATO vocabulary.
 
 Reachable via the "Land" entry in the toolbar's "Non-NATO Symbols"
 group (see plugin.py), or directly via
@@ -169,20 +166,22 @@ ENTITY_LABELS = {
     "tank_light": "Tank (Medium)",
     "tank_medium": "Tank (Heavy)",
 
-    # --- Machine Gun (3) - a real weight-class family after all (see
-    # the rules record's 2026-09-02 correction of the correction):
-    # sidc_2525e.py's own 2525E table keys its Light/Medium/Heavy
-    # siblings as bare "light"/"medium"/"heavy", not the expected
-    # "machine_gun_light" pattern every other family uses (sidc.py's
-    # own 2525D table has them correctly prefixed as "machine_gun_
-    # light" etc., same codes - 2525E's own extraction just dropped the
-    # prefix for this one family). Same base -> Light, real-Light ->
-    # Medium, real-Medium -> Heavy shift as the 13 properly-prefixed
-    # families above; real Heavy ("heavy", 3 lines) dropped, same as
-    # every other family's own real Heavy tier. ---
-    "machine_gun": "Machine Gun (Light)",
-    "light": "Machine Gun (Medium)",
-    "medium": "Machine Gun (Heavy)",
+    # --- Machine Gun (3) - built on APP-6E's own RIFLE glyph, renamed,
+    # not on its real machine_gun one: "what was required was that we
+    # use the rifle glyph of app-6e, rename it machine gun for non-nato,
+    # and then use the horizontal lines for medium and heavy"
+    # (2026-09-12). The real machine_gun family draws a short foot line
+    # under the arrow at every tier, which read as a stray tier line -
+    # "normal, light and heavy have a small horizontal line below the
+    # arrow". The rifle glyph is the same arrow with no foot, and its
+    # own fire-mode siblings carry 1/2/3 tier lines, so taking the
+    # first three gives the 0/1/2 progression every other family here
+    # has. Real-Automatic (3 lines) is dropped, same as every other
+    # family's own third tier. See the rules record's 2026-09-12 entry,
+    # which supersedes both earlier Machine Gun calls. ---
+    "rifle": "Machine Gun (Light)",
+    "single_shot_rifle": "Machine Gun (Medium)",
+    "semiautomatic_rifle": "Machine Gun (Heavy)",
 
     # --- Synthetic entities built from Armoured Protected Vehicle's
     # own "oval" glyph (3), requested live 2026-09-03 - see

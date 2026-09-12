@@ -306,6 +306,44 @@ Gun (Medium)**, `"medium"` -> **Machine Gun (Heavy)**; the real
 real Heavy tier. Entity count is unaffected (still 3 rows for Machine
 Gun, just different keys) - only the underlying glyphs change.
 
+**Machine Gun, settled 2026-09-12 - the RIFLE glyph, renamed. This
+supersedes both entries above.** Reported live: "machine gun - normal,
+light and heavy have a small horizontal line below the arrow; actually
+what was required was that we use the rifle glyph of app-6e, rename it
+machine gun for non-nato, then use the horizontal lines for medium and
+heavy". Both earlier calls got the *line counts* argument right and
+missed the *body*. The real `machine_gun` body is
+`m 100,60 0,80 M 85,75 100,60 115,75 M 80,140 120,140` - the rifle's
+own arrow plus a 40-unit foot line across the bottom of the shaft,
+present at every tier, which reads as a stray tier line sitting below
+the arrow. `rifle` is the identical arrow WITHOUT that foot, and its
+fire-mode siblings carry the same shared tier-line overlay as every
+other family (1 line, 2 lines, 3 lines). So the first three rifle
+entities give the 0/1/2 progression directly:
+`rifle` -> **Machine Gun (Light)**, `single_shot_rifle` -> **Machine
+Gun (Medium)**, `semiautomatic_rifle` -> **Machine Gun (Heavy)**;
+`automatic_rifle` (3 lines) dropped, exactly as every other family's
+own third tier is. Entity count unaffected, still 3 rows.
+
+The 2026-09-01 arrangement was the same family but shifted one place
+along (single_shot -> Light, semiautomatic -> Medium, automatic ->
+Heavy), which is why it drew 1/2/3 lines and was rejected; the fix at
+the time changed FAMILY when it only needed to change the OFFSET. The
+2026-09-02 correction then moved to the real machine_gun family, which
+fixed the counts and introduced the foot line.
+
+**The lesson worth keeping**: a report that names one wrong attribute
+("the tier lines are wrong") does not mean every other attribute of
+the proposed replacement was checked. Rendering all four codes proved
+the line counts and stopped there - the foot line was visible in those
+same renders and went unremarked, because the question in hand was
+only about lines in the centre. When swapping the glyph a family is
+built on, diff the whole body path against the one being replaced, not
+just the attribute under discussion. Regression test:
+`test_machine_gun_tiers_have_the_right_number_of_horizontal_lines`
+asserts both - the 0/1/2 counts AND the absence of "M 80,140 120,140" -
+since the counts alone passed throughout the machine_gun era.
+
 **Missile Launcher family's dome gap, 2026-09-03** - Air Defence
 Missile Launcher, Antitank Missile Launcher and (plain) Missile
 Launcher all share the same real milsymbol glyph shape: a dome-capped

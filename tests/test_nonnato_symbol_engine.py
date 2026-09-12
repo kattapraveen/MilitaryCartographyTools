@@ -1147,7 +1147,7 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
         for entity in (
             "tank", "tank_light", "tank_medium",
             "howitzer", "howitzer_light", "howitzer_medium",
-            "machine_gun", "light", "medium",
+            "rifle", "single_shot_rifle", "semiautomatic_rifle",
         ):
             with self.subTest(entity=entity):
 
@@ -1158,20 +1158,26 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
 
     def test_machine_gun_tiers_have_the_right_number_of_horizontal_lines(self):
 
-        # Regression test for a real bug: Machine Gun's tiers were
-        # briefly mapped onto the Rifle fire-mode family (single_shot/
-        # semiautomatic/automatic_rifle) after an investigation wrongly
-        # concluded Machine Gun had no real Light/Medium/Heavy siblings
-        # in the 2525E table - it does, just bare-keyed "light"/
-        # "medium"/"heavy" rather than "machine_gun_light" etc. (see
-        # sidc.py's own 2525D table, which has the same codes correctly
-        # prefixed). "light has no horizontal line in center, medium
-        # has one line and heavy two lines - same as all other" -
-        # matching every other weapon-tier family's own base/Light/
-        # Medium shift (e.g. howitzer/howitzer_light/howitzer_medium).
-        light = nse.render_nonnato_equipment_svg("friend", "machine_gun")
-        medium = nse.render_nonnato_equipment_svg("friend", "light")
-        heavy = nse.render_nonnato_equipment_svg("friend", "medium")
+        # Two rules at once, both reported live. The tier lines must
+        # run 0/1/2 - "light has no horizontal line in center, medium
+        # has one line and heavy two lines - same as all other"
+        # (2026-09-02) - and the body must be APP-6E's RIFLE glyph,
+        # renamed, not its real machine_gun one, which draws a short
+        # foot line under the arrow at EVERY tier: "normal, light and
+        # heavy have a small horizontal line below the arrow ... what
+        # was required was that we use the rifle glyph of app-6e,
+        # rename it machine gun for non-nato, and then use the
+        # horizontal lines for medium and heavy" (2026-09-12). Taking
+        # the rifle family's first three fire modes satisfies both, so
+        # test both here: a rebuild on machine_gun/light/medium would
+        # still pass the line counts alone.
+        light = nse.render_nonnato_equipment_svg("friend", "rifle")
+        medium = nse.render_nonnato_equipment_svg(
+            "friend", "single_shot_rifle"
+        )
+        heavy = nse.render_nonnato_equipment_svg(
+            "friend", "semiautomatic_rifle"
+        )
 
         # Each tier line is a "30,0" horizontal segment - Light has
         # none, Medium's own extra <path> carries one, Heavy's own
@@ -1180,6 +1186,22 @@ class TestRenderNonnatoEquipmentSvg(QgisTestCase):
         self.assertEqual(light.count("30,0"), 0)
         self.assertEqual(medium.count("30,0"), 1)
         self.assertEqual(heavy.count("30,0"), 2)
+
+        # And no foot line. The real machine_gun body is the rifle's
+        # own path plus a wider horizontal segment at the shaft's foot
+        # ("M 80,140 120,140", 40 units against a tier line's 30) -
+        # asserted against the real glyph rather than hardcoded alone,
+        # so this notices if milsymbol ever redraws it.
+        foot = nse.render_nonnato_equipment_svg("friend", "machine_gun")
+
+        self.assertIn("M 80,140 120,140", foot)
+
+        for tier, svg in (
+            ("light", light), ("medium", medium), ("heavy", heavy)
+        ):
+            with self.subTest(tier=tier):
+
+                self.assertNotIn("M 80,140 120,140", svg)
 
 
     def test_missile_launcher_dome_stays_one_connected_u_shape(self):

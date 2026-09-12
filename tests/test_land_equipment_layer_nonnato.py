@@ -130,10 +130,11 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
     def test_count_matches_the_reviewed_list(self):
 
-        # 54 real Land Equipment entities (6 non-tiered + 42
-        # weapon-tier siblings across 14 families, Machine Gun's own
-        # bare-keyed "light"/"medium" siblings included - see the rules
-        # record's 2026-09-02 correction - plus 3 synthetic entities
+        # 54 real Land Equipment entities (6 non-tiered + 39
+        # weapon-tier siblings across 13 families + Machine Gun's own 3
+        # tiers, built on APP-6E's rifle glyph rather than its real
+        # machine_gun one - see the rules record's 2026-09-12 entry -
+        # plus 3 synthetic entities
         # built from Armoured Protected Vehicle's own oval, added
         # 2026-09-03, and 3 fully synthetic Vehicle-family entities that
         # replaced the real "vehicle" entity 2026-09-05) plus
