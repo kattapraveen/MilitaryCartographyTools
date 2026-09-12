@@ -22,13 +22,18 @@ point:
 - one QgsMarkerLineSymbolLayer per mine type, placed at a fixed
   interval along the line, which is how the mines "populate".
 
-Alternation falls out of that: the antitank run is offset half an
-interval along the line from the antipersonnel one, so with both types
-selected they interleave. Each run is sized to zero when its own type
-is not selected - the same "every slot is always present, an unused one
-gets size 0" pattern obstacle_control_measures._mine_glyph_marker_
-layers() already uses, and for the same reason: a symbol's layers are
-fixed when it is built, while mine_type varies per feature.
+Alternation falls out of that: under "both" the antitank run is offset
+half an interval along the line from the antipersonnel one, so the two
+interleave. Each run is sized to zero when its own type is not
+selected - the same "every slot is always present, an unused one gets
+size 0" pattern obstacle_control_measures._mine_glyph_marker_layers()
+already uses, and for the same reason: a symbol's layers are fixed when
+it is built, while mine_type varies per feature.
+
+The mine-to-mine gap is the same on every setting (2026-09-12). Each
+run's own interval is data-defined and DOUBLES under "both", because
+two interleaved runs at the plain interval would otherwise halve what
+the reader sees.
 
 Reachable via the "Mines and Obstacles (Lines)" entry in the toolbar's
 "Non-NATO Symbols" group (see plugin.py), or directly via
@@ -86,11 +91,14 @@ _LINE_OFFSET_MM = 1.6
 
 _MINE_DIAMETER_MM = 1.8
 
-# Far enough apart that the mines read individually at map scale, close
-# enough that a short line still gets several. Set for the WORST case -
-# "both", where the two runs interleave and the effective spacing is
-# half this - so that case is not cramped.
-_MINE_INTERVAL_MM = 7.0
+# The gap the reader actually sees between one mine and the next, far
+# enough apart that they read individually at map scale and close
+# enough that a short line still gets several. The SAME on every
+# setting: "the gap between the mines - when selected single is more as
+# compared to alternating where they are much closer - can't we have a
+# consistent gap?" (2026-09-12). It used to be each run's own interval,
+# which meant "both" interleaved two runs into half this.
+_MINE_SPACING_MM = 7.0
 
 _MINE_TYPE_EXPRESSION = 'coalesce("mine_type", \'\')'
 
@@ -105,6 +113,37 @@ def _mine_run_is_drawn(mine_type):
     return (
         f"CASE WHEN {_MINE_TYPE_EXPRESSION} IN "
         f"('{mine_type}', '{MINE_TYPE_BOTH}') THEN 1 ELSE 0 END"
+    )
+
+
+def _run_interval_expression():
+
+    """
+    One run's own interval: _MINE_SPACING_MM normally, twice that under
+    "both", where two runs interleave and each must therefore leave
+    room for the other's mines. Data-defined rather than fixed because
+    mine_type varies per feature while the symbol is built once - the
+    same reason each run's size is data-defined.
+    """
+
+    return (
+        f"CASE WHEN {_MINE_TYPE_EXPRESSION} = '{MINE_TYPE_BOTH}' "
+        f"THEN {_MINE_SPACING_MM * 2:g} ELSE {_MINE_SPACING_MM:g} END"
+    )
+
+
+def _antitank_offset_expression():
+
+    """
+    Half of "both"'s own doubled interval, which puts the antitank run
+    squarely between its antipersonnel neighbours - and zero otherwise,
+    so a run on its own starts at the line's own beginning exactly as
+    the antipersonnel run does.
+    """
+
+    return (
+        f"CASE WHEN {_MINE_TYPE_EXPRESSION} = '{MINE_TYPE_BOTH}' "
+        f"THEN {_MINE_SPACING_MM:g} ELSE 0 END"
     )
 
 
@@ -131,10 +170,11 @@ def _mine_run_layers():
     layers = []
 
     runs = (
-        (MINE_TYPE_ANTIPERSONNEL, False, 0.0),
-        # Half an interval along, so the two interleave when both are
-        # selected rather than landing on top of each other.
-        (MINE_TYPE_ANTITANK, True, _MINE_INTERVAL_MM / 2),
+        (MINE_TYPE_ANTIPERSONNEL, False, "0"),
+        # Offset half of "both"'s own doubled interval along the line,
+        # so the two interleave rather than landing on top of each
+        # other - and not offset at all when this run is on its own.
+        (MINE_TYPE_ANTITANK, True, _antitank_offset_expression()),
     )
 
     for mine_type, filled, along in runs:
@@ -162,8 +202,21 @@ def _mine_run_layers():
         marker_line.setPlacements(
             QgsTemplatedLineSymbolLayerBase.Placement.Interval
         )
-        marker_line.setInterval(_MINE_INTERVAL_MM)
-        marker_line.setOffsetAlongLine(along)
+
+        # Both are data-defined, but the plain values are set too: they
+        # are what QGIS's own symbol dialogue shows, and what it falls
+        # back to if an expression is ever cleared there.
+        marker_line.setInterval(_MINE_SPACING_MM)
+        marker_line.setDataDefinedProperty(
+            QgsSymbolLayer.Property.Interval,
+            QgsProperty.fromExpression(_run_interval_expression())
+        )
+
+        marker_line.setOffsetAlongLine(0.0)
+        marker_line.setDataDefinedProperty(
+            QgsSymbolLayer.Property.OffsetAlongLine,
+            QgsProperty.fromExpression(along)
+        )
 
         marker_line.setSubSymbol(QgsMarkerSymbol([mine]))
 

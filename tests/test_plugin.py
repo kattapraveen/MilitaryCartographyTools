@@ -146,6 +146,12 @@ class TestPluginLifecycle(QgisTestCase):
                     "Land",
                     "Control Measure Points",
                     "Mines and Obstacles",
+                    # Built 2026-09-09, but missing from this list -
+                    # and so from the toolbar and Plugins menu alike -
+                    # until 2026-09-12: "the mine layer - line feature
+                    # is not built correct?". The layer itself was
+                    # fine; there was simply no way to add it.
+                    "Mines and Obstacles (Lines)",
                     "Aviation",
                 ],
             }
@@ -267,6 +273,8 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.nonnato_land_action)
         self.assertIsNone(plugin.nonnato_control_measure_points_action)
         self.assertIsNone(plugin.nonnato_mines_and_obstacles_action)
+        self.assertIsNone(plugin.nonnato_mines_and_obstacles_lines_action)
+        self.assertIsNone(plugin.nonnato_aviation_action)
         self.assertIsNone(plugin.c2_measures_action)
         self.assertIsNone(plugin.maneuver_control_measures_action)
         self.assertIsNone(plugin.defensive_control_measures_action)

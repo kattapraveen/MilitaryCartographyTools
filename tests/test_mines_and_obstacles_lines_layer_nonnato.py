@@ -124,6 +124,57 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
         self.assertGreater(offsets[1], 0)
 
 
+    def _run_placements(self, layer, mine_type):
+
+        """
+        Each run's own (interval, offset along the line) as actually
+        evaluated for a feature of this mine_type - both are
+        data-defined, so the plain values on the layer say nothing
+        about what gets drawn.
+        """
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(
+            QgsGeometry.fromPolylineXY([QgsPointXY(0, 0), QgsPointXY(1, 0)])
+        )
+        feature.setAttribute("entity", MINEFIELD_GENERAL_ENTITY)
+        feature.setAttribute("mine_type", mine_type)
+
+        context = QgsExpressionContext()
+        context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+        context.setFeature(feature)
+
+        symbol = layer.renderer().symbol()
+
+        placements = []
+
+        for index in range(symbol.symbolLayerCount()):
+
+            run = symbol.symbolLayer(index)
+
+            if not isinstance(run, QgsMarkerLineSymbolLayer):
+                continue
+
+            values = []
+
+            for prop in (
+                QgsSymbolLayer.Property.Interval,
+                QgsSymbolLayer.Property.OffsetAlongLine,
+            ):
+
+                value, ok = run.dataDefinedProperties().valueAsDouble(
+                    prop, context, -1.0
+                )
+
+                self.assertTrue(ok, f"{prop} expression failed to evaluate")
+
+                values.append(value)
+
+            placements.append(tuple(values))
+
+        return placements
+
+
     def test_the_two_runs_interleave_rather_than_coincide(self):
 
         # "populate the mines as per selection", alternating when both
@@ -131,22 +182,64 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
         # interval along the line.
         layer = build_mines_and_obstacles_lines_layer_nonnato()
 
-        symbol = layer.renderer().symbol()
+        placements = self._run_placements(layer, MINE_TYPE_BOTH)
 
-        runs = [
-            symbol.symbolLayer(index)
-            for index in range(symbol.symbolLayerCount())
-            if isinstance(symbol.symbolLayer(index), QgsMarkerLineSymbolLayer)
-        ]
-
-        intervals = {run.interval() for run in runs}
+        intervals = {interval for interval, _ in placements}
 
         self.assertEqual(len(intervals), 1)
 
-        alongs = sorted(run.offsetAlongLine() for run in runs)
+        alongs = sorted(along for _, along in placements)
 
         self.assertAlmostEqual(alongs[0], 0.0)
         self.assertAlmostEqual(alongs[1], intervals.pop() / 2)
+
+
+    def test_the_gap_between_mines_is_the_same_on_every_setting(self):
+
+        # "the gap between the mines - when selected single is more as
+        # compared to alternating where they are much closer - can't we
+        # have a consistent gap?" (2026-09-12). Two interleaved runs at
+        # one run's own interval halve what the reader sees, so under
+        # "both" each run's interval doubles. What matters is the gap
+        # between one drawn mine and the next, whichever run drew it:
+        # one run's interval when a single type is selected, half of
+        # the (doubled) interval when both are.
+        layer = build_mines_and_obstacles_lines_layer_nonnato()
+
+        spacings = {}
+
+        for mine_type in (
+            MINE_TYPE_ANTITANK, MINE_TYPE_ANTIPERSONNEL, MINE_TYPE_BOTH
+        ):
+
+            placements = self._run_placements(layer, mine_type)
+
+            intervals = {interval for interval, _ in placements}
+
+            self.assertEqual(
+                len(intervals), 1, "the two runs must share one interval"
+            )
+
+            interval = intervals.pop()
+
+            spacings[mine_type] = (
+                interval / 2 if mine_type == MINE_TYPE_BOTH else interval
+            )
+
+        self.assertEqual(len(set(spacings.values())), 1, spacings)
+
+        # A run on its own starts at the line's own beginning - no
+        # leading gap left for a run that is not drawn.
+        for mine_type in (MINE_TYPE_ANTITANK, MINE_TYPE_ANTIPERSONNEL):
+
+            with self.subTest(mine_type=mine_type):
+
+                self.assertEqual(
+                    {along for _, along in self._run_placements(
+                        layer, mine_type
+                    )},
+                    {0.0}
+                )
 
 
     def _run_sizes(self, layer, mine_type):

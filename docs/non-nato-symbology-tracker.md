@@ -749,6 +749,38 @@ anti-tank" - with four dropdown options: None, Antitank, Antipersonnel,
 Both (alternating). None is the default, the same convention the
 mobility field uses for "no mark".
 
+**Two defects in this layer, both found in live use 2026-09-12.**
+
+**It was unreachable.** "the mine layer - line feature is not built
+correct?" The layer, its renderer and its dialogue were all fine - but
+`plugin.py` built the "Mines and Obstacles (Lines)" action with
+`standalone=False` and then never listed it in the Non-NATO Symbols
+group, and a group is the ONLY place such an action can appear. So it
+was on neither the toolbar nor the Plugins menu, and no user could add
+the layer at all. Fixed by listing it right after the point layer it is
+the line half of. Its `unload()` reset was missing too, as was
+Aviation's - both added. **The group-contents test asserted a list that
+matched the bug**, so it passed throughout: a test written from the
+code it describes cannot catch an omission in that code. Three things
+had to agree - the action exists, it is in a group, the test lists it -
+and only the first two were ever checked together.
+
+**The gap between mines changed with the selection.** "the gap between
+the mines - when selected single is more as compared to alternating
+where they are much closer - can't we have a consistent gap?" Each run
+carried the same fixed 7 mm interval, so a single type drew mines 7 mm
+apart while "both" interleaved two runs into 3.5 mm. Fixed by making
+each run's own interval data-defined and DOUBLING it under "both"
+(14 mm per run, 7 mm as drawn), with the antitank run's offset likewise
+data-defined - half the doubled interval under "both", zero when it is
+the only run, so a lone run starts at the line's own beginning.
+`_MINE_INTERVAL_MM` is renamed `_MINE_SPACING_MM` because it now means
+the gap the reader sees, not one run's own step. The old note here that
+the interval was "set for the WORST case" is superseded: there is no
+worst case now. **The rule**: when a symbol interleaves two runs, the
+quantity to hold constant is what reaches the reader, not the parameter
+each run is given.
+
 **Four viewBox defects, all caught by the render sweep and none by
 eye**: the Gap bridge is drawn at milsymbol's 3.75 stroke rather than
 the 3 most injected marks use; the minefield chevron's arms end ON A

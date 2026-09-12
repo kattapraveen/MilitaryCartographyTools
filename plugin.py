@@ -1769,14 +1769,21 @@ class MilitaryCartographyTools:
                     "A separate non-NATO tactical symbology scheme "
                     "(own affiliation colours, entity renames, custom "
                     "icons): Land (including SIGINT), Control Measure "
-                    "Points, and Mines and Obstacles - not part of "
-                    "MIL-STD-2525D/E or APP-6D/E, and not yet merged "
-                    "into this plugin's released symbology"
+                    "Points, Mines and Obstacles as points or as lines, "
+                    "and Aviation - not part of MIL-STD-2525D/E or "
+                    "APP-6D/E, and not yet merged into this plugin's "
+                    "released symbology"
                 ),
                 [
                     self.nonnato_land_action,
                     self.nonnato_control_measure_points_action,
                     self.nonnato_mines_and_obstacles_action,
+                    # Its own entry right after the point layer it is
+                    # the line half of - built 2026-09-09 but left out
+                    # of this list until 2026-09-12, which made the
+                    # layer unreachable: the action is standalone=False,
+                    # so a group is the ONLY place it can appear.
+                    self.nonnato_mines_and_obstacles_lines_action,
                     self.nonnato_aviation_action,
                 ],
             ),
@@ -2093,6 +2100,8 @@ class MilitaryCartographyTools:
         self.nonnato_land_action = None
         self.nonnato_control_measure_points_action = None
         self.nonnato_mines_and_obstacles_action = None
+        self.nonnato_mines_and_obstacles_lines_action = None
+        self.nonnato_aviation_action = None
         self.c2_measures_action = None
         self.maneuver_control_measures_action = None
         self.defensive_control_measures_action = None
