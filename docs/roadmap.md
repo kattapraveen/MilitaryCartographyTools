@@ -12076,6 +12076,90 @@ meaningful. That divergence is deliberate and accepted: "the users of
 qgis plugin and the office plugin may not be the same, so it is ok if
 there are deviations between the two".
 
+---
+
+## Directional Mine's dashes read as dots (2026-09-12)
+
+Found in a smoke test of the Office companion's Mines and Obstacles
+layer, and reported here rather than fixed, since that work is
+deliberately kept out of this repository.
+
+`directional_mine_svg()` sets `stroke-dasharray="4,3"` on the four
+dashed horns. **`stroke-dasharray` is in user units, and
+`scale_svg_stroke_width()` multiplies only `stroke-width`** — so the
+same-day legibility pass that took the horns' own pre-scale width from
+3 to 3.9 (landing at an effective 5.07 once DEFAULT_STROKE_SCALE is
+applied) left the dash pattern exactly where it was. The result is a
+4-unit dash on a 5.07-unit-wide line: **each dash is shorter than the
+line is thick**, so it draws as a row of square dots rather than
+dashes. Which is what the maintainer saw:
+
+> "the directional mine - the dashed lines look like a series of dots
+> instead of dashes - increase the length of the dashes keeping the
+> horn length same"
+
+**The fix, chosen 2026-09-12: `stroke-dasharray="8,3"`.** Six
+candidates (4,3 / 6,3 / 8,3 / 8,4 / 10,4 / 12,5) were rendered at
+insertion size and 8,3 picked — a dash 1.6× the stroke width, which
+reads unambiguously as a dash without thinning the horn to two marks.
+It is one string, appearing four times in `directional_mine_svg()`. No
+geometry moves: the horns stay 27.72 units long, anchored on the
+circle's edge exactly as now.
+
+**Worth checking while in there:** any other `stroke-dasharray` whose
+line has since been thickened has the same latent problem, for the same
+reason — a dash pattern does not follow the stroke scale.
+
+**The Office companion has NOT applied this**, deliberately. Its whole
+guarantee is that it reproduces this plugin byte for byte, and it takes
+this icon's markup from here, so it will pick the change up on its next
+dump with no work on its side.
+
+---
+
+## Booby Trap renders 30% thinner than its neighbours (2026-09-12)
+
+Same origin as the entry above — spotted on the Office companion's
+render sheet for Mines and Obstacles, where the whole layer is shown
+together and the odd one out is obvious.
+
+Every other icon on that layer draws at **stroke-width 3.9**: the mine
+family and the bridges all come out of
+`render_nonnato_equipment_svg()`, which ends with
+`scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)`. **Booby Trap does
+not go through that function at all.** The layer's own
+`_NAME_EXPRESSION` is a `CASE` that routes it to
+`mct_nonnato_booby_trap_svg()`, and that expression function base64s
+`booby_trap_control_measure_svg()`'s output directly, with no stroke
+scale. So it draws at **3** — 30% thinner.
+
+Antitank Mine Booby Trapped is the same circle-and-horns shape, filled,
+sitting in the same dropdown at 3.9. Side by side the difference is
+plain.
+
+This is a carry-over rather than a regression from the 2026-09-03 move:
+Booby Trap was never stroke-scaled on Control Measure Points either,
+where its neighbours come from an entirely different path and nothing
+invited the comparison. Consolidating the custom-icon entities onto one
+layer is what made it visible.
+
+**Shape of the fix:** apply the stroke scale to Booby Trap as well,
+either inside `booby_trap_control_measure_svg()` or in
+`mct_nonnato_booby_trap_svg()` alongside the base64 — the latter keeps
+the render function layer-agnostic, which it currently is. Note that
+`_SIZE_EXPRESSION` also special-cases Booby Trap, for a separate and
+still-valid reason (it carries no designation, so it needs no
+stabilisation ratio); that one should stay.
+
+**The Office companion HAS applied this one**, at the maintainer's
+instruction 2026-09-12: "render it at same stroke width as other and
+record it for the main fork also". It is that project's first
+deliberate divergence in *rendering* rather than in its dialog, so it
+is declared as data there and its verification checks the deviation
+instead of skipping the entity — its output is this plugin's, plus
+exactly that one documented change and nothing else. The declaration
+comes out when this is fixed here.
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
