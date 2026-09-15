@@ -12160,6 +12160,50 @@ instead of skipping the entity — its output is this plugin's, plus
 exactly that one documented change and nothing else. The declaration
 comes out when this is fixed here.
 
+## Control Measure Points should use the affiliation palette (2026-09-15)
+
+A maintainer decision made on the Office companion, to be carried into
+this plugin — **not yet applied here**.
+
+Every other non-NATO point layer colours its symbols from
+`AFFILIATION_COLOURS` in `military_symbology/nonnato_symbol_engine.py`
+(Friend `#3060c0`, Hostile `#c02020`, Neutral `#20a020`, Unknown
+`#c08010`), passed to milsymbol as `monoColor`. **Control Measure Points
+do not.** `control_measure_points_layer_nonnato.py` renders them through
+the plain `mct_sidc_svg(mct_build_sidc(...))` path with no `monoColor`,
+as its own docstring records — Part C's "affiliation is coded the same
+way as NATO" — so milsymbol applies its own tactical-graphic colouring:
+**black** for Friend, Neutral and Unknown, and pure red
+(`rgb(255, 0, 0)`) for Hostile. Beside the blue, green and amber of every
+other layer, the Friend, Neutral and Unknown points read as uncoloured.
+
+**Decision, 2026-09-15:** colour all ten Control Measure Points by
+affiliation from the same palette as Land Unit and Land Equipment. The
+affiliation still goes into the SIDC as it does now; only the colour
+changes. This supersedes Part C's "no non-NATO-specific treatment" for
+colour, so that docstring (and the tracker's note, if it is being kept
+current) will need updating alongside.
+
+**Shape of the fix:** the layer's four affiliation values are all keys
+of `AFFILIATION_COLOURS`, so either pass
+`monoColor = AFFILIATION_COLOURS[affiliation]` through for this layer, or
+recolour the finished SVG. Check which one matches before choosing:
+the Office companion recolours, swapping **only** the two colours
+milsymbol actually emits on these ten (`black` and `rgb(255, 0, 0)`, on
+`stroke` and `fill`) and leaving `none` alone. `monoColor` may also
+recolour things the swap does not; if it does, prefer the swap so the
+two stay identical. Pill Box goes through
+`mct_nonnato_pillbox_svg()` rather than `mct_sidc_svg()`, so it needs the
+same treatment there. Designation text (milsymbol's own
+`uniqueDesignation`) takes the colour too.
+
+**The Office companion HAS applied this**, as its second declared
+rendering deviation (`"affiliation_colour"` for all ten entities),
+verified the same way as Booby Trap: its checker independently recolours
+every non-`none` colour in this plugin's render and compares, so a
+colour the swap missed would fail rather than ship. The declaration
+comes out once this plugin draws them the same way.
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
