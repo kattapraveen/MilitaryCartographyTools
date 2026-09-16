@@ -12160,7 +12160,7 @@ instead of skipping the entity — its output is this plugin's, plus
 exactly that one documented change and nothing else. The declaration
 comes out when this is fixed here.
 
-## Control Measure Points should use the affiliation palette (2026-09-15)
+## Control Measure Points: six should use the affiliation palette (2026-09-15)
 
 A maintainer decision made on the Office companion, to be carried into
 this plugin — **not yet applied here**.
@@ -12177,10 +12177,14 @@ way as NATO" — so milsymbol applies its own tactical-graphic colouring:
 (`rgb(255, 0, 0)`) for Hostile. Beside the blue, green and amber of every
 other layer, the Friend, Neutral and Unknown points read as uncoloured.
 
-**Decision, 2026-09-15:** colour all ten Control Measure Points by
-affiliation from the same palette as Land Unit and Land Equipment. The
-affiliation still goes into the SIDC as it does now; only the colour
-changes. This supersedes Part C's "no non-NATO-specific treatment" for
+**Decision, 2026-09-15, refined 2026-09-16:** colour **six** of the ten
+by affiliation from the same palette as Land Unit and Land Equipment -
+Decision Point, Impact Point, Observation Post, Artillery Observation
+Post, Point Of Interest and Target/DF Task. **Fort, Pill Box, Shelter
+Above Ground and Shelter Below Ground keep milsymbol's own colouring**,
+black by default and red only for Hostile. The affiliation still goes
+into the SIDC as it does now; only the colour changes, and only on
+those six. This supersedes Part C's "no non-NATO-specific treatment" for
 colour, so that docstring (and the tracker's note, if it is being kept
 current) will need updating alongside.
 
@@ -12198,11 +12202,58 @@ same treatment there. Designation text (milsymbol's own
 `uniqueDesignation`) takes the colour too.
 
 **The Office companion HAS applied this**, as its second declared
-rendering deviation (`"affiliation_colour"` for all ten entities),
+rendering deviation (`"affiliation_colour"`, declared for those six
+entities only - the other four match this plugin exactly and carry no
+declaration),
 verified the same way as Booby Trap: its checker independently recolours
 every non-`none` colour in this plugin's render and compares, so a
 colour the swap missed would fail rather than ship. The declaration
 comes out once this plugin draws them the same way.
+
+## Echelon markers stand off the frame (2026-09-16)
+
+A maintainer decision made on the Office companion, to be carried into
+this plugin - **not yet applied here**.
+
+Every echelon amplifier is drawn by milsymbol above the unit frame with
+a gap between the two: measured off the plugin's own renders, about
+**4.8 units at Company, Battalion, Brigade and above, and 7.3 at
+Section and Platoon**, against a frame 100 units tall and drawn at
+stroke-width 5.2. The maintainer's reading, 2026-09-16: the markers
+should sit ON the frame, not float above it.
+
+**Decision:** move each echelon group down until its lowest ink touches
+the frame's top ink. Nothing inside the amplifier changes - no
+redrawing, no resizing.
+
+**Shape of the fix:** milsymbol already wraps the amplifier in
+`<g transform="translate(0,0)" ...>`, so the whole group moves by
+rewriting those two numbers - the same kind of targeted rewrite
+`apply_nonnato_unit_fixups()` already does. The distance differs per
+echelon and has to be measured rather than tabulated (the markers are
+circles at Section and Platoon, strokes above), and it must be computed
+AFTER `scale_svg_stroke_width()`: the half-strokes decide where the ink
+actually ends, and they are 2.6 at the final 5.2, not 2 at 4.
+
+Two things worth deciding here rather than inheriting:
+
+- **The viewBox is deliberately left alone** in the companion, so the
+  symbol keeps its size and registration exactly and gains a little
+  empty space at the top. Trimming it instead would change every
+  symbol's aspect ratio and, with it, the inserted size.
+- **Combined Arms.** Its rectangle already sits on the frame and
+  encloses the echelon marker, so moving the marker down leaves it
+  resting on the rectangle's bottom edge rather than centred in the
+  box. The companion applies the shift in that case too, for one rule
+  everywhere.
+
+**The Office companion HAS applied this**, as its third declared
+rendering deviation (`"echelon_touches_frame"`, declared for the whole
+`unit` pipeline - all 46 entities, 15,202 of its 28,017 cases). Its
+checker measures the shift independently from this plugin's own render
+and compares character for character, so the two implementations
+disagreeing by a rounding step would fail rather than ship. The
+declaration comes out once this plugin draws them the same way.
 
 ## Suggested near-term order
 
