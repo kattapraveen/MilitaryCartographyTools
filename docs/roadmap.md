@@ -11963,8 +11963,9 @@ Fixed, verified by parsing `metadata.txt` directly with `configparser`
 before rebuilding, and the `v1.3.1` tag moved to the corrected commit
 since the first tag's tree was never a working package.
 
-**Uploaded by the maintainer, security checks cleared.** Awaiting
-moderator approval.
+**Uploaded by the maintainer, security checks cleared, and approved by
+the moderators** (recorded 2026-09-13; approved well before that, date
+not noted at the time).
 
 ---
 
@@ -12039,7 +12040,8 @@ package contents checked - the guide present, `user-guide.dc.html`,
 `configparser` before packaging (the 1.3.1 lesson). Tagged `v1.4.0`.
 
 **Uploaded by the maintainer 2026-09-11, security checks cleared on the
-first attempt.** Awaiting moderator approval.
+first attempt. Approved by the moderators 2026-09-13 - 1.4.0 is the
+live release.**
 
 ---
 
