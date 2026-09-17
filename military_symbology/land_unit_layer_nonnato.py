@@ -57,10 +57,10 @@ vertically middle aligned to the left or right of the glyph, the
 present unique designator can be removed or ignored" - see
 nonnato_symbol_engine.inject_side_designations().
 
-Reachable via the "Land" entry in the toolbar's "Non-NATO Symbols"
-group, which adds this layer and Land Equipment (Non-NATO) together
-(see nonnato_layers.py and plugin.py), or directly via
-add_land_unit_layer_nonnato(iface).
+Reachable via its own "Land Units" entry in the toolbar's "Non-NATO
+Symbols" group (see plugin.py) - until 2026-09-17 a single "Land" entry
+added this layer and Land Equipment (Non-NATO) together - or directly
+via add_land_unit_layer_nonnato(iface).
 
 Military Cartography Tools
 """

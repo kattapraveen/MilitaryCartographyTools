@@ -636,7 +636,10 @@ class TestMineFamily(QgisTestCase):
 
         self.assertNotIn(f'fill="{nse.MINE_GREEN}"', svg)  # hollow circle
         self.assertEqual(svg.count("<path"), 4)
-        self.assertEqual(svg.count('stroke-dasharray="4,3"'), 4)
+        # "8,3" since 2026-09-17 - "4,3" drew dots once the horns were
+        # thickened; see _DIRECTIONAL_MINE_DASH.
+        self.assertEqual(svg.count('stroke-dasharray="8,3"'), 4)
+        self.assertNotIn('stroke-dasharray="4,3"', svg)
 
         # Bottom horns (225/315 degrees) are gone.
         self.assertNotIn("M84.4,115.6", svg)
@@ -3645,3 +3648,334 @@ class TestParachuteFieldArtillerySizing(QgisTestCase):
         )
 
         self.assertAlmostEqual(centre, 100.0, places=6)
+
+
+class TestBoobyTrapStrokeMatchesItsNeighbours(QgisTestCase):
+
+    def test_the_layer_render_is_stroke_scaled(self):
+
+        # Drew at 3 where every neighbour on Mines and Obstacles draws at
+        # 3.9 - found on the Office companion, fixed 2026-09-17.
+        svg = nse.render_nonnato_booby_trap_svg()
+
+        widths = set(re.findall(r'stroke-width="([\d.]+)"', svg))
+
+        self.assertEqual(widths, {"3.9"})
+
+
+    def test_it_matches_antitank_mine_booby_trapped(self):
+
+        booby_trap = nse.render_nonnato_booby_trap_svg()
+        trapped = nse.render_nonnato_equipment_svg(
+            "friend", nse.ANTITANK_MINE_BOOBY_TRAPPED_ENTITY
+        )
+
+        self.assertEqual(
+            set(re.findall(r'stroke-width="([\d.]+)"', booby_trap)),
+            set(re.findall(r'stroke-width="([\d.]+)"', trapped)),
+        )
+
+
+    def test_the_shared_shape_is_left_unscaled(self):
+
+        # Land Unit's Ordnance shares these marks and scales them itself.
+        self.assertIn('stroke-width="3"', nse.booby_trap_control_measure_svg())
+
+
+class TestEchelonTouchesFrame(QgisTestCase):
+
+    """
+    Every echelon marker sits on the frame (2026-09-17, decided on the
+    Office companion 2026-09-16) - see seat_echelon_on_frame().
+    """
+
+    ECHELONS = (
+        "squad", "platoon", "company", "battalion", "brigade",
+        "division", "corps", "army", "army_group",
+    )
+
+    FRAME_TOP_INK = 50 - 5.2 / 2
+
+
+    def _drop(self, svg):
+
+        match = re.search(r'<g transform="translate\(0,([\d.]+)\)"', svg)
+
+        return float(match.group(1)) if match else 0.0
+
+
+    def _marker_bottom_ink(self, svg):
+
+        group = re.search(
+            r'<g transform="translate\(0,[\d.]+\)" stroke-width=[^>]*>.*?</g>',
+            svg, re.S,
+        ).group(0)
+
+        return nse._lowest_echelon_point(group) + 5.2 / 2 + self._drop(svg)
+
+
+    def test_every_echelon_marker_touches_the_frame(self):
+
+        for echelon in self.ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", "infantry", echelon=echelon
+                )
+
+                self.assertGreater(self._drop(svg), 0)
+                self.assertAlmostEqual(
+                    self._marker_bottom_ink(svg), self.FRAME_TOP_INK, places=3
+                )
+
+
+    def test_the_gaps_it_closes_are_the_measured_ones(self):
+
+        company = nse.render_nonnato_unit_svg("friend", "infantry", echelon="company")
+        section = nse.render_nonnato_unit_svg("friend", "infantry", echelon="squad")
+
+        self.assertAlmostEqual(self._drop(company), 4.8, places=6)
+        self.assertAlmostEqual(self._drop(section), 7.3, places=6)
+
+
+    def test_only_the_translate_changes(self):
+
+        # Nothing inside the group, and not the viewBox, moves: undoing
+        # the translate and seating again gives the same markup back.
+        for echelon in self.ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", "infantry", echelon=echelon, combined_arms=True
+                )
+                unseated = re.sub(
+                    r'translate\(0,[\d.]+\)', "translate(0,0)", svg, count=1
+                )
+
+                self.assertNotEqual(svg, unseated)
+                self.assertEqual(nse.seat_echelon_on_frame(unseated), svg)
+
+
+    def test_no_echelon_and_detachment_are_left_alone(self):
+
+        for echelon in ("unspecified", "team_crew"):
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", "infantry", echelon=echelon
+                )
+
+                self.assertEqual(self._drop(svg), 0.0)
+
+
+    def test_frameless_aviation_glyphs_are_left_alone(self):
+
+        for entity in nse.AVIATION_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", entity, echelon="company"
+                )
+
+                self.assertEqual(self._drop(svg), 0.0)
+
+
+    def test_an_unknown_path_command_raises_rather_than_mismeasuring(self):
+
+        with self.assertRaises(ValueError):
+            nse._lowest_echelon_point('<g><path d="M100,40 C1,2 3,4 5,6"></path></g>')
+
+
+class TestControlMeasurePoints(QgisTestCase):
+
+    """render_nonnato_control_measure_svg() - see its own docstring."""
+
+    AFFILIATIONS = ("friend", "hostile", "neutral", "unknown")
+
+
+    def _milsymbol(self, affiliation, entity, status="present", designation=""):
+
+        # The pipeline these entities used before 2026-09-17: the layer's
+        # own mct_sidc_svg(mct_build_sidc(...)) at the default stroke
+        # scale, with milsymbol's own designation slot.
+        sidc = build_sidc(
+            affiliation=affiliation, entity=entity,
+            symbol_set="control_measure", echelon="unspecified",
+            status=status, headquarters=False, edition="2525E",
+        )
+        options = {"uniqueDesignation": designation} if designation else None
+
+        return nse.scale_svg_stroke_width(
+            nse.render_symbol_svg(sidc, options), nse.DEFAULT_STROKE_SCALE
+        )
+
+
+    def _cases(self):
+
+        for affiliation in self.AFFILIATIONS:
+            for status in ("present", "planned"):
+                for designation in ("", "A1"):
+                    yield affiliation, status, designation
+
+
+    def test_fort_and_the_shelters_are_unchanged(self):
+
+        for entity in ("fort", "shelter_above_ground", "shelter_below_ground"):
+            for affiliation, status, designation in self._cases():
+
+                with self.subTest(entity=entity, affiliation=affiliation, status=status, designation=designation):
+
+                    self.assertEqual(
+                        nse.render_nonnato_control_measure_svg(
+                            affiliation, entity, status, designation
+                        ),
+                        self._milsymbol(affiliation, entity, status, designation),
+                    )
+
+
+    def test_pill_box_is_unchanged(self):
+
+        for affiliation, status, designation in self._cases():
+
+            with self.subTest(affiliation=affiliation, status=status, designation=designation):
+
+                self.assertEqual(
+                    nse.render_nonnato_control_measure_svg(
+                        affiliation, "shelter", status, designation
+                    ),
+                    nse.render_nonnato_pillbox_svg(
+                        affiliation, status, designation or None
+                    ),
+                )
+
+
+    def test_the_six_take_the_affiliation_palette_and_nothing_else_changes(self):
+
+        for entity in sorted(nse.CONTROL_MEASURE_PALETTE_ENTITIES):
+            for affiliation, status, designation in self._cases():
+
+                with self.subTest(entity=entity, affiliation=affiliation, status=status, designation=designation):
+
+                    svg = nse.render_nonnato_control_measure_svg(
+                        affiliation, entity, status, designation
+                    )
+                    before = self._milsymbol(affiliation, entity, status, designation)
+                    colour = nse.AFFILIATION_COLOURS[affiliation]
+
+                    self.assertIn(colour, svg)
+                    self.assertNotIn('"black"', svg)
+                    self.assertNotIn("rgb(255, 0, 0)", svg)
+                    self.assertEqual(
+                        svg.replace(colour, "X"),
+                        re.sub(r'(stroke|fill)="(black|rgb\(255, 0, 0\))"', r'\1="X"', before),
+                    )
+
+
+    def test_nbc_shelter_is_a_hollow_shelter_below_ground(self):
+
+        svg = nse.render_nonnato_control_measure_svg("friend", nse.NBC_SHELTER_ENTITY)
+        shelter = self._milsymbol("friend", "shelter_below_ground")
+
+        shelter_d = re.search(r' d="([^"]+)"', shelter).group(1)
+
+        self.assertIn(f'd="{shelter_d}"', svg)
+        self.assertIn('fill="none"', svg)
+        self.assertNotIn('fill="black" ></path>', svg)
+
+
+    def test_nbc_shelter_says_nbc_to_its_right_unless_told_otherwise(self):
+
+        default = nse.render_nonnato_control_measure_svg("friend", nse.NBC_SHELTER_ENTITY)
+        typed = nse.render_nonnato_control_measure_svg(
+            "friend", nse.NBC_SHELTER_ENTITY, designation="a1"
+        )
+        bare = nse.render_nonnato_control_measure_svg(
+            "friend", nse.NBC_SHELTER_ENTITY, default_designation=False
+        )
+
+        self.assertIn('text-anchor="start"', default)
+        self.assertIn(">NBC</text>", default)
+        self.assertIn(">A1</text>", typed)
+        self.assertNotIn("NBC", typed)
+        self.assertNotIn("<text", bare)
+
+        # To the right of the ground line's far end (x=150).
+        x = float(re.search(r'<text x="([\d.]+)"', default).group(1))
+        self.assertGreater(x, 150)
+
+
+    def test_nbc_shelter_keeps_milsymbols_colours(self):
+
+        friend = nse.render_nonnato_control_measure_svg("friend", nse.NBC_SHELTER_ENTITY)
+        hostile = nse.render_nonnato_control_measure_svg("hostile", nse.NBC_SHELTER_ENTITY)
+
+        self.assertIn('stroke="black"', friend)
+        self.assertIn('fill="black">NBC', friend)
+        self.assertIn('stroke="rgb(255, 0, 0)"', hostile)
+        self.assertIn('fill="rgb(255, 0, 0)">NBC', hostile)
+
+
+    def test_command_post_is_military_police_relettered(self):
+
+        for affiliation in self.AFFILIATIONS:
+
+            with self.subTest(affiliation=affiliation):
+
+                svg = nse.render_nonnato_control_measure_svg(
+                    affiliation, nse.COMMAND_POST_ENTITY
+                )
+                police = nse.render_nonnato_unit_svg(affiliation, "military_police")
+
+                self.assertEqual(svg, police.replace(">MP</text>", ">CP</text>"))
+                self.assertIn(nse.AFFILIATION_COLOURS[affiliation], svg)
+
+
+    def test_command_post_dashes_when_planned_and_designates_to_the_right(self):
+
+        svg = nse.render_nonnato_control_measure_svg(
+            "friend", nse.COMMAND_POST_ENTITY, "planned", "12"
+        )
+
+        self.assertIn("stroke-dasharray", svg)
+        self.assertIn('text-anchor="start"', svg)
+        self.assertIn(">12</text>", svg)
+
+
+    def test_fire_trench_is_a_rectangle_open_at_the_bottom(self):
+
+        svg = nse.render_nonnato_control_measure_svg("friend", nse.FIRE_TRENCH_ENTITY)
+
+        self.assertEqual(svg.count("<path"), 1)
+        self.assertIn('d="M55,122.5 L55,77.5 L145,77.5 L145,122.5"', svg)
+        self.assertNotIn("z", re.search(r' d="([^"]+)"', svg).group(1).lower())
+        self.assertIn('fill="none"', svg)
+        self.assertIn('stroke-width="3.9"', svg)
+
+
+    def test_fire_trench_is_coloured_like_its_fortification_neighbours(self):
+
+        self.assertIn(
+            'stroke="black"',
+            nse.render_nonnato_control_measure_svg("neutral", nse.FIRE_TRENCH_ENTITY),
+        )
+        self.assertIn(
+            'stroke="rgb(255, 0, 0)"',
+            nse.render_nonnato_control_measure_svg("hostile", nse.FIRE_TRENCH_ENTITY),
+        )
+
+
+    def test_fire_trench_designates_to_the_right(self):
+
+        svg = nse.render_nonnato_control_measure_svg(
+            "friend", nse.FIRE_TRENCH_ENTITY, designation="3"
+        )
+
+        x = float(re.search(r'<text x="([\d.]+)"', svg).group(1))
+
+        self.assertGreater(x, 145)
+        self.assertIn(">3</text>", svg)
+

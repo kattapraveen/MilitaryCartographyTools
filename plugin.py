@@ -53,7 +53,12 @@ from .military_symbology.subsurface_layer import add_subsurface_layers
 from .military_symbology.activities_layer import add_activities_layer
 from .military_symbology.sigint_layer import add_sigint_layer
 from .military_symbology.cyberspace_layer import add_cyberspace_layer
-from .military_symbology.nonnato_layers import add_nonnato_land_layers
+from .military_symbology.land_unit_layer_nonnato import (
+    add_land_unit_layer_nonnato,
+)
+from .military_symbology.land_equipment_layer_nonnato import (
+    add_land_equipment_layer_nonnato,
+)
 from .military_symbology.control_measure_points_layer_nonnato import (
     add_control_measure_points_layer_nonnato,
 )
@@ -224,20 +229,18 @@ class MilitaryCartographyTools:
         # pipeline, not part of MIL-STD-2525D/E or APP-6D/E proper. Kept
         # in its own toolbar group (see _setup_toolbar_groups()) rather
         # than folded into "NATO Symbols", so the two schemes are never
-        # visually conflated. "Land" bundles Land Unit + Land Equipment
-        # in one click, mirroring tactical_graphics_land_action's own
-        # bundling of NATO's four Land sub-layers - see
-        # nonnato_layers.py. SIGINT used to be its own third action here
-        # too, until it was merged into Land Equipment 2026-09-02 (only
-        # two entities, Jammer/Radar, stopped justifying its own
-        # layer/module/action - see land_equipment_layer_nonnato.py).
-        # Control Measure Points stays its own single action, same
-        # granularity as its NATO counterpart. Mines and Obstacles is a
-        # fourth, added 2026-09-03 once the mine family (Land Equipment)
-        # and Booby Trap (Control Measure Points) were consolidated onto
-        # their own dedicated layer - see
-        # mines_and_obstacles_layer_nonnato.py.
-        self.nonnato_land_action = None
+        # visually conflated. One action per layer: "Land" used to add
+        # Land Unit and Land Equipment together, mirroring NATO's own
+        # bundled Land action, until 2026-09-17 - "Since we have all
+        # layers with single set of symbols in them - remove the Land
+        # layer and recreate it as Land Units layer and Land Equipment
+        # Layer". SIGINT was its own action until it merged into Land
+        # Equipment 2026-09-02 (see land_equipment_layer_nonnato.py), and
+        # Mines and Obstacles gathered the mine family and Booby Trap
+        # onto their own layer 2026-09-03 (see
+        # mines_and_obstacles_layer_nonnato.py).
+        self.nonnato_land_units_action = None
+        self.nonnato_land_equipment_action = None
         self.nonnato_control_measure_points_action = None
         self.nonnato_mines_and_obstacles_action = None
         self.nonnato_aviation_action = None
@@ -376,7 +379,8 @@ class MilitaryCartographyTools:
         self._setup_tactical_graphics_activities_action()
         self._setup_tactical_graphics_sigint_action()
         self._setup_tactical_graphics_cyberspace_action()
-        self._setup_nonnato_land_action()
+        self._setup_nonnato_land_units_action()
+        self._setup_nonnato_land_equipment_action()
         self._setup_nonnato_control_measure_points_action()
         self._setup_nonnato_mines_and_obstacles_action()
         self._setup_nonnato_aviation_action()
@@ -1153,24 +1157,39 @@ class MilitaryCartographyTools:
         )
 
 
-    def _setup_nonnato_land_action(self):
+    def _setup_nonnato_land_units_action(self):
 
         # One-shot action, not a map tool - see
-        # military_symbology/nonnato_layers.py. Adds both Land Unit
-        # (Non-NATO) and Land Equipment (Non-NATO) in one click,
-        # mirroring _setup_tactical_graphics_land_action()'s own
-        # bundling of NATO's four Land sub-layers. Land Equipment's own
-        # entity list also covers Jammer/Radar (Land-scoped SIGINT) -
-        # merged in 2026-09-02, no longer a separate action/layer.
-        self.nonnato_land_action = self._build_action(
-            "nonnato_land.svg",
-            "Land",
+        # military_symbology/land_unit_layer_nonnato.py. Split out of the
+        # old bundled "Land" action 2026-09-17, so every non-NATO layer
+        # has its own entry.
+        self.nonnato_land_units_action = self._build_action(
+            "nonnato_land_units.svg",
+            "Land Units",
             tooltip=(
-                "Add Land Unit/Land Equipment (Non-NATO) layers that "
-                "render each point's own symbol automatically from its "
-                "attributes (Land Equipment includes Jammer/Radar)"
+                "Add a Land Unit (Non-NATO) layer that renders each "
+                "point's own symbol automatically from its attributes"
             ),
-            callback=self.create_nonnato_land,
+            callback=self.create_nonnato_land_units,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_land_equipment_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/land_equipment_layer_nonnato.py. Split out
+        # of the old bundled "Land" action 2026-09-17. Jammer/Radar
+        # (Land-scoped SIGINT) live on this layer since 2026-09-02.
+        self.nonnato_land_equipment_action = self._build_action(
+            "nonnato_land_equipment.svg",
+            "Land Equipment",
+            tooltip=(
+                "Add a Land Equipment (Non-NATO) layer (including "
+                "Jammer/Radar) that renders each point's own symbol "
+                "automatically from its attributes"
+            ),
+            callback=self.create_nonnato_land_equipment,
             standalone=False
         )
 
@@ -1186,7 +1205,7 @@ class MilitaryCartographyTools:
             "nonnato_control_measure_points.svg",
             "Control Measure Points",
             tooltip=(
-                "Add a Control Measure Points (Non-NATO) layer (10 "
+                "Add a Control Measure Points (Non-NATO) layer (13 "
                 "entities) that renders each point's own symbol "
                 "automatically from its attributes"
             ),
@@ -1768,14 +1787,16 @@ class MilitaryCartographyTools:
                 (
                     "A separate non-NATO tactical symbology scheme "
                     "(own affiliation colours, entity renames, custom "
-                    "icons): Land (including SIGINT), Control Measure "
-                    "Points, Mines and Obstacles as points or as lines, "
-                    "and Aviation - not part of MIL-STD-2525D/E or "
+                    "icons): Land Units, Land Equipment (including "
+                    "SIGINT), Control Measure Points, Mines and "
+                    "Obstacles as points or as lines, and Aviation - "
+                    "not part of MIL-STD-2525D/E or "
                     "APP-6D/E, and not yet merged into this plugin's "
                     "released symbology"
                 ),
                 [
-                    self.nonnato_land_action,
+                    self.nonnato_land_units_action,
+                    self.nonnato_land_equipment_action,
                     self.nonnato_control_measure_points_action,
                     self.nonnato_mines_and_obstacles_action,
                     # Its own entry right after the point layer it is
@@ -2097,7 +2118,8 @@ class MilitaryCartographyTools:
         self.tactical_graphics_activities_action = None
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
-        self.nonnato_land_action = None
+        self.nonnato_land_units_action = None
+        self.nonnato_land_equipment_action = None
         self.nonnato_control_measure_points_action = None
         self.nonnato_mines_and_obstacles_action = None
         self.nonnato_mines_and_obstacles_lines_action = None
@@ -2551,14 +2573,25 @@ class MilitaryCartographyTools:
         )
 
 
-    def create_nonnato_land(self):
+    def create_nonnato_land_units(self):
         """
-        Add "Land Unit (Non-NATO)"/"Land Equipment (Non-NATO)" layers
-        (the latter including Jammer/Radar), ready for placing symbols
+        Add a "Land Unit (Non-NATO)" layer, ready for placing symbols
         with QGIS's own native point editing tools.
         """
 
-        add_nonnato_land_layers(
+        add_land_unit_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_land_equipment(self):
+        """
+        Add a "Land Equipment (Non-NATO)" layer (including Jammer/Radar),
+        ready for placing symbols with QGIS's own native point editing
+        tools.
+        """
+
+        add_land_equipment_layer_nonnato(
             self.iface
         )
 

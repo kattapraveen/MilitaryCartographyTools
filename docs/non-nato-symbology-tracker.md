@@ -1750,4 +1750,47 @@ Meta-questions likely to come up regardless of category/domain.
       job is honouring an attribute milsymbol emits; here there is no
       attribute to honour, only a request to centre visible uppercase
       ink, which is half the CAP height.
+- [x] **One toolbar entry per layer; Control Measure Points grows to 13
+      (2026-09-17)**
+
+      **Land split in two.** "Since we have all layers with single set of
+      symbols in them - remove the Land layer and recreate it as Land
+      Units layer and Land Equipment Layer". The bundled "Land" entry
+      (and `nonnato_layers.py` behind it) is gone; "Land Units" and
+      "Land Equipment" each add their own layer. The layers themselves,
+      and their names, are unchanged.
+
+      **Three new Control Measure Points**, all rendered by
+      `render_nonnato_control_measure_svg()`:
+      - **NBC Shelter** (`nonnato_nbc_shelter`) - "Use shelter below
+        ground, change it to hollow square, add default unique
+        designation right as "NBC"". Shelter Below Ground's own path,
+        fill removed; "NBC" to its right, vertically centred, whenever
+        no designation is typed - a typed one replaces it. The size
+        stabiliser measures the glyph WITHOUT that default, so the
+        text hangs outside rather than shrinking the square.
+      - **Command Post** (`nonnato_command_post`) - "Start with Military
+        Police, replace "MP" with "CP"". Land Unit's Military Police
+        render relettered, so it keeps the affiliation palette and a
+        dashed frame for Planned; the designation goes to the right of
+        the frame.
+      - **Fire Trench/Weapon Pit/Weapon Emplacement**
+        (`nonnato_fire_trench`) - "use a hollow rectangle, no bottom
+        line". 90 x 45, centred where the Shelters' square is, open at
+        the bottom; designation to the right.
+
+      **Colour of the new three, chosen rather than specified:** NBC
+      Shelter and Fire Trench follow Fort, Pill Box and the Shelters
+      (black, red for Hostile) as fortifications; Command Post follows
+      its Military Police donor (the palette).
+
+      **This retires Part C's "no non-NATO-specific treatment" for this
+      layer.** Six entities (Decision Point, Impact Point, Observation
+      Post, Artillery Observation Post, Point Of Interest, Target/DF
+      Task) now take the affiliation palette - decided on the Office
+      companion 2026-09-15/16 - while the affiliation still goes into
+      the SIDC. The layer's split rendering (NATO's `mct_sidc_svg()` for
+      nine, a Pill Box function for one) became a single function; every
+      entity it did not change is tested byte-for-byte against the old
+      pipeline.
 - [ ] Anything else that surfaces while specifying the above

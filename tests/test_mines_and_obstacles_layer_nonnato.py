@@ -13,6 +13,7 @@ Military Cartography Tools
 """
 
 import base64
+import re
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
@@ -348,6 +349,11 @@ class TestBuildMinesAndObstaclesLayerNonnato(QgisTestCase):
         # svg() takes no affiliation).
         self.assertIn(MINE_GREEN, svg)
         self.assertEqual(svg.count("<circle"), 1)
+
+        # At its neighbours' stroke width since 2026-09-17, not 3.
+        self.assertEqual(
+            set(re.findall(r'stroke-width="([\d.]+)"', svg)), {"3.9"}
+        )
 
 
     def test_designation_reaches_a_mine_entity(self):

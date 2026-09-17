@@ -320,6 +320,17 @@ def bar_mine_svg(colour):
     )
 
 
+# Directional Mine's dash pattern. Was "4,3", which drew as a row of
+# dots: stroke-dasharray is in user units and scale_svg_stroke_width()
+# multiplies only stroke-width, so the legibility pass that took the
+# horns to an effective 5.07 left a 4-unit dash shorter than the line is
+# thick. "the dashed lines look like a series of dots instead of dashes
+# - increase the length of the dashes keeping the horn length same" -
+# found on the Office companion, 2026-09-12; "8,3" picked from six
+# candidates rendered at insertion size, applied here 2026-09-17.
+_DIRECTIONAL_MINE_DASH = "8,3"
+
+
 def directional_mine_svg(colour):
 
     """
@@ -333,7 +344,8 @@ def directional_mine_svg(colour):
     (45/135 degrees) dashed with a second, parallel dashed line of the
     same length alongside it.
 
-    The horn/offset geometry (perpendicular offset, dash pattern "4,3",
+    The horn/offset geometry (perpendicular offset, dash pattern "4,3" (now
+    _DIRECTIONAL_MINE_DASH's "8,3"),
     new line sitting outward - away from the OTHER horn - rather than
     the pair straddling the original's centreline) is not a fresh
     guess: it is recovered from a same-shaped "dashed parallel horns"
@@ -365,18 +377,18 @@ def directional_mine_svg(colour):
 
     top_right = (
         f'<path d="M115.6,84.4 L135.2,64.8" stroke-width="{stroke_width:g}" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'stroke="{colour}" stroke-dasharray="{_DIRECTIONAL_MINE_DASH}" fill="none"></path>'
         f'<path d="M{115.6 + offset:g},{84.4 + offset:g} '
         f'L{135.2 + offset:g},{64.8 + offset:g}" stroke-width="{stroke_width:g}" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'stroke="{colour}" stroke-dasharray="{_DIRECTIONAL_MINE_DASH}" fill="none"></path>'
     )
 
     top_left = (
         f'<path d="M84.4,84.4 L64.8,64.8" stroke-width="{stroke_width:g}" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'stroke="{colour}" stroke-dasharray="{_DIRECTIONAL_MINE_DASH}" fill="none"></path>'
         f'<path d="M{84.4 - offset:g},{84.4 + offset:g} '
         f'L{64.8 - offset:g},{64.8 + offset:g}" stroke-width="{stroke_width:g}" '
-        f'stroke="{colour}" stroke-dasharray="4,3" fill="none"></path>'
+        f'stroke="{colour}" stroke-dasharray="{_DIRECTIONAL_MINE_DASH}" fill="none"></path>'
     )
 
     return (
@@ -1419,6 +1431,11 @@ INFORMATION_WARFARE_ENTITY = "nonnato_information_warfare"
 POSTAL_UNIT_ENTITY = "nonnato_postal_unit"
 INTELLIGENCE_ENTITY = "nonnato_intelligence"
 
+# Control Measure Points' Command Post - on this family's frame too, so
+# it is defined beside it, but offered only on that layer. See
+# render_nonnato_control_measure_svg().
+COMMAND_POST_ENTITY = "nonnato_command_post"
+
 SUPPLIES_TRANSPORT_ENTITY = "nonnato_supplies_transport"
 ORDNANCE_ENTITY = "nonnato_ordnance"
 REMOUNT_VETERINARY_ENTITY = "nonnato_remount_veterinary"
@@ -1436,6 +1453,7 @@ _UNIT_ENTITY_KEY_ALIASES = {
     INFORMATION_WARFARE_ENTITY: "military_police",
     POSTAL_UNIT_ENTITY: "military_police",
     INTELLIGENCE_ENTITY: "military_police",
+    COMMAND_POST_ENTITY: "military_police",
     SUPPLIES_TRANSPORT_ENTITY: "military_police",
     ORDNANCE_ENTITY: "military_police",
     REMOUNT_VETERINARY_ENTITY: "military_police",
@@ -1548,6 +1566,9 @@ _LETTERED_MILITARY_POLICE_ENTITIES = {
     INFORMATION_WARFARE_ENTITY: "IW",
     POSTAL_UNIT_ENTITY: "PO",
     INTELLIGENCE_ENTITY: "I",
+    # 2026-09-17, for Control Measure Points: "Command post - Start with
+    # Military Police, replace "MP" with "CP"".
+    COMMAND_POST_ENTITY: "CP",
 }
 
 
@@ -1965,6 +1986,155 @@ def _expand_viewbox_for_rect(svg, rect_x, rect_y, rect_width, rect_height):
     return svg
 
 
+# --- Echelon markers touch the frame ---------------------------------
+#
+# milsymbol leaves a gap between the echelon amplifier and the frame's
+# top edge - measured off these renders, 4.8 units at Company and above
+# and 7.3 at Section and Platoon, against a frame 100 tall. Decided on
+# the Office companion, 2026-09-16, and carried here 2026-09-17: the
+# marker sits ON the frame. milsymbol wraps the amplifier in
+# `<g transform="translate(0,0)" ...>`, so the whole group moves by
+# rewriting those two numbers; nothing inside it is redrawn or resized.
+#
+# The distance is MEASURED rather than tabulated - Section and Platoon
+# are circles, everything above is strokes - and measured on the
+# FINISHED render, after scale_svg_stroke_width(), because the
+# half-strokes that decide where the ink ends are 2.6 at the final 5.2,
+# not 2 at 4. The viewBox is deliberately left alone, so the symbol
+# keeps its size and registration and gains a little space at the top.
+# Combined Arms gets the shift too - one rule everywhere - so its marker
+# rests on the rectangle's bottom edge rather than centred in the box.
+#
+# This must produce exactly what the Office companion's
+# echelonTouchesFrame() does, character for character: its checker
+# compares the two, so the same measurement and the same number
+# formatting (six significant figures) are used here.
+
+# Any letter is read as a command, so one these markers do not use
+# raises instead of having its numbers read as the previous command's.
+_PATH_TOKEN_PATTERN = re.compile(r"([A-Za-z])|(-?[0-9]*\.?[0-9]+)")
+
+_CIRCLE_BOTTOM_PATTERN = re.compile(
+    r'<circle[^>]*\scy="(-?[\d.]+)"[^>]*\sr="([\d.]+)"'
+)
+
+_STROKE_WIDTH_PATTERN = re.compile(r'stroke-width="([\d.]+)"')
+
+
+def _half_stroke(markup):
+
+    match = _STROKE_WIDTH_PATTERN.search(markup)
+
+    return float(match.group(1)) / 2 if match else 0.0
+
+
+def _lowest_echelon_point(group):
+
+    """
+    The lowest y the echelon group's own geometry reaches, before its
+    stroke, or None if it draws nothing measurable. Paths are walked
+    command by command because milsymbol mixes absolute and relative
+    moves in one `d` ("M17.5,40 l25,-25 m0,25 l-25,-25"). A command
+    outside the ones these markers use raises rather than being
+    skipped, which would silently measure the wrong point.
+    """
+
+    lowest = None
+
+    for d in re.findall(r' d="([^"]*)"', group):
+
+        x = y = 0.0
+        command = ""
+        numbers = []
+
+        for token in _PATH_TOKEN_PATTERN.finditer(d):
+
+            if token.group(1):
+                command = token.group(1)
+                numbers = []
+                continue
+
+            numbers.append(float(token.group(2)))
+
+            if command in ("M", "L"):
+                if len(numbers) == 2:
+                    x, y = numbers
+                    numbers = []
+                else:
+                    continue
+            elif command in ("m", "l"):
+                if len(numbers) == 2:
+                    x += numbers[0]
+                    y += numbers[1]
+                    numbers = []
+                else:
+                    continue
+            elif command in ("H", "h", "V", "v"):
+                value = numbers.pop()
+                if command == "H":
+                    x = value
+                elif command == "h":
+                    x += value
+                elif command == "V":
+                    y = value
+                else:
+                    y += value
+            elif command not in ("Z", "z"):
+                raise ValueError(
+                    f"echelon marker uses an unsupported path command: {command}"
+                )
+
+            if lowest is None or y > lowest:
+                lowest = y
+
+    for circle in _CIRCLE_BOTTOM_PATTERN.finditer(group):
+
+        bottom = float(circle.group(1)) + float(circle.group(2))
+
+        if lowest is None or bottom > lowest:
+            lowest = bottom
+
+    return lowest
+
+
+def seat_echelon_on_frame(svg):
+
+    """
+    Move milsymbol's echelon group down until its lowest ink touches the
+    unit frame's top ink - see the section comment above. A no-op when
+    there is no echelon group (Unspecified) or no unit frame (the
+    frameless Aviation glyphs, the standalone frames), or when the
+    marker already reaches the frame (Detachment's ring does).
+    """
+
+    group = _ECHELON_GROUP_PATTERN.search(svg)
+    frame = _UNIT_FRAME_PATH_PATTERN.search(svg)
+
+    if group is None or frame is None:
+        return svg
+
+    lowest = _lowest_echelon_point(group.group(0))
+
+    if lowest is None:
+        raise ValueError("echelon group has no geometry to measure")
+
+    drop = (
+        (_FRAME_TOP - _half_stroke(frame.group(1)))
+        - (lowest + _half_stroke(group.group(0)))
+    )
+
+    if drop <= 0:
+        return svg
+
+    seated = group.group(0).replace(
+        'transform="translate(0,0)"',
+        f'transform="translate(0,{float(f"{drop:.6g}"):g})"',
+        1,
+    )
+
+    return svg[: group.start()] + seated + svg[group.end():]
+
+
 def apply_nonnato_unit_fixups(svg, entity, echelon):
 
     """
@@ -2084,7 +2254,10 @@ def render_nonnato_unit_svg(
             svg, combined_arms_rect_svg(echelon, combined_arms_colour)
         )
 
-    return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+    # Last, on the finished render - see seat_echelon_on_frame().
+    return seat_echelon_on_frame(
+        scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+    )
 
 
 # --- Land Equipment (also holds SIGINT, merged in 2026-09-02) ----------
@@ -4281,6 +4454,26 @@ def booby_trap_control_measure_svg(colour=MINE_GREEN):
     )
 
 
+def render_nonnato_booby_trap_svg():
+
+    """
+    Booby Trap as the Mines and Obstacles layer draws it: the shape
+    above at the plugin-wide stroke scale. Until 2026-09-17 the layer's
+    expression base64'd booby_trap_control_measure_svg() directly and so
+    skipped scale_svg_stroke_width() - stroke-width 3 where every
+    neighbour on the layer, Antitank Mine Booby Trapped's identical
+    horns included, draws at 3.9. Spotted on the Office companion's
+    render sheet, 2026-09-12: "render it at same stroke width as other
+    and record it for the main fork also". Scaled here rather than
+    inside booby_trap_control_measure_svg(), which Land Unit's Ordnance
+    shares the marks of and which stays layer-agnostic.
+    """
+
+    return scale_svg_stroke_width(
+        booby_trap_control_measure_svg(), DEFAULT_STROKE_SCALE
+    )
+
+
 def apply_pillbox_fixup(svg):
 
     """
@@ -4332,3 +4525,192 @@ def render_nonnato_pillbox_svg(affiliation, status="present", designation=None):
     svg = apply_pillbox_fixup(render_symbol_svg(sidc, options or None))
 
     return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+
+
+# --- Control Measure Points -------------------------------------------
+#
+# One render function for the whole layer since 2026-09-17, when three
+# entities arrived that milsymbol does not draw as asked and six more
+# changed colour. Everything that was already right is produced exactly
+# as before - the plain milsymbol render at the plugin-wide stroke
+# scale, and Pill Box through render_nonnato_pillbox_svg() above.
+
+# Six take the scheme's affiliation palette instead of milsymbol's
+# tactical-point colouring (black, and pure red for Hostile), which read
+# as uncoloured beside every other layer. Decided on the Office
+# companion 2026-09-15, narrowed to these six 2026-09-16, applied here
+# 2026-09-17. Fort, Pill Box and both Shelters keep milsymbol's colours.
+# Only the two colours milsymbol emits here are swapped, on stroke and
+# fill; "none" is left alone. The affiliation still goes into the SIDC.
+CONTROL_MEASURE_PALETTE_ENTITIES = frozenset({
+    "decision_point",
+    "impact_point",
+    "observation_post",
+    "observation_post_forward_observer",
+    "point_of_interest",
+    "target_reference_point",
+})
+
+_MILSYMBOL_POINT_COLOUR_PATTERN = re.compile(
+    r'(stroke|fill)="(?:black|rgb\(255, 0, 0\))"'
+)
+
+# milsymbol's own tactical-point colours, for the drawings below that
+# sit beside Fort, Pill Box and the Shelters and so follow them.
+_MILSYMBOL_POINT_COLOUR = "black"
+_MILSYMBOL_HOSTILE_POINT_COLOUR = "rgb(255, 0, 0)"
+
+NBC_SHELTER_ENTITY = "nonnato_nbc_shelter"
+FIRE_TRENCH_ENTITY = "nonnato_fire_trench"
+
+# "NBC Shelter - Use shelter below ground, change it to hollow square,
+# add default unique designation right as "NBC"". Drawn whenever the
+# feature's own designation is empty; a typed one replaces it.
+NBC_SHELTER_DEFAULT_DESIGNATION = "NBC"
+
+# "Fire trench/ Weapon Pit/ Weapon Emplacement - use a hollow
+# rectangle, no bottom line". Twice as wide as tall, centred where the
+# Shelters' square is, and wider than it (70) so it reads as a
+# rectangle rather than a square. Drawn at the stroke milsymbol gives
+# its neighbours before scaling (3), so it lands on the same 3.9.
+_FIRE_TRENCH_WIDTH = 90
+_FIRE_TRENCH_HEIGHT = 45
+_FIRE_TRENCH_STROKE_WIDTH = 3
+
+# Both designations on this layer that the plugin places itself sit to
+# the RIGHT of the glyph, vertically centred on it - Land Unit's own
+# right-designation mechanism. Every glyph here is centred on y=100.
+_CONTROL_MEASURE_CENTRE_Y = 100
+
+
+def _milsymbol_point_colour(affiliation):
+
+    return (
+        _MILSYMBOL_HOSTILE_POINT_COLOUR if affiliation == "hostile"
+        else _MILSYMBOL_POINT_COLOUR
+    )
+
+
+def recolour_to_affiliation_palette(svg, affiliation):
+
+    """Swap milsymbol's two tactical-point colours for the scheme's affiliation colour - see CONTROL_MEASURE_PALETTE_ENTITIES."""
+
+    colour = AFFILIATION_COLOURS.get(affiliation, AFFILIATION_COLOURS["friend"])
+
+    return _MILSYMBOL_POINT_COLOUR_PATTERN.sub(
+        lambda match: f'{match.group(1)}="{colour}"', svg
+    )
+
+
+def fire_trench_svg(colour):
+
+    """Fire Trench/Weapon Pit/Weapon Emplacement - three sides of a rectangle, open at the bottom."""
+
+    left = 100 - _FIRE_TRENCH_WIDTH / 2
+    right = 100 + _FIRE_TRENCH_WIDTH / 2
+    top = _CONTROL_MEASURE_CENTRE_Y - _FIRE_TRENCH_HEIGHT / 2
+    bottom = _CONTROL_MEASURE_CENTRE_Y + _FIRE_TRENCH_HEIGHT / 2
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="46 46 108 108">'
+        f'<path d="M{left:g},{bottom:g} L{left:g},{top:g} '
+        f'L{right:g},{top:g} L{right:g},{bottom:g}" '
+        f'stroke-width="{_FIRE_TRENCH_STROKE_WIDTH:g}" stroke="{colour}" '
+        'fill="none"></path>'
+        '</svg>'
+    )
+
+
+def render_nonnato_control_measure_svg(
+    affiliation, entity, status="present", designation=None,
+    default_designation=True,
+):
+
+    """
+    The full Control Measure Points (Non-NATO) render, as one SVG
+    string. `affiliation` is one of the four real standard identities
+    and, unlike the unit layers, goes into the SIDC as well as choosing
+    a colour.
+
+    - Pill Box: render_nonnato_pillbox_svg(), unchanged.
+    - Command Post: Military Police relettered "CP", through the Land
+      Unit pipeline, so its frame dashes for Planned like any unit. The
+      designation goes to the right of the frame.
+    - NBC Shelter: Shelter Below Ground, hollow, with its designation to
+      the right - "NBC" unless one is typed. `default_designation=False`
+      leaves the default out, for the size stabiliser's "plain" width:
+      the glyph without text is what has to hold its size.
+    - Fire Trench/Weapon Pit/Weapon Emplacement: drawn here; milsymbol
+      has no such symbol. Status has no effect on it, as on the Shelters
+      beside it, which milsymbol draws solid either way.
+    - Every other entity: the plain milsymbol render with milsymbol's
+      own designation slot, recoloured if it is one of the six in
+      CONTROL_MEASURE_PALETTE_ENTITIES.
+    """
+
+    designation = str(designation).upper() if designation else ""
+
+    if entity == "shelter":
+        return render_nonnato_pillbox_svg(
+            affiliation, status=status, designation=designation or None
+        )
+
+    if entity == COMMAND_POST_ENTITY:
+        return render_nonnato_unit_svg(
+            affiliation,
+            COMMAND_POST_ENTITY,
+            status=status,
+            designation_right=designation or None,
+        )
+
+    if entity == FIRE_TRENCH_ENTITY:
+
+        colour = _milsymbol_point_colour(affiliation)
+
+        svg = inject_side_designations(
+            fire_trench_svg(colour), None, designation, colour,
+            centre_y=_CONTROL_MEASURE_CENTRE_Y,
+        )
+
+        return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+
+    sidc = build_sidc(
+        affiliation=affiliation,
+        entity=(
+            "shelter_below_ground" if entity == NBC_SHELTER_ENTITY else entity
+        ),
+        symbol_set="control_measure",
+        echelon="unspecified",
+        status=status,
+        headquarters=False,
+        edition="2525E",
+    )
+
+    if entity == NBC_SHELTER_ENTITY:
+
+        # Shelter Below Ground is one path with milsymbol's fill baked
+        # in, exactly as Pill Box's is - so the same "first fill wins"
+        # replace makes it hollow.
+        svg = inject_side_designations(
+            apply_pillbox_fixup(render_symbol_svg(sidc, None)),
+            None,
+            designation or (
+                NBC_SHELTER_DEFAULT_DESIGNATION if default_designation else None
+            ),
+            _milsymbol_point_colour(affiliation),
+            centre_y=_CONTROL_MEASURE_CENTRE_Y,
+        )
+
+        return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+
+    options = {"uniqueDesignation": designation} if designation else None
+
+    svg = scale_svg_stroke_width(
+        render_symbol_svg(sidc, options), DEFAULT_STROKE_SCALE
+    )
+
+    if entity in CONTROL_MEASURE_PALETTE_ENTITIES:
+        svg = recolour_to_affiliation_palette(svg, affiliation)
+
+    return svg

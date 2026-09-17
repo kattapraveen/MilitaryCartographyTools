@@ -12112,6 +12112,9 @@ circle's edge exactly as now.
 line has since been thickened has the same latent problem, for the same
 reason — a dash pattern does not follow the stroke scale.
 
+**Applied here 2026-09-17** (`_DIRECTIONAL_MINE_DASH`) - see that
+day's entry below.
+
 **The Office companion has NOT applied this**, deliberately. Its whole
 guarantee is that it reproduces this plugin byte for byte, and it takes
 this icon's markup from here, so it will pick the change up on its next
@@ -12153,6 +12156,9 @@ the render function layer-agnostic, which it currently is. Note that
 still-valid reason (it carries no designation, so it needs no
 stabilisation ratio); that one should stay.
 
+**Applied here 2026-09-17** (`render_nonnato_booby_trap_svg()`) - see
+that day's entry below.
+
 **The Office companion HAS applied this one**, at the maintainer's
 instruction 2026-09-12: "render it at same stroke width as other and
 record it for the main fork also". It is that project's first
@@ -12165,7 +12171,8 @@ comes out when this is fixed here.
 ## Control Measure Points: six should use the affiliation palette (2026-09-15)
 
 A maintainer decision made on the Office companion, to be carried into
-this plugin — **not yet applied here**.
+this plugin — **not yet applied here** at the time. **Applied
+2026-09-17**, to the six only - see that day's entry below.
 
 Every other non-NATO point layer colours its symbols from
 `AFFILIATION_COLOURS` in `military_symbology/nonnato_symbol_engine.py`
@@ -12215,7 +12222,8 @@ comes out once this plugin draws them the same way.
 ## Echelon markers stand off the frame (2026-09-16)
 
 A maintainer decision made on the Office companion, to be carried into
-this plugin - **not yet applied here**.
+this plugin - **not yet applied here** at the time. **Applied
+2026-09-17** (`seat_echelon_on_frame()`) - see that day's entry below.
 
 Every echelon amplifier is drawn by milsymbol above the unit frame with
 a gap between the two: measured off the plugin's own renders, about
@@ -12256,6 +12264,98 @@ checker measures the shift independently from this plugin's own render
 and compares character for character, so the two implementations
 disagreeing by a rounding step would fail rather than ship. The
 declaration comes out once this plugin draws them the same way.
+
+## Non-NATO: one button per layer, three new Control Measure Points, and the Office companion's findings applied (2026-09-17)
+
+Branch `non-nato-symbology` only.
+
+**Land split in two.** "Since we have all layers with single set of
+symbols in them - remove the Land layer and recreate it as Land Units
+layer and Land Equipment Layer". The bundled "Land" action and
+`military_symbology/nonnato_layers.py` are gone; "Land Units" and "Land
+Equipment" are separate entries in the Non-NATO Symbols group, each with
+its own icon (a unit frame with a Company bar; Armoured Protected
+Vehicle's stadium). The layers and their names are unchanged. A test
+triggers each button and checks it adds exactly its own layer.
+
+**Control Measure Points: 10 -> 13 entities.**
+- **NBC Shelter** - "Use shelter below ground, change it to hollow
+  square, add default unique designation right as "NBC"".
+- **Command Post** - "Start with Military Police, replace "MP" with
+  "CP"".
+- **Fire Trench/Weapon Pit/Weapon Emplacement** - "use a hollow
+  rectangle, no bottom line".
+
+Details, and the colour choices made for them, are in the tracker's
+2026-09-17 Part D entry. The layer now renders every entity through one
+function, `render_nonnato_control_measure_svg()` /
+`mct_nonnato_control_measure_svg()` (+ `_width`), replacing the Pill
+Box-only pair; Fort, Pill Box and both Shelters are tested byte-for-byte
+against the pipeline they used before.
+
+**The four findings recorded from the Office companion, applied** at the
+maintainer's instruction ("Check the readme for changes suggested by the
+MS Office fork"):
+1. **Six Control Measure Points in the affiliation palette** (entry of
+   2026-09-15) - only milsymbol's `black` and `rgb(255, 0, 0)` are
+   swapped, on stroke and fill, the same swap the companion makes.
+2. **Echelon markers touch the frame** (2026-09-16) -
+   `seat_echelon_on_frame()`, the last step of `render_nonnato_unit_svg()`,
+   so Land Unit and Aviation both get it. Measured, not tabulated, on the
+   finished render; the viewBox is left alone; Combined Arms shifts too.
+   The measured drops are exactly the companion's: 4.8 at Company and
+   above, 7.3 at Section and Platoon. Number formatting follows its
+   six-significant-figure rule so the two agree character for character.
+3. **Booby Trap at its neighbours' stroke width** (2026-09-12) -
+   `render_nonnato_booby_trap_svg()` applies the stroke scale; the shared
+   `booby_trap_control_measure_svg()` stays unscaled for Ordnance.
+4. **Directional Mine dashes "8,3"** (2026-09-12) -
+   `_DIRECTIONAL_MINE_DASH`. On that entry's "worth checking" note: the
+   only other non-NATO dash patterns are Bar Mine's (already "8,3") and
+   the unit frame's Planned "8,12"; neither was changed.
+
+The Combined Arms on frameless Aviation entry (2026-09-12) was left
+alone: the maintainer ruled it not a defect.
+
+**Verification:** 1883/1883 on QGIS 4.2.2 and 3.44.12.
+
+### For the Office companion
+
+Standing rule from 2026-09-17: "any new symbols we make - mark it for
+the fork of office plugin to add them also". To pick up on the next
+dump:
+
+**New entities** - all on Control Measure Points, all rendered by
+`nonnato_symbol_engine.render_nonnato_control_measure_svg(affiliation,
+entity, status, designation, default_designation=True)`:
+
+| Key | Label | Built from |
+| --- | --- | --- |
+| `nonnato_command_post` | Command Post | `render_nonnato_unit_svg()` on Military Police, "MP" -> "CP" (`_LETTERED_MILITARY_POLICE_ENTITIES`); designation right of the frame; palette colour; Planned dashes the frame |
+| `nonnato_nbc_shelter` | NBC Shelter | `shelter_below_ground` SIDC, `apply_pillbox_fixup()` for the hollow, then `inject_side_designations()` with the typed designation or "NBC"; milsymbol's black/red |
+| `nonnato_fire_trench` | Fire Trench/Weapon Pit/Weapon Emplacement | `fire_trench_svg()`, no SIDC; designation via `inject_side_designations()`; black/red; status has no effect |
+
+The layer's size stabiliser uses
+`mct_nonnato_control_measure_svg_width(..., '', false)` for the plain
+width, so NBC Shelter's default text does not shrink the glyph - the
+pane needs the same, or its NBC Shelter will insert smaller than its
+neighbours.
+
+**Declarations that can come out**, since this plugin now draws the same
+thing: `booby_trap: "stroke_scale"`, the six `"affiliation_colour"`
+entries, and the `unit` pipeline's `"echelon_touches_frame"`. Directional
+Mine needs nothing - its markup comes from here.
+
+**Names the companion's dump uses that changed:**
+`render_nonnato_pillbox_svg()` still exists, but Control Measure Points
+as a whole now goes through `render_nonnato_control_measure_svg()`;
+Booby Trap's layer render is `render_nonnato_booby_trap_svg()`, not
+`booby_trap_control_measure_svg()`; and the `mct_nonnato_pillbox_svg`
+expression functions are replaced by `mct_nonnato_control_measure_svg`.
+The Land split is toolbar-only - the companion already offers the two
+layers separately.
+
+---
 
 ## Suggested near-term order
 

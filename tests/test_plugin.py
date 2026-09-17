@@ -143,7 +143,10 @@ class TestPluginLifecycle(QgisTestCase):
                 # Land Unit and adding six mast-carrying entities of its
                 # own.
                 "non_nato_symbols": [
-                    "Land",
+                    # One entry per layer since 2026-09-17 - "Land"
+                    # used to add both of these together.
+                    "Land Units",
+                    "Land Equipment",
                     "Control Measure Points",
                     "Mines and Obstacles",
                     # Built 2026-09-09, but missing from this list -
@@ -270,7 +273,8 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_activities_action)
         self.assertIsNone(plugin.tactical_graphics_sigint_action)
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
-        self.assertIsNone(plugin.nonnato_land_action)
+        self.assertIsNone(plugin.nonnato_land_units_action)
+        self.assertIsNone(plugin.nonnato_land_equipment_action)
         self.assertIsNone(plugin.nonnato_control_measure_points_action)
         self.assertIsNone(plugin.nonnato_mines_and_obstacles_action)
         self.assertIsNone(plugin.nonnato_mines_and_obstacles_lines_action)
@@ -306,6 +310,54 @@ class TestPluginLifecycle(QgisTestCase):
         plugin.unload()
         plugin.initGui()
         plugin.unload()
+
+
+class TestNonnatoLandButtons(QgisTestCase):
+
+    """
+    "Land Units" and "Land Equipment" each add their own layer, and only
+    that one - they replaced a single "Land" button that added both,
+    2026-09-17.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+
+        self.plugin, self.iface, self.window, self.canvas = make_plugin()
+
+        self.plugin.initGui()
+
+        self.addCleanup(self.plugin.unload)
+
+
+    def _layer_names(self):
+
+        return sorted(
+            layer.name() for layer in QgsProject.instance().mapLayers().values()
+        )
+
+
+    def test_land_units_adds_only_the_land_unit_layer(self):
+
+        self.plugin.nonnato_land_units_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Land Unit (Non-NATO)"])
+
+
+    def test_land_equipment_adds_only_the_land_equipment_layer(self):
+
+        self.plugin.nonnato_land_equipment_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Land Equipment (Non-NATO)"])
+
+
+    def test_the_bundled_land_button_is_gone(self):
+
+        self.assertFalse(hasattr(self.plugin, "nonnato_land_action"))
+        self.assertFalse(hasattr(self.plugin, "create_nonnato_land"))
 
 
 class TestUserGuide(QgisTestCase):

@@ -22,9 +22,9 @@ import re
 from qgis.core import QgsExpression, qgsfunction
 
 from ..military_symbology.nonnato_symbol_engine import (
-    booby_trap_control_measure_svg,
+    render_nonnato_booby_trap_svg,
+    render_nonnato_control_measure_svg,
     render_nonnato_equipment_svg,
-    render_nonnato_pillbox_svg,
     render_nonnato_unit_svg,
 )
 
@@ -289,49 +289,66 @@ def mct_nonnato_booby_trap_svg(values, feature=None, parent=None):
     other mine-family icon's own convention.
     """
 
-    svg = booby_trap_control_measure_svg()
+    svg = render_nonnato_booby_trap_svg()
 
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
     return "base64:" + encoded
 
 
-def _render_pillbox(values):
+def _render_control_measure(values):
 
-    """Shared argument parsing for mct_nonnato_pillbox_svg()/_width() - see _render_unit()'s own docstring for why this is factored out."""
+    """
+    Shared argument parsing for mct_nonnato_control_measure_svg()/_width()
+    - see _render_unit()'s own docstring for why this is factored out.
+    """
 
-    if len(values) < 1:
-        return None, "Need at least an affiliation"
+    if len(values) < 2:
+        return None, "Need at least an affiliation and an entity"
 
     affiliation = str(values[0])
-    status = str(values[1]) if len(values) > 1 and values[1] else "present"
-    designation = values[2] if len(values) > 2 else None
+    entity = str(values[1])
+    status = str(values[2]) if len(values) > 2 and values[2] else "present"
+    designation = values[3] if len(values) > 3 else None
 
-    svg = render_nonnato_pillbox_svg(
-        affiliation, status=status, designation=designation
-    )
+    # The width function's own fifth argument - see
+    # render_nonnato_control_measure_svg()'s default_designation.
+    default_designation = bool(values[4]) if len(values) > 4 else True
+
+    try:
+
+        svg = render_nonnato_control_measure_svg(
+            affiliation,
+            entity,
+            status=status,
+            designation=designation,
+            default_designation=default_designation,
+        )
+
+    except KeyError as error:
+
+        return None, str(error)
 
     return svg, None
 
 
 @qgsfunction(
-    'mct_nonnato_pillbox_svg',
+    'mct_nonnato_control_measure_svg',
     group='Military Cartography Tools'
 )
-def mct_nonnato_pillbox_svg(values, feature=None, parent=None):
+def mct_nonnato_control_measure_svg(values, feature=None, parent=None):
 
     """
-    "base64:<...>" for the Control Measure Point's own Pill Box
-    (`shelter`) - branched out to its own function purely for
-    apply_pillbox_fixup() (see render_nonnato_pillbox_svg()'s own
-    docstring): every other Control Measure Point entity still goes
-    straight through the plain mct_sidc_svg() pipeline.
+    "base64:<...>" for any Control Measure Points (Non-NATO) entity - see
+    render_nonnato_control_measure_svg(). Replaced the Pill Box-only
+    function 2026-09-17, when the layer gained three drawings of its own
+    and six entities changed colour.
 
-    Arguments, the first required: affiliation, status (default
-    "present"), designation (default none).
+    Arguments, the first two required: affiliation, entity, status
+    (default "present"), designation (default none).
     """
 
-    svg, error = _render_pillbox(values)
+    svg, error = _render_control_measure(values)
 
     if error is not None:
         return error
@@ -342,14 +359,20 @@ def mct_nonnato_pillbox_svg(values, feature=None, parent=None):
 
 
 @qgsfunction(
-    'mct_nonnato_pillbox_svg_width',
+    'mct_nonnato_control_measure_svg_width',
     group='Military Cartography Tools'
 )
-def mct_nonnato_pillbox_svg_width(values, feature=None, parent=None):
+def mct_nonnato_control_measure_svg_width(values, feature=None, parent=None):
 
-    """The rendered WIDTH of exactly the symbol mct_nonnato_pillbox_svg() would return - see mct_nonnato_unit_svg_width()'s own docstring for the full reasoning behind this pairing."""
+    """
+    The rendered WIDTH of exactly the symbol mct_nonnato_control_measure_
+    svg() would return - see mct_nonnato_unit_svg_width()'s own docstring
+    for the full reasoning behind this pairing. An optional fifth
+    argument, false, leaves out NBC Shelter's default "NBC", for the
+    stabiliser's plain width.
+    """
 
-    svg, error = _render_pillbox(values)
+    svg, error = _render_control_measure(values)
 
     if error is not None:
         return 0.0
@@ -363,8 +386,8 @@ _FUNCTIONS = [
     mct_nonnato_equipment_svg,
     mct_nonnato_equipment_svg_width,
     mct_nonnato_booby_trap_svg,
-    mct_nonnato_pillbox_svg,
-    mct_nonnato_pillbox_svg_width,
+    mct_nonnato_control_measure_svg,
+    mct_nonnato_control_measure_svg_width,
 ]
 
 

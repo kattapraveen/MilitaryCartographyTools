@@ -41,9 +41,9 @@ The `bridge` entity moved OUT 2026-09-09 to Mines and Obstacles, with
 the three demolition variants built on it - "shift all bridges to mines
 and obstacles".
 
-Reachable via the "Land" entry in the toolbar's "Non-NATO Symbols"
-group (see plugin.py), or directly via
-add_land_equipment_layer_nonnato(iface).
+Reachable via its own "Land Equipment" entry in the toolbar's "Non-NATO
+Symbols" group (see plugin.py) - split out of the bundled "Land" entry
+2026-09-17 - or directly via add_land_equipment_layer_nonnato(iface).
 
 Military Cartography Tools
 """

@@ -2,11 +2,11 @@
 
 """
 Tests for military_symbology/control_measure_points_layer_nonnato.py -
-the "Control Measure Points (Non-NATO)" layer. Unlike Land Unit/Land
-Equipment/SIGINT, nine of its ten entities render through the plain
-existing mct_sidc_svg()/mct_build_sidc() pipeline (no non-NATO-specific
-colour treatment - see the rules record's Part C); Pill Box gets its
-own custom rendering (see nonnato_symbol_engine.py). Booby Trap moved
+the "Control Measure Points (Non-NATO)" layer. Every entity renders
+through mct_nonnato_control_measure_svg() since 2026-09-17; what each
+one gets is tested in test_nonnato_symbol_engine.py's
+TestControlMeasurePoints, and here only that the layer wires it up.
+Booby Trap moved
 out to its own "Mines and Obstacles (Non-NATO)" layer 2026-09-03 - see
 test_mines_and_obstacles_layer_nonnato.py.
 
@@ -14,6 +14,7 @@ Military Cartography Tools
 """
 
 import base64
+import re
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
@@ -37,8 +38,15 @@ from MilitaryCartographyTools.military_symbology.control_measure_points_layer_no
     PILLBOX_ENTITY,
     LAYER_NAME,
     ENTITY_LABELS,
+    SYNTHETIC_ENTITIES,
     add_control_measure_points_layer_nonnato,
     build_control_measure_points_layer_nonnato,
+)
+from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
+    AFFILIATION_COLOURS,
+    COMMAND_POST_ENTITY,
+    FIRE_TRENCH_ENTITY,
+    NBC_SHELTER_ENTITY,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
     build_sidc,
@@ -55,7 +63,7 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
         real_keys = entities_for_edition("2525E")["control_measure"]
 
-        for key in ENTITY_LABELS:
+        for key in set(ENTITY_LABELS) - SYNTHETIC_ENTITIES:
 
             with self.subTest(entity=key):
 
@@ -64,10 +72,24 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
     def test_count_matches_the_reviewed_list(self):
 
-        # 10 of 241 - Booby Trap moved out to Mines and Obstacles
-        # 2026-09-03 (was 11) - see the rules record's "Control Measure
-        # Points" section.
-        self.assertEqual(len(ENTITY_LABELS), 10)
+        # 10 of 241 real entities - Booby Trap moved out to Mines and
+        # Obstacles 2026-09-03 (was 11) - plus three drawn by the engine,
+        # added 2026-09-17.
+        self.assertEqual(len(ENTITY_LABELS), 13)
+        self.assertEqual(
+            SYNTHETIC_ENTITIES,
+            {COMMAND_POST_ENTITY, FIRE_TRENCH_ENTITY, NBC_SHELTER_ENTITY},
+        )
+
+
+    def test_the_three_added_entities_are_named_as_asked(self):
+
+        self.assertEqual(ENTITY_LABELS[COMMAND_POST_ENTITY], "Command Post")
+        self.assertEqual(ENTITY_LABELS[NBC_SHELTER_ENTITY], "NBC Shelter")
+        self.assertEqual(
+            ENTITY_LABELS[FIRE_TRENCH_ENTITY],
+            "Fire Trench/Weapon Pit/Weapon Emplacement",
+        )
 
 
     def test_booby_trap_is_gone(self):
@@ -239,14 +261,9 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
 
     def test_pillbox_size_is_stable_regardless_of_designation(self):
 
-        # Same size-stabilisation MACHINERY as Land Unit/Equipment/
-        # SIGINT, wired up here too since Pill Box branched off the
-        # plain mct_sidc_svg() pipeline (which already had it) onto its
-        # own mct_nonnato_pillbox_svg() function - but `shelter` defines
-        # no designation slot at all (see mct_nonnato_pillbox_svg()'s
-        # own test of this), so the ratio always comes out as 1 and the
-        # rendered size is simply identical either way, unlike the
-        # other three layers' own version of this test.
+        # `shelter` defines no designation slot at all, so the
+        # stabilisation ratio always comes out as 1 and the size is
+        # simply identical either way.
         layer = build_control_measure_points_layer_nonnato()
 
         without_designation = self._render_size_for(
@@ -267,13 +284,53 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
         self.assertAlmostEqual(without_designation, with_designation, places=3)
 
 
-    def test_every_other_entity_uses_the_real_nato_affiliation_colours(self):
+    def _glyph_scale(self, layer, attributes):
+
+        # Marker size per unit of viewBox width - how big the glyph
+        # itself draws, whatever text widens the box.
+        svg = self._decoded_svg_for(layer, attributes)
+        width = float(re.search(r'viewBox="\S+ \S+ (\S+) \S+"', svg).group(1))
+
+        return self._render_size_for(layer, attributes) / width
+
+
+    def test_a_typed_designation_does_not_shrink_command_post(self):
 
         layer = build_control_measure_points_layer_nonnato()
 
-        # NATO's own four-colour scheme (H.5.3), NOT the six-colour
-        # non-NATO palette - Part C's own settled "no non-NATO-specific
-        # treatment" rule.
+        plain = {
+            "affiliation": "friend", "entity": COMMAND_POST_ENTITY,
+            "status": "present", "unique_designation": "",
+        }
+
+        self.assertAlmostEqual(
+            self._glyph_scale(layer, plain),
+            self._glyph_scale(layer, dict(plain, unique_designation="HQ 3")),
+            places=5,
+        )
+
+
+    def test_nbc_shelters_default_text_does_not_shrink_it(self):
+
+        # The glyph draws as big as its neighbour Shelter Below Ground's.
+        layer = build_control_measure_points_layer_nonnato()
+
+        nbc = {
+            "affiliation": "friend", "entity": NBC_SHELTER_ENTITY,
+            "status": "present",
+        }
+
+        self.assertAlmostEqual(
+            self._glyph_scale(layer, nbc),
+            self._glyph_scale(layer, dict(nbc, entity="shelter_below_ground")),
+            places=5,
+        )
+
+
+    def test_the_six_palette_entities_take_the_affiliation_colour(self):
+
+        layer = build_control_measure_points_layer_nonnato()
+
         for affiliation in ("friend", "hostile"):
 
             with self.subTest(affiliation=affiliation):
@@ -286,7 +343,17 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
                     },
                 )
 
-                self.assertTrue(svg.startswith("<svg"))
+                self.assertIn(AFFILIATION_COLOURS[affiliation], svg)
+
+
+    def test_a_feature_with_null_fields_still_draws(self):
+
+        # A pasted feature arrives without the form's defaults.
+        layer = build_control_measure_points_layer_nonnato()
+
+        svg = self._decoded_svg_for(layer, {"entity": FIRE_TRENCH_ENTITY})
+
+        self.assertTrue(svg.startswith("<svg"))
 
 
     def test_designation_reaches_a_plain_milsymbol_entity(self):
@@ -306,7 +373,7 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
 
     def test_entity_keys_match_a_real_control_measure_sidc(self):
 
-        for entity in ENTITY_LABELS:
+        for entity in set(ENTITY_LABELS) - SYNTHETIC_ENTITIES:
 
             with self.subTest(entity=entity):
 

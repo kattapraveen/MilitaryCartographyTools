@@ -3,41 +3,42 @@
 """
 Builds the "Control Measure Points (Non-NATO)" point layer.
 
-Structurally different from every other non-NATO layer in this branch:
-Part C's own settled mechanism note - "affiliation is coded the same
-way as NATO... no non-NATO-specific treatment needed for that part" -
-means nine of these ten entities get NO new rendering logic at all.
-They render through the exact same mct_sidc_svg()/mct_build_sidc()
-pipeline every other NATO control-measure-points layer already uses
-(see field_fortification.py's own points layer for the closest
-precedent), with milsymbol's own real 4-value affiliation colouring
-and no monoColor override - not the six-colour non-NATO palette
-Land Unit/Land Equipment/SIGINT use.
+The affiliation here is one of the four real standard identities and
+goes into the SIDC, as on NATO's own control-measure points - Part C's
+"affiliation is coded the same way as NATO". Every entity renders
+through one function, nonnato_symbol_engine.render_nonnato_control_
+measure_svg(), whose docstring says what each gets:
 
-Pill Box is the one exception: it still goes through milsymbol but
-needs its own hollow-fill fixup (see apply_pillbox_fixup()'s own
-docstring - milsymbol's own `fill: false` option does nothing for it,
-confirmed live). Selected by a CASE in the renderer expression exactly
-the way obstacle_control_measures.py already branches Trip Wire/Abatis
-onto their own custom shapes alongside plain milsymbol entities on the
-same layer.
+- Decision Point, Impact Point, Observation Post, Artillery Observation
+  Post, Point Of Interest and Target/DF Task: milsymbol's render in the
+  scheme's affiliation palette (since 2026-09-17 - decided on the Office
+  companion 2026-09-15/16), where they used to be milsymbol's black and
+  red.
+- Fort, Shelter Above Ground and Shelter Below Ground: milsymbol's
+  render, its own colours.
+- Pill Box: the same, forced hollow (apply_pillbox_fixup()).
+- Added 2026-09-17: Command Post (Military Police relettered "CP"), NBC
+  Shelter (Shelter Below Ground, hollow, "NBC" to its right unless a
+  designation is typed) and Fire Trench/Weapon Pit/Weapon Emplacement
+  (a rectangle open at the bottom, drawn by the engine).
 
-Booby Trap (`booby_trap`) - the other custom-icon exception this layer
-used to carry - moved OUT 2026-09-03 to its own "Mines and Obstacles
-(Non-NATO)" layer, alongside the mine family that moved out of Land
-Equipment the same day: "let's move all the mines to a different
-layer - say mines and obstacles; shift booby trap also into this new
-layer". See mines_and_obstacles_layer_nonnato.py -
-nonnato_symbol_engine.booby_trap_control_measure_svg() itself is
-unchanged, only which layer offers it changed.
+Until 2026-09-17 nine entities went through the NATO layers' own
+mct_sidc_svg()/mct_build_sidc() expression and Pill Box through its own
+function. That split could not carry three new drawings and a palette,
+so it became one function; the entities it did not change render
+byte-for-byte as before (tested).
+
+Booby Trap (`booby_trap`) moved OUT 2026-09-03 to "Mines and Obstacles
+(Non-NATO)", alongside the mine family - see
+mines_and_obstacles_layer_nonnato.py.
 
 Required entities and renames - see the rules record's "Control
 Measure Points" section: `target_reference_point` -> Target/DF Task
 (renamed again 2026-09-03, from plain "Target"), `shelter` -> Pill Box,
 `observation_post_forward_observer` -> Artillery Observation Post. No
 echelon/headquarters field - Appendix H's own amplifier table gives
-control-measure points neither, same as every other Points layer built
-from this table.
+control-measure points neither, and Command Post's frame takes none
+either.
 
 Reachable via its own "Control Measure Points" entry in the toolbar's
 "Non-NATO Symbols" group (see plugin.py), or directly via
@@ -67,9 +68,13 @@ from ._control_measure_shared import (
     _value_map,
     add_layer_if_absent,
     configure_rotation_and_scale_fields,
-    stabilised_point_size_expression,
 )
-from .nonnato_symbol_engine import stabilised_nonnato_size_expression
+from .nonnato_symbol_engine import (
+    COMMAND_POST_ENTITY,
+    FIRE_TRENCH_ENTITY,
+    NBC_SHELTER_ENTITY,
+    stabilised_nonnato_size_expression,
+)
 
 
 LAYER_NAME = "Control Measure Points (Non-NATO)"
@@ -78,18 +83,18 @@ MARKER_SIZE_MM = 8.0
 
 PILLBOX_ENTITY = "shelter"
 
-# The ten required entities - see this module's own docstring and
-# the rules record's "Control Measure Points" section. Keys are
-# sidc.py's own ENTITIES["control_measure"] keys, unchanged (real 2525E
-# entities, confirmed to exist under that edition and to render as real
-# glyphs - not the unknown-icon fallback - before this module was
-# written). Only three get a renamed display label. Booby Trap
-# (`booby_trap`) moved out to its own layer 2026-09-03 - see this
-# module's own docstring.
+# The thirteen entities. Real keys are sidc.py's own
+# ENTITIES["control_measure"] keys, unchanged; the three added
+# 2026-09-17 are the engine's own synthetic keys (see this module's
+# docstring). Booby Trap (`booby_trap`) moved out to its own layer
+# 2026-09-03.
 ENTITY_LABELS = {
+    COMMAND_POST_ENTITY: "Command Post",
     "decision_point": "Decision Point",
+    FIRE_TRENCH_ENTITY: "Fire Trench/Weapon Pit/Weapon Emplacement",
     "fort": "Fort",
     "impact_point": "Impact Point",
+    NBC_SHELTER_ENTITY: "NBC Shelter",
     "observation_post": "Observation Post",
     "observation_post_forward_observer": "Artillery Observation Post",
     "point_of_interest": "Point Of Interest",
@@ -99,67 +104,38 @@ ENTITY_LABELS = {
     "target_reference_point": "Target/DF Task",
 }
 
+SYNTHETIC_ENTITIES = frozenset({
+    COMMAND_POST_ENTITY, FIRE_TRENCH_ENTITY, NBC_SHELTER_ENTITY,
+})
+
 DEFAULT_ENTITY = "decision_point"
 
-# The plain milsymbol path nine of this layer's ten entities use - the
-# exact same mct_sidc_svg(mct_build_sidc(...)) shape every other
-# control-measure Points layer already builds (see
-# field_fortification.py's own create_field_fortification_points_layer
-# for the closest precedent, via build_single_domain_point_layer()).
-# No echelon/headquarters field on this layer, so both are passed as
-# their literal "no amplifier" values rather than a field reference.
-# Edition is pinned to '2525E' as a literal, not read from the plugin's
-# current_edition() setting, matching every other non-NATO layer's own
-# settled "APP-6E only" rule - unlike every OTHER caller of this
-# pattern, which follows the plugin-wide edition setting instead.
-_MILSYMBOL_SIDC_EXPRESSION = (
-    'mct_sidc_svg(mct_build_sidc('
-    '"affiliation","entity",\'control_measure\',\'unspecified\','
-    '"status",false,\'\',\'\',\'2525E\'),'
-    'upper(coalesce("unique_designation",\'\')),'
-    "'uniqueDesignation')"
-)
+# coalesce() on every field, since QGIS nulls a whole function call when
+# any argument is NULL and a feature pasted in or made outside the form
+# arrives without defaults. Edition is fixed inside the engine (APP-6E,
+# like every other non-NATO layer), not read from the plugin's setting.
+_DESIGNATION_EXPRESSION = 'upper(coalesce("unique_designation", \'\'))'
 
-# Pill Box needs its own hollow-fill fixup (see nonnato_symbol_engine.
-# apply_pillbox_fixup()'s own docstring) - the ONLY departure from the
-# plain milsymbol pipeline left on this layer, since Booby Trap (the
-# other one) moved out to Mines and Obstacles 2026-09-03.
-_PILLBOX_DESIGNATION_EXPRESSION = 'upper(coalesce("unique_designation", \'\'))'
-
-_PILLBOX_EXPRESSION = (
-    'mct_nonnato_pillbox_svg('
-    f'"affiliation","status",{_PILLBOX_DESIGNATION_EXPRESSION}'
-    ')'
+_ARGUMENTS = (
+    'coalesce("affiliation", \'friend\'),"entity",'
+    'coalesce("status", \'present\')'
 )
 
 _NAME_EXPRESSION = (
-    "CASE"
-    f" WHEN \"entity\" = '{PILLBOX_ENTITY}' THEN {_PILLBOX_EXPRESSION}"
-    f" ELSE {_MILSYMBOL_SIDC_EXPRESSION}"
-    " END"
+    f"mct_nonnato_control_measure_svg({_ARGUMENTS},{_DESIGNATION_EXPRESSION})"
 )
 
 _SCALED_SIZE_EXPRESSION = f'{MARKER_SIZE_MM:g} * coalesce("scale", 100) / 100.0'
 
-# Pill Box gets its own width-based ratio (mct_nonnato_pillbox_svg_
-# width(), since it branches off the plain pipeline below); every
-# other entity keeps the existing mct_sidc_svg_width()-based one.
-_SIZE_EXPRESSION = (
-    "CASE"
-    f" WHEN \"entity\" = '{PILLBOX_ENTITY}' THEN ("
-    + stabilised_nonnato_size_expression(
-        _SCALED_SIZE_EXPRESSION,
-        'mct_nonnato_pillbox_svg_width('
-        f'"affiliation","status",{_PILLBOX_DESIGNATION_EXPRESSION})',
-        'mct_nonnato_pillbox_svg_width("affiliation","status",\'\')',
-    )
-    + ")"
-    " ELSE ("
-    + stabilised_point_size_expression(
-        _SCALED_SIZE_EXPRESSION, _MILSYMBOL_SIDC_EXPRESSION
-    )
-    + ")"
-    " END"
+# The icon holds its size when a designation is typed - the width with
+# it over the width without. "Without" also leaves out NBC Shelter's
+# default "NBC" (the trailing false), so that text hangs outside the
+# glyph like any typed one instead of shrinking it.
+_SIZE_EXPRESSION = stabilised_nonnato_size_expression(
+    _SCALED_SIZE_EXPRESSION,
+    f"mct_nonnato_control_measure_svg_width({_ARGUMENTS},"
+    f"{_DESIGNATION_EXPRESSION})",
+    f"mct_nonnato_control_measure_svg_width({_ARGUMENTS},'',false)",
 )
 
 

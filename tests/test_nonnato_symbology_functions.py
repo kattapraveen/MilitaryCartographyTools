@@ -16,7 +16,10 @@ from .qgis_test_case import QgisTestCase
 
 from MilitaryCartographyTools.military_symbology import symbol_engine
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
+    COMMAND_POST_ENTITY,
+    NBC_SHELTER_ENTITY,
     SIGINT_RADAR_ENTITY,
+    render_nonnato_control_measure_svg,
 )
 from MilitaryCartographyTools.expressions import nonnato_symbology_functions
 
@@ -189,6 +192,10 @@ class TestMctNonnatoEquipmentSvg(QgisTestCase):
         self.assertTrue(svg.startswith("<svg"))
         self.assertIn("#009b00", svg)
 
+        # At its neighbours' stroke width since 2026-09-17.
+        self.assertNotIn('stroke-width="3"', svg)
+        self.assertIn('stroke-width="3.9"', svg)
+
 
     def test_an_invalid_entity_returns_readable_error_text_not_a_crash(self):
 
@@ -272,6 +279,10 @@ class TestMctNonnatoBoobyTrapSvg(QgisTestCase):
 
         self.assertTrue(svg.startswith("<svg"))
         self.assertIn("#009b00", svg)
+
+        # At its neighbours' stroke width since 2026-09-17.
+        self.assertNotIn('stroke-width="3"', svg)
+        self.assertIn('stroke-width="3.9"', svg)
 
 
 class TestNonnatoWidthFunctions(QgisTestCase):
@@ -361,20 +372,41 @@ class TestNonnatoWidthFunctions(QgisTestCase):
 
     def test_pillbox_width_is_unaffected_by_a_designation(self):
 
-        # Unlike every other width function here - `shelter` defines no
-        # designation slot at all (see mct_nonnato_pillbox_svg()'s own
-        # test of this), so its width genuinely does not change. The
-        # stabilisation ratio still computes correctly either way (it
-        # simply comes out as 1), it just has nothing to compensate for
-        # on this one entity.
+        # `shelter` defines no designation slot at all, so its width
+        # genuinely does not change - the ratio simply comes out as 1.
         plain = self._evaluate(
-            "mct_nonnato_pillbox_svg_width('friend','present','')"
+            "mct_nonnato_control_measure_svg_width('friend','shelter','present','')"
         )
         amplified = self._evaluate(
-            "mct_nonnato_pillbox_svg_width('friend','present','HQ 3')"
+            "mct_nonnato_control_measure_svg_width('friend','shelter','present','HQ 3')"
         )
 
         self.assertEqual(amplified, plain)
+
+
+    def test_control_measure_width_grows_with_a_designation(self):
+
+        plain = self._evaluate(
+            f"mct_nonnato_control_measure_svg_width('friend','{COMMAND_POST_ENTITY}','present','')"
+        )
+        amplified = self._evaluate(
+            f"mct_nonnato_control_measure_svg_width('friend','{COMMAND_POST_ENTITY}','present','HQ 3')"
+        )
+
+        self.assertGreater(amplified, plain)
+
+
+    def test_nbc_shelters_default_text_can_be_left_out_of_the_width(self):
+
+        with_default = self._evaluate(
+            f"mct_nonnato_control_measure_svg_width('friend','{NBC_SHELTER_ENTITY}','present','')"
+        )
+        bare = self._evaluate(
+            f"mct_nonnato_control_measure_svg_width('friend','{NBC_SHELTER_ENTITY}','present','',false)"
+        )
+
+        self.assertEqual(bare, 108.0)
+        self.assertGreater(with_default, bare)
 
 
     def test_an_invalid_entity_returns_zero_not_a_crash(self):
@@ -386,7 +418,7 @@ class TestNonnatoWidthFunctions(QgisTestCase):
         self.assertEqual(result, 0.0)
 
 
-class TestMctNonnatoPillboxSvg(QgisTestCase):
+class TestMctNonnatoControlMeasureSvg(QgisTestCase):
 
     def setUp(self):
 
@@ -423,27 +455,47 @@ class TestMctNonnatoPillboxSvg(QgisTestCase):
 
     def test_evaluates_through_a_real_qgs_expression(self):
 
-        svg = self._svg_for("mct_nonnato_pillbox_svg('friend')")
+        svg = self._svg_for("mct_nonnato_control_measure_svg('friend', 'shelter')")
 
         self.assertTrue(svg.startswith("<svg"))
         self.assertIn('fill="none"', svg)
 
 
-    def test_designation_is_accepted_but_milsymbol_draws_nothing_for_it(self):
+    def test_every_argument_reaches_the_render(self):
 
-        # See render_nonnato_pillbox_svg()'s own test of this - `shelter`
-        # defines no designation slot at all, so this is a pre-existing
-        # milsymbol limitation, not a regression from this function.
-        without = self._svg_for("mct_nonnato_pillbox_svg('friend')")
-        with_designation = self._svg_for(
-            "mct_nonnato_pillbox_svg('friend', 'present', 'a1')"
+        svg = self._svg_for(
+            "mct_nonnato_control_measure_svg("
+            f"'hostile', '{COMMAND_POST_ENTITY}', 'planned', 'A1')"
         )
 
-        self.assertEqual(without, with_designation)
+        self.assertIn("#c02020", svg)
+        self.assertIn("stroke-dasharray", svg)
+        self.assertIn(">A1</text>", svg)
+
+
+    def test_matches_the_engine(self):
+
+        svg = self._svg_for(
+            f"mct_nonnato_control_measure_svg('friend', '{NBC_SHELTER_ENTITY}')"
+        )
+
+        self.assertEqual(
+            svg,
+            render_nonnato_control_measure_svg("friend", NBC_SHELTER_ENTITY),
+        )
 
 
     def test_missing_required_arguments(self):
 
-        result = self._evaluate("mct_nonnato_pillbox_svg()")
+        result = self._evaluate("mct_nonnato_control_measure_svg('friend')")
 
-        self.assertEqual(result, "Need at least an affiliation")
+        self.assertEqual(result, "Need at least an affiliation and an entity")
+
+
+    def test_an_invalid_entity_returns_error_text_not_a_crash(self):
+
+        result = self._evaluate(
+            "mct_nonnato_control_measure_svg('friend', 'not_a_real_entity')"
+        )
+
+        self.assertIn("not_a_real_entity", result)
