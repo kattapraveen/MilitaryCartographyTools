@@ -22,7 +22,7 @@ That script:
 
 - Points `PYTHONHOME`/`PYTHONPATH`/`DYLD_FRAMEWORK_PATH`/`DYLD_LIBRARY_PATH`
   at a QGIS.app bundle's `Contents/Frameworks` (defaults to
-  `/Applications/QGIS-final-4_2_1.app/Contents` — override with `QGIS_APP` if
+  `/Applications/QGIS-final-4_2_2.app/Contents` — override with `QGIS_APP` if
   yours lives elsewhere).
 - Sets `QT_QPA_PLATFORM=offscreen` so Qt widgets (labels, dialogs, print
   layouts, map canvases) can be created and exercised without an actual
@@ -301,6 +301,15 @@ same `python3.12` as 4.2.0 did, and the QGIS 4 user profile
 across 4.x, so the installed 1.0.3 plugin survived the swap without
 reinstalling. **Verified**: the full 1326-test suite passes on 4.2.1 and,
 unchanged, on 3.44.12.
+
+**Toolchain moved to QGIS 4.2.2, 2026-09-17.** Same story as 4.2.1: the
+maintainer replaced the 4.2.1 build with 4.2.2, and `run_tests.sh`'s default
+`QGIS_APP` named the removed bundle. Default updated here and in the script.
+4.2.2 is again a patch release with the same Qt (6.11.1) and `python3.12`;
+`qgis.PyQt` still has no `QtQml` and PyQt6 is still the only importable
+binding, so `symbol_engine.py`'s QJSEngine loading holds. The installed
+1.4.0 plugin survived in the shared QGIS4 profile. **Verified**: 1556/1556
+on 4.2.2 (main) and 1854/1854 (non-nato-symbology).
 
 ---
 
