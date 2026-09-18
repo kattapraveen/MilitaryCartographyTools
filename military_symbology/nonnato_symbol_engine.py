@@ -544,6 +544,22 @@ STATIC_FORMATION_HQ_ENTITY = "nonnato_static_formation_hq"
 # to read clearly as a pennant at map size.
 _STATIC_HQ_NOTCH_DEPTH = (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) / 5
 
+# The pennant's own outline - the frame's top, left and bottom sides,
+# then in to the notch and back.
+_STATIC_HQ_OUTLINE_D = (
+    f"M{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_TOP:g} "
+    f"L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_TOP:g} "
+    f"L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} "
+    f"L{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_BOTTOM:g} "
+    f"L{_UNIT_FRAME_RIGHT - _STATIC_HQ_NOTCH_DEPTH:g},{_UNIT_FRAME_CENTRE_Y:g} Z"
+)
+
+# Found again by seat_echelon_on_frame(); group 1 is the frame
+# attributes it carries.
+_STATIC_HQ_OUTLINE_PATTERN = re.compile(
+    r'<path d="' + re.escape(_STATIC_HQ_OUTLINE_D) + r'"([^>]*)></path>'
+)
+
 
 def static_formation_hq_fixup(svg):
 
@@ -567,16 +583,7 @@ def static_formation_hq_fixup(svg):
     if attributes is None:
         return svg
 
-    notch_x = _UNIT_FRAME_RIGHT - _STATIC_HQ_NOTCH_DEPTH
-
-    outline = (
-        f'<path d="M{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_TOP:g} '
-        f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_TOP:g} '
-        f'L{_UNIT_FRAME_LEFT:g},{_UNIT_FRAME_BOTTOM:g} '
-        f'L{_UNIT_FRAME_RIGHT:g},{_UNIT_FRAME_BOTTOM:g} '
-        f'L{notch_x:g},{_UNIT_FRAME_CENTRE_Y:g} Z"'
-        f"{attributes}></path>"
-    )
+    outline = f'<path d="{_STATIC_HQ_OUTLINE_D}"{attributes}></path>'
 
     svg = _replace_unit_frame(_strip_military_police_lettering(svg), outline)
 
@@ -626,6 +633,12 @@ ADMIN_LOGISTICS_ENTITY = "nonnato_admin_logistics"
 
 _ADMIN_LOGISTICS_RADIUS = 50
 
+# The circle admin_logistics_fixup() draws, found again by
+# seat_echelon_on_frame(). Group 1 is the frame attributes it carries.
+_ADMIN_LOGISTICS_CIRCLE_PATTERN = re.compile(
+    r'<circle cx="100" cy="100" r="50"([^>]*)></circle>'
+)
+
 
 def admin_logistics_fixup(svg):
 
@@ -670,6 +683,65 @@ def admin_logistics_fixup(svg):
         f'L{centre_x:g},{_UNIT_FRAME_BOTTOM + _HQ_MAST_LENGTH:g}"',
         1,
     )
+
+
+# --- Ammunition and FOL -------------------------------------------------
+#
+# Its own layer, requested 2026-09-18: "New Layer called Ammunition and
+# FOL". Every entity is Administration or Logistics' circle (diameter
+# the standard rectangle's height, 100) with glyphs inside, so it keeps
+# status and the designations exactly as that entity does - but NOT
+# echelon, Headquarters or Combined Arms: "Ammunition and FOL do not need
+# echelons", "headquarters and combined arms also not required", so
+# render_nonnato_unit_svg() builds them without.
+#
+# - All Types: "use the circle of same diameter as the height of the
+#   standard rectangle; insert the glyph inside the rectangle of an
+#   app6E - land unit - ammunition". milsymbol's own Ammunition glyph,
+#   at the coordinates it has inside the rectangle.
+# - Air Force: "Start with all types - add a propeller of army aviation
+#   over it".
+# - Armour: "Start with all types - add the oval of armour over it".
+#
+# Sizes and placement, settled the same day on sight of the first
+# render, are at _AMMUNITION_GLYPH_SCALE below.
+#
+# A second batch the same day added three more Ammunition entities -
+# Artillery, Rocket or Missile, Small Arms, each All Types plus one mark
+# inside the glyph - and the FOL half of the layer: Aviation FOL,
+# Non-Aviation FOL, Water and Chemicals, on the same circle. The
+# drawings are at _FOL_TRIANGLE_TOP below.
+AMMUNITION_ALL_TYPES_ENTITY = "nonnato_ammunition_all_types"
+AMMUNITION_AIR_FORCE_ENTITY = "nonnato_ammunition_air_force"
+AMMUNITION_ARMOUR_ENTITY = "nonnato_ammunition_armour"
+AMMUNITION_ARTILLERY_ENTITY = "nonnato_ammunition_artillery"
+AMMUNITION_ROCKET_MISSILE_ENTITY = "nonnato_ammunition_rocket_missile"
+AMMUNITION_SMALL_ARMS_ENTITY = "nonnato_ammunition_small_arms"
+
+FOL_AVIATION_ENTITY = "nonnato_fol_aviation"
+FOL_NON_AVIATION_ENTITY = "nonnato_fol_non_aviation"
+WATER_ENTITY = "nonnato_water"
+CHEMICALS_ENTITY = "nonnato_chemicals"
+
+AMMUNITION_ENTITIES = (
+    AMMUNITION_ALL_TYPES_ENTITY,
+    AMMUNITION_AIR_FORCE_ENTITY,
+    AMMUNITION_ARMOUR_ENTITY,
+    AMMUNITION_ARTILLERY_ENTITY,
+    AMMUNITION_ROCKET_MISSILE_ENTITY,
+    AMMUNITION_SMALL_ARMS_ENTITY,
+)
+
+FOL_ENTITIES = (
+    FOL_AVIATION_ENTITY,
+    FOL_NON_AVIATION_ENTITY,
+    WATER_ENTITY,
+    CHEMICALS_ENTITY,
+)
+
+# Everything on the Ammunition and FOL layer - see
+# render_nonnato_unit_svg() for what it switches off.
+AMMUNITION_FOL_ENTITIES = AMMUNITION_ENTITIES + FOL_ENTITIES
 
 
 # The question mark the other three Enemy entities carry. Sized to
@@ -1461,6 +1533,9 @@ _UNIT_ENTITY_KEY_ALIASES = {
     # Both were standalone hand-built SVGs until 2026-09-06 - see
     # admin_logistics_fixup() for why they moved onto a real render.
     ADMIN_LOGISTICS_ENTITY: "military_police",
+    # The Ammunition and FOL family is Administration or Logistics'
+    # circle with glyphs inside - see ammunition_fixup().
+    **{entity: "military_police" for entity in AMMUNITION_FOL_ENTITIES},
     STATIC_FORMATION_HQ_ENTITY: "military_police",
 }
 
@@ -1800,6 +1875,308 @@ def _reglyph_military_police(draw):
     return fixup
 
 
+# Ammunition and FOL's glyphs - see that family's comment near
+# admin_logistics_fixup(). Here because the propeller is defined above.
+# milsymbol's own glyphs, as they appear inside the ground-unit frame -
+# each is checked against a live render of its source entity by a test,
+# so a milsymbol update that moves one fails rather than drifting.
+_AMMUNITION_GLYPH_D = "m 90,117 0,-25 c 0,-15 20,-15 20,0 l 0,25 m -25,0 30,0"
+_ARMOUR_OVAL_D = "M125,80 C150,80 150,120 125,120 L75,120 C50,120 50,80 75,80 Z"
+
+# The glyphs' own pre-scale stroke width - milsymbol draws every
+# interior glyph at 3, which the final stroke scale takes to 3.9. Held
+# there whatever size a glyph is drawn at (see _ammunition_glyph_path()).
+_AMMUNITION_GLYPH_STROKE_WIDTH = 3
+
+# Each glyph's own bounding-box centre and width, from its geometry. A
+# cubic's extreme along an axis where its two control points coincide
+# is 3/4 of the way to them, which is how the curved parts are measured.
+#
+# Ammunition: x 85..115 (the foot line), y 80.75 (the arch, 92 - 15 *
+# 3/4) .. 117 (the foot).
+_AMMUNITION_GLYPH_CENTRE = (100, (80.75 + 117) / 2)
+
+# Propeller: symmetric about its crossing at (100,100); each lobe reaches
+# 130 + 15 * 3/4 = 141.25 from the centre line, so 82.5 wide.
+_PROPELLER_CENTRE = (100, 100)
+_PROPELLER_WIDTH = 2 * (130 + 15 * 3 / 4 - 100)
+
+# Oval: symmetric about (100,100); its ends reach 125 + 25 * 3/4 =
+# 143.75, so 87.5 wide.
+_ARMOUR_OVAL_CENTRE = (100, 100)
+_ARMOUR_OVAL_WIDTH = 2 * (125 + 25 * 3 / 4 - 100)
+
+# Resized 2026-09-18, on sight of the first render: "increase the size
+# of the main glyph extracted from app6e - ammunition glyph by 40%;
+# reduce the size of propeller by 50% - center aligned with the
+# ammunition glyph; reduce the size of the oval to match the propeller
+# size - same rules for alignment". The Ammunition glyph grows about its
+# own centre, so it stays where milsymbol put it; the other two are
+# centred on it. "Match the propeller size" is taken as the same WIDTH,
+# the oval keeping its own proportions.
+#
+# Then, the same day: "one tweak - increase the size of propeller and
+# oval by 15%". The oval is tied to the propeller's width, so it follows.
+_AMMUNITION_GLYPH_SCALE = 1.4
+_PROPELLER_SCALE = 0.5 * 1.15
+_ARMOUR_OVAL_SCALE = _PROPELLER_WIDTH * _PROPELLER_SCALE / _ARMOUR_OVAL_WIDTH
+
+
+def _ammunition_glyph_path(d, colour, own_centre, scale):
+
+    """`d`, scaled by `scale` about `own_centre` and centred on the Ammunition glyph's centre - see _scaled_path()."""
+
+    return _scaled_path(d, colour, own_centre, scale, _AMMUNITION_GLYPH_CENTRE)
+
+
+def _scaled_path(d, colour, own_centre, scale, target):
+
+    """
+    `d`, scaled by `scale` about `own_centre` and moved so that centre
+    lands on `target`, in `colour`. Scaled with a transform, so the
+    markup keeps milsymbol's own path data; the stroke width is divided
+    by the same factor so every glyph still draws at the same line
+    weight.
+    """
+
+    target_x, target_y = target
+    own_x, own_y = own_centre
+
+    offset_x = target_x - scale * own_x
+    offset_y = target_y - scale * own_y
+
+    return (
+        f'<path transform="translate({offset_x:g},{offset_y:g}) '
+        f'scale({scale:g})" d="{d}" '
+        f'stroke-width="{_AMMUNITION_GLYPH_STROKE_WIDTH / scale:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+
+def _ammunition_glyph(colour):
+
+    return _ammunition_glyph_path(
+        _AMMUNITION_GLYPH_D, colour,
+        _AMMUNITION_GLYPH_CENTRE, _AMMUNITION_GLYPH_SCALE,
+    )
+
+
+def _propeller_over_ammunition(colour):
+
+    return _ammunition_glyph_path(
+        _ARMY_AVIATION_PROPELLER_SOLID_D, colour,
+        _PROPELLER_CENTRE, _PROPELLER_SCALE,
+    )
+
+
+def _oval_over_ammunition(colour):
+
+    return _ammunition_glyph_path(
+        _ARMOUR_OVAL_D, colour, _ARMOUR_OVAL_CENTRE, _ARMOUR_OVAL_SCALE,
+    )
+
+
+def _scaled_ammunition_y(y):
+
+    """Where a y of the Ammunition glyph's own geometry lands once the glyph is scaled."""
+
+    centre_y = _AMMUNITION_GLYPH_CENTRE[1]
+
+    return centre_y + _AMMUNITION_GLYPH_SCALE * (y - centre_y)
+
+
+# The ink every interior glyph reaches past its geometry, at the final
+# stroke scale.
+_INTERIOR_HALF_STROKE = _AMMUNITION_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+
+# The clear space inside the scaled Ammunition glyph: from under its
+# arch (native y 80.75) to above its foot line (native y 117), and
+# between its legs (native x 90 and 110).
+_AMMUNITION_INNER_TOP = _scaled_ammunition_y(80.75) + _INTERIOR_HALF_STROKE
+_AMMUNITION_INNER_BOTTOM = _scaled_ammunition_y(117) - _INTERIOR_HALF_STROKE
+_AMMUNITION_INNER_HALF_WIDTH = (
+    _AMMUNITION_GLYPH_SCALE * 10 - _INTERIOR_HALF_STROKE
+)
+
+# Rocket or Missile: "add a small vertical line in the middle of the
+# center glyph - not touching the top or the bottom of the glyph". Not
+# sized beyond that; this gap either end leaves a line a little over
+# half the clear height.
+_ROCKET_LINE_GAP = 10
+
+# Small Arms: "add an X in the middle of the center glyph". Half the
+# X's own width and height - 7 keeps it clear of the legs, which are
+# 12.05 away from the centre line on the inside.
+_SMALL_ARMS_X_HALF = 7
+
+
+# Artillery: "add the solid dot of Artillery in the center", then, on
+# sight, "reduce the artillery dot by 50%" - Artillery's own r=15 dot was
+# wider than the space between the glyph's legs and overlapped them.
+_AMMUNITION_ARTILLERY_DOT_RADIUS = _ARTILLERY_DOT_RADIUS * 0.5
+
+
+def _artillery_dot_in_ammunition(colour):
+
+    """Artillery's solid dot, half size, on the glyph's centre."""
+
+    return (
+        f'<circle cx="{_AMMUNITION_GLYPH_CENTRE[0]:g}" '
+        f'cy="{_AMMUNITION_GLYPH_CENTRE[1]:g}" '
+        f'r="{_AMMUNITION_ARTILLERY_DOT_RADIUS:g}" '
+        f'stroke-width="{_ARTILLERY_DOT_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="{colour}"></circle>'
+    )
+
+
+def _rocket_line_in_ammunition(colour):
+
+    x = _AMMUNITION_GLYPH_CENTRE[0]
+
+    return (
+        f'<path d="M{x:g},{_AMMUNITION_INNER_TOP + _ROCKET_LINE_GAP:g} '
+        f'L{x:g},{_AMMUNITION_INNER_BOTTOM - _ROCKET_LINE_GAP:g}" '
+        f'stroke-width="{_AMMUNITION_GLYPH_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+
+def _small_arms_x_in_ammunition(colour):
+
+    x, y = _AMMUNITION_GLYPH_CENTRE
+    half = _SMALL_ARMS_X_HALF
+
+    return (
+        f'<path d="M{x - half:g},{y - half:g} L{x + half:g},{y + half:g} '
+        f'M{x + half:g},{y - half:g} L{x - half:g},{y + half:g}" '
+        f'stroke-width="{_AMMUNITION_GLYPH_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+
+# FOL. "Aviation FOL - Start with a circle frame, add an inverted
+# triangle with a vertical line extending from the bottom of the
+# triangle downwards, the triangle and line dont touch the circle; add
+# the army aviation propeller - the size of the propeller i.e. width
+# same as the base of triangle". "Non-Aviation FOL - start with
+# aviation, keep the triangle, remove everything else, add a solid
+# triangle 60% size of the original triangle but right side up, both
+# the tips of the triangles touching each other".
+#
+# Not specified, so chosen: the triangle is equilateral, 48 across; the
+# triangle and stem together run y 68..132, centred in the circle. Its
+# top corners are then 40 from the circle's centre - 5.45 clear, ink to
+# ink, of a circle 50 across drawn at 5.2 - and the stem ends 15 clear.
+# The propeller was first centred on the triangle, as the Ammunition
+# marks are on theirs; moved on sight: "shift the propeller to
+# vertically center align with the vertical line only" - so it is
+# centred on the stem, the stem running through its crossing. "Remove
+# everything else" on Non-Aviation is read as the stem and propeller:
+# the circle stays, as the frame every entity on this layer has.
+_FOL_TRIANGLE_HALF_BASE = 24
+_FOL_TRIANGLE_HEIGHT = _FOL_TRIANGLE_HALF_BASE * 3 ** 0.5
+_FOL_TRIANGLE_TOP = 68
+_FOL_TRIANGLE_APEX_Y = _FOL_TRIANGLE_TOP + _FOL_TRIANGLE_HEIGHT
+_FOL_STEM_BOTTOM = 132
+
+_FOL_PROPELLER_SCALE = 2 * _FOL_TRIANGLE_HALF_BASE / _PROPELLER_WIDTH
+
+_NON_AVIATION_TRIANGLE_SCALE = 0.6
+
+
+def _fol_inverted_triangle(colour):
+
+    left = 100 - _FOL_TRIANGLE_HALF_BASE
+    right = 100 + _FOL_TRIANGLE_HALF_BASE
+
+    return (
+        f'<path d="M{left:g},{_FOL_TRIANGLE_TOP:g} '
+        f'L{right:g},{_FOL_TRIANGLE_TOP:g} '
+        f'L100,{_FOL_TRIANGLE_APEX_Y:g} Z" '
+        f'stroke-width="{_AMMUNITION_GLYPH_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+
+def _fol_stem(colour):
+
+    return (
+        f'<path d="M100,{_FOL_TRIANGLE_APEX_Y:g} L100,{_FOL_STEM_BOTTOM:g}" '
+        f'stroke-width="{_AMMUNITION_GLYPH_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+
+def _fol_propeller(colour):
+
+    target = (100, (_FOL_TRIANGLE_APEX_Y + _FOL_STEM_BOTTOM) / 2)
+
+    return _scaled_path(
+        _ARMY_AVIATION_PROPELLER_SOLID_D, colour,
+        _PROPELLER_CENTRE, _FOL_PROPELLER_SCALE, target,
+    )
+
+
+def _fol_solid_triangle(colour):
+
+    half = _FOL_TRIANGLE_HALF_BASE * _NON_AVIATION_TRIANGLE_SCALE
+    base_y = _FOL_TRIANGLE_APEX_Y + _FOL_TRIANGLE_HEIGHT * _NON_AVIATION_TRIANGLE_SCALE
+
+    return (
+        f'<path d="M100,{_FOL_TRIANGLE_APEX_Y:g} '
+        f'L{100 + half:g},{base_y:g} L{100 - half:g},{base_y:g} Z" '
+        f'stroke-width="{_AMMUNITION_GLYPH_STROKE_WIDTH:g}" '
+        f'stroke="{colour}" fill="{colour}"></path>'
+    )
+
+
+# What each entity draws inside the circle, in paint order - each a
+# function of the unit's colour.
+_CIRCLE_FAMILY_DRAWINGS = {
+    AMMUNITION_ALL_TYPES_ENTITY: (_ammunition_glyph,),
+    AMMUNITION_AIR_FORCE_ENTITY: (_ammunition_glyph, _propeller_over_ammunition),
+    AMMUNITION_ARMOUR_ENTITY: (_ammunition_glyph, _oval_over_ammunition),
+    AMMUNITION_ARTILLERY_ENTITY: (_ammunition_glyph, _artillery_dot_in_ammunition),
+    AMMUNITION_ROCKET_MISSILE_ENTITY: (_ammunition_glyph, _rocket_line_in_ammunition),
+    AMMUNITION_SMALL_ARMS_ENTITY: (_ammunition_glyph, _small_arms_x_in_ammunition),
+    FOL_AVIATION_ENTITY: (_fol_inverted_triangle, _fol_stem, _fol_propeller),
+    FOL_NON_AVIATION_ENTITY: (_fol_inverted_triangle, _fol_solid_triangle),
+}
+
+# Water and Chemicals: "Start with a circle, add "W" in the center",
+# "... add "C" in the center". Military Police relettered, the way
+# Information Warfare and the others are, so the letter keeps milsymbol's
+# own font, size and centring; then the circle replaces the frame.
+_CIRCLE_FAMILY_LETTERS = {
+    WATER_ENTITY: "W",
+    CHEMICALS_ENTITY: "C",
+}
+
+
+def _circle_family_fixup(drawings):
+
+    """Administration or Logistics' circle, with `drawings` inside it in the unit's own colour."""
+
+    def fixup(svg):
+
+        colour = _injected_text_colour(svg)
+
+        return _inject_before_closing_svg(
+            admin_logistics_fixup(svg),
+            "".join(draw(colour) for draw in drawings),
+        )
+
+    return fixup
+
+
+def _lettered_circle_fixup(letters):
+
+    relabel = _relabel_military_police(letters)
+
+    # Relettered first: admin_logistics_fixup() strips only an "MP".
+    return lambda svg: admin_logistics_fixup(relabel(svg))
+
+
 _ENTITY_FIXUPS = {
     "amphibious": remove_amphibious_oval,
     "aviation_fixed_wing": hollow_army_aviation_propeller,
@@ -1817,6 +2194,14 @@ _ENTITY_FIXUPS = {
         for entity, draw in _MILITARY_POLICE_REGLYPHED.items()
     },
     ADMIN_LOGISTICS_ENTITY: admin_logistics_fixup,
+    **{
+        entity: _circle_family_fixup(drawings)
+        for entity, drawings in _CIRCLE_FAMILY_DRAWINGS.items()
+    },
+    **{
+        entity: _lettered_circle_fixup(letters)
+        for entity, letters in _CIRCLE_FAMILY_LETTERS.items()
+    },
     STATIC_FORMATION_HQ_ENTITY: static_formation_hq_fixup,
 }
 
@@ -2105,10 +2490,22 @@ def seat_echelon_on_frame(svg):
     there is no echelon group (Unspecified) or no unit frame (the
     frameless Aviation glyphs, the standalone frames), or when the
     marker already reaches the frame (Detachment's ring does).
+
+    Administration or Logistics' circle and Static Formation
+    Headquarters' pennant count as frames since 2026-09-18 ("fix the
+    admin/log echelons also", "fix the static formation echelons also")
+    - both were missed on the first pass, which matched only the
+    rectangle. Each one's top is the rectangle's own top edge (y=50),
+    and its attributes are the frame's, stroke width included, so the
+    same arithmetic applies unchanged.
     """
 
     group = _ECHELON_GROUP_PATTERN.search(svg)
-    frame = _UNIT_FRAME_PATH_PATTERN.search(svg)
+    frame = (
+        _UNIT_FRAME_PATH_PATTERN.search(svg)
+        or _ADMIN_LOGISTICS_CIRCLE_PATTERN.search(svg)
+        or _STATIC_HQ_OUTLINE_PATTERN.search(svg)
+    )
 
     if group is None or frame is None:
         return svg
@@ -2206,6 +2603,17 @@ def render_nonnato_unit_svg(
         combined_arms_colour = _ENEMY_INFO_UNKNOWN_COLOUR
 
     else:
+
+        # "Ammunition and FOL do not need echelons", then "in ammunition
+        # - headquarters and combined arms also not required" (both
+        # 2026-09-18). Built as Unspecified with neither, so milsymbol
+        # never draws them and the viewBox never grows to fit them. The
+        # layer's fields still exist, being Land Unit's dialog, and
+        # simply have no effect on these entities.
+        if entity in AMMUNITION_FOL_ENTITIES:
+            echelon = "unspecified"
+            headquarters = False
+            combined_arms = False
 
         sidc = build_sidc(
             affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),

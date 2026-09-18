@@ -1793,4 +1793,28 @@ Meta-questions likely to come up regardless of category/domain.
       nine, a Pill Box function for one) became a single function; every
       entity it did not change is tested byte-for-byte against the old
       pipeline.
+- [x] **Ammunition and FOL, a new layer (2026-09-18)** - "New Layer
+      called Ammunition and FOL". Land Unit's dialog, shared as Aviation
+      shares it. Three entities, each Administration or Logistics'
+      circle (diameter = the standard rectangle's height) with glyphs
+      inside: **All Types** (APP-6E Land Unit Ammunition's own glyph),
+      **Air Force** (+ Army Aviation's propeller "over it"), **Armour**
+      (+ Armour's oval "over it"). Sized on sight the same day: the
+      Ammunition glyph 40% larger, the propeller half size then 15%
+      larger (x0.575), the oval matched to the propeller's width, both
+      centred on the glyph. **No echelon, Headquarters or Combined
+      Arms** ("do not need echelons", "headquarters and combined arms
+      also not required"). Same day,
+      Administration or Logistics' echelons were seated on its circle,
+      which the 2026-09-17 seating had missed.
+- [x] **Ammunition and FOL reaches ten entities (2026-09-18, second
+      batch)** - Ammunition labels now carry "Ammunition (...)"; added
+      Ammunition (Artillery) (half-size Artillery dot), (Rocket or
+      Missile) (a short vertical line), (Small Arms) (an X); Aviation
+      FOL (inverted triangle on a stem, propeller centred on the stem),
+      Non-Aviation FOL (the inverted triangle over a 60% solid one, tip
+      to tip, circle kept), Water ("W"), Chemicals ("C"). Echelon, HQ
+      and Combined Arms off for all ten. Static Formation HQ's echelons
+      now seat on its pennant, so every unit echelon now touches its
+      frame.
 - [ ] Anything else that surfaces while specifying the above

@@ -156,6 +156,8 @@ class TestPluginLifecycle(QgisTestCase):
                     # fine; there was simply no way to add it.
                     "Mines and Obstacles (Lines)",
                     "Aviation",
+                    # Added 2026-09-18.
+                    "Ammunition and FOL",
                 ],
             }
 
@@ -279,6 +281,7 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.nonnato_mines_and_obstacles_action)
         self.assertIsNone(plugin.nonnato_mines_and_obstacles_lines_action)
         self.assertIsNone(plugin.nonnato_aviation_action)
+        self.assertIsNone(plugin.nonnato_ammunition_fol_action)
         self.assertIsNone(plugin.c2_measures_action)
         self.assertIsNone(plugin.maneuver_control_measures_action)
         self.assertIsNone(plugin.defensive_control_measures_action)
@@ -352,6 +355,13 @@ class TestNonnatoLandButtons(QgisTestCase):
         self.plugin.nonnato_land_equipment_action.trigger()
 
         self.assertEqual(self._layer_names(), ["Land Equipment (Non-NATO)"])
+
+
+    def test_ammunition_and_fol_adds_only_its_own_layer(self):
+
+        self.plugin.nonnato_ammunition_fol_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Ammunition and FOL (Non-NATO)"])
 
 
     def test_the_bundled_land_button_is_gone(self):

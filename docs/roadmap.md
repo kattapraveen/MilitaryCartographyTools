@@ -12357,6 +12357,168 @@ layers separately.
 
 ---
 
+## Non-NATO: an Ammunition and FOL layer, and Administration or Logistics' echelons seated (2026-09-18)
+
+Branch `non-nato-symbology` only.
+
+**New layer, "Ammunition and FOL (Non-NATO)"** - "New Layer called
+Ammunition and FOL". Its own toolbar entry in the Non-NATO Symbols group
+and its own icon (the logistics circle with the Ammunition glyph).
+Land Unit's dialog and renderer, shared the way Aviation shares them
+(`build_unit_style_layer()`). Three entities, all Administration or
+Logistics' circle - diameter the standard rectangle's height, 100 - with
+glyphs inside:
+
+- **All Types** - "insert the glyph inside the rectangle of an app6E -
+  land unit - ammunition": milsymbol's own Ammunition glyph, at its own
+  coordinates.
+- **Air Force** - "Start with all types - add a propeller of army
+  aviation over it": Army Aviation's hollow figure-of-8 laid over it.
+- **Armour** - "Start with all types - add the oval of armour over it":
+  Armour's oval laid over it.
+
+**Sizes, settled on sight the same day.** The first build laid the
+propeller and oval over the glyph at their own rectangles' coordinates.
+Then: "increase the size of the main glyph extracted from app6e -
+ammunition glyph by 40%; reduce the size of propeller by 50% - center
+aligned with the ammunition glyph; reduce the size of the oval to match
+the propeller size - same rules for alignment", and "increase the size
+of propeller and oval by 15%". So: the Ammunition glyph x1.4 about its
+own centre (100, 98.875); the propeller x0.575, centred on it; the oval
+scaled to the propeller's drawn width (its own proportions kept),
+centred on it. Each is a `transform` on milsymbol's own path data, with
+the stroke width divided by the same factor so all three keep the 3.9
+line weight.
+
+**No echelon, Headquarters or Combined Arms** - "Ammunition and FOL do
+not need echelons", then "in ammunition - headquarters and combined arms
+also not required". `render_nonnato_unit_svg()` builds these three
+without any of them, so milsymbol never draws them and the viewBox never
+grows. The layer keeps those fields (it is Land Unit's dialog), with no
+effect - as Aviation's mast-carrying entities ignore theirs. Status and
+both designations work as on Land Unit.
+
+**Administration or Logistics' echelons now touch its circle** - "fix
+the admin/log echelons also". The 2026-09-17 seating
+(`seat_echelon_on_frame()`) matched only the rectangle frame, so the
+circle's markers still floated. The circle is now recognised as the
+frame too (`_ADMIN_LOGISTICS_CIRCLE_PATTERN`); its top is the same y=50
+and its attributes are the frame's, so the drops are the same 4.8 / 7.3.
+
+**Still floating, deliberately untouched:** Static Formation
+Headquarters' echelon, above its pennant frame - not asked for, and the
+pennant's top is not the rectangle's, so it would need its own
+measurement. Raised with the maintainer.
+
+**Verification:** 1901/1901 on QGIS 4.2.2 and 3.44.12, run in parallel.
+
+### For the Office companion
+
+**New layer, new entities** - "Ammunition and FOL (Non-NATO)", Land
+Unit's pipeline (`unit`), all through `render_nonnato_unit_svg()`:
+
+| Key | Label | Built from |
+| --- | --- | --- |
+| `nonnato_ammunition_all_types` | All Types | Military Police render (alias), `admin_logistics_fixup()`, then `_AMMUNITION_GLYPH_D` x1.4 in the frame colour |
+| `nonnato_ammunition_air_force` | Air Force | the same, plus `_ARMY_AVIATION_PROPELLER_SOLID_D` (hollow) x0.575, centred on the glyph |
+| `nonnato_ammunition_armour` | Armour | the same, plus `_ARMOUR_OVAL_D` at the propeller's width, centred on the glyph |
+
+The glyph table is `_AMMUNITION_MARKS` (path, own centre, scale);
+`_ammunition_glyph_path()` writes each as
+`<path transform="translate(x,y) scale(k)" d="..." stroke-width="3/k" ...>`
+- numbers formatted with `:g`. `AMMUNITION_ENTITIES` lists the keys.
+**Echelon, Headquarters and Combined Arms are all switched off for these
+three** before the SIDC is built - the pane should grey those controls
+out for them, as it does for the frameless Aviation glyphs.
+
+**Changed rendering to pick up:** the companion's `echelon_touches_frame`
+matches only the rectangle frame, as this plugin's did until today.
+Administration or Logistics' circle must now count as the frame as well
+- `<circle cx="100" cy="100" r="50" ...>`, top at y=50, half-stroke from
+its own attributes. That entity's cases will otherwise mismatch on the
+next dump.
+
+---
+
+## Non-NATO: Ammunition and FOL grows to ten, and Static Formation Headquarters' echelons seated (2026-09-18, second batch)
+
+Branch `non-nato-symbology` only. Continues the entry above.
+
+**Ammunition labels** - "add Ammunition to the title otherwise user may
+get confused with FOL": now "Ammunition (All Types)", "Ammunition (Air
+Force)", "Ammunition (Armour)". Keys unchanged.
+
+**Three more Ammunition entities**, each All Types plus one mark:
+- **Ammunition (Artillery)** - "add the solid dot of Artillery in the
+  center"; then "reduce the artillery dot by 50%" on sight, since
+  Artillery's r=15 dot was wider than the glyph's legs are apart. r=7.5,
+  on the glyph's centre.
+- **Ammunition (Rocket or Missile)** - "add a small vertical line in the
+  middle of the center glyph - not touching the top or the bottom of the
+  glyph": 10 clear of the arch and the foot, ink to ink.
+- **Ammunition (Small Arms)** - "add an X in the middle of the center
+  glyph": 14 x 14, clear of the legs.
+
+**The FOL half of the layer** - four entities on the same circle:
+- **Aviation FOL** - "Start with a circle frame, add an inverted
+  triangle with a vertical line extending from the bottom of the
+  triangle downwards, the triangle and line dont touch the circle; add
+  the army aviation propeller - width same as the base of triangle".
+  Chosen where unspecified: an equilateral triangle 48 across; triangle
+  and stem span y 68..132, centred in the circle and clear of it. The
+  propeller was first centred on the triangle, then moved on sight -
+  "shift the propeller to vertically center align with the vertical line
+  only" - so it sits on the stem's midpoint.
+- **Non-Aviation FOL** - "start with aviation, keep the triangle, remove
+  everything else, add a solid triangle 60% size of the original
+  triangle but right side up, both the tips of the triangles touching
+  each other". "Everything else" is read as the stem and the propeller;
+  **the circle is kept**, as the frame every entity on the layer has.
+- **Water** / **Chemicals** - "Start with a circle, add "W" / "C" in the
+  center": Military Police relettered, then the circle, so the letter is
+  milsymbol's own font and centring.
+
+**Echelon, Headquarters and Combined Arms are off for all ten** - the
+earlier instructions were given for Ammunition; applied to the FOL
+entities too as the same layer.
+
+**Static Formation Headquarters' echelons now touch its pennant** - "fix
+the static formation echelons also". The pennant's top is the
+rectangle's own y=50, so it joins the rectangle and the circle as a
+frame `seat_echelon_on_frame()` recognises
+(`_STATIC_HQ_OUTLINE_PATTERN`; the outline's `d` is now the constant
+`_STATIC_HQ_OUTLINE_D`). Every unit entity that draws an echelon now
+seats it - checked across Land Unit, Aviation and this layer.
+
+**Verification:** 1908/1908 on QGIS 4.2.2 and 3.44.12, in parallel.
+
+### For the Office companion
+
+**Relabelled:** the three existing Ammunition entities (see above).
+
+**New entities**, all on "Ammunition and FOL (Non-NATO)", `unit`
+pipeline, all with echelon/Headquarters/Combined Arms switched off:
+
+| Key | Label | Built from |
+| --- | --- | --- |
+| `nonnato_ammunition_artillery` | Ammunition (Artillery) | All Types + `_artillery_dot_in_ammunition()` (r=7.5, filled, at `_AMMUNITION_GLYPH_CENTRE`) |
+| `nonnato_ammunition_rocket_missile` | Ammunition (Rocket or Missile) | All Types + `_rocket_line_in_ammunition()` |
+| `nonnato_ammunition_small_arms` | Ammunition (Small Arms) | All Types + `_small_arms_x_in_ammunition()` |
+| `nonnato_fol_aviation` | Aviation FOL | circle + `_fol_inverted_triangle()`, `_fol_stem()`, `_fol_propeller()` (via `_scaled_path()`) |
+| `nonnato_fol_non_aviation` | Non-Aviation FOL | circle + `_fol_inverted_triangle()`, `_fol_solid_triangle()` |
+| `nonnato_water` | Water | Military Police relettered "W", then `admin_logistics_fixup()` |
+| `nonnato_chemicals` | Chemicals | the same with "C" |
+
+The drawing table is `_CIRCLE_FAMILY_DRAWINGS` (entity -> functions of
+the colour, in paint order) and `_CIRCLE_FAMILY_LETTERS`; the layer's
+entity set is `AMMUNITION_FOL_ENTITIES`.
+
+**Changed rendering to pick up:** Static Formation Headquarters'
+pennant now counts as a frame for echelon seating, alongside the
+Administration or Logistics circle noted above.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

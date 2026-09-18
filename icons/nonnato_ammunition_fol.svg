@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- the Ammunition and FOL (Non-NATO) layer's own shared shape: the
+       logistics circle with milsymbol's Ammunition glyph inside -->
+  <circle cx="12" cy="12" r="9.5" fill="none" stroke="#1f3a5f" stroke-width="1.7"/>
+  <path d="M10,15.4 L10,10.4 C10,7.4 14,7.4 14,10.4 L14,15.4 M9,15.4 L15,15.4"
+        fill="none" stroke="#1f3a5f" stroke-width="1.5"/>
+</svg>

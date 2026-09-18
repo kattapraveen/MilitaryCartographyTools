@@ -3784,6 +3784,41 @@ class TestEchelonTouchesFrame(QgisTestCase):
                 self.assertEqual(self._drop(svg), 0.0)
 
 
+    def test_administration_or_logistics_circle_counts_as_the_frame(self):
+
+        # "fix the admin/log echelons also" (2026-09-18) - the first pass
+        # matched only the rectangle. The circle's top is the same y=50.
+        for echelon in self.ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", nse.ADMIN_LOGISTICS_ENTITY, echelon=echelon
+                )
+
+                self.assertGreater(self._drop(svg), 0)
+                self.assertAlmostEqual(
+                    self._marker_bottom_ink(svg), self.FRAME_TOP_INK, places=3
+                )
+
+
+    def test_static_formation_headquarters_pennant_counts_as_the_frame(self):
+
+        # "fix the static formation echelons also" (2026-09-18).
+        for echelon in self.ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", nse.STATIC_FORMATION_HQ_ENTITY, echelon=echelon
+                )
+
+                self.assertGreater(self._drop(svg), 0)
+                self.assertAlmostEqual(
+                    self._marker_bottom_ink(svg), self.FRAME_TOP_INK, places=3
+                )
+
+
     def test_an_unknown_path_command_raises_rather_than_mismeasuring(self):
 
         with self.assertRaises(ValueError):

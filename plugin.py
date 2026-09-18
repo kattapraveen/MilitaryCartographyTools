@@ -68,6 +68,9 @@ from .military_symbology.mines_and_obstacles_layer_nonnato import (
 from .military_symbology.mines_and_obstacles_lines_layer_nonnato import (
     add_mines_and_obstacles_lines_layer_nonnato,
 )
+from .military_symbology.ammunition_fol_layer_nonnato import (
+    add_ammunition_fol_layer_nonnato,
+)
 from .military_symbology.aviation_layer_nonnato import (
     add_aviation_layer_nonnato,
 )
@@ -245,6 +248,7 @@ class MilitaryCartographyTools:
         self.nonnato_mines_and_obstacles_action = None
         self.nonnato_aviation_action = None
         self.nonnato_mines_and_obstacles_lines_action = None
+        self.nonnato_ammunition_fol_action = None
 
         # "Control Measures" nests as its own flyout submenu (like Sub
         # Grid below) rather than a single QAction, since Appendix H's
@@ -385,6 +389,7 @@ class MilitaryCartographyTools:
         self._setup_nonnato_mines_and_obstacles_action()
         self._setup_nonnato_aviation_action()
         self._setup_nonnato_mines_and_obstacles_lines_action()
+        self._setup_nonnato_ammunition_fol_action()
         self._setup_control_measures_menu()
 
         # Assembles every action built above (all built with
@@ -1276,6 +1281,24 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_nonnato_ammunition_fol_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # ammunition_fol_layer_nonnato.py. Added 2026-09-18: "New Layer
+        # called Ammunition and FOL". Land Unit's dialog, like Aviation.
+        self.nonnato_ammunition_fol_action = self._build_action(
+            "nonnato_ammunition_fol.svg",
+            "Ammunition and FOL",
+            tooltip=(
+                "Add an Ammunition and FOL (Non-NATO) layer that "
+                "renders each point's own symbol automatically from "
+                "its attributes"
+            ),
+            callback=self.create_nonnato_ammunition_fol,
+            standalone=False
+        )
+
+
     def _setup_control_measures_menu(self):
 
         # "Control Measures" nests as its own flyout submenu (same
@@ -1789,7 +1812,8 @@ class MilitaryCartographyTools:
                     "(own affiliation colours, entity renames, custom "
                     "icons): Land Units, Land Equipment (including "
                     "SIGINT), Control Measure Points, Mines and "
-                    "Obstacles as points or as lines, and Aviation - "
+                    "Obstacles as points or as lines, Aviation, and "
+                    "Ammunition and FOL - "
                     "not part of MIL-STD-2525D/E or "
                     "APP-6D/E, and not yet merged into this plugin's "
                     "released symbology"
@@ -1806,6 +1830,7 @@ class MilitaryCartographyTools:
                     # so a group is the ONLY place it can appear.
                     self.nonnato_mines_and_obstacles_lines_action,
                     self.nonnato_aviation_action,
+                    self.nonnato_ammunition_fol_action,
                 ],
             ),
             # Print Production stays last, always (2026-08-09, at the
@@ -2124,6 +2149,7 @@ class MilitaryCartographyTools:
         self.nonnato_mines_and_obstacles_action = None
         self.nonnato_mines_and_obstacles_lines_action = None
         self.nonnato_aviation_action = None
+        self.nonnato_ammunition_fol_action = None
         self.c2_measures_action = None
         self.maneuver_control_measures_action = None
         self.defensive_control_measures_action = None
@@ -2635,6 +2661,17 @@ class MilitaryCartographyTools:
         """
 
         add_aviation_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_ammunition_fol(self):
+        """
+        Add an "Ammunition and FOL (Non-NATO)" layer, ready for placing
+        symbols with QGIS's own native point editing tools.
+        """
+
+        add_ammunition_fol_layer_nonnato(
             self.iface
         )
 
