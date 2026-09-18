@@ -364,6 +364,21 @@ class TestNonnatoLandButtons(QgisTestCase):
         self.assertEqual(self._layer_names(), ["Ammunition and FOL (Non-NATO)"])
 
 
+    def test_no_non_nato_tooltip_states_an_entity_count(self):
+
+        # Counts go stale as symbols are added - Mines and Obstacles'
+        # said 10 when the layer had 16.
+        actions = self.plugin.group_menus["non_nato_symbols"].actions()
+
+        self.assertTrue(actions)
+
+        for action in actions:
+
+            with self.subTest(action=action.text()):
+
+                self.assertNotRegex(action.toolTip(), r"\d+ entities")
+
+
     def test_the_bundled_land_button_is_gone(self):
 
         self.assertFalse(hasattr(self.plugin, "nonnato_land_action"))

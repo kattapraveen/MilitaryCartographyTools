@@ -1203,16 +1203,18 @@ class MilitaryCartographyTools:
 
         # One-shot action, not a map tool - see
         # military_symbology/control_measure_points_layer_nonnato.py.
-        # 11 entities until 2026-09-03, when Booby Trap moved out to
-        # Mines and Obstacles - see
-        # _setup_nonnato_mines_and_obstacles_action() below.
+        # Booby Trap moved out to Mines and Obstacles 2026-09-03 - see
+        # _setup_nonnato_mines_and_obstacles_action() below. No entity
+        # count in any of these tooltips: the Mines and Obstacles one
+        # still said 10 after the layer reached 16, found in the
+        # 2026-09-18 housekeeping.
         self.nonnato_control_measure_points_action = self._build_action(
             "nonnato_control_measure_points.svg",
             "Control Measure Points",
             tooltip=(
-                "Add a Control Measure Points (Non-NATO) layer (13 "
-                "entities) that renders each point's own symbol "
-                "automatically from its attributes"
+                "Add a Control Measure Points (Non-NATO) layer that "
+                "renders each point's own symbol automatically from "
+                "its attributes"
             ),
             callback=self.create_nonnato_control_measure_points,
             standalone=False
@@ -1233,9 +1235,9 @@ class MilitaryCartographyTools:
             "nonnato_mines_and_obstacles.svg",
             "Mines and Obstacles",
             tooltip=(
-                "Add a Mines and Obstacles (Non-NATO) layer (10 "
-                "entities) that renders each point's own symbol "
-                "automatically from its attributes"
+                "Add a Mines and Obstacles (Non-NATO) layer that "
+                "renders each point's own symbol automatically from "
+                "its attributes"
             ),
             callback=self.create_nonnato_mines_and_obstacles,
             standalone=False
@@ -1272,9 +1274,8 @@ class MilitaryCartographyTools:
             "nonnato_aviation.svg",
             "Aviation",
             tooltip=(
-                "Add an Aviation (Non-NATO) layer (8 entities) that "
-                "renders each point's own symbol automatically from "
-                "its attributes"
+                "Add an Aviation (Non-NATO) layer that renders each "
+                "point's own symbol automatically from its attributes"
             ),
             callback=self.create_nonnato_aviation,
             standalone=False

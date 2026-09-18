@@ -7,9 +7,13 @@ icon here still goes through render_symbol_svg()/mct_sidc_svg() first,
 with milsymbol's own `frame`/`fill`/`monoColor` options doing most of
 the work (see docs/non-nato-symbology-tracker.md's Part A: rectangle
 frame, no fill, affiliation by outline colour for Units; no frame at
-all for Equipment). What lives here is only the part milsymbol cannot
-do by itself: a handful of entity/echelon-specific SVG fixups, the
-Combined Arms rectangle overlay, and one entity with no SIDC at all.
+all for Equipment). What lives here is the part milsymbol cannot do by
+itself: entity/echelon-specific SVG fixups (reglyphed frames, the
+Administration or Logistics circle and everything drawn inside it,
+echelons seated on the frame), the Combined Arms overlay, designation
+placement, and the icons with no SIDC at all (the Enemy family, the
+synthetic mines and vehicles, Fire Trench), which are authored here
+outright.
 
 Every fixup here is string/regex surgery on milsymbol's own rendered
 SVG output, never an edit to the vendored milsymbol.js source - the
@@ -108,9 +112,10 @@ def stabilised_nonnato_size_expression(
     holds the icon steady and lets the text hang outside it instead -
     same fix, same reasoning as the NATO one this mirrors, applied
     across every non-NATO layer built so far (Land Unit, Land
-    Equipment, SIGINT) - Control Measure Points already had this, since
-    nine of its ten entities go through the plain NATO mct_sidc_svg()
-    pipeline unchanged (see that layer's own module for why).
+    Equipment, SIGINT). Control Measure Points first had the NATO
+    version, through the plain mct_sidc_svg() pipeline; since
+    2026-09-17 it uses this one too, over
+    mct_nonnato_control_measure_svg_width().
 
     The ratio is guarded the same way, and for the same reason: a NULL
     feature attribute must not null out the whole size expression and
@@ -4769,18 +4774,10 @@ def render_nonnato_equipment_svg(
 
 # --- Control Measure Points ---------------------------------------------
 #
-# Part C's own settled mechanism: "affiliation is coded the same way as
-# NATO... no non-NATO-specific treatment needed for that part." Unlike
-# Unit/Equipment/SIGINT above, nine of that layer's ten entities
-# (Decision Point, Fort, Impact Point, Observation Post, Artillery
-# Observation Post, Point Of Interest, Shelter Above Ground, Shelter
-# Below Ground, Target/DF Task) get NO new rendering logic at all -
-# Pill Box is the one exception, and its fixup is below. They
-# render through the plain existing mct_sidc_svg()/mct_build_sidc()
-# pipeline, same as every other NATO control-measure-points layer, with
-# milsymbol's own real 4-value affiliation colouring and no monoColor
-# override. See control_measure_points_layer_nonnato.py's own renderer
-# for that half.
+# The layer's own render is render_nonnato_control_measure_svg(), at the
+# end of this module - the affiliation goes into the SIDC as on NATO's
+# own control measures (Part C), six entities take the affiliation
+# palette, and three are drawn here. Pill Box's hollow fixup is below.
 #
 # Booby Trap needed its own custom render function: "fully replaces its
 # current NATO glyph (an ellipse with a triangular peak over it), rather

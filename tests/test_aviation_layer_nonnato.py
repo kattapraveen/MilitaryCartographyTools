@@ -9,7 +9,6 @@ Military Cartography Tools
 """
 
 import base64
-import re
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,

@@ -18,7 +18,6 @@ from qgis.core import (
     QgsProject,
     QgsRenderContext,
     QgsSimpleMarkerSymbolLayer,
-    QgsSimpleMarkerSymbolLayerBase,
     QgsSymbolLayer,
 )
 
@@ -32,7 +31,6 @@ from MilitaryCartographyTools.military_symbology.land_equipment_layer_nonnato im
     build_land_equipment_layer_nonnato,
 )
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
-    AFFILIATION_COLOURS,
     APV_WHEELED_ENTITY,
     ARMOURED_RECCE_VEHICLE_ENTITY,
     B_VEHICLE_ENTITY,

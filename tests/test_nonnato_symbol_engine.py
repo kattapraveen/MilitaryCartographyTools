@@ -328,7 +328,7 @@ class TestRenderNonnatoUnitSvg(QgisTestCase):
 
         self.assertIn("C25,110 175,110 175,150", merged)  # same arc kept
         self.assertIn(
-            f'<circle cx="100" cy="100" r="15" ', merged
+            '<circle cx="100" cy="100" r="15" ', merged
         )
         self.assertIn(f'fill="{_FRIEND}"', merged)
 
@@ -531,7 +531,7 @@ class TestMineFamily(QgisTestCase):
             "land_mine",
         )
 
-        self.assertIn(f'fill="none"', svg)
+        self.assertIn('fill="none"', svg)
         self.assertNotIn(f'fill="{nse.MINE_GREEN}"', svg)
 
 
