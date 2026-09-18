@@ -19,7 +19,6 @@ from MilitaryCartographyTools.layout.map_sheet_series import (
     _assign_sheet_names,
     compute_sheet_grid,
     generate_sheet_series,
-    MAX_SHEETS,
 )
 
 

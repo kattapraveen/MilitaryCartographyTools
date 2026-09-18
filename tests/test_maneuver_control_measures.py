@@ -15,7 +15,6 @@ Military Cartography Tools
 """
 
 from qgis.core import (
-    Qgis,
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsFeature,
@@ -34,7 +33,6 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.expressions import military_symbology_functions
 
-from MilitaryCartographyTools.military_symbology import maneuver_control_measures
 from MilitaryCartographyTools.military_symbology.maneuver_control_measures import (
     AFFILIATION_LABELS,
     AREAS_LAYER_NAME,

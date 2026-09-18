@@ -35,7 +35,6 @@ from qgis.core import (
 
 from qgis.PyQt.QtCore import QSize
 
-import math
 
 from .qgis_test_case import QgisTestCase
 

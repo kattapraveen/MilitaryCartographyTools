@@ -180,3 +180,49 @@ original). Applying `ms.setStandard("APP6")` instead was considered
 and rejected - that flag is a single global mutable property on the
 shared `ms` module instance, so flipping it would change every OTHER
 symbol in the library that also branches on it, not just these 8.
+
+
+--------------------------------------------------
+
+
+## React (User Guide Rendering)
+
+The offline HTML user guide shipped with the plugin
+(docs/user-guide-offline.html) carries inlined copies of React and
+ReactDOM, which render the guide in the browser. They are embedded in
+the file's own bundle (gzip + base64); nothing is loaded from the
+network.
+
+Original source:
+https://github.com/facebook/react
+
+Version bundled:
+18.3.1 (react.production.min.js, react-dom.production.min.js)
+
+License:
+MIT License
+
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+ReactDOM's production build itself includes a short snippet of
+Modernizr 3.0.0pre (MIT), credited inside that file.
+
+Unmodified. The bundled files keep their own licence headers.

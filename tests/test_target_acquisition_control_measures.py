@@ -12,7 +12,6 @@ Military Cartography Tools
 """
 
 from qgis.core import (
-    Qgis,
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsFeature,

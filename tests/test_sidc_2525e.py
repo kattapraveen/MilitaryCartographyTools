@@ -13,7 +13,6 @@ establish - see docs/roadmap.md's Phase 12 entry.
 Military Cartography Tools
 """
 
-import re
 import unittest
 
 from .qgis_test_case import QgisTestCase

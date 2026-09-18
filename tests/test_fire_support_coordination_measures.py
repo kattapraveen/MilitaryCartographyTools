@@ -17,7 +17,6 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsFeature,
-    QgsMarkerLineSymbolLayer,
     QgsProject,
     QgsSymbolLayer,
     QgsVectorLayer,

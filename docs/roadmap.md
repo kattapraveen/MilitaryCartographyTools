@@ -12045,6 +12045,41 @@ live release.**
 
 ---
 
+## Housekeeping: React attribution, milsymbol in the README, dead imports (2026-09-18)
+
+**An attribution gap shipped in 1.4.0.** The offline user guide
+(`docs/user-guide-offline.html`) inlines React and ReactDOM 18.3.1 in
+its bundle - the library that renders the guide in the browser. They
+keep their short licence headers, but MIT asks for the full notice, and
+neither `THIRD_PARTY_NOTICES.md`, the README nor the About dialog
+credited React. All three do now; the About dialog's change reaches
+users with the next release. ReactDOM's build also carries a Modernizr
+snippet (MIT), credited inside that file and noted in the notices.
+
+The guide's third inlined script is Claude Design's own runtime
+(`dc-runtime`), generated with the guide. Its terms are not stated in
+the file, so it is not credited either way - raised with the
+maintainer rather than guessed.
+
+**The README's Acknowledgements never mentioned milsymbol**, the
+library every military symbol goes through - only the MGRS engine, the
+MGRS workflow and (in passing) pyGeoMag. Added, with a pointer to the
+eight icon-assignment swaps recorded in the notices.
+
+**Dead imports**, found by pyflakes across the tree: two unused ramp
+imports in `terrain/tanaka_contours.py` (which one test was importing
+through it - it now imports them from `_hypsometric_ramp`, where they
+are defined), eleven unused names across nine test modules, and an
+unused `sys` in `tools/extract_2525e_vocabulary.py`. The one remaining
+pyflakes report is deliberate: `test_control_measure_point_vocabulary`
+imports a deleted module to prove it is gone.
+
+Bandit clean; detect-secrets finds nothing in the plugin (its only
+hits are in the gitignored upstream `milsymbol-3.0.4/` examples).
+1556/1556 on QGIS 4.2.2 and 3.44.12.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
