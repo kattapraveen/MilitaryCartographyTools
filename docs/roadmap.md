@@ -12612,7 +12612,8 @@ Bandit no issues and detect-secrets `--all-files` no findings, on both
 the source and the extracted package; package contents checked;
 `metadata.txt` parsed with `configparser`. Tagged `v1.4.1`.
 
-**Built and packaged; the upload is the maintainer's to make.**
+**Uploaded by the maintainer 2026-09-19, security checks cleared on the
+first attempt. Awaiting moderator approval.**
 
 ---
 
