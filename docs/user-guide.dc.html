@@ -14,6 +14,10 @@
   a { color: #3f5d3b; text-decoration: none; border-bottom: 1px solid rgba(63,93,59,0.35); }
   a:hover { color: #1b1e19; border-bottom-color: #1b1e19; }
   ::selection { background: #dbe4d6; }
+  /* Below 870 px the contents list wraps above the text (210 + 44 gap
+     + 560 + 56 padding). Left sticky there, it stays pinned over every
+     section as you scroll; so it is sticky only beside the text. */
+  @media (max-width: 870px) { nav { position: static !important; } }
 </style>
 </helmet>
 <template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#3f5d3b"></rect><g stroke="#f6f4ee" stroke-width="3.5" fill="none"><path d="M36,30 A22,22 0 0 0 36,74"></path><path d="M20,52 L34,52"></path><path d="M52,52 L88,52"></path><path d="M62,86 L96,86 M79,86 L79,64"></path></g><polygon points="96,52 84,46 84,58" fill="#f6f4ee"></polygon></svg></template>
@@ -26,7 +30,7 @@
   <header style="border-bottom:1px solid #ded9cb;background:#fffefb">
     <div style="max-width:1240px;margin:0 auto;padding:40px 28px 34px;display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;justify-content:space-between">
       <div style="max-width:640px">
-        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#3f5d3b;margin-bottom:14px">QGIS Plugin &middot; Version 1.4.0</div>
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#3f5d3b;margin-bottom:14px">QGIS Plugin &middot; Version 1.4.1</div>
         <h1 style="margin:0;font-size:40px;line-height:1.08;font-weight:700;letter-spacing:-0.02em">Military Cartography Tools</h1>
         <div style="margin-top:6px;font-size:26px;font-weight:400;color:#5c635a;letter-spacing:-0.01em">User Guide</div>
         <p style="margin:18px 0 0;font-size:16px;line-height:1.6;color:#3f463c;text-wrap:pretty">Everything the plugin does, in plain language &mdash; and, in <a href="#diagrams">Section 11</a>, exactly where to click to draw each of the hand-built line and area symbols.</p>
@@ -1090,7 +1094,7 @@
 
   <footer style="border-top:1px solid #ded9cb;background:#fffefb">
     <div style="max-width:1240px;margin:0 auto;padding:26px 28px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;font-size:13px;color:#6b7265">
-      <div>Military Cartography Tools 1.4.0 &mdash; User Guide</div>
+      <div>Military Cartography Tools 1.4.1 &mdash; User Guide</div>
       <div>Licensed GPL&#8209;2.0+. Runs entirely offline.</div>
     </div>
   </footer>

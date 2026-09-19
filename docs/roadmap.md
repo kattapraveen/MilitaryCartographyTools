@@ -12105,6 +12105,43 @@ dialog, the notices file and the guide all ship inside the plugin zip.
 
 ---
 
+## 1.4.1 — credits, and the guide's narrow-window fix (2026-09-19)
+
+A patch release, NATO-only as every release from `main` is: "so do we
+need to upload the next version of plugin (nato only) so that the
+credits are also uploaded" - yes, because the About box, the notices
+file and the guide all ship inside the zip, so none of the 2026-09-18
+housekeeping reaches a user until an upload. No functional change.
+
+**What changes for a user:**
+- The About box credits React (see the housekeeping entry above);
+  `THIRD_PARTY_NOTICES.md` and the README carry it too, and the README
+  now names milsymbol.
+- The user guide has §15, **Licences and credits**, and its version
+  reads 1.4.1 in the header and footer.
+- **The guide's contents list no longer covers the text in a narrow
+  window.** It is `position: sticky`, laid out beside the text in a
+  wrapping flex row; below 870 px (210 + 44 gap + 560 + 56 padding) it
+  wraps above the text instead, and a sticky element with no background
+  then stays pinned over every section as you scroll. It was so in
+  1.4.0. One rule in the guide's style block - `@media (max-width:
+  870px) { nav { position: static !important; } }` - keeps it pinned
+  only beside the text. Checked at 800 px (static, scrolls away) and
+  1400 px (still sticky).
+
+Patch rather than minor: nothing new the plugin can do.
+
+**Verification**: 1556/1556 on QGIS 4.2.2 and 3.44.12 from the checkout
+and again from the extracted `dist/MilitaryCartographyTools-1.4.1.zip`
+(3 skipped there, the `tools/`-dependent 2525E tests, as always);
+Bandit no issues and detect-secrets `--all-files` no findings, on both
+the source and the extracted package; package contents checked;
+`metadata.txt` parsed with `configparser`. Tagged `v1.4.1`.
+
+**Built and packaged; the upload is the maintainer's to make.**
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
