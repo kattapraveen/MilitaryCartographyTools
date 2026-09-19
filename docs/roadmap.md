@@ -12552,6 +12552,31 @@ Bandit clean; detect-secrets finds nothing in the plugin (its only
 hits are in the gitignored upstream `milsymbol-3.0.4/` examples).
 1556/1556 on QGIS 4.2.2 and 3.44.12.
 
+**Then, the same day, at the maintainer's instruction:**
+
+- **The user guide got a §15, "Licences and credits"** - "you can add
+  the license details to the guide also". The plugin's own GPL v2+, the
+  five components with what each does, who made it and its licence,
+  and the MIT text in full. That last part matters most for React: the
+  guide file is itself a copy of it, so the notice now travels with it.
+  Written in `docs/user-guide.md` first, then the `.dc.html`, then
+  rebuilt with `tools/rebuild_user_guide.py` - no remote loads,
+  detect-secrets clean on `docs`. The Claude Design runtime is still
+  not named, its terms being unknown.
+- **The GitHub repository description** read "MGRS Tools for QGIS
+  3.44+ and 4.0+", unchanged since the plugin was MGRS-only. Now:
+  "Military cartography for QGIS 3.44+ and 4.x: MGRS and UTM grids,
+  terrain analysis, and NATO symbology (MIL-STD-2525D/E, APP-6D/E). Runs
+  fully offline." - "Use a general description covering mgrs, terrain
+  tools and nato symbology".
+
+**Found while checking the guide, not changed:** below about 900 px of
+browser width the guide's contents list stays pinned over the text of
+every section. It was already so in the 1.4.0 guide.
+
+**None of this reaches users until the next release** - the About
+dialog, the notices file and the guide all ship inside the plugin zip.
+
 ---
 
 ## Suggested near-term order

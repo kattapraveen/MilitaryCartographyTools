@@ -2021,3 +2021,46 @@ of the project, reproject the layer to match first.
 Every function returns a short error string (e.g. `"Layout not found"`,
 `"Need latitude, longitude"`) instead of failing silently if its arguments
 don't resolve.
+
+## Licences and credits
+
+Military Cartography Tools is © 2026 Praveen Kumar, licensed under the
+GNU General Public License, version 2 or later. The full text is in the
+`LICENSE` file that comes with the plugin.
+
+It builds on four pieces of other people's work, and this guide on a
+fifth:
+
+| Component | What it does here | By | Licence |
+|---|---|---|---|
+| MGRS conversion engine | Converts between MGRS grid references and coordinates | Alex Bruy — Boundless / Planet Federal / Planet Inc. | GPL v2 or later |
+| Milsymbol 3.0.4 | Draws every military symbol | Måns Beckman — www.spatialillusions.com | MIT |
+| pyGeoMag (World Magnetic Model) | Works out magnetic declination for a date | Justin Myers | MIT |
+| MGRS grid generation workflow | The reference for how the grids are built | Klas Karlsson — QGIS Model Repository | CC0 |
+| React and ReactDOM 18.3.1 | Draws this guide in your browser; carried inside the guide file | Meta Platforms, Inc. and affiliates | MIT |
+
+ReactDOM also contains a short piece of Modernizr (MIT), credited inside
+it. The MIT licence, which covers milsymbol, pyGeoMag and React, reads:
+
+> Permission is hereby granted, free of charge, to any person obtaining
+> a copy of this software and associated documentation files (the
+> "Software"), to deal in the Software without restriction, including
+> without limitation the rights to use, copy, modify, merge, publish,
+> distribute, sublicense, and/or sell copies of the Software, and to
+> permit persons to whom the Software is furnished to do so, subject to
+> the following conditions:
+>
+> The above copyright notice and this permission notice shall be
+> included in all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+> EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+> MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+> LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+> OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+> WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Every notice in full, with each copyright line, is in
+`THIRD_PARTY_NOTICES.md` in the plugin folder.
+
