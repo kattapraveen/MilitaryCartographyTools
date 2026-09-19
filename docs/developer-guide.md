@@ -309,7 +309,7 @@ maintainer replaced the 4.2.1 build with 4.2.2, and `run_tests.sh`'s default
 `qgis.PyQt` still has no `QtQml` and PyQt6 is still the only importable
 binding, so `symbol_engine.py`'s QJSEngine loading holds. The installed
 1.4.0 plugin survived in the shared QGIS4 profile. **Verified**: 1556/1556
-on 4.2.2 (main) and 1854/1854 (non-nato-symbology).
+on 4.2.2.
 
 ---
 
