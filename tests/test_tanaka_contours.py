@@ -26,6 +26,10 @@ from qgis.PyQt.QtGui import QColor, QPainter
 from .qgis_test_case import build_synthetic_cone_dem, build_synthetic_sloped_dem, QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
+from MilitaryCartographyTools.terrain._hypsometric_ramp import (
+    LAND_RAMP,
+    SEA_RAMP,
+)
 from MilitaryCartographyTools.terrain.tanaka_contours import (
     _apply_style,
     _band_min_max,
@@ -38,10 +42,8 @@ from MilitaryCartographyTools.terrain.tanaka_contours import (
     _smooth_illumination,
     default_insert_position,
     generate_tanaka_contours,
-    LAND_RAMP,
     MONOCHROME_LIT_GRAY,
     MONOCHROME_SHADOW_GRAY,
-    SEA_RAMP,
     STYLE_ELEVATION_COLOR,
     STYLE_ILLUMINATED_OVERLAY,
     STYLE_MONOCHROME,

@@ -5800,7 +5800,6 @@ class TestWaterCrossingSites(QgisTestCase):
         from MilitaryCartographyTools.military_symbology.obstacle_control_measures import (
             LINE,
             LINE_MEASURE_TYPE_CODES,
-            TABLE_H_XIX_INVENTORY,
             _B7_MERGED_CODES,
             buildable_inventory,
         )

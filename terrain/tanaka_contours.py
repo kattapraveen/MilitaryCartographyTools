@@ -34,8 +34,6 @@ from ._dem_utils import (
     clip_and_reproject_dem as _clip_and_reproject,
 )
 from ._hypsometric_ramp import (
-    LAND_RAMP,
-    SEA_RAMP,
     hypsometric_color as _hypsometric_color,
 )
 

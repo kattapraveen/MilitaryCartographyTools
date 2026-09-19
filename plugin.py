@@ -3430,6 +3430,10 @@ MGRS grid generation workflow reference
 Klas Karlsson - QGIS Model Repository
 Creative Commons Zero (CC0)
 
+React (user guide rendering)
+Meta Platforms, Inc. and affiliates
+MIT License
+
 
 Full notices and licence texts:
 

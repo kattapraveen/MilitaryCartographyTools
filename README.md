@@ -121,5 +121,19 @@ The workflow was used as a reference for:
 The implementation within Military Cartography Tools has been
 re-designed and integrated as a native QGIS plugin workflow.
 
+### Milsymbol
+
+Military symbols are rendered by a vendored copy of milsymbol 3.0.4, by
+Måns Beckman (www.spatialillusions.com), under the MIT license - run
+offline through Qt's own JavaScript engine. Eight Land Unit sector-1
+icon assignments are swapped to match the printed MIL-STD-2525D; see
+THIRD_PARTY_NOTICES.md.
+
+### React
+
+The offline HTML user guide carries inlined copies of React and ReactDOM
+18.3.1 (Meta Platforms, Inc. and affiliates, MIT license), which render
+the guide in the browser.
+
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for full attribution,
 including the vendored World Magnetic Model code (pyGeoMag, MIT license).
