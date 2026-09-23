@@ -12139,7 +12139,8 @@ the source and the extracted package; package contents checked;
 `metadata.txt` parsed with `configparser`. Tagged `v1.4.1`.
 
 **Uploaded by the maintainer 2026-09-19, security checks cleared on the
-first attempt. Awaiting moderator approval.**
+first attempt. Approved by the moderator and LIVE on the QGIS Plugin
+Repository 2026-09-23.** 1.4.1 is now the version users receive.
 
 ---
 
