@@ -29,7 +29,7 @@ Machine Gun's own three tiers built on APP-6E's RIFLE glyph rather
 than its real machine_gun one (2026-09-12 - see ENTITY_LABELS' own
 comment and the rules record), three synthetic entities built from
 Armoured Protected Vehicle's own oval glyph (Bridge Layer Tank,
-Armoured Recce Vehicle, Armoured Protection Vehicle (Wheeled), added
+Armoured Recce Vehicle, Armoured Protected Vehicle (Wheeled), added
 2026-09-03), three FULLY synthetic Vehicle-family entities that
 replaced APP-6E's own real "vehicle" entity ('B' Vehicle, 'C' Vehicle,
 Light Recce Vehicle, 2026-09-05), plus Jammer and Radar (Land-scoped
@@ -75,6 +75,8 @@ from .nonnato_symbol_engine import (
     C_VEHICLE_ENTITY,
     LIGHT_RECCE_VEHICLE_ENTITY,
     MOBILITY_LABELS,
+    BFSR_ENTITY,
+    LORROS_ENTITY,
     SIGINT_RADAR_ENTITY,
     nonnato_entity_size_multiplier_expression,
     stabilised_nonnato_size_expression,
@@ -189,7 +191,7 @@ ENTITY_LABELS = {
     # each mark. ---
     BRIDGE_LAYER_TANK_ENTITY: "Bridge Layer Tank",
     ARMOURED_RECCE_VEHICLE_ENTITY: "Armoured Recce Vehicle",
-    APV_WHEELED_ENTITY: "Armoured Protection Vehicle (Wheeled)",
+    APV_WHEELED_ENTITY: "Armoured Protected Vehicle (Wheeled)",
 
     # --- The Vehicle family (3), requested live 2026-09-05, replacing
     # APP-6E's own real "vehicle" entity above. Unlike the three APV
@@ -215,6 +217,14 @@ ENTITY_LABELS = {
     # own separate radar entry is gone (see this dict's own note above).
     "jammer": "Jammer",
     SIGINT_RADAR_ENTITY: "Radar",
+
+    # --- Two more built on that same Radar (2), 2026-09-25: the Radar
+    # exactly as this plugin draws it, mast included, with a lettered
+    # circle beside it. They inherit its mobility and designation
+    # because they ARE it - see nonnato_symbol_engine's own
+    # _lettered_radar_fixup(). ---
+    BFSR_ENTITY: "BFSR",
+    LORROS_ENTITY: "LORROS",
 }
 
 

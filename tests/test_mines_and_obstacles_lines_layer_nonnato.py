@@ -27,6 +27,7 @@ from .qgis_test_case import FakeIface, QgisTestCase
 
 from MilitaryCartographyTools.military_symbology.mines_and_obstacles_lines_layer_nonnato import (
     ENTITY_LABELS,
+    TRENCH_SYSTEM_ENTITY,
     LAYER_NAME,
     add_mines_and_obstacles_lines_layer_nonnato,
     build_mines_and_obstacles_lines_layer_nonnato,
@@ -42,6 +43,53 @@ from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
 
 
 WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
+
+
+def _sub_symbol_expressions(symbol):
+
+    """
+    Every data-defined expression on a symbol and on its sub-symbols.
+
+    The rampart's own colour is set on the SUB-symbol's marker, not on
+    the marker-line layer that carries it - the same place a
+    QgsLinePatternFillSymbolLayer hides its colour, and for the same
+    reason: what paints is the sub-symbol.
+    """
+
+    found = []
+
+    for index in range(symbol.symbolLayerCount()):
+
+        layer = symbol.symbolLayer(index)
+
+        for key in layer.dataDefinedProperties().propertyKeys():
+
+            found.append(
+                layer.dataDefinedProperties().property(key).expressionString()
+            )
+
+        sub = layer.subSymbol()
+
+        if sub is not None:
+            found.extend(_sub_symbol_expressions(sub))
+
+    return found
+
+
+def _symbol_for(layer, entity):
+
+    """
+    That entity's own rule's symbol. The layer rendered through a
+    single symbol while Minefield (General) was alone on it; since
+    Trench System joined, each entity has a rule of its own.
+    """
+
+    for rule in layer.renderer().rootRule().children():
+
+        if f"'{entity}'" in rule.filterExpression():
+            return rule.symbol()
+
+    raise AssertionError(f"no rule for {entity}")
 
 
 class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
@@ -64,18 +112,25 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
         )
 
 
-    def test_it_offers_only_minefield_general(self):
+    def test_it_offers_minefield_general_and_trench_system(self):
 
-        self.assertEqual(list(ENTITY_LABELS), [MINEFIELD_GENERAL_ENTITY])
+        # Trench System joined 2026-09-25 - the one symbol on the
+        # branch taken from the NATO side unchanged.
+        self.assertEqual(
+            list(ENTITY_LABELS),
+            [MINEFIELD_GENERAL_ENTITY, TRENCH_SYSTEM_ENTITY],
+        )
 
 
     def test_every_field_exists(self):
 
         layer = build_mines_and_obstacles_lines_layer_nonnato()
 
+        # `affiliation` arrived with Trench System, which is coloured
+        # like the NATO symbol it is rather than obstacle green.
         self.assertEqual(
             [field.name() for field in layer.fields()],
-            ["entity", "mine_type"],
+            ["entity", "mine_type", "affiliation"],
         )
 
 
@@ -96,7 +151,7 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
 
         layer = build_mines_and_obstacles_lines_layer_nonnato()
 
-        symbol = layer.renderer().symbol()
+        symbol = _symbol_for(layer, MINEFIELD_GENERAL_ENTITY)
 
         kinds = [
             type(symbol.symbolLayer(index))
@@ -111,7 +166,7 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
 
         layer = build_mines_and_obstacles_lines_layer_nonnato()
 
-        symbol = layer.renderer().symbol()
+        symbol = _symbol_for(layer, MINEFIELD_GENERAL_ENTITY)
 
         offsets = sorted(
             symbol.symbolLayer(index).offset()
@@ -144,7 +199,7 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
         context.appendScope(QgsExpressionContextUtils.layerScope(layer))
         context.setFeature(feature)
 
-        symbol = layer.renderer().symbol()
+        symbol = _symbol_for(layer, MINEFIELD_GENERAL_ENTITY)
 
         placements = []
 
@@ -255,7 +310,7 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
         context.appendScope(QgsExpressionContextUtils.layerScope(layer))
         context.setFeature(feature)
 
-        symbol = layer.renderer().symbol()
+        symbol = _symbol_for(layer, MINEFIELD_GENERAL_ENTITY)
 
         sizes = []
 
@@ -317,7 +372,7 @@ class TestBuildMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
 
         layer = build_mines_and_obstacles_lines_layer_nonnato()
 
-        symbol = layer.renderer().symbol()
+        symbol = _symbol_for(layer, MINEFIELD_GENERAL_ENTITY)
 
         for index in range(symbol.symbolLayerCount()):
 
@@ -360,3 +415,86 @@ class TestAddMinesAndObstaclesLinesLayerNonnato(QgisTestCase):
         self.assertIsNone(
             add_mines_and_obstacles_lines_layer_nonnato(self.iface)
         )
+
+
+class TestTrenchSystem(QgisTestCase):
+
+    """
+    "Use the Fortified Line of NATO symbology for it, no change"
+    (2026-09-24), confirmed 2026-09-25. The one symbol on this branch
+    that is a NATO symbol taken whole.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+
+    def test_it_is_the_nato_fortified_line_itself(self):
+
+        from MilitaryCartographyTools.military_symbology.field_fortification import (
+            fortified_line_symbol,
+        )
+
+        layer = build_mines_and_obstacles_lines_layer_nonnato()
+
+        ours = _symbol_for(layer, TRENCH_SYSTEM_ENTITY)
+        theirs = fortified_line_symbol()
+
+        self.assertEqual(ours.symbolLayerCount(), theirs.symbolLayerCount())
+
+        for index in range(theirs.symbolLayerCount()):
+
+            with self.subTest(layer=index):
+
+                self.assertEqual(
+                    type(ours.symbolLayer(index)),
+                    type(theirs.symbolLayer(index)),
+                )
+                self.assertEqual(
+                    ours.symbolLayer(index).properties(),
+                    theirs.symbolLayer(index).properties(),
+                )
+
+
+    def test_it_is_affiliation_coloured_not_obstacle_green(self):
+
+        # H.5.22.1 makes none of the exception H.5.21.1 makes for
+        # obstacles - see field_fortification's own docstring.
+        layer = build_mines_and_obstacles_lines_layer_nonnato()
+
+        expressions = _sub_symbol_expressions(
+            _symbol_for(layer, TRENCH_SYSTEM_ENTITY)
+        )
+
+        self.assertTrue(expressions)
+        self.assertTrue(any("affiliation" in e for e in expressions))
+        self.assertFalse(any(MINE_GREEN in e for e in expressions))
+
+
+    def test_the_affiliation_dropdown_is_the_lines_and_areas_one(self):
+
+        layer = build_mines_and_obstacles_lines_layer_nonnato()
+
+        setup = layer.editorWidgetSetup(
+            layer.fields().indexOf("affiliation")
+        )
+
+        self.assertEqual(setup.type(), "ValueMap")
+
+        # Five values, not the four SIDC identities: this one only
+        # ever picks a Qt colour.
+        self.assertEqual(len(setup.config()["map"]), 5)
+
+
+    def test_minefield_general_is_still_green_and_unaffiliated(self):
+
+        layer = build_mines_and_obstacles_lines_layer_nonnato()
+
+        expressions = _sub_symbol_expressions(
+            _symbol_for(layer, MINEFIELD_GENERAL_ENTITY)
+        )
+
+        self.assertFalse(any("affiliation" in e for e in expressions))

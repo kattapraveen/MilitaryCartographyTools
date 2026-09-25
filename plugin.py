@@ -65,6 +65,12 @@ from .military_symbology.control_measure_points_layer_nonnato import (
 from .military_symbology.mines_and_obstacles_layer_nonnato import (
     add_mines_and_obstacles_layer_nonnato,
 )
+from .military_symbology.areas_layer_nonnato import (
+    add_areas_layer_nonnato,
+)
+from .military_symbology.echelons_layer_nonnato import (
+    add_echelons_layer_nonnato,
+)
 from .military_symbology.mines_and_obstacles_lines_layer_nonnato import (
     add_mines_and_obstacles_lines_layer_nonnato,
 )
@@ -248,6 +254,8 @@ class MilitaryCartographyTools:
         self.nonnato_mines_and_obstacles_action = None
         self.nonnato_aviation_action = None
         self.nonnato_mines_and_obstacles_lines_action = None
+        self.nonnato_areas_action = None
+        self.nonnato_echelons_action = None
         self.nonnato_ammunition_fol_action = None
 
         # "Control Measures" nests as its own flyout submenu (like Sub
@@ -389,6 +397,8 @@ class MilitaryCartographyTools:
         self._setup_nonnato_mines_and_obstacles_action()
         self._setup_nonnato_aviation_action()
         self._setup_nonnato_mines_and_obstacles_lines_action()
+        self._setup_nonnato_areas_action()
+        self._setup_nonnato_echelons_action()
         self._setup_nonnato_ammunition_fol_action()
         self._setup_control_measures_menu()
 
@@ -1262,6 +1272,41 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_nonnato_areas_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # areas_layer_nonnato.py. Added 2026-09-23: the scheme's first
+        # POLYGON layer, which is why it cannot share any of the
+        # layers above it.
+        self.nonnato_areas_action = self._build_action(
+            "nonnato_areas.svg",
+            "Areas",
+            tooltip=(
+                "Add an Areas (Non-NATO) layer for terrain drawn as "
+                "areas - key terrain, boggy and restricted going"
+            ),
+            callback=self.create_nonnato_areas,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_echelons_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # echelons_layer_nonnato.py. Added 2026-09-25: a bare echelon
+        # marker, for annotating something that is not a unit symbol.
+        self.nonnato_echelons_action = self._build_action(
+            "nonnato_echelons.svg",
+            "Echelons",
+            tooltip=(
+                "Add an Echelons (Non-NATO) layer for placing an "
+                "echelon marker on its own"
+            ),
+            callback=self.create_nonnato_echelons,
+            standalone=False
+        )
+
+
     def _setup_nonnato_aviation_action(self):
 
         # One-shot action, not a map tool - see
@@ -1832,6 +1877,8 @@ class MilitaryCartographyTools:
                     self.nonnato_mines_and_obstacles_lines_action,
                     self.nonnato_aviation_action,
                     self.nonnato_ammunition_fol_action,
+                    self.nonnato_areas_action,
+                    self.nonnato_echelons_action,
                 ],
             ),
             # Print Production stays last, always (2026-08-09, at the
@@ -2149,6 +2196,8 @@ class MilitaryCartographyTools:
         self.nonnato_control_measure_points_action = None
         self.nonnato_mines_and_obstacles_action = None
         self.nonnato_mines_and_obstacles_lines_action = None
+        self.nonnato_areas_action = None
+        self.nonnato_echelons_action = None
         self.nonnato_aviation_action = None
         self.nonnato_ammunition_fol_action = None
         self.c2_measures_action = None
@@ -2653,6 +2702,26 @@ class MilitaryCartographyTools:
         """
 
         add_mines_and_obstacles_lines_layer_nonnato(self.iface)
+
+
+    def create_nonnato_areas(self):
+
+        """
+        Add an "Areas (Non-NATO)" layer, ready for drawing terrain as
+        areas.
+        """
+
+        add_areas_layer_nonnato(self.iface)
+
+
+    def create_nonnato_echelons(self):
+
+        """
+        Add an "Echelons (Non-NATO)" layer, ready for placing echelon
+        markers on their own.
+        """
+
+        add_echelons_layer_nonnato(self.iface)
 
 
     def create_nonnato_aviation(self):

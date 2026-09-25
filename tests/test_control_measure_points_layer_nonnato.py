@@ -43,6 +43,20 @@ from MilitaryCartographyTools.military_symbology.control_measure_points_layer_no
     build_control_measure_points_layer_nonnato,
 )
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
+    AIR_DEFENCE_OP_ENTITY,
+    AIR_FORCE_OP_ENTITY,
+    AREA_NAI_ENTITY,
+    AREA_TAI_ENTITY,
+    DF_SOS_ENTITY,
+    POINT_NAI_ENTITY,
+    POINT_TAI_ENTITY,
+    AIR_HEAD_ENTITY,
+    LISTENING_POST_ENTITY,
+    MOBILE_OP_ENTITY,
+    BEACH_HEAD_ENTITY,
+    BRIDGE_HEAD_ENTITY,
+    VITAL_AREA_ENTITY,
+    VITAL_POINT_ENTITY,
     AFFILIATION_COLOURS,
     COMMAND_POST_ENTITY,
     FIRE_TRENCH_ENTITY,
@@ -74,11 +88,31 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
 
         # 10 of 241 real entities - Booby Trap moved out to Mines and
         # Obstacles 2026-09-03 (was 11) - plus three drawn by the engine,
-        # added 2026-09-17.
-        self.assertEqual(len(ENTITY_LABELS), 13)
+        # added 2026-09-17, five more added 2026-09-23, and the four
+        # Observation Posts added 2026-09-24, and the NAI/TAI four
+        # plus DF (SOS) added 2026-09-25.
+        self.assertEqual(len(ENTITY_LABELS), 27)
         self.assertEqual(
             SYNTHETIC_ENTITIES,
-            {COMMAND_POST_ENTITY, FIRE_TRENCH_ENTITY, NBC_SHELTER_ENTITY},
+            {
+                COMMAND_POST_ENTITY,
+                FIRE_TRENCH_ENTITY,
+                NBC_SHELTER_ENTITY,
+                AIR_HEAD_ENTITY,
+                BEACH_HEAD_ENTITY,
+                BRIDGE_HEAD_ENTITY,
+                VITAL_AREA_ENTITY,
+                VITAL_POINT_ENTITY,
+                LISTENING_POST_ENTITY,
+                AIR_FORCE_OP_ENTITY,
+                AIR_DEFENCE_OP_ENTITY,
+                MOBILE_OP_ENTITY,
+                POINT_NAI_ENTITY,
+                POINT_TAI_ENTITY,
+                AREA_NAI_ENTITY,
+                AREA_TAI_ENTITY,
+                DF_SOS_ENTITY,
+            },
         )
 
 
@@ -259,29 +293,26 @@ class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
         self.assertIn('fill="none"', svg)
 
 
-    def test_pillbox_size_is_stable_regardless_of_designation(self):
+    def test_pillbox_glyph_is_stable_regardless_of_designation(self):
 
-        # `shelter` defines no designation slot at all, so the
-        # stabilisation ratio always comes out as 1 and the size is
-        # simply identical either way.
+        # `shelter` defines no designation slot of milsymbol's own, so
+        # until 2026-09-24 a typed one drew nothing at all and the
+        # marker size was simply identical either way. It is now
+        # injected like Command Post's, which widens the declared box,
+        # so what has to hold steady is the GLYPH - the stabiliser
+        # grows the marker to match and the text hangs outside.
         layer = build_control_measure_points_layer_nonnato()
 
-        without_designation = self._render_size_for(
-            layer,
-            {
-                "affiliation": "friend", "entity": PILLBOX_ENTITY,
-                "status": "present", "unique_designation": "",
-            },
-        )
-        with_designation = self._render_size_for(
-            layer,
-            {
-                "affiliation": "friend", "entity": PILLBOX_ENTITY,
-                "status": "present", "unique_designation": "HQ 3",
-            },
-        )
+        plain = {
+            "affiliation": "friend", "entity": PILLBOX_ENTITY,
+            "status": "present", "unique_designation": "",
+        }
 
-        self.assertAlmostEqual(without_designation, with_designation, places=3)
+        self.assertAlmostEqual(
+            self._glyph_scale(layer, plain),
+            self._glyph_scale(layer, dict(plain, unique_designation="HQ 3")),
+            places=3,
+        )
 
 
     def _glyph_scale(self, layer, attributes):

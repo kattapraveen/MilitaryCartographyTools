@@ -90,6 +90,7 @@ from .nonnato_symbol_engine import (
     ENEMY_INFO_UNKNOWN_ENTITY,
     ENEMY_TYPE_UNKNOWN_ENTITY,
     ADMIN_LOGISTICS_ENTITY,
+    FORCES_IN_DEFENCE_ENTITY,
     MOTORISED_INFANTRY_ENTITY,
     MOUNTAIN_INFANTRY_ENTITY,
     INFORMATION_WARFARE_ENTITY,
@@ -197,6 +198,13 @@ ENTITY_LABELS = {
     # right side replaced by a "<") carrying the Headquarters mast -
     # see nonnato_symbol_engine.static_formation_hq_svg().
     STATIC_FORMATION_HQ_ENTITY: "Static Formation Headquarters",
+
+    # Synthetic, 2026-09-23: an ellipse on the frame's own footprint,
+    # open across the top, with the echelon row lying across the
+    # opening. No Headquarters and no Combined Arms - see
+    # nonnato_symbol_engine.forces_in_defence_fixup(). Sorts between
+    # Engineer and Infantry in the dialog, which orders by label.
+    FORCES_IN_DEFENCE_ENTITY: "Forces in Defence",
 }
 
 # Six affiliations, not milsymbol's own four - see

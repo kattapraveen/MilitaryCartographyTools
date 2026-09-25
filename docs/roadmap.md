@@ -12615,6 +12615,727 @@ the source and the extracted package; package contents checked;
 **Uploaded by the maintainer 2026-09-19, security checks cleared on the
 first attempt. Awaiting moderator approval.**
 
+## Land Equipment: "Armoured Protection Vehicle (Wheeled)" is a misspelling (2026-09-22)
+
+A maintainer decision made on the Office companion, carried into this
+plugin **2026-09-23**.
+
+`land_equipment_layer_nonnato.py`'s `ENTITY_LABELS` calls the real
+APP-6E entity `armored_protected_vehicle` **"Armoured Protected
+Vehicle"**, and calls the synthetic wheeled variant - built from that
+very entity's own oval - `APV_WHEELED_ENTITY: "Armoured Protection
+Vehicle (Wheeled)"`. Reported 2026-09-22: "Land Eqpt - rename the
+Armoured Protection Vehicle to Armoured Protected Vehicle". That
+wheeled label is the one place the family is spelled "Protection", and
+it should read **"Armoured Protected Vehicle (Wheeled)"**.
+
+**Shape of the fix:** one string in `ENTITY_LABELS`. The entity KEY
+(`nonnato_apv_wheeled`) does not change, so nothing already digitized
+breaks - the label is only the ValueMap's display side. The entity also
+keeps its alphabetical place in the dialog, between Armoured Protected
+Vehicle and Armoured Recce Vehicle, so no ordering moves. The prose
+around it had drifted the same way and followed: the module's own
+docstring, two comments in `nonnato_symbol_engine.py` (the wheeled
+entity's three wheels, and the marker-rendering note), three comments
+in `tests/test_nonnato_symbol_engine.py`, and three passages in
+`docs/non-nato-symbology-tracker.md` - the ledger's own entry now
+records that the label read "Protection" from 2026-09-03 until this
+correction, so the old name is still findable.
+
+**The Office companion HAS applied this** - not as a rendering
+deviation, since nothing it draws changes, but through a new
+`LABEL_OVERRIDES` table in its `tools/build_taskpane_data.py` that
+renames an entity on the way out of the dump and into the pane's data.
+The dump itself stays ground truth, and the override names the label it
+EXPECTS to find there, so the day this plugin renames the entity the
+companion's build fails and the override is retired rather than
+quietly shadowing the new name. **That day is now** - the companion's
+`LABEL_OVERRIDES` entry should be retired at its next build.
+
+## Land Unit: a new symbol, Forces in Defence (2026-09-22)
+
+Dictated on the Office companion and built there first; **built here
+2026-09-23** - see the entry below for how, which is not how the
+companion did it. The maintainer's instruction, 2026-09-22:
+
+> "no plugin edits from here - just mark it in the roadmap or todo of
+> plugin, i will settle that directly in the fork - this is because
+> some of the implementation is different in QGIS compared to Office,
+> so while we may have same symbols - the implementation methodology
+> may vary between QGIS and Office"
+
+So what follows is the SYMBOL and the decisions behind it. How the
+companion got there is recorded only where it might save time; the
+plugin should reach the same picture by whatever means suit PyQGIS and
+the expression engine.
+
+**The symbol.** A new Land Unit (Non-NATO) entity, **Forces in
+Defence**, sorting between Engineer and Infantry in the dialog.
+
+- **An ellipse in place of the rectangular frame**, on the frame's own
+  box - centre (100, 100), rx 75, ry 50 - so it fills exactly the
+  footprint the rectangle would have. Drawn as one 300 degree arc.
+- **Open across the top, 330 to 030 degrees.** Nothing is drawn in
+  that 60 degree sector.
+- **The affiliation palette**, the same `AFFILIATION_COLOURS` as every
+  other Land Unit entity, all six identities.
+- **No Headquarters and no Combined Arms.** Both hang off the
+  rectangle - the mast from its bottom-left corner, the Combined Arms
+  rectangle from its top edge - and there is no rectangle here. The
+  companion refuses them in the RENDER, not merely in the dialog.
+- **Echelons required**, and this is the part with the detail in it.
+
+**The echelon markers.** milsymbol's own markers, unchanged in shape,
+laid in **one straight horizontal row** - explicitly NOT bent to follow
+the curve ("keep them in a straight line"). The row's **vertical middle
+sits on the oval's topmost perimeter point** (y = 50), so the markers
+straddle the line exactly where the arc is missing.
+
+They keep milsymbol's own size wherever they fit - "keep the size of the
+echelon markers same ... the size of the X of Command is ideal" - and
+**where the row would meet the arc it shrinks**, as a whole row, to the
+largest size that still clears it: "in case of the pink rows - resize
+the echelon markers so that they dont touch the oval". At the
+companion's stroke scale that leaves Unspecified through Division at
+full size and shrinks four rows, most severely Army Group.
+
+**Two traps, recorded because they cost real time:**
+
+1. **Measure clearance against the ARC, ends included - not against the
+   ellipse.** Treating any point inside the opening's *angle* as safe
+   leaves the arc's two tips unchecked, and the tips are exactly where
+   the wide rows crowd it. Platoon/Troop passed that test while
+   clearing a tip by 0.56 units, which draws as touching. Sample a path
+   segment along its length too, not just at its ends.
+2. **Validate the size that is actually DRAWN**, not the one the search
+   found. Any rounding on the way out (the companion's `g()` trims to
+   six significant figures) can push a value that sat exactly on the
+   boundary over it.
+
+**Verification without a byte comparison.** Since the two forks may
+differ here, the companion checks PROPERTIES rather than bytes, over
+every echelon, affiliation and status: radii and opening angle, palette
+colour, status dashing against milsymbol's own frame, no marker
+rotated, the row's middle on the perimeter, nothing inside the required
+clearance, no row larger than milsymbol's own, and - where a row was
+shrunk - that one per cent more would have breached. That last one is
+worth copying whatever the implementation: it checks "shrunk only as far
+as it had to be" instead of asserting it.
+
+## Forces in Defence, as this plugin builds it (2026-09-23)
+
+The symbol is the one the entry above describes. This is how it is put
+together here, which is deliberately not how the companion does it -
+the maintainer's ruling is that the two forks share the picture, not
+the method.
+
+**The ellipse is a fixup on a real render**, the same shape of thing
+Administration or Logistics' circle has been since 2026-09-06:
+milsymbol draws a framed Military Police unit, its lettering is
+stripped, and the frame element's own `d` is swapped for one 300 degree
+arc. Everything else rides along for free because the frame element's
+own ATTRIBUTES are carried onto the arc - the affiliation colour, the
+stroke width, and `stroke-dasharray="8,12"` for Planned, which is why
+Planned dashes the arc and nothing else. The entity has no APP-6E key
+of its own and aliases to `military_police` at SIDC-build time, like
+every other frame-replacing entity here.
+
+**Headquarters and Combined Arms are refused in
+`render_nonnato_unit_svg()`**, not merely left out of the dialog. Both
+fields still exist, being the Land Unit dialog, and a render that ticks
+them is byte-identical to one that does not - there is a test on
+exactly that.
+
+**The echelon row straddles the opening.** Every other framed entity
+seats its echelon ON the frame's top ink; this one centres the row's
+own vertical middle on y=50, the ellipse's topmost perimeter point, so
+the markers lie across the line exactly where the arc is missing. The
+row keeps milsymbol's own markers, unrotated, in one straight
+horizontal line, at milsymbol's own size wherever it fits. Detachment
+through Division fit. Four shrink, as a whole row, to the largest size
+that still clears the arc: Platoon 0.921756, Corps 0.707657, Army
+0.516383, Army Group 0.413991. **The stroke shrinks with the row**,
+settled on sight of the two renders side by side: keeping the stroke
+weight turns Army Group's five X's into a bar.
+
+The gap enforced between the two inks is the arc's own half stroke.
+Zero would not do - a row that merely fails to overlap still reads as
+touching at map size.
+
+Both traps the companion recorded were real here too, and both are in
+the code's own comments so they are not rediscovered a third time:
+clearance is measured against the ARC with its two ENDS included and
+sampled along its length (Platoon's outer dots clear an end by a hair
+and an angle-based test waves them through), and the numbers CHECKED
+are the numbers DRAWN - scale and translation are both rounded to the
+six significant figures the transform is written with before any
+measuring happens.
+
+**One thing this fork needs that the companion does not.** QGIS scales
+an SVG marker so its declared viewBox WIDTH equals the marker size, and
+milsymbol sizes that box for an echelon row sitting ABOVE the frame.
+Moving the row down - and shrinking it - leaves the box with a band of
+empty space at the top and, for the wide rows, at the sides, which
+would both shift the symbol off its own anchor and draw it smaller than
+every other Land Unit. So the box is restated as the frame's own
+(21 46 158 108), grown upward only as far as the row actually reaches,
+with the root width/height following it. That happens BEFORE the
+designations are injected, so they are measured and fitted against the
+finished shape - doing it afterwards threw the designations across the
+ellipse, which is how the ordering was found.
+
+Its viewBox edge is floored rather than rounded: rounding a top edge UP
+by a ten-thousandth clips exactly that much ink off the icon.
+
+Sorts between Engineer and Infantry in the dialog, which orders by
+label. 13 tests of its own; 1922 on QGIS 4.2.2 and 3.44.12.
+
+### For the Office companion
+
+Nothing to carry over - the companion built this symbol first. Two
+things it may want to compare against, though, since the forks measured
+independently: the four shrink factors above, and the rule that the
+enforced gap is the arc's own half stroke rather than a chosen
+constant.
+
+## Areas: a new layer, and the scheme's first polygons (2026-09-23)
+
+Dictated as one list: "make a new layer called Areas / Key Terrain
+Feature - Area with slanted lines like \\ / Boggy Terrain - Area with
+dashes fill like - - - / Restricted Terrain - Area with horizontal
+lines fill / Severely Restricted Terrain - Area with horizontal and
+verticals lines fill".
+
+`military_symbology/areas_layer_nonnato.py`, reachable as **Areas** in
+the toolbar's Non-NATO Symbols group. Its own layer because a QGIS
+vector layer carries ONE geometry type and no other non-NATO layer is
+polygons - the same reason the minefield line layer is its own.
+
+**No affiliation and no status.** Terrain is terrain whoever holds it.
+Asked both ways on the day: the boundary is "yes, always solid", and
+the colour "correction - make the colour default black" (it was built
+green first, from the scheme's own obstacle green). So the entity is
+the only field on the layer, and nothing can ever dash a boundary.
+
+Each entity is one rule on a `QgsRuleBasedRenderer` keyed on `entity`,
+as every Appendix H area layer already does - the four differ by whole
+symbol rather than by one property, so there is nothing to data-define.
+`_control_measure_shared._build_rule_based_renderer()` does the same
+job but filters on `measure_type`, which this layer has not got.
+
+The four fills, all `QgsLinePatternFillSymbolLayer` at 2.5 mm spacing
+inside a 0.4 mm boundary:
+
+- **Key Terrain Feature** - one run at 45 degrees.
+- **Boggy Terrain** - one horizontal run, dashed 2.0 / 1.5 mm.
+- **Restricted Terrain** - one horizontal run, unbroken.
+- **Severely Restricted Terrain** - Restricted Terrain's own run with a
+  vertical one crossing it at the same spacing, so the two read as a
+  progression rather than as unrelated fills.
+
+**Two traps, both paid for.** A line pattern fill's angle is measured
+CLOCKWISE, so 45 leans like a backslash and 135 mirrors it - 135 was
+the first guess here and drew "/" on the first render. And the fill
+paints through a SUB-SYMBOL: colour, width and dashes all have to be
+set on that line's own symbol layer, because setting them on the fill
+layer is silently ignored. That second one is the same trap that left
+every Weapons Free Zone hatched black in 2026-08-12 while its outline
+was correctly coloured; there is a test on it here.
+
+12 tests of its own, plus the toolbar's; 1935 on QGIS 4.2.2 and
+3.44.12.
+
+### For the Office companion
+
+**Nothing - deliberately.** "These are not to be incorporated into
+Office fork - so no required to be included there" (2026-09-23). The
+standing rule is that every new non-NATO symbol gets a section here for
+the companion to pick up; these four are an explicit exception, written
+down so the absence reads as a decision rather than an oversight.
+
+## Control Measure Points: five new symbols (2026-09-23)
+
+Dictated on the Office companion and built there first; **built here
+2026-09-23/24** - by this plugin's own means, not as ports, under the
+same ruling as Forces in Defence above: the two forks share the
+picture, not the method. All five are `SYNTHETIC_ENTITIES` on
+`control_measure_points_layer_nonnato`, drawn by engine fixups - three
+on Forces in Defence's own ellipse turned over, two of their own. What
+follows is the symbol and the decision behind it, which is what the
+forks DO share.
+
+All five are new **Control Measure Points (Non-NATO)** entities, taking
+that layer's four affiliations from `AFFILIATION_COLOURS` and its
+Present/Planned status.
+
+**The first three reuse Forces in Defence's ellipse, turned 180** - "Use
+the same ellipse as Forces in defence but rotate it 180 deg" - so the
+60 degree opening is at the BOTTOM instead of the top. Each then carries
+one existing glyph, centred, shrunk only as far as it must be to clear
+the arc:
+
+- **Beach Head** - "insert the wavy glyph from land unit - amphibous -
+  the wave should not touch the ellipse". Amphibious draws a stadium AND
+  a wave; only the wave is wanted. At full size it spans the frame's
+  whole width, so it has to shrink.
+- **Bridge Head** - "Insert the bridge icon in the center of the ellipse
+  - bridge is inserted length wise vertically". The quarter turn is the
+  same one this plugin already applies on Gap / Safe Lane.
+- **Air Head** - "Insert the Aviation propeller (figure of 8) inside the
+  ellipse". Army Aviation's own closed figure of eight.
+
+**Vital Point** - "Start with the ellipse of Forces in Defence - at the
+top draw a circle with diameter same as the gap in the ellipse, add two
+triangles base touching the inner circle, top and bottom with the points
+pointing inwards", then "Use C filled" from a sheet of three readings.
+The opening stays at the TOP for this one.
+
+The circle needs no radius of its own: **the gap's two arc ends are its
+diameter**, and it is centred on their chord, so both ends land on it.
+The triangles sit inside it, bases subtending the opening's own 60
+degrees, apexes pointing inward and stopping short of the centre (at
+0.18 of the radius) rather than meeting. Filled.
+
+**Their bases follow the circle rather than cutting across it**, changed
+on sight here 2026-09-23: "base of triangle should follow the line of
+ellipse - presently it does not look good with straight line base". Each
+base is an ARC of the inner circle, written with that circle's own
+radius. A chord leaves a visible crescent of white between the wedge and
+the circle it is meant to sit against.
+
+**Vital Area** - "Start with a circle (like administration and
+logistics), insert Artillery dot in the circle (at 0.8x size), add two
+small arrows - vertical - one from top edge of circle downwards and the
+other from bottom edge upwards - both pointing to the dot, arrow heads
+towards the dot". The circle is Administration or Logistics' own radius;
+the dot is Artillery's own glyph at 0.8. The arrows stop clear of the
+dot's INK - its outer edge, stroke included - not of its geometric
+radius. Their heads are 9 units at 28 degrees.
+
+**The gap was widened here on sight**, 2026-09-23: "Arrow head should
+not touch the dot in center - there should be a distinct gap between the
+arrows and dot". The half-stroke clearance the rest of these symbols use
+stops them touching but still reads as touching at map size - the same
+trap Forces in Defence's echelon row records. It is now half the dot's
+own radius, which is unmistakable and scales with the dot.
+
+**Planned dashes the frame and only the frame** - the arc on the three
+ellipse symbols, the outer circle on Vital Area (which is that symbol's
+frame the way Administration or Logistics' circle is). Dots, arrows and
+triangles stay solid.
+
+**Designations are where the forks knowingly part.** The companion
+offers none on these five: every other point on the layer places its
+designation by this plugin's own measured rules, and there is no plugin
+render behind these to take those rules from, so rather than invent a
+placement it leaves the field off. This plugin is under no such
+constraint - the layer carries `unique_designation` for every entity
+and the measuring machinery is right there. So whatever these five do
+with one here, the companion will not match it, and that is expected
+rather than a defect to chase.
+
+**A trap worth copying.** The open ellipse is one arc from the opening's
+trailing edge to its leading one, sweep 1. Reverse the endpoints and you
+draw THE OPENING instead of the ellipse - 300 degrees becomes 60 - which
+is how the flipped version first came out, as two stubs at the bottom
+corners. It looks like a rendering fault rather than an argument-order
+one.
+
+## Control Measure Points: the NAI / TAI four (2026-09-24)
+
+Built on the Office companion; **built here 2026-09-25**, its own way,
+as with the five before them.
+
+Four new Control Measure Points, all four built out of **Point of
+Interest's own render** - its circle, its pointer, its pointer's tip
+and the font its designation is set in are lifted, not retyped.
+
+**Point of Interest itself is unchanged.** A rename to "Point of
+Interest / Point NAI" was asked for and withdrawn the same day
+("Correction - my mistake ... Rename Point of interest / NAI back to
+Point of Interest").
+
+- **Point NAI** - "the same glyph as Point of Interest with unfilled
+  triangle". milsymbol's own pointer, simply not filled. Its top
+  follows the circle's arc, so it still reads as one clean pin; a
+  straight-sided version was drawn too and put a visible chord across
+  the circle's base, so it was not taken.
+- **Point TAI** - the circle replaced by a trapezium, shorter side
+  down, designation in its centre; below it a hollow triangle with
+  three STRAIGHT sides standing on that short side and reaching the
+  donor pointer's own tip.
+- **Area NAI** - the circle kept, the pointer replaced by a trapezium
+  hanging from it, short side up and left UNDRAWN, its two ends sitting
+  ON the circumference. Designation inside the circle.
+- **Area TAI** - the same trapezium the other way up, on the circle's
+  own centre, nothing below it, designation inside.
+
+**The trapezium is a construction, not a set of coordinates.** Every
+number comes from the donor circle's DIAMETER: long side = the diameter,
+short side = 0.625 of it, height = 0.7 of it. That last is the
+maintainer's "reduce the height of trapezium by 30%", and it leaves a
+1 x 0.7 bounding box - close to the unit frame's 3:2, which is what
+"dimensionally similar as the standard rectangle" asked for. Area NAI
+alone is 20% wider and 10% shorter, kept as factors on the family's
+ratios so it stays visibly a variation rather than three new numbers.
+
+**A word that mattered.** The instruction said "parallelogram" with a
+"shorter side" up or down - but a parallelogram's opposite sides are
+equal, so that phrase picks out nothing on one. It only means something
+on a TRAPEZIUM. Both were drawn and the trapezium confirmed. Worth
+remembering if the same wording turns up again.
+
+**Status is inert on all four**, because it is inert on their donor:
+milsymbol renders Point of Interest identically for Present and
+Planned. The companion greys the control out rather than offering one
+that does nothing.
+
+## Control Measure Points: Artillery OP gets a designation, and three more OPs (2026-09-24)
+
+Two things, one origin.
+
+### Artillery Observation Post draws no designation - and never did
+
+Reported live: its "unique designation is not being inserted - need to
+insert it on the right - vertically center aligned like all others".
+
+**It was not being dropped anywhere.** milsymbol emits no designation
+for this entity at all, so `mct_nonnato_control_measure_svg()` produces
+none and the companion faithfully produced none. Checked directly
+against a raw milsymbol render before anything was changed.
+
+**This plugin should draw one**, by the rule it already uses for
+Command Post and NBC Shelter: to the RIGHT of the ink, on the frame's
+own centre line, at `side_font_size`, `gap` clear of the right-most ink
+edge including stroke. Those are this plugin's own constants; nothing
+new is needed.
+
+**The companion HAS applied it**, as a declared deviation
+(`"designation_right"`), its first since the three of 2026-09-17. It is
+verified by REMOVAL rather than by rebuilding the expected text: the
+added element is stripped back off and the remainder must equal this
+plugin's render byte for byte, which is the property that matters - the
+deviation adds a designation and changes nothing else. Seven designated
+cases pass. The declaration comes out once this plugin draws it too.
+
+### Three more Observation Posts
+
+All three are Artillery OP's triangle with its dot replaced or added
+to, and each takes the same right-side designation.
+
+- **Listening Post / Infantry Observation Post** - "Replace the dot
+  with a cross - two diagonals - starting at bottom edges and drawing
+  the altitude". True altitudes: from each bottom corner, perpendicular
+  to the opposite side. Not corner-to-corner diagonals - that reading
+  was offered and the altitude one confirmed.
+- **Air Force Observation Post** - the dot replaced by Army Aviation's
+  closed figure of eight, scaled to sit inside the triangle.
+- **Air Defence Observation Post** - Air Defence's curve across the
+  triangle's floor, with Artillery's dot kept above it.
+
+**The curve is where the care is.** Lifted as a CONSTRUCTION from the
+Land Unit glyph - ends on the shape's bottom corners, control points
+pulled up by the same fraction of the span - so nothing is a
+coordinate. But on a rectangle that curve cannot leave the frame,
+and on a TRIANGLE it leaves at once: it rises vertically out of each
+corner while the sides slope inward, so **any** rise at all puts the
+ends outside. Reducing the rise does not help.
+
+The fix is to move the ends IN along the bottom edge, searched until
+every sampled point of the curve clears both sloping sides by the two
+strokes between them. The rise stays proportional, as instructed.
+
+That curve then runs through Artillery's dot, because the triangle's
+floor sits only 28 above the dot's centre where the rectangle's sat 50.
+Settled: keep the proportional curve and shrink the dot to the largest
+that still clears it, then "shift the dot upwards, double the size of
+the dot" - done by lifting it by exactly the radius it gains, so its
+lower edge stays where it was and it grows upward. The inset curve is
+shallower than the corner-to-corner one, so the dot that fits is larger
+than it first appeared.
+
+**One implementation note worth copying:** the companion gives these
+three milsymbol's OWN padded viewBox rather than a tight box round the
+ink. A tight box draws them about 8% larger than Artillery OP at the
+same chosen size, because the pane scales by viewBox width.
+
+## Six more symbols, an Echelons layer, and a Trench System (2026-09-24)
+
+Built on the Office companion; **built here 2026-09-25**, its own way,
+as with the two batches above.
+
+### Observation Posts, continued
+
+- **Mobile Observation Post** - Air Force OP (so the propeller stays),
+  with a mast above the apex a third of the triangle's height, and a W
+  straddling its tip.
+
+  **The W is drawn, not lifted, and that was a decision.** The scheme's
+  own wavy line is Amphibious', and it was tried first - but its humps
+  are near-square and at this size they read as two brackets rather
+  than a W. Both were rendered before choosing. What IS lifted is the
+  proportion: the W's rise is Amphibious' own rise-over-run applied to
+  a quarter of the W's width, so it stays in the same family as the
+  wave even though its curve is gentler.
+
+### Control Measure Points
+
+- **DF (SOS)** - the Target cross with "SOS" beside it, at font 33.
+  Anchored by its LEFT edge, `gap` clear of the upright's ink, with its
+  baseline on the cross's bottom arm. It was anchored by its right edge
+  to the cross's own right arm first, and at that size it reached back
+  across the upright.
+
+### Land Equipment
+
+- **LORROS** - the Radar with an "L" in a circle beside it.
+- **BFSR** - the same with a "B".
+
+  **The circle is computed, not chosen.** A fixed radius made it wider
+  than the radar itself. It is half the letter's own cap-box diagonal -
+  the width from this plugin's own dumped Qt advances, the height from
+  the cap-height ratio - plus clear air and half a stroke. L and B come
+  out slightly different, each fitting its own letter. The circle sits
+  on the RADAR's vertical middle, not the frame's centre line.
+
+  The companion renders the Radar through its own pipeline and appends
+  the circle, so these two inherit its mobility, status and designation
+  rather than reimplementing any of them. Worth copying.
+
+### A new layer: Echelons
+
+Ten entities, Detachment through Army Group, each drawing milsymbol's
+own echelon marker alone. No Unspecified - it has no marker. Layer,
+entity, affiliation and size; nothing else.
+
+**All ten share ONE box**, the union of the widest and the tallest. A
+box around each marker's own ink makes them absurd beside each other:
+Company is a single 5-unit bar and Army Group is 170 units of crosses,
+so at one chosen size the bar would come out as wide as the whole Army
+Group row. Sharing a box means a Company inserted at 24 mm is the same
+bar you would see on a 24 mm unit symbol.
+
+### Mines and Obstacles (Lines): Trench System
+
+"Use the Fortified Line of NATO symbology for it, no change".
+
+**This one is different from everything else in these three batches:
+its numbers were read out of THIS PLUGIN'S SOURCE rather than dumped
+from a render.** The maintainer chose that over extending the dump. So
+the companion now carries, quoted with their origin in
+`mct_rampart_svg()` and `_RAMPART_TILE_MM`:
+
+    M 0,50 L 25,50 L 25,12 L 75,12 L 75,50 L 100,50, stroke 11 in a
+    0..100 box, tiled every 3.0 mm
+
+- the level run, the merlon half the tile wide standing 38% proud, the
+  level run the next tile continues;
+- opening and closing level, which this plugin's own note says is what
+  tells the reader which side the ramparts stand on;
+- ramparts to the LEFT of travel;
+- and the affiliation colour, not obstacle green - H.5.22.1 makes none
+  of the exception H.5.21.1 makes, which this plugin's own
+  field_fortification docstring states.
+
+**Nothing in the companion watches this plugin for it.** If Fortified
+Line changes here, the companion will not notice - no dump, no
+comparison. That is the price of the choice and it is written into the
+declaration there, but it is worth knowing on this side too: a change
+to `mct_rampart_svg()` should be accompanied by a note to the
+companion.
+
+## Control Measure Points: seven that never drew a designation (2026-09-24)
+
+Reported against Artillery Observation Post: its "unique designation is
+not being inserted - need to insert it on the right - vertically center
+aligned like all others".
+
+**Nothing was being dropped in this plugin's code - the text was never
+drawn.** milsymbol emits no designation for that entity whatever is
+passed to its own uniqueDesignation option, checked directly against raw
+renders before anything was changed. Measuring the whole layer then
+found **six more** behaving the same way: Fort, Impact Point,
+Observation Post, Pill Box, Shelter Above Ground and Shelter Below
+Ground. The maintainer took the fix across all seven, so no entity on
+the layer behaves differently from its neighbours.
+
+Each now gets one injected to the RIGHT of its ink, on the symbol's own
+centre line, by the rule Command Post and NBC Shelter already use. The
+set is named (`UNDESIGNATED_BY_MILSYMBOL`) and a test **re-derives it
+from live renders**, so a milsymbol update that starts or stops drawing
+one of them fails rather than drifting.
+
+**Three existing byte-identity tests had to change**, and changed the
+way the companion verifies its own deviation: by REMOVAL. The injected
+text is stripped back off and the declared box restored to the plain
+one's, and the rest must equal milsymbol's byte for byte. That is the
+property that actually matters - the designation is added and nothing
+else moves.
+
+**One consequence worth knowing.** Pill Box's marker size used to be
+identical with and without a designation, because nothing was drawn. It
+now widens like every other entity and the size stabiliser grows the
+marker to match, so the GLYPH holds its size and the text hangs
+outside. Two tests asserting the old behaviour now assert the glyph
+instead.
+
+## Control Measure Points: the Observation Post family, as this plugin builds it (2026-09-24)
+
+All four are Artillery Observation Post's own render with its dot
+replaced or added to, so each keeps that entity's triangle, palette,
+status and right-side designation without reimplementing any of them.
+
+- **Listening Post / Infantry Observation Post** - true ALTITUDES from
+  each bottom corner, perpendicular to the opposite side. A test checks
+  the ANGLE rather than a raw dot product, because the foot is written
+  at six significant figures like every other length here, which leaves
+  that product a hundredth off zero over a 96-unit side.
+- **Air Force Observation Post** - Army Aviation's own figure of eight,
+  fitted by **rasterising its actual ink row by row** rather than its
+  bounding box. Its corners carry no ink, and a box would shrink it for
+  clearance it does not need. A convex container is exactly the set of
+  rows between its top and bottom with an x range at each one, so
+  checking each row's two extremes checks every point of the glyph.
+- **Air Defence Observation Post** - Air Defence's curve lifted as a
+  CONSTRUCTION: ends on the shape's bottom corners, control points
+  pulled up by the same fraction of the span. **On a rectangle that
+  curve cannot leave the frame; on a triangle it leaves at once** - it
+  rises vertically out of each end while the sides slope inward, so ANY
+  rise puts the ends outside, and reducing the rise does not help. The
+  ends come IN instead, searched to the smallest inset that clears, so
+  the curve stays as wide as it can. The dot is then fitted to the
+  crest, doubled, and lifted by exactly the radius it gains, so its
+  lower edge does not move.
+- **Mobile Observation Post** - Air Force OP with a mast a third of the
+  triangle's height and a W straddling its tip. The W is DRAWN, not
+  lifted; what IS lifted is the proportion - its rise is Amphibious' own
+  rise over run applied to a quarter of its width. Nothing in the
+  instruction fixed its width: it took the mast's length first, drew too
+  small to read, and is **two thirds of the triangle's own width**
+  since 2026-09-25.
+
+## Control Measure Points: the NAI / TAI four and DF (SOS), as this plugin builds them (2026-09-25)
+
+All four NAI/TAI symbols come out of Point of Interest's own render -
+its circle, its pointer, its pointer's tip and the font its designation
+is set in. Point of Interest itself is untouched, and a test says so:
+the rename to "Point of Interest / Point NAI" was asked for and
+withdrawn the same day.
+
+The trapezium is built from the donor circle's DIAMETER, with Area NAI
+20% wider and 10% shorter as factors on those ratios. A test asserts the
+two parallel sides differ, which is what makes it a trapezium rather
+than the parallelogram the instruction's wording literally named.
+
+**Area TAI is read as REPLACING the circle**, not sitting over it. That
+is what makes the four a family: the two Point symbols carry something
+that points at a place, and the two Area ones do not. The instruction
+does not settle it either way.
+
+**The designation had to be made to fit.** The donor's own 40 fits its
+own circle and does not fit a trapezium two thirds as wide - it spilled
+straight over the sides on the first render. It is now the donor's size
+or smaller, measured against the CIRCLE'S CHORD at the text's cap
+height, or against the trapezium's width at the NARROW end of that cap
+box: the mean width still let the text's lower half catch the sloping
+sides. The baseline is computed rather than left to `dominant-baseline`,
+because **Qt ignores that attribute on both versions this project tests
+against** - already measured and recorded at `_text_element_bounds()`.
+
+Status is inert on all four, because it is inert on their donor.
+
+**DF (SOS)** is the Target cross with "SOS" at font 33, anchored by its
+LEFT edge, `_DESIGNATION_GAP` clear of the upright's ink, baseline on
+the cross's bottom arm - so it sits in the lower right quadrant. Its own
+designation still goes to the right of everything, measured, so it
+clears the letters.
+
+## Land Equipment: LORROS and BFSR (2026-09-25)
+
+The Radar exactly as THIS plugin draws it, mast included, with a
+lettered circle beside it. Both are ordinary equipment fixups on the
+Radar's own render, so they inherit its mobility, its designation and
+its size multiplier rather than reimplementing any of them - the
+companion's own note, and it applies here unchanged. They were drawn
+without the mast on the first pass, which is exactly the difference the
+side-by-side render showed.
+
+**The circle is computed, not chosen.** A fixed radius made it wider
+than the radar itself. It is half the letter's own cap-box DIAGONAL -
+the width from Qt's advance for that letter, the height from the
+cap-height ratio - plus clear air and half a stroke, so L and B come out
+slightly different and each fits its own letter. It sits on the RADAR's
+own vertical middle, not the frame's centre line.
+
+## A new layer: Echelons (2026-09-25)
+
+`military_symbology/echelons_layer_nonnato.py`, reachable as
+**Echelons** in the toolbar's Non-NATO Symbols group, with its own
+expression function `mct_nonnato_echelon_svg()`. Ten entities,
+Detachment through Army Group, each drawing milsymbol's own echelon
+marker alone. No Unspecified - it has no marker, and asking for one
+raises.
+
+**Layer, entity, affiliation and size; nothing else.** No status, no
+designation, no Headquarters, no Combined Arms: a bare marker has
+nowhere to put any of them. It needs no width companion and no size
+stabiliser either, because nothing varies its declared width.
+
+**All ten share ONE box**, the union of every marker's own ink, worked
+out from real renders rather than written down. A box around each marker
+separately makes them absurd beside each other: Company is a single
+5-unit bar and Army Group is 170 units of crosses, so at one chosen size
+the bar would come out as wide as the whole Army Group row. Sharing a
+box means a Company inserted at 24 mm is the same bar you would see on a
+24 mm unit symbol. A test checks that both extremes actually touch the
+box, so it is the union and not a round number with slack in it.
+
+**Detachment's slash is stripped here too.** The markers go through the
+unit layers' own echelon fixup rather than round it - the same echelon
+must not look like two different things on two layers.
+
+## Mines and Obstacles (Lines): Trench System (2026-09-25)
+
+"Use the Fortified Line of NATO symbology for it, no change", then "we
+can use the NATO field fortification as is". **The one symbol on this
+branch that is a NATO symbol taken whole** - not copied and not
+reimplemented: `field_fortification._fortified_line_symbol()` gained a
+public name, `fortified_line_symbol()`, and this layer calls it.
+
+So it inherits the tile size, the merlon proportions, the opening and
+closing level runs that tell the reader which side the ramparts stand
+on, ramparts to the LEFT of travel, and **the affiliation colour rather
+than obstacle green** - H.5.22.1 makes none of the exception H.5.21.1
+makes, which that module's own docstring already states.
+
+That is why this layer now carries an `affiliation` field it did not
+have. Minefield (General) is MINE_GREEN whoever laid it; Trench System
+is coloured like the NATO symbol it IS. The two are different symbols
+rather than variations of one, so the layer moved from a single symbol
+to a rule per entity - and its tests moved with it.
+
+**A change to the NATO Fortified Line now changes this symbol too**, on
+a layer whose own module would not otherwise mention it. Said in both
+places. The companion cannot see it at all: it read those numbers out of
+this plugin's SOURCE rather than from a dump, so nothing there watches
+for a change. A change to `mct_rampart_svg()` should be accompanied by a
+note to the companion.
+
+### For the Office companion
+
+Nothing to carry over on any of the above - all of it came FROM the
+companion. Three things it may want back:
+
+1. The designation fix covers **seven** entities here, not the one it
+   declared a deviation for. That declaration can be retired, and the
+   other six are new to it.
+2. Mobile Observation Post's W is two thirds of the triangle's width
+   here, settled on sight 2026-09-25.
+3. Vital Point's wedge bases are arcs of the inner circle, and Vital
+   Area's arrows stop half the dot's radius clear of its ink - both
+   changed on sight here 2026-09-23, after the companion had built
+   them.
+
 ---
 
 ## Suggested near-term order

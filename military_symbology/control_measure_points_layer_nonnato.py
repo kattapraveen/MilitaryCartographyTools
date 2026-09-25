@@ -70,6 +70,20 @@ from ._control_measure_shared import (
     configure_rotation_and_scale_fields,
 )
 from .nonnato_symbol_engine import (
+    AREA_NAI_ENTITY,
+    AREA_TAI_ENTITY,
+    DF_SOS_ENTITY,
+    POINT_NAI_ENTITY,
+    POINT_TAI_ENTITY,
+    AIR_DEFENCE_OP_ENTITY,
+    AIR_FORCE_OP_ENTITY,
+    AIR_HEAD_ENTITY,
+    LISTENING_POST_ENTITY,
+    MOBILE_OP_ENTITY,
+    BEACH_HEAD_ENTITY,
+    BRIDGE_HEAD_ENTITY,
+    VITAL_AREA_ENTITY,
+    VITAL_POINT_ENTITY,
     COMMAND_POST_ENTITY,
     FIRE_TRENCH_ENTITY,
     NBC_SHELTER_ENTITY,
@@ -89,23 +103,49 @@ PILLBOX_ENTITY = "shelter"
 # docstring). Booby Trap (`booby_trap`) moved out to its own layer
 # 2026-09-03.
 ENTITY_LABELS = {
+    AIR_DEFENCE_OP_ENTITY: "Air Defence Observation Post",
+    AIR_FORCE_OP_ENTITY: "Air Force Observation Post",
+    AIR_HEAD_ENTITY: "Air Head",
+    AREA_NAI_ENTITY: "Area NAI",
+    AREA_TAI_ENTITY: "Area TAI",
+    BEACH_HEAD_ENTITY: "Beach Head",
+    BRIDGE_HEAD_ENTITY: "Bridge Head",
     COMMAND_POST_ENTITY: "Command Post",
     "decision_point": "Decision Point",
+    DF_SOS_ENTITY: "DF (SOS)",
     FIRE_TRENCH_ENTITY: "Fire Trench/Weapon Pit/Weapon Emplacement",
     "fort": "Fort",
     "impact_point": "Impact Point",
+    LISTENING_POST_ENTITY: "Listening Post/Infantry Observation Post",
+    MOBILE_OP_ENTITY: "Mobile Observation Post",
     NBC_SHELTER_ENTITY: "NBC Shelter",
     "observation_post": "Observation Post",
     "observation_post_forward_observer": "Artillery Observation Post",
+    POINT_NAI_ENTITY: "Point NAI",
     "point_of_interest": "Point Of Interest",
+    POINT_TAI_ENTITY: "Point TAI",
     "shelter": "Pill Box",
     "shelter_above_ground": "Shelter Above Ground",
     "shelter_below_ground": "Shelter Below Ground",
     "target_reference_point": "Target/DF Task",
+    VITAL_AREA_ENTITY: "Vital Area",
+    VITAL_POINT_ENTITY: "Vital Point",
 }
 
 SYNTHETIC_ENTITIES = frozenset({
     COMMAND_POST_ENTITY, FIRE_TRENCH_ENTITY, NBC_SHELTER_ENTITY,
+    # Added 2026-09-23, all five drawn in the engine - three on Forces
+    # in Defence's own ellipse turned over, and two of their own.
+    AIR_HEAD_ENTITY, BEACH_HEAD_ENTITY, BRIDGE_HEAD_ENTITY,
+    VITAL_AREA_ENTITY, VITAL_POINT_ENTITY,
+    # Added 2026-09-24 - all four built on Artillery Observation
+    # Post's own triangle.
+    LISTENING_POST_ENTITY, AIR_FORCE_OP_ENTITY, AIR_DEFENCE_OP_ENTITY,
+    MOBILE_OP_ENTITY,
+    # And the NAI/TAI four plus DF (SOS), all built on a donor
+    # entity's own render - Point of Interest and the Target cross.
+    POINT_NAI_ENTITY, POINT_TAI_ENTITY, AREA_NAI_ENTITY, AREA_TAI_ENTITY,
+    DF_SOS_ENTITY,
 })
 
 DEFAULT_ENTITY = "decision_point"

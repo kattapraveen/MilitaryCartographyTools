@@ -23,6 +23,7 @@ from qgis.core import QgsExpression, qgsfunction
 
 from ..military_symbology.nonnato_symbol_engine import (
     render_nonnato_booby_trap_svg,
+    render_nonnato_echelon_svg,
     render_nonnato_control_measure_svg,
     render_nonnato_equipment_svg,
     render_nonnato_unit_svg,
@@ -380,6 +381,37 @@ def mct_nonnato_control_measure_svg_width(values, feature=None, parent=None):
     return _viewbox_width(svg)
 
 
+@qgsfunction(
+    'mct_nonnato_echelon_svg',
+    group='Military Cartography Tools'
+)
+def mct_nonnato_echelon_svg(values, feature=None, parent=None):
+
+    """
+    "base64:<...>" for one echelon marker drawn on its own - see
+    render_nonnato_echelon_svg(). The Echelons (Non-NATO) layer's own
+    renderer, added 2026-09-25.
+
+    Arguments, both required: affiliation, echelon.
+
+    No width companion: every marker is drawn in the SAME box, so
+    nothing here varies the declared width and there is no designation
+    to stabilise against.
+    """
+
+    if len(values) < 2:
+        return "Need an affiliation and an echelon"
+
+    try:
+        svg = render_nonnato_echelon_svg(str(values[0]), str(values[1]))
+    except ValueError as error:
+        return str(error)
+
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+    return "base64:" + encoded
+
+
 _FUNCTIONS = [
     mct_nonnato_unit_svg,
     mct_nonnato_unit_svg_width,
@@ -388,6 +420,7 @@ _FUNCTIONS = [
     mct_nonnato_booby_trap_svg,
     mct_nonnato_control_measure_svg,
     mct_nonnato_control_measure_svg_width,
+    mct_nonnato_echelon_svg,
 ]
 
 

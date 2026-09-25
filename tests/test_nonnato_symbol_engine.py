@@ -9,6 +9,7 @@ symbol_engine.py's tests for that half of the pipeline).
 Military Cartography Tools
 """
 
+import math
 import re
 
 from .qgis_test_case import QgisTestCase
@@ -1586,20 +1587,25 @@ class TestPillboxFixup(QgisTestCase):
         self.assertIn("255, 0, 0", hostile_svg)
 
 
-    def test_designation_is_accepted_but_milsymbol_draws_nothing_for_it(self):
+    def test_the_designation_is_injected_because_milsymbol_draws_none(self):
 
         # Confirmed live: `shelter`'s own milsymbol icon defines NO
         # designation slot at all - uniqueDesignation/uniqueDesignation1
         # /additionalInformation/additionalInformation1 all draw
-        # identically with or without one. Not a regression from the
-        # fill fixup - the plain mct_sidc_svg() pipeline every other
-        # entity on this layer uses would hit the exact same milsymbol
-        # limitation for this one entity. Documented here as the
-        # current, accepted behaviour rather than silently assumed.
+        # identically with or without one. That was accepted behaviour
+        # until 2026-09-24, when the maintainer took the fix across
+        # every entity milsymbol will not designate; Pill Box now gets
+        # one injected here, to the right of its own ink.
         without = nse.render_nonnato_pillbox_svg("friend")
-        with_designation = nse.render_nonnato_pillbox_svg("friend", designation="a1")
+        with_designation = nse.render_nonnato_pillbox_svg(
+            "friend", designation="a1"
+        )
 
-        self.assertEqual(without, with_designation)
+        self.assertNotIn("<text", without)
+
+        assert_only_gained_a_designation(
+            self, with_designation, without, "A1"
+        )
 
 
     def test_status_makes_no_visible_difference(self):
@@ -1799,7 +1805,7 @@ class TestVehicleFamily(QgisTestCase):
 
     def test_the_designation_clears_the_wheels(self):
 
-        # These wheels ARE in the SVG (unlike Armoured Protection
+        # These wheels ARE in the SVG (unlike Armoured Protected
         # Vehicle (Wheeled)'s), so the ordinary content-bounds
         # measurement already has to place the text below them.
         svg = nse.render_nonnato_equipment_svg(
@@ -2203,7 +2209,7 @@ class TestMobilityIndicators(QgisTestCase):
     Tracked and Self-Propelled - the two marks any Land Equipment entity
     can carry below its glyph, added 2026-09-06. Drawn straight into the
     SVG: the "QGIS clips a shape added below milsymbol's own draw area"
-    conclusion that made Armoured Protection Vehicle (Wheeled)'s wheels
+    conclusion that made Armoured Protected Vehicle (Wheeled)'s wheels
     separate symbol layers was wrong, re-measured through a real map
     render on both QGIS versions, and confirmed by the maintainer.
     """
@@ -2468,7 +2474,7 @@ class TestMobilityIndicators(QgisTestCase):
 class TestApvWheeledWheels(QgisTestCase):
 
     """
-    Armoured Protection Vehicle (Wheeled)'s three wheels, drawn straight
+    Armoured Protected Vehicle (Wheeled)'s three wheels, drawn straight
     into the SVG since 2026-09-06. They were three separate QGIS
     simple-marker symbol layers for three days, on the strength of a
     clipping conclusion that turned out to be wrong - see
@@ -3857,18 +3863,37 @@ class TestControlMeasurePoints(QgisTestCase):
                     yield affiliation, status, designation
 
 
-    def test_fort_and_the_shelters_are_unchanged(self):
+    def test_fort_and_the_shelters_are_unchanged_but_for_a_designation(self):
 
+        # All three are in UNDESIGNATED_BY_MILSYMBOL: milsymbol draws
+        # them no designation, so since 2026-09-24 one is injected
+        # here. Undesignated they are still byte-for-byte milsymbol's
+        # own; designated, the injected text and the room made for it
+        # are the ONLY differences - verified by removal rather than by
+        # rebuilding the expected markup.
         for entity in ("fort", "shelter_above_ground", "shelter_below_ground"):
             for affiliation, status, designation in self._cases():
 
                 with self.subTest(entity=entity, affiliation=affiliation, status=status, designation=designation):
 
-                    self.assertEqual(
-                        nse.render_nonnato_control_measure_svg(
-                            affiliation, entity, status, designation
-                        ),
-                        self._milsymbol(affiliation, entity, status, designation),
+                    svg = nse.render_nonnato_control_measure_svg(
+                        affiliation, entity, status, designation
+                    )
+
+                    if not designation:
+
+                        self.assertEqual(
+                            svg,
+                            self._milsymbol(affiliation, entity, status, ""),
+                        )
+
+                        continue
+
+                    assert_only_gained_a_designation(
+                        self,
+                        svg,
+                        self._milsymbol(affiliation, entity, status, ""),
+                        designation,
                     )
 
 
@@ -3888,6 +3913,24 @@ class TestControlMeasurePoints(QgisTestCase):
                 )
 
 
+    def test_pill_box_gains_only_its_designation(self):
+
+        for affiliation, status, _ in self._cases():
+
+            with self.subTest(affiliation=affiliation, status=status):
+
+                assert_only_gained_a_designation(
+                    self,
+                    nse.render_nonnato_control_measure_svg(
+                        affiliation, "shelter", status, "A1"
+                    ),
+                    nse.render_nonnato_control_measure_svg(
+                        affiliation, "shelter", status, ""
+                    ),
+                    "A1",
+                )
+
+
     def test_the_six_take_the_affiliation_palette_and_nothing_else_changes(self):
 
         for entity in sorted(nse.CONTROL_MEASURE_PALETTE_ENTITIES):
@@ -3898,16 +3941,45 @@ class TestControlMeasurePoints(QgisTestCase):
                     svg = nse.render_nonnato_control_measure_svg(
                         affiliation, entity, status, designation
                     )
-                    before = self._milsymbol(affiliation, entity, status, designation)
                     colour = nse.AFFILIATION_COLOURS[affiliation]
 
                     self.assertIn(colour, svg)
                     self.assertNotIn('"black"', svg)
                     self.assertNotIn("rgb(255, 0, 0)", svg)
-                    self.assertEqual(
-                        svg.replace(colour, "X"),
-                        re.sub(r'(stroke|fill)="(black|rgb\(255, 0, 0\))"', r'\1="X"', before),
+
+                    # Three of the six are also in
+                    # UNDESIGNATED_BY_MILSYMBOL, so their designation
+                    # is injected here rather than asked of milsymbol
+                    # - compare against the undesignated render and
+                    # take the text back off.
+                    injected = (
+                        designation
+                        and entity in nse.UNDESIGNATED_BY_MILSYMBOL
                     )
+
+                    before = self._milsymbol(
+                        affiliation, entity, status,
+                        "" if injected else designation,
+                    )
+
+                    expected = re.sub(
+                        r'(stroke|fill)="(black|rgb\(255, 0, 0\))"',
+                        r'\1="X"',
+                        before,
+                    )
+
+                    if injected:
+
+                        assert_only_gained_a_designation(
+                            self,
+                            svg.replace(colour, "X"),
+                            expected,
+                            designation,
+                        )
+
+                        continue
+
+                    self.assertEqual(svg.replace(colour, "X"), expected)
 
 
     def test_nbc_shelter_is_a_hollow_shelter_below_ground(self):
@@ -4014,3 +4086,1528 @@ class TestControlMeasurePoints(QgisTestCase):
         self.assertGreater(x, 145)
         self.assertIn(">3</text>", svg)
 
+
+
+class TestForcesInDefence(QgisTestCase):
+
+    """
+    The open ellipse, and the echelon row that lies across its opening
+    - see nonnato_symbol_engine's own Forces in Defence comments.
+    """
+
+    ECHELONS = (
+        "unspecified",
+        "team_crew",
+        "squad",
+        "platoon",
+        "company",
+        "battalion",
+        "brigade",
+        "division",
+        "corps",
+        "army",
+        "army_group",
+    )
+
+
+    def render(self, affiliation="friend", **kwargs):
+
+        return nse.render_nonnato_unit_svg(
+            affiliation, nse.FORCES_IN_DEFENCE_ENTITY, **kwargs
+        )
+
+
+    def placement(self, svg):
+
+        """The row's own (scale, offset x, offset y), as drawn."""
+
+        match = re.search(
+            r'<g transform="translate\(([-\d.]+),([-\d.]+)\)'
+            r'(?: scale\(([\d.]+)\))?"',
+            svg,
+        )
+
+        if match is None:
+            return None
+
+        return (
+            float(match.group(3) or 1),
+            float(match.group(1)),
+            float(match.group(2)),
+        )
+
+
+    def shapes(self, svg):
+
+        group = re.search(
+            r'<g transform="translate[^"]*" stroke-width=[^>]*>.*?</g>',
+            svg,
+            re.S,
+        )
+
+        return nse._echelon_shapes(group.group(0)), nse._half_stroke(
+            group.group(0)
+        )
+
+
+    def test_the_frame_is_one_arc_the_long_way_round(self):
+
+        svg = self.render()
+
+        self.assertIn(f'<path d="{nse._FID_ARC_D}"', svg)
+
+        # large-arc AND sweep both 1: reversing either draws the
+        # 60 degree OPENING instead of the 300 degree ellipse.
+        self.assertIn("A75,50 0 1 1", nse._FID_ARC_D)
+
+        self.assertNotIn(nse._UNIT_FRAME_PATH_D, svg)
+
+
+    def test_the_opening_is_sixty_degrees_across_the_top(self):
+
+        start_x, start_y = nse._FID_ARC_START
+        end_x, end_y = nse._FID_ARC_END
+
+        # Both ends level, symmetric about the ellipse's own centre
+        # line, and above its widest point.
+        self.assertAlmostEqual(start_y, end_y, places=6)
+        self.assertAlmostEqual(
+            (start_x + end_x) / 2, nse._FID_CENTRE_X, places=6
+        )
+        self.assertLess(start_y, nse._UNIT_FRAME_CENTRE_Y)
+
+        # The gap they span, at the angle they span it.
+        self.assertAlmostEqual(start_x - end_x, 75.0, places=4)
+
+
+    def test_every_affiliation_keeps_its_own_colour(self):
+
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                self.assertIn(
+                    f'stroke="{colour}"', self.render(affiliation=affiliation)
+                )
+
+
+    def test_planned_dashes_the_arc(self):
+
+        svg = self.render(status="planned")
+
+        arc = re.search(
+            r'<path d="' + re.escape(nse._FID_ARC_D) + r'"([^>]*)>', svg
+        )
+
+        self.assertIn("stroke-dasharray", arc.group(1))
+
+
+    def test_headquarters_and_combined_arms_are_refused_in_the_render(self):
+
+        svg = self.render(
+            echelon="battalion", headquarters=True, combined_arms=True
+        )
+
+        # The mast hangs off a bottom-left corner and Combined Arms
+        # sits on a top edge; an ellipse has neither.
+        self.assertNotIn(nse._HQ_MAST_D, svg)
+        self.assertNotIn("<rect", svg)
+
+        # Identical to the render that never asked for either.
+        self.assertEqual(svg, self.render(echelon="battalion"))
+
+
+    def test_no_echelon_leaves_the_arc_alone(self):
+
+        self.assertIsNone(self.placement(self.render()))
+
+
+    def test_every_echelon_row_is_centred_on_the_ellipses_top(self):
+
+        for echelon in self.ECHELONS[1:]:
+
+            with self.subTest(echelon=echelon):
+
+                svg = self.render(echelon=echelon)
+
+                shapes, _ = self.shapes(svg)
+
+                scale, offset_x, offset_y = self.placement(svg)
+
+                top = min(
+                    shape[2] - shape[3] if shape[0] == "disc"
+                    else min(shape[2], shape[4])
+                    for shape in shapes
+                )
+                bottom = max(
+                    shape[2] + shape[3] if shape[0] == "disc"
+                    else max(shape[2], shape[4])
+                    for shape in shapes
+                )
+                left = min(
+                    shape[1] - shape[3] if shape[0] == "disc"
+                    else min(shape[1], shape[3])
+                    for shape in shapes
+                )
+                right = max(
+                    shape[1] + shape[3] if shape[0] == "disc"
+                    else max(shape[1], shape[3])
+                    for shape in shapes
+                )
+
+                middle = (top + bottom) / 2 * scale + offset_y
+                centre = (left + right) / 2 * scale + offset_x
+
+                # On the ellipse's own topmost perimeter point, and
+                # still centred on the symbol.
+                self.assertAlmostEqual(middle, nse._UNIT_FRAME_TOP, places=3)
+                self.assertAlmostEqual(centre, nse._FID_CENTRE_X, places=3)
+
+
+    def test_no_row_is_rotated_or_larger_than_milsymbols_own(self):
+
+        for echelon in self.ECHELONS[1:]:
+
+            with self.subTest(echelon=echelon):
+
+                svg = self.render(echelon=echelon)
+
+                self.assertNotIn("rotate(", svg)
+
+                self.assertLessEqual(self.placement(svg)[0], 1.0)
+
+
+    def test_every_row_clears_the_arc(self):
+
+        samples = nse._fid_arc_samples()
+
+        for echelon in self.ECHELONS[1:]:
+
+            with self.subTest(echelon=echelon):
+
+                svg = self.render(echelon=echelon)
+
+                shapes, half = self.shapes(svg)
+
+                self.assertTrue(
+                    nse._fid_row_clears(
+                        shapes,
+                        self.placement(svg),
+                        half,
+                        nse._half_stroke(
+                            re.search(
+                                r'<path d="'
+                                + re.escape(nse._FID_ARC_D)
+                                + r'"([^>]*)>',
+                                svg,
+                            ).group(1)
+                        ),
+                        samples,
+                    )
+                )
+
+
+    def test_a_shrunk_row_was_shrunk_only_as_far_as_it_had_to_be(self):
+
+        samples = nse._fid_arc_samples()
+
+        shrunk = 0
+
+        for echelon in self.ECHELONS[1:]:
+
+            svg = self.render(echelon=echelon)
+
+            scale, offset_x, offset_y = self.placement(svg)
+
+            if scale == 1:
+                continue
+
+            shrunk += 1
+
+            with self.subTest(echelon=echelon):
+
+                shapes, half = self.shapes(svg)
+
+                arc_half = nse._half_stroke(
+                    re.search(
+                        r'<path d="' + re.escape(nse._FID_ARC_D) + r'"([^>]*)>',
+                        svg,
+                    ).group(1)
+                )
+
+                # One per cent more would breach the arc - the row is
+                # as large as it could be, not merely small enough.
+                bigger = nse._fid_placement(
+                    scale * 1.01, nse._FID_CENTRE_X, offset_y_centre(
+                        shapes, scale, offset_y
+                    )
+                )
+
+                self.assertFalse(
+                    nse._fid_row_clears(shapes, bigger, half, arc_half, samples)
+                )
+
+        self.assertGreater(shrunk, 0)
+
+
+    def test_the_viewbox_is_the_frames_own_width(self):
+
+        for echelon in self.ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = self.render(echelon=echelon)
+
+                x, _, width, _ = (
+                    float(value)
+                    for value in nse._VIEWBOX_PATTERN.search(svg).groups()
+                )
+
+                # Same declared width as every other Land Unit, so QGIS
+                # - which scales a marker by that width - draws this
+                # entity at the same size as its siblings.
+                self.assertEqual(x, nse._FID_VIEWBOX_X)
+                self.assertEqual(width, nse._FID_VIEWBOX_WIDTH)
+
+
+    def test_the_viewbox_holds_every_row(self):
+
+        for echelon in self.ECHELONS[1:]:
+
+            with self.subTest(echelon=echelon):
+
+                svg = self.render(echelon=echelon)
+
+                _, vb_y, _, vb_height = (
+                    float(value)
+                    for value in nse._VIEWBOX_PATTERN.search(svg).groups()
+                )
+
+                shapes, half = self.shapes(svg)
+
+                scale, offset_x, offset_y = self.placement(svg)
+
+                ink_top = min(
+                    shape[2] - shape[3] if shape[0] == "disc"
+                    else min(shape[2], shape[4])
+                    for shape in shapes
+                ) * scale + offset_y - half * scale
+
+                self.assertLessEqual(vb_y, ink_top + 1e-6)
+                self.assertGreaterEqual(
+                    vb_y + vb_height, nse._UNIT_FRAME_BOTTOM
+                )
+
+
+    def test_the_designations_still_hang_off_the_sides(self):
+
+        svg = self.render(
+            echelon="brigade", designation_left="7", designation_right="RAJ"
+        )
+
+        xs = [float(x) for x in re.findall(r'<text x="([-\d.]+)"', svg)]
+
+        self.assertEqual(len(xs), 2)
+
+        # One each side of the ellipse's own ink.
+        self.assertLess(min(xs), nse._UNIT_FRAME_LEFT)
+        self.assertGreater(max(xs), nse._UNIT_FRAME_RIGHT)
+
+
+def offset_y_centre(shapes, scale, offset_y):
+
+    """The row's own vertical centre in its untransformed coordinates."""
+
+    top = min(
+        shape[2] - shape[3] if shape[0] == "disc" else min(shape[2], shape[4])
+        for shape in shapes
+    )
+    bottom = max(
+        shape[2] + shape[3] if shape[0] == "disc" else max(shape[2], shape[4])
+        for shape in shapes
+    )
+
+    return (top + bottom) / 2
+
+
+class TestEllipseControlMeasurePoints(QgisTestCase):
+
+    """
+    The five added 2026-09-23 - three on Forces in Defence's own
+    ellipse turned over, plus Vital Point and Vital Area.
+    """
+
+    ENTITIES = (
+        nse.BEACH_HEAD_ENTITY,
+        nse.BRIDGE_HEAD_ENTITY,
+        nse.AIR_HEAD_ENTITY,
+        nse.VITAL_POINT_ENTITY,
+        nse.VITAL_AREA_ENTITY,
+    )
+
+    TURNED_OVER = (
+        nse.BEACH_HEAD_ENTITY,
+        nse.BRIDGE_HEAD_ENTITY,
+        nse.AIR_HEAD_ENTITY,
+    )
+
+
+    def render(self, entity, affiliation="friend", **kwargs):
+
+        return nse.render_nonnato_control_measure_svg(
+            affiliation, entity, **kwargs
+        )
+
+
+    def test_the_opening_is_at_the_bottom(self):
+
+        # "Use the same ellipse as Forces in defence but rotate it 180
+        # deg" - same radii, same 60 degree opening, ends level and
+        # BELOW the ellipse's own widest point.
+        start_x, start_y = nse._CMP_ELLIPSE_ARC_START
+        end_x, end_y = nse._CMP_ELLIPSE_ARC_END
+
+        self.assertAlmostEqual(start_y, end_y, places=6)
+        self.assertGreater(start_y, nse._UNIT_FRAME_CENTRE_Y)
+
+        self.assertAlmostEqual(
+            abs(start_x - end_x), abs(nse._FID_ARC_START[0] - nse._FID_ARC_END[0]),
+            places=6,
+        )
+
+        # The same trap as its unflipped twin: both flags 1, the long
+        # way round.
+        self.assertIn("A75,50 0 1 1", nse._CMP_ELLIPSE_ARC_D)
+
+        for entity in self.TURNED_OVER:
+
+            with self.subTest(entity=entity):
+
+                self.assertIn(nse._CMP_ELLIPSE_ARC_D, self.render(entity))
+
+
+    def test_vital_point_keeps_the_opening_at_the_top(self):
+
+        # "Start with the ellipse of Forces in Defence" - not turned.
+        self.assertIn(nse._FID_ARC_D, self.render(nse.VITAL_POINT_ENTITY))
+
+
+    def test_the_wave_is_milsymbols_own(self):
+
+        amphibious = nse.render_nonnato_unit_svg("friend", "amphibious")
+
+        self.assertIn(nse._AMPHIBIOUS_WAVE_D, amphibious)
+
+
+    def test_the_bridge_is_milsymbols_own(self):
+
+        bridge = nse.render_nonnato_equipment_svg("friend", "bridge")
+
+        self.assertIn(nse._BRIDGE_GLYPH_D, bridge)
+
+
+    def test_beach_head_takes_the_wave_and_not_the_stadium(self):
+
+        svg = self.render(nse.BEACH_HEAD_ENTITY)
+
+        self.assertIn(nse._AMPHIBIOUS_WAVE_D, svg)
+
+        # Amphibious draws a stadium AND a wave; only the wave is
+        # wanted.
+        self.assertNotIn(nse._ARMOUR_OVAL_D, svg)
+
+
+    def test_the_wave_is_the_one_glyph_that_shrinks(self):
+
+        scales = {}
+
+        for entity in self.TURNED_OVER:
+
+            match = re.search(r"scale\(([\d.]+)\)", self.render(entity))
+
+            scales[entity] = float(match.group(1)) if match else 1.0
+
+        self.assertLess(scales[nse.BEACH_HEAD_ENTITY], 1.0)
+        self.assertEqual(scales[nse.BRIDGE_HEAD_ENTITY], 1.0)
+        self.assertEqual(scales[nse.AIR_HEAD_ENTITY], 1.0)
+
+
+    def test_no_glyph_is_ever_drawn_larger_than_milsymbols_own(self):
+
+        for entity in self.TURNED_OVER:
+
+            with self.subTest(entity=entity):
+
+                for scale in re.findall(
+                    r"scale\(([\d.]+)\)", self.render(entity)
+                ):
+                    self.assertLessEqual(float(scale), 1.0)
+
+
+    def test_every_glyph_clears_the_arc(self):
+
+        for entity in self.TURNED_OVER:
+
+            with self.subTest(entity=entity):
+
+                svg = self.render(entity)
+
+                # The glyph's own ink, measured the way it was fitted.
+                bounds = nse._content_bounds(
+                    re.sub(
+                        r"<path d=\"" + re.escape(nse._CMP_ELLIPSE_ARC_D)
+                        + r"\"[^>]*></path>",
+                        "",
+                        svg,
+                    ),
+                    None,
+                )
+
+                self.assertIsNotNone(bounds)
+
+                x, y, width, height = bounds
+
+                half_x = max(
+                    abs(x - nse._FID_CENTRE_X),
+                    abs(x + width - nse._FID_CENTRE_X),
+                )
+                half_y = max(
+                    abs(y - nse._UNIT_FRAME_CENTRE_Y),
+                    abs(y + height - nse._UNIT_FRAME_CENTRE_Y),
+                )
+
+                arc_half = (
+                    nse._CMP_ELLIPSE_STROKE_WIDTH * nse.DEFAULT_STROKE_SCALE / 2
+                )
+
+                reach = (
+                    (half_x / (nse._FID_RX - arc_half)) ** 2
+                    + (half_y / (nse._FID_RY - arc_half)) ** 2
+                )
+
+                self.assertLess(reach, 1.0)
+
+
+    def test_vital_points_circle_is_the_gap_itself(self):
+
+        # "a circle with diameter same as the gap in the ellipse" - the
+        # gap's two arc ends ARE its diameter, so both land on it.
+        centre_x, centre_y = nse._VITAL_POINT_CIRCLE_CENTRE
+
+        for end in (nse._FID_ARC_START, nse._FID_ARC_END):
+
+            self.assertAlmostEqual(
+                math.hypot(end[0] - centre_x, end[1] - centre_y),
+                nse._VITAL_POINT_CIRCLE_RADIUS,
+                places=4,
+            )
+
+
+    def test_vital_points_wedges_point_inward_without_meeting(self):
+
+        svg = self.render(nse.VITAL_POINT_ENTITY)
+
+        _, centre_y = nse._VITAL_POINT_CIRCLE_CENTRE
+
+        apexes = []
+
+        for d in re.findall(r'<path d="(M[^"]*Z)"', svg):
+
+            # The base is an ARC OF THE INNER CIRCLE, not a chord: a
+            # straight base leaves a crescent of white against the
+            # circle it sits in.
+            self.assertIn(
+                f"A{nse._VITAL_POINT_CIRCLE_RADIUS:g},"
+                f"{nse._VITAL_POINT_CIRCLE_RADIUS:g}",
+                d,
+            )
+
+            points = [
+                (float(x), float(y))
+                for x, y in re.findall(r"[ML]([-\d.]+),([-\d.]+)", d)
+            ]
+
+            ends = [
+                (float(x), float(y))
+                for x, y in re.findall(r"[\d] ([-\d.]+),([-\d.]+) L", d)
+            ]
+
+            self.assertEqual(len(points), 2)
+            self.assertEqual(len(ends), 1)
+
+            # The base's two ends are level, and both lie on the
+            # circle.
+            self.assertAlmostEqual(points[0][1], ends[0][1], places=4)
+
+            for end in (points[0], ends[0]):
+
+                self.assertAlmostEqual(
+                    math.hypot(
+                        end[0] - nse._VITAL_POINT_CIRCLE_CENTRE[0],
+                        end[1] - nse._VITAL_POINT_CIRCLE_CENTRE[1],
+                    ),
+                    nse._VITAL_POINT_CIRCLE_RADIUS,
+                    places=3,
+                )
+
+            apexes.append(points[1][1])
+
+        self.assertEqual(len(apexes), 2)
+
+        # Both stop short of the centre rather than meeting there, one
+        # each side of it.
+        for apex in apexes:
+
+            self.assertNotAlmostEqual(apex, centre_y, places=3)
+
+            self.assertLess(
+                abs(apex - centre_y), nse._VITAL_POINT_CIRCLE_RADIUS / 2
+            )
+
+        self.assertLess(min(apexes), centre_y)
+        self.assertGreater(max(apexes), centre_y)
+
+
+    def test_vital_points_triangles_are_filled(self):
+
+        svg = self.render(nse.VITAL_POINT_ENTITY)
+
+        colour = nse.AFFILIATION_COLOURS["friend"]
+
+        self.assertEqual(svg.count(f'fill="{colour}"></path>'), 2)
+
+
+    def test_the_viewbox_holds_vital_points_circle(self):
+
+        svg = self.render(nse.VITAL_POINT_ENTITY)
+
+        _, vb_y, vb_width, _ = (
+            float(value) for value in nse._VIEWBOX_PATTERN.search(svg).groups()
+        )
+
+        _, centre_y = nse._VITAL_POINT_CIRCLE_CENTRE
+
+        top = (
+            centre_y
+            - nse._VITAL_POINT_CIRCLE_RADIUS
+            - nse._CMP_GLYPH_STROKE_WIDTH * nse.DEFAULT_STROKE_SCALE / 2
+        )
+
+        self.assertLessEqual(vb_y, top)
+
+        # The WIDTH is what QGIS sizes a marker by, so it must not have
+        # moved - this stays the size of its neighbours.
+        self.assertEqual(vb_width, nse._FID_VIEWBOX_WIDTH)
+
+
+    def test_vital_areas_circle_and_dot_are_borrowed_whole(self):
+
+        svg = self.render(nse.VITAL_AREA_ENTITY)
+
+        # Administration or Logistics' own circle...
+        self.assertIn(f'r="{nse._ADMIN_LOGISTICS_RADIUS:g}"', svg)
+
+        # ...and Artillery's own dot at 0.8.
+        self.assertIn(
+            f'r="{nse._VITAL_AREA_DOT_SCALE * nse._ARTILLERY_DOT_RADIUS:g}"',
+            svg,
+        )
+
+
+    def test_vital_areas_arrows_stop_clear_of_the_dots_ink(self):
+
+        svg = self.render(nse.VITAL_AREA_ENTITY)
+
+        radius = nse._VITAL_AREA_DOT_SCALE * nse._ARTILLERY_DOT_RADIUS
+
+        ink = radius + nse._CMP_GLYPH_STROKE_WIDTH * nse.DEFAULT_STROKE_SCALE / 2
+
+        # A distinct gap, not merely "not touching".
+        ink += nse._VITAL_AREA_ARROW_GAP
+
+        tips = []
+
+        for d in re.findall(r'<path d="(M100,[^"]*)"', svg):
+
+            ys = [float(y) for _, y in re.findall(r"[ML]([-\d.]+),([-\d.]+)", d)]
+
+            tips.append(min(ys, key=lambda y: abs(y - nse._UNIT_FRAME_CENTRE_Y)))
+
+        self.assertEqual(len(tips), 2)
+
+        for tip in tips:
+
+            # Clear of the INK, not merely of the radius.
+            self.assertGreater(abs(tip - nse._UNIT_FRAME_CENTRE_Y), ink)
+
+        # One above the dot, one below.
+        self.assertLess(min(tips), nse._UNIT_FRAME_CENTRE_Y)
+        self.assertGreater(max(tips), nse._UNIT_FRAME_CENTRE_Y)
+
+
+    def test_planned_dashes_the_frame_and_only_the_frame(self):
+
+        for entity in self.ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                svg = self.render(entity, status="planned")
+
+                self.assertEqual(svg.count("stroke-dasharray"), 1)
+
+                self.assertNotIn(
+                    "stroke-dasharray", self.render(entity)
+                )
+
+
+    def test_every_affiliation_uses_the_schemes_own_palette(self):
+
+        for affiliation in ("friend", "hostile", "neutral", "unknown"):
+
+            colour = nse.AFFILIATION_COLOURS[affiliation]
+
+            for entity in self.ENTITIES:
+
+                with self.subTest(entity=entity, affiliation=affiliation):
+
+                    svg = self.render(entity, affiliation=affiliation)
+
+                    self.assertIn(f'stroke="{colour}"', svg)
+
+                    # Not milsymbol's own black and red.
+                    self.assertNotIn('stroke="black"', svg)
+                    self.assertNotIn('stroke="rgb(255, 0, 0)"', svg)
+
+
+    def test_each_one_designates_to_the_right(self):
+
+        for entity in self.ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                plain = self.render(entity)
+
+                bounds = nse._content_bounds(plain, None)
+
+                self.assertIsNotNone(bounds)
+
+                svg = self.render(entity, designation="v1")
+
+                x = float(re.search(r'<text x="([\d.]+)"', svg).group(1))
+
+                # Clear of THIS symbol's own ink - Vital Area's circle
+                # stops well short of where the ellipses reach.
+                self.assertGreaterEqual(x, bounds[0] + bounds[2])
+                self.assertIn(">V1</text>", svg)
+
+
+def assert_only_gained_a_designation(case, designated, plain, designation):
+
+    """
+    Assert that `designated` is `plain` plus an injected side
+    designation and nothing else.
+
+    Checked by REMOVAL rather than by rebuilding the expected markup:
+    the text is stripped back off and the declared box restored to the
+    plain one's, and what is left must match byte for byte. That is the
+    property that actually matters - the designation is added, the box
+    makes room for it, and nothing else moves.
+    """
+
+    case.assertIn(f">{designation}</text>", designated)
+
+    stripped = re.sub(r"<text\b.*?</text>", "", designated, flags=re.S)
+
+    plain_box = nse._VIEWBOX_PATTERN.search(plain).group(0)
+    grown_box = nse._VIEWBOX_PATTERN.search(stripped).group(0)
+
+    plain_edges = [float(v) for v in nse._VIEWBOX_PATTERN.search(plain).groups()]
+    grown_edges = [
+        float(v) for v in nse._VIEWBOX_PATTERN.search(stripped).groups()
+    ]
+
+    # The box only ever grows, and only to hold text that hangs
+    # outside the glyph.
+    case.assertLessEqual(grown_edges[0], plain_edges[0])
+    case.assertLessEqual(grown_edges[1], plain_edges[1])
+    case.assertGreaterEqual(
+        grown_edges[0] + grown_edges[2], plain_edges[0] + plain_edges[2]
+    )
+    case.assertGreaterEqual(
+        grown_edges[1] + grown_edges[3], plain_edges[1] + plain_edges[3]
+    )
+
+    stripped = stripped.replace(grown_box, plain_box, 1)
+
+    stripped = _WIDTH_HEIGHT.sub(
+        _WIDTH_HEIGHT.search(plain).group(0) if _WIDTH_HEIGHT.search(plain)
+        else "",
+        stripped,
+        count=1,
+    )
+
+    case.assertEqual(stripped, plain)
+
+
+_WIDTH_HEIGHT = re.compile(r'width="[\d.]+" height="[\d.]+"')
+
+
+class TestEntitiesMilsymbolWillNotDesignate(QgisTestCase):
+
+    """
+    Seven Control Measure Points that milsymbol draws no designation
+    for, reported live 2026-09-24 against Artillery Observation Post
+    and measured across the whole layer from there.
+    """
+
+    def test_the_set_is_what_milsymbol_actually_does(self):
+
+        # Re-derived from live renders rather than trusted: a milsymbol
+        # update that starts or stops drawing one of these fails here
+        # instead of drifting.
+        for entity in nse.UNDESIGNATED_BY_MILSYMBOL:
+
+            with self.subTest(entity=entity):
+
+                raw = symbol_engine.render_symbol_svg(
+                    build_sidc(
+                        affiliation="friend",
+                        entity=entity,
+                        symbol_set="control_measure",
+                        echelon="unspecified",
+                        status="present",
+                        headquarters=False,
+                        edition="2525E",
+                    ),
+                    {"uniqueDesignation": "A1"},
+                )
+
+                self.assertNotIn("<text", raw)
+
+
+    def test_no_other_entity_on_the_layer_is_missing_from_it(self):
+
+        from MilitaryCartographyTools.military_symbology.\
+            control_measure_points_layer_nonnato import (
+                ENTITY_LABELS,
+                SYNTHETIC_ENTITIES,
+            )
+
+        for entity in set(ENTITY_LABELS) - SYNTHETIC_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                raw = symbol_engine.render_symbol_svg(
+                    build_sidc(
+                        affiliation="friend",
+                        entity=entity,
+                        symbol_set="control_measure",
+                        echelon="unspecified",
+                        status="present",
+                        headquarters=False,
+                        edition="2525E",
+                    ),
+                    {"uniqueDesignation": "A1"},
+                )
+
+                self.assertEqual(
+                    "<text" not in raw,
+                    entity in nse.UNDESIGNATED_BY_MILSYMBOL,
+                )
+
+
+    def test_every_one_of_them_now_draws_one(self):
+
+        for entity in nse.UNDESIGNATED_BY_MILSYMBOL:
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_control_measure_svg(
+                    "friend", entity, designation="a1"
+                )
+
+                self.assertIn(">A1</text>", svg)
+
+
+    def test_it_sits_right_of_the_ink_on_the_centre_line(self):
+
+        for entity in nse.UNDESIGNATED_BY_MILSYMBOL:
+
+            with self.subTest(entity=entity):
+
+                plain = nse.render_nonnato_control_measure_svg(
+                    "friend", entity
+                )
+
+                bounds = nse._content_bounds(plain, None)
+
+                self.assertIsNotNone(bounds)
+
+                svg = nse.render_nonnato_control_measure_svg(
+                    "friend", entity, designation="a1"
+                )
+
+                text = re.search(
+                    r'<text x="([-\d.]+)" y="([-\d.]+)"', svg
+                )
+
+                self.assertGreaterEqual(
+                    float(text.group(1)), bounds[0] + bounds[2]
+                )
+
+                # Vertically centred on the symbol's own centre line,
+                # give or take the font's own cap height.
+                self.assertLess(
+                    abs(float(text.group(2)) - nse._CONTROL_MEASURE_CENTRE_Y),
+                    30,
+                )
+
+
+    def test_nothing_widens_the_box_for_text_milsymbol_never_draws(self):
+
+        # Asking milsymbol for a designation it will not draw still
+        # grows its declared viewBox, and the size stabiliser reads
+        # that width - so the icon would shrink for nothing.
+        for entity in nse.UNDESIGNATED_BY_MILSYMBOL:
+
+            with self.subTest(entity=entity):
+
+                raw = symbol_engine.render_symbol_svg(
+                    build_sidc(
+                        affiliation="friend",
+                        entity=entity,
+                        symbol_set="control_measure",
+                        echelon="unspecified",
+                        status="present",
+                        headquarters=False,
+                        edition="2525E",
+                    ),
+                    None,
+                )
+
+                plain = nse.render_nonnato_control_measure_svg(
+                    "friend", entity
+                )
+
+                self.assertEqual(
+                    nse._VIEWBOX_PATTERN.search(raw).groups(),
+                    nse._VIEWBOX_PATTERN.search(plain).groups(),
+                )
+
+
+class TestObservationPostFamily(QgisTestCase):
+
+    """
+    The four added 2026-09-24, all built on Artillery Observation
+    Post's own triangle.
+    """
+
+    ENTITIES = (
+        nse.LISTENING_POST_ENTITY,
+        nse.AIR_FORCE_OP_ENTITY,
+        nse.AIR_DEFENCE_OP_ENTITY,
+        nse.MOBILE_OP_ENTITY,
+    )
+
+
+    def render(self, entity, **kwargs):
+
+        return nse.render_nonnato_control_measure_svg(
+            kwargs.pop("affiliation", "friend"), entity, **kwargs
+        )
+
+
+    def test_the_donor_triangle_and_dot_are_milsymbols_own(self):
+
+        donor = nse.render_nonnato_control_measure_svg(
+            "friend", "observation_post_forward_observer"
+        )
+
+        self.assertIn(f'd="{nse._ARTILLERY_OP_TRIANGLE_D}"', donor)
+        self.assertRegex(donor, nse._ARTILLERY_OP_DOT_PATTERN)
+
+
+    def test_every_one_keeps_the_triangle(self):
+
+        for entity in self.ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                self.assertIn(
+                    f'd="{nse._ARTILLERY_OP_TRIANGLE_D}"', self.render(entity)
+                )
+
+
+    def test_the_dot_is_replaced_except_on_air_defence(self):
+
+        for entity in self.ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                svg = self.render(entity)
+
+                # milsymbol's own dot path is gone from all four; Air
+                # Defence draws its own circle instead, above its
+                # curve.
+                self.assertNotRegex(svg, nse._ARTILLERY_OP_DOT_PATTERN)
+
+                self.assertEqual(
+                    "<circle" in svg, entity == nse.AIR_DEFENCE_OP_ENTITY
+                )
+
+
+    def test_listening_posts_strokes_are_true_altitudes(self):
+
+        svg = self.render(nse.LISTENING_POST_ENTITY)
+
+        strokes = re.findall(r'<path d="M([-\d.]+),([-\d.]+) L([-\d.]+),([-\d.]+)"', svg)
+
+        self.assertEqual(len(strokes), 2)
+
+        corners = {
+            nse._ARTILLERY_OP_BOTTOM_LEFT: nse._ARTILLERY_OP_BOTTOM_RIGHT,
+            nse._ARTILLERY_OP_BOTTOM_RIGHT: nse._ARTILLERY_OP_BOTTOM_LEFT,
+        }
+
+        for x1, y1, x2, y2 in strokes:
+
+            start = (float(x1), float(y1))
+
+            self.assertIn(start, corners)
+
+            other = corners[start]
+
+            # Perpendicular to the opposite side, not a line to the
+            # opposite corner.
+            side = (
+                other[0] - nse._ARTILLERY_OP_APEX[0],
+                other[1] - nse._ARTILLERY_OP_APEX[1],
+            )
+            stroke = (float(x2) - start[0], float(y2) - start[1])
+
+            # Normalised, so this checks the ANGLE rather than a raw
+            # product: the foot is written at six significant figures
+            # like every other length here, which leaves the dot
+            # product a hundredth off zero over a 96-unit side.
+            cosine = (side[0] * stroke[0] + side[1] * stroke[1]) / (
+                math.hypot(*side) * math.hypot(*stroke)
+            )
+
+            self.assertLess(abs(cosine), 1e-4)
+
+
+    def test_the_air_defence_curve_is_a_construction_not_coordinates(self):
+
+        inset = nse._air_defence_op_inset()
+
+        # It had to come in off the corners at all, and not by much -
+        # on a rectangle this curve cannot leave the frame; on a
+        # triangle it leaves at once.
+        self.assertGreater(inset, 0)
+        self.assertLess(
+            inset,
+            (
+                nse._ARTILLERY_OP_BOTTOM_RIGHT[0]
+                - nse._ARTILLERY_OP_BOTTOM_LEFT[0]
+            )
+            / 4,
+        )
+
+        self.assertTrue(nse._air_defence_curve_clears(inset))
+
+        # And it is the SMALLEST that clears, so the curve stays as
+        # wide as it can.
+        self.assertFalse(nse._air_defence_curve_clears(inset * 0.99))
+
+
+    def test_the_air_defence_dot_grew_upward_from_where_it_fitted(self):
+
+        svg = self.render(nse.AIR_DEFENCE_OP_ENTITY)
+
+        circle = re.search(r'<circle cx="100" cy="([\d.]+)" r="([\d.]+)"', svg)
+
+        centre = float(circle.group(1))
+        radius = float(circle.group(2))
+
+        # Doubled and lifted by exactly the radius it gained, so its
+        # lower edge sits where the fitted dot's did.
+        fitted = radius / 2
+
+        self.assertAlmostEqual(centre + radius, 100 + fitted, places=3)
+        self.assertLess(centre, 100)
+
+        _, crest = nse._air_defence_curve(nse._air_defence_op_inset())
+
+        self.assertLess(centre + radius, crest)
+
+
+    def test_mobile_op_keeps_the_propeller_and_adds_a_mast_and_a_w(self):
+
+        svg = self.render(nse.MOBILE_OP_ENTITY)
+
+        self.assertIn(nse._ARMY_AVIATION_PROPELLER_SOLID_D, svg)
+
+        apex_x, apex_y = nse._ARTILLERY_OP_APEX
+
+        height = nse._ARTILLERY_OP_BOTTOM_LEFT[1] - apex_y
+
+        tip = apex_y - height * nse._MOBILE_OP_MAST_FRACTION
+
+        self.assertIn(f'M{apex_x:g},{apex_y:g} L{apex_x:g},{tip:g}', svg)
+
+        # Five points, alternating, straddling the mast's own tip.
+        w = [
+            (float(x), float(y))
+            for x, y in re.findall(r"[ML]([-\d.]+),([-\d.]+)", svg)
+        ]
+
+        above = [point for point in w if point[1] < tip]
+        below = [point for point in w if point[1] > tip]
+
+        self.assertTrue(above)
+        self.assertTrue(below)
+
+
+    def test_the_w_is_two_thirds_of_the_triangles_width(self):
+
+        svg = self.render(nse.MOBILE_OP_ENTITY)
+
+        width = nse._MOBILE_OP_W_FRACTION * (
+            nse._ARTILLERY_OP_BOTTOM_RIGHT[0] - nse._ARTILLERY_OP_BOTTOM_LEFT[0]
+        )
+
+        centre = nse._ARTILLERY_OP_APEX[0]
+
+        self.assertIn(f"M{nse._round_drawn(centre - width / 2):g},", svg)
+        self.assertIn(f"L{nse._round_drawn(centre + width / 2):g},", svg)
+
+
+    def test_every_one_takes_the_palette_and_a_right_side_designation(self):
+
+        for entity in self.ENTITIES:
+
+            for affiliation in ("friend", "hostile", "neutral", "unknown"):
+
+                with self.subTest(entity=entity, affiliation=affiliation):
+
+                    svg = self.render(
+                        entity, affiliation=affiliation, designation="o1"
+                    )
+
+                    self.assertIn(
+                        f'stroke="{nse.AFFILIATION_COLOURS[affiliation]}"', svg
+                    )
+                    self.assertNotIn('stroke="black"', svg)
+                    self.assertIn(">O1</text>", svg)
+
+
+class TestLetteredRadars(QgisTestCase):
+
+    """LORROS and BFSR - the Radar with a lettered circle beside it."""
+
+    def test_both_draw_the_radar_this_plugin_draws(self):
+
+        radar = nse.render_nonnato_equipment_svg("friend", nse.SIGINT_RADAR_ENTITY)
+
+        radar_d = re.findall(r' d="([^"]+)"', radar)
+
+        for entity in (nse.LORROS_ENTITY, nse.BFSR_ENTITY):
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+                # The dish AND the mast this plugin adds to it.
+                for d in radar_d:
+                    self.assertIn(f'd="{d}"', svg)
+
+
+    def test_the_circle_is_computed_from_its_own_letter(self):
+
+        radii = {}
+
+        for entity, letter in nse._LETTERED_RADAR_LETTERS.items():
+
+            svg = nse.render_nonnato_equipment_svg("friend", entity)
+
+            circle = re.search(r'<circle[^>]*r="([\d.]+)"', svg)
+
+            self.assertIsNotNone(circle)
+
+            radii[letter] = float(circle.group(1))
+
+            self.assertIn(f">{letter}</text>", svg)
+
+        # A fixed radius made it wider than the radar itself; each one
+        # fits its own letter, so L and B differ.
+        self.assertNotEqual(radii["L"], radii["B"])
+
+
+    def test_the_circle_sits_on_the_radars_own_vertical_middle(self):
+
+        radar = nse.render_nonnato_equipment_svg("friend", nse.SIGINT_RADAR_ENTITY)
+
+        bounds = nse._content_bounds(radar, None)
+
+        self.assertIsNotNone(bounds)
+
+        middle = bounds[1] + bounds[3] / 2
+
+        svg = nse.render_nonnato_equipment_svg("friend", nse.LORROS_ENTITY)
+
+        circle = re.search(r'<circle[^>]*cy="([\d.]+)"', svg)
+
+        # Not the frame's centre line.
+        self.assertAlmostEqual(float(circle.group(1)), middle, places=2)
+
+
+    def test_both_still_take_a_designation_below(self):
+
+        for entity in (nse.LORROS_ENTITY, nse.BFSR_ENTITY):
+
+            with self.subTest(entity=entity):
+
+                svg = nse.render_nonnato_equipment_svg(
+                    "friend", entity, designation="r2"
+                )
+
+                self.assertIn(">R2</text>", svg)
+
+
+class TestEchelonMarkers(QgisTestCase):
+
+    """The Echelons layer's own renders - one marker, alone, in a shared box."""
+
+    def test_there_is_no_unspecified(self):
+
+        # It has no marker.
+        self.assertNotIn("unspecified", nse.ECHELON_MARKER_ENTITIES)
+        self.assertEqual(len(nse.ECHELON_MARKER_ENTITIES), 10)
+
+
+    def test_all_ten_share_one_box(self):
+
+        boxes = {
+            nse._VIEWBOX_PATTERN.search(
+                nse.render_nonnato_echelon_svg("friend", echelon)
+            ).group(0)
+            for echelon in nse.ECHELON_MARKER_ENTITIES
+        }
+
+        self.assertEqual(len(boxes), 1)
+
+
+    def test_the_box_is_the_union_of_every_marker(self):
+
+        x, y, width, height = nse.echelon_shared_box()
+
+        widest = tallest = False
+
+        for echelon in nse.ECHELON_MARKER_ENTITIES:
+
+            group = nse._echelon_marker_group("friend", echelon)
+
+            half = nse._half_stroke(group)
+
+            for shape in nse._echelon_shapes(group):
+
+                if shape[0] == "disc":
+                    edges = (
+                        shape[1] - shape[3], shape[1] + shape[3],
+                        shape[2] - shape[3], shape[2] + shape[3],
+                    )
+                else:
+                    edges = (shape[1], shape[3], shape[2], shape[4])
+
+                for edge in edges[:2]:
+                    self.assertGreaterEqual(edge - half, x - 0.01)
+                    self.assertLessEqual(edge + half, x + width + 0.01)
+
+                for edge in edges[2:]:
+                    self.assertGreaterEqual(edge - half, y - 0.01)
+                    self.assertLessEqual(edge + half, y + height + 0.01)
+
+                if edges[0] - half <= x + 0.01 or edges[1] + half >= x + width - 0.01:
+                    widest = True
+
+                if edges[2] - half <= y + 0.01 or edges[3] + half >= y + height - 0.01:
+                    tallest = True
+
+        # Both extremes actually touch it - it is the union, not a
+        # round number with slack in it.
+        self.assertTrue(widest)
+        self.assertTrue(tallest)
+
+
+    def test_detachments_slash_is_stripped_as_it_is_on_a_unit(self):
+
+        svg = nse.render_nonnato_echelon_svg("friend", "team_crew")
+
+        # One circle, no slash: the same echelon must not look like two
+        # different things on two layers.
+        self.assertEqual(svg.count("<circle"), 1)
+        self.assertNotIn("<path", svg)
+
+
+    def test_every_affiliation_colours_the_marker(self):
+
+        for affiliation, colour in nse.AFFILIATION_COLOURS.items():
+
+            with self.subTest(affiliation=affiliation):
+
+                self.assertIn(
+                    f'stroke="{colour}"',
+                    nse.render_nonnato_echelon_svg(affiliation, "brigade"),
+                )
+
+
+    def test_an_echelon_with_no_marker_raises(self):
+
+        with self.assertRaises(ValueError):
+            nse.render_nonnato_echelon_svg("friend", "unspecified")
+
+
+class TestNaiTaiAndDfSos(QgisTestCase):
+
+    """
+    The four NAI/TAI symbols and DF (SOS), added 2026-09-25 - the first
+    four on Point of Interest's own render, DF (SOS) on the Target
+    cross.
+    """
+
+    NAI_TAI = (
+        nse.POINT_NAI_ENTITY,
+        nse.POINT_TAI_ENTITY,
+        nse.AREA_NAI_ENTITY,
+        nse.AREA_TAI_ENTITY,
+    )
+
+
+    def render(self, entity, **kwargs):
+
+        return nse.render_nonnato_control_measure_svg(
+            kwargs.pop("affiliation", "friend"), entity, **kwargs
+        )
+
+
+    def test_the_donor_glyphs_are_milsymbols_own(self):
+
+        poi = self.render("point_of_interest")
+
+        self.assertIn(f'd="{nse._POI_POINTER_D}"', poi)
+        self.assertRegex(poi, nse._POI_CIRCLE_PATTERN)
+
+        self.assertIn(
+            f'd="{nse._TARGET_CROSS_D}"', self.render("target_reference_point")
+        )
+
+
+    def test_point_of_interest_itself_is_untouched(self):
+
+        # A rename was asked for and withdrawn the same day.
+        from MilitaryCartographyTools.military_symbology.\
+            control_measure_points_layer_nonnato import ENTITY_LABELS
+
+        self.assertEqual(
+            ENTITY_LABELS["point_of_interest"], "Point Of Interest"
+        )
+
+
+    def test_point_nai_is_the_donor_with_its_pointer_unfilled(self):
+
+        svg = self.render(nse.POINT_NAI_ENTITY)
+
+        pointer = nse._POI_POINTER_PATTERN.search(svg)
+
+        self.assertIsNotNone(pointer)
+        self.assertIn('fill="none"', pointer.group(0))
+
+        # Its top follows the circle's ARC, so it still reads as one
+        # clean pin - a straight-sided version put a visible chord
+        # across the circle's base.
+        self.assertIn("C ", nse._POI_POINTER_D)
+
+
+    def test_the_two_area_symbols_carry_nothing_that_points(self):
+
+        for entity in (nse.AREA_NAI_ENTITY, nse.AREA_TAI_ENTITY):
+
+            with self.subTest(entity=entity):
+
+                self.assertNotIn(nse._POI_POINTER_D, self.render(entity))
+
+
+    def test_the_trapezium_is_built_from_the_donors_own_diameter(self):
+
+        points = nse._trapezium_points(
+            nse._POI_CIRCLE_CENTRE, 2 * nse._POI_CIRCLE_RADIUS, short_down=True
+        )
+
+        long_side = abs(points[1][0] - points[0][0])
+        short_side = abs(points[2][0] - points[3][0])
+        height = abs(points[2][1] - points[1][1])
+
+        diameter = 2 * nse._POI_CIRCLE_RADIUS
+
+        self.assertAlmostEqual(long_side, diameter)
+        self.assertAlmostEqual(short_side, nse._TRAPEZIUM_SHORT_FACTOR * diameter)
+        self.assertAlmostEqual(height, nse._TRAPEZIUM_HEIGHT_FACTOR * diameter)
+
+        # A trapezium, not a parallelogram - "shorter side" only means
+        # something on one of them.
+        self.assertNotAlmostEqual(long_side, short_side)
+
+
+    def test_point_tais_triangle_stands_on_the_short_side_and_reaches_the_tip(self):
+
+        svg = self.render(nse.POINT_TAI_ENTITY)
+
+        triangle = re.search(
+            r'<path d="M([-\d.]+),([-\d.]+) L([-\d.]+),([-\d.]+) '
+            r'L([-\d.]+),([-\d.]+) Z"',
+            svg,
+        )
+
+        self.assertIsNotNone(triangle)
+
+        numbers = [float(value) for value in triangle.groups()]
+
+        # Middle point is the donor pointer's own tip.
+        self.assertAlmostEqual(numbers[2], nse._POI_TIP[0], places=3)
+        self.assertAlmostEqual(numbers[3], nse._POI_TIP[1], places=3)
+
+        # Its two feet are the trapezium's own short side.
+        points = nse._trapezium_points(
+            nse._POI_CIRCLE_CENTRE, 2 * nse._POI_CIRCLE_RADIUS, short_down=True
+        )
+
+        self.assertAlmostEqual(numbers[1], points[3][1], places=3)
+        self.assertAlmostEqual(numbers[5], points[2][1], places=3)
+
+
+    def test_area_nais_short_side_ends_sit_on_the_circumference(self):
+
+        svg = self.render(nse.AREA_NAI_ENTITY)
+
+        path = re.search(r'<path d="(M[-\d.]+,[-\d.]+ L[^"]*)"', svg)
+
+        points = [
+            (float(x), float(y))
+            for x, y in re.findall(r"[ML]([-\d.]+),([-\d.]+)", path.group(1))
+        ]
+
+        # Four corners, and the short side is NOT drawn - so the path
+        # is open.
+        self.assertEqual(len(points), 4)
+        self.assertNotIn("Z", path.group(1))
+
+        for end in (points[0], points[3]):
+
+            self.assertAlmostEqual(
+                math.hypot(
+                    end[0] - nse._POI_CIRCLE_CENTRE[0],
+                    end[1] - nse._POI_CIRCLE_CENTRE[1],
+                ),
+                nse._POI_CIRCLE_RADIUS,
+                places=3,
+            )
+
+
+    def test_area_nai_is_wider_and_shorter_than_the_family(self):
+
+        self.assertGreater(nse._AREA_NAI_WIDTH_FACTOR, 1)
+        self.assertLess(nse._AREA_NAI_HEIGHT_FACTOR, 1)
+
+
+    def test_the_designation_fits_the_shape_that_holds_it(self):
+
+        for entity in self.NAI_TAI:
+
+            with self.subTest(entity=entity):
+
+                svg = self.render(entity, designation="tai12")
+
+                size = float(re.search(r'font-size="([\d.]+)"', svg).group(1))
+
+                # Never larger than the donor's own, and small enough
+                # not to spill out of the shape.
+                self.assertLessEqual(size, nse._POI_FONT_SIZE)
+
+                width = nse._designation_text_width("TAI12", size)
+
+                self.assertLessEqual(
+                    width,
+                    max(
+                        nse._room_inside_circle(nse._POI_CIRCLE_RADIUS),
+                        nse._room_inside_trapezium(2 * nse._POI_CIRCLE_RADIUS),
+                    )
+                    + 0.01,
+                )
+
+
+    def test_status_is_inert_on_all_four(self):
+
+        # It is inert on their donor: milsymbol renders Point of
+        # Interest identically for Present and Planned.
+        for entity in self.NAI_TAI:
+
+            with self.subTest(entity=entity):
+
+                self.assertEqual(
+                    self.render(entity, status="present"),
+                    self.render(entity, status="planned"),
+                )
+
+
+    def test_df_sos_puts_its_letters_in_the_lower_right_quadrant(self):
+
+        svg = self.render(nse.DF_SOS_ENTITY)
+
+        self.assertIn(f'd="{nse._TARGET_CROSS_D}"', svg)
+
+        text = re.search(
+            r'<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="([\d.]+)"', svg
+        )
+
+        self.assertIsNotNone(text)
+        self.assertIn(">SOS</text>", svg)
+
+        self.assertEqual(float(text.group(3)), nse._DF_SOS_FONT_SIZE)
+
+        # Clear of the upright's own ink, and on the cross's bottom
+        # arm - it was anchored by its right edge first and reached
+        # back across the upright at this size.
+        self.assertGreater(
+            float(text.group(1)), nse._CONTROL_MEASURE_CENTRE_Y
+        )
+        self.assertAlmostEqual(
+            float(text.group(2)),
+            nse._CONTROL_MEASURE_CENTRE_Y + nse._TARGET_CROSS_HALF,
+            places=3,
+        )
+        self.assertIn('text-anchor="start"', svg)
+
+
+    def test_df_sos_still_takes_its_own_designation(self):
+
+        svg = self.render(nse.DF_SOS_ENTITY, designation="d4")
+
+        self.assertIn(">SOS</text>", svg)
+        self.assertIn(">D4</text>", svg)
+
+
+    def test_all_five_take_the_schemes_palette(self):
+
+        for entity in self.NAI_TAI + (nse.DF_SOS_ENTITY,):
+
+            for affiliation in ("friend", "hostile", "neutral", "unknown"):
+
+                with self.subTest(entity=entity, affiliation=affiliation):
+
+                    svg = self.render(entity, affiliation=affiliation)
+
+                    self.assertIn(
+                        nse.AFFILIATION_COLOURS[affiliation], svg
+                    )
+                    self.assertNotIn('"black"', svg)
+                    self.assertNotIn("rgb(255, 0, 0)", svg)

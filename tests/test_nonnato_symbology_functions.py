@@ -370,10 +370,14 @@ class TestNonnatoWidthFunctions(QgisTestCase):
         self.assertEqual(amplified, plain)
 
 
-    def test_pillbox_width_is_unaffected_by_a_designation(self):
+    def test_pillbox_width_grows_with_a_designation(self):
 
-        # `shelter` defines no designation slot at all, so its width
-        # genuinely does not change - the ratio simply comes out as 1.
+        # `shelter` defines no designation slot of milsymbol's own, so
+        # until 2026-09-24 its width genuinely did not change and the
+        # stabilisation ratio came out as 1. The designation is now
+        # injected instead, which widens the declared box exactly as it
+        # does for Command Post - which is what keeps the GLYPH the
+        # same size and lets the text hang outside it.
         plain = self._evaluate(
             "mct_nonnato_control_measure_svg_width('friend','shelter','present','')"
         )
@@ -381,7 +385,7 @@ class TestNonnatoWidthFunctions(QgisTestCase):
             "mct_nonnato_control_measure_svg_width('friend','shelter','present','HQ 3')"
         )
 
-        self.assertEqual(amplified, plain)
+        self.assertGreater(amplified, plain)
 
 
     def test_control_measure_width_grows_with_a_designation(self):

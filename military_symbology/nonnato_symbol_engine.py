@@ -24,6 +24,7 @@ in the rules record was designed and confirmed against.
 Military Cartography Tools
 """
 
+import math
 import re
 
 from .sidc import build_sidc
@@ -33,6 +34,26 @@ from .symbol_engine import (
     render_symbol_svg,
     scale_svg_stroke_width,
 )
+
+
+# Every length this module writes into an SVG goes through `:g`, which
+# keeps six significant figures. Geometry that something ELSE then has
+# to measure against - the open ellipse's own arc ends, the echelon
+# row's own transform - is rounded the same way BEFORE the measuring,
+# so the numbers checked are the numbers drawn. Rounding afterwards
+# can push a value that sat exactly on a limit over it.
+def _round_drawn(value):
+
+    return float(f"{value:.6g}")
+
+
+# A viewBox edge cannot round the way an ordinary length can: rounding
+# it up by a ten-thousandth clips exactly that much ink off the top of
+# the icon. This rounds AWAY from the content instead, to the same
+# handful of decimals `:g` would keep.
+def _floor_drawn(value):
+
+    return math.floor(value * 10000) / 10000
 
 
 # Part D's settled affiliation colour palette - six affiliations, not
@@ -688,6 +709,123 @@ def admin_logistics_fixup(svg):
         f'L{centre_x:g},{_UNIT_FRAME_BOTTOM + _HQ_MAST_LENGTH:g}"',
         1,
     )
+
+
+# --- Forces in Defence --------------------------------------------------
+#
+# Dictated on the Office companion 2026-09-22 and built there first;
+# built here 2026-09-23. The maintainer's ruling is that the two forks
+# share the SYMBOL, not the implementation - "some of the implementation
+# is different in QGIS compared to Office, so while we may have same
+# symbols - the implementation methodology may vary" - so what crossed
+# over is the picture and the decisions behind it, not any code.
+#
+# The frame rectangle is replaced by an ELLIPSE on the rectangle's own
+# footprint - centre 100,100, rx 75, ry 50, so it fills exactly the
+# space the rectangle would - drawn as ONE 300 degree arc, open across
+# the top from 330 to 030. A frame-replacing fixup on a real render,
+# the same shape of thing admin_logistics_fixup() is, which is what
+# keeps the six-affiliation palette and Planned status working: the
+# frame element's own attributes, `stroke-dasharray="8,12"` included,
+# are carried straight onto the arc.
+#
+# Headquarters and Combined Arms are refused in the RENDER, not merely
+# left out of the dialog - see render_nonnato_unit_svg(). milsymbol
+# hangs the mast off the frame's own bottom-left corner and Combined
+# Arms sits on its top edge; this symbol has neither a corner nor a top
+# edge to hang them from.
+#
+# Echelons DO apply, and are the part with the detail in them - see
+# straddle_echelon_on_opening() below.
+FORCES_IN_DEFENCE_ENTITY = "nonnato_forces_in_defence"
+
+_FID_CENTRE_X = (_UNIT_FRAME_LEFT + _UNIT_FRAME_RIGHT) / 2
+_FID_RX = (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT) / 2
+_FID_RY = (_UNIT_FRAME_BOTTOM - _UNIT_FRAME_TOP) / 2
+
+# Half of the 60 degree opening, which is centred on the ellipse's own
+# topmost point.
+_FID_OPENING_HALF_ANGLE = 30.0
+
+
+def _fid_ellipse_point(degrees):
+
+    """
+    A point on the ellipse at a COMPASS angle - 0 at the top, measured
+    clockwise - rounded to the six significant figures the path itself
+    is written with, so the geometry the clearance maths works from is
+    the geometry that is actually drawn.
+    """
+
+    radians = math.radians(degrees)
+
+    return (
+        _round_drawn(_FID_CENTRE_X + _FID_RX * math.sin(radians)),
+        _round_drawn(_UNIT_FRAME_CENTRE_Y - _FID_RY * math.cos(radians)),
+    )
+
+
+def _open_ellipse_arc(opening_centre):
+
+    """
+    The ellipse as ONE 300 degree arc, with its 60 degree opening
+    centred on the compass bearing `opening_centre` - 0 for Forces in
+    Defence's own opening at the top, 180 for the Control Measure
+    Points that reuse this ellipse turned over.
+
+    Returns the two arc ends, which are also the two ends of the
+    opening, and the `d`. Everything else about these symbols is
+    measured from those two ends.
+
+    The arc runs from the opening's trailing end round to its leading
+    one, large-arc 1 and sweep 1 taking the long way clockwise on
+    screen. **Reverse the two ends and you draw THE OPENING instead** -
+    300 degrees becomes 60, which renders as two stubs at the opening's
+    own corners and reads like a rendering fault rather than an
+    argument-order one. It is how the flipped version first came out on
+    the companion, so it is written down rather than left to be
+    rediscovered a third time.
+    """
+
+    start = _fid_ellipse_point(opening_centre + _FID_OPENING_HALF_ANGLE)
+    end = _fid_ellipse_point(opening_centre - _FID_OPENING_HALF_ANGLE)
+
+    return start, end, (
+        f"M{start[0]:g},{start[1]:g} "
+        f"A{_FID_RX:g},{_FID_RY:g} 0 1 1 "
+        f"{end[0]:g},{end[1]:g}"
+    )
+
+
+_FID_ARC_START, _FID_ARC_END, _FID_ARC_D = _open_ellipse_arc(0)
+
+# Found again by straddle_echelon_on_opening(); group 1 is the frame
+# attributes the arc carries.
+_FID_ARC_PATTERN = re.compile(
+    r'<path d="' + re.escape(_FID_ARC_D) + r'"([^>]*)></path>'
+)
+
+
+def forces_in_defence_fixup(svg):
+
+    """
+    Forces in Defence's own open ellipse, REPLACING milsymbol's own
+    frame rectangle - see this section's own comment.
+
+    Built on Military Police's own framed render, like every other
+    frame-replacing entity here, so its lettering is stripped and
+    everything else milsymbol gives a framed unit comes along: the
+    echelon group, and Planned status on the frame's own attributes.
+    """
+
+    attributes = _unit_frame_attributes(svg)
+
+    if attributes is None:
+        return svg
+
+    arc = f'<path d="{_FID_ARC_D}"{attributes}></path>'
+
+    return _replace_unit_frame(_strip_military_police_lettering(svg), arc)
 
 
 # --- Ammunition and FOL -------------------------------------------------
@@ -1542,6 +1680,9 @@ _UNIT_ENTITY_KEY_ALIASES = {
     # circle with glyphs inside - see ammunition_fixup().
     **{entity: "military_police" for entity in AMMUNITION_FOL_ENTITIES},
     STATIC_FORMATION_HQ_ENTITY: "military_police",
+    # The open ellipse replaces the frame the same way - see
+    # forces_in_defence_fixup().
+    FORCES_IN_DEFENCE_ENTITY: "military_police",
 }
 
 _ARMY_AVIATION_PROPELLER_SOLID_D = (
@@ -2208,6 +2349,7 @@ _ENTITY_FIXUPS = {
         for entity, letters in _CIRCLE_FAMILY_LETTERS.items()
     },
     STATIC_FORMATION_HQ_ENTITY: static_formation_hq_fixup,
+    FORCES_IN_DEFENCE_ENTITY: forces_in_defence_fixup,
 }
 
 
@@ -2537,6 +2679,415 @@ def seat_echelon_on_frame(svg):
     return svg[: group.start()] + seated + svg[group.end():]
 
 
+# --- Forces in Defence's own echelon row --------------------------------
+#
+# Every other framed entity SEATS its echelon on the frame's top ink
+# (seat_echelon_on_frame above). Forces in Defence straddles it
+# instead: the row's vertical middle sits on the ellipse's own topmost
+# perimeter point, y=50, so the markers lie across the line exactly
+# where the arc is missing.
+#
+# The markers keep milsymbol's own shapes, unrotated and in ONE
+# STRAIGHT HORIZONTAL ROW - explicitly not bent to follow the curve -
+# at milsymbol's own size wherever the row fits. Where a row would meet
+# the arc it shrinks AS A WHOLE ROW to the largest size that still
+# clears it, so the markers stay the size of each other and of every
+# other entity's.
+#
+# Two traps, both of which cost real time on the companion:
+#
+# 1. Clearance is measured against the ARC, its two ends included - not
+#    against the whole ellipse, and not by calling any point inside the
+#    opening's ANGLE safe. The ends are exactly where the wide rows
+#    crowd it. Platoon passed an angle-based test while clearing an end
+#    by half a unit, which draws as touching.
+# 2. The size VALIDATED has to be the size DRAWN. Both the scale and
+#    the translation are rounded to the six significant figures the
+#    transform is written with before anything is measured - see
+#    _round_drawn().
+
+
+def _echelon_shapes(group):
+
+    """
+    The echelon group's own geometry, as ("line", x1, y1, x2, y2) and
+    ("disc", cx, cy, r) tuples in the group's own coordinates, before
+    its transform and before its stroke.
+
+    Paths are walked command by command because milsymbol mixes
+    absolute and relative moves in one `d` ("M17.5,40 l25,-25 m0,25
+    l-25,-25"). A command outside the ones these markers use raises
+    rather than being skipped, which would silently measure the wrong
+    geometry.
+
+    Circles are treated as filled DISCS whether or not they are - the
+    only hollow one is Detachment's own ring, and nothing has to pass
+    through its middle, so the conservative reading costs nothing.
+    """
+
+    shapes = []
+
+    for d in re.findall(r' d="([^"]*)"', group):
+
+        x = y = 0.0
+        command = ""
+        numbers = []
+
+        for token in _PATH_TOKEN_PATTERN.finditer(d):
+
+            if token.group(1):
+                command = token.group(1)
+                numbers = []
+                continue
+
+            numbers.append(float(token.group(2)))
+
+            start = (x, y)
+            drawn = command not in ("M", "m")
+
+            if command in ("M", "L"):
+                if len(numbers) == 2:
+                    x, y = numbers
+                    numbers = []
+                else:
+                    continue
+            elif command in ("m", "l"):
+                if len(numbers) == 2:
+                    x += numbers[0]
+                    y += numbers[1]
+                    numbers = []
+                else:
+                    continue
+            elif command in ("H", "h", "V", "v"):
+                value = numbers.pop()
+                if command == "H":
+                    x = value
+                elif command == "h":
+                    x += value
+                elif command == "V":
+                    y = value
+                else:
+                    y += value
+            elif command not in ("Z", "z"):
+                raise ValueError(
+                    f"echelon marker uses an unsupported path command: {command}"
+                )
+
+            if drawn:
+                shapes.append(("line", start[0], start[1], x, y))
+
+    for circle in _ECHELON_CIRCLE_PATTERN.finditer(group):
+
+        shapes.append(
+            (
+                "disc",
+                float(circle.group(1)),
+                float(circle.group(2)),
+                float(circle.group(3)),
+            )
+        )
+
+    return shapes
+
+
+_ECHELON_CIRCLE_PATTERN = re.compile(
+    r'<circle[^>]*\scx="(-?[\d.]+)"[^>]*\scy="(-?[\d.]+)"[^>]*\sr="([\d.]+)"'
+)
+
+# How finely the arc is sampled when measuring clearance. At rx=75 the
+# error a 0.25 degree step leaves between a sample and the true curve is
+# under two thousandths of a unit, which is three orders of magnitude
+# below the gap being enforced.
+_FID_ARC_SAMPLE_STEP = 0.25
+
+
+def _fid_arc_samples():
+
+    steps = int(round((360 - 2 * _FID_OPENING_HALF_ANGLE) / _FID_ARC_SAMPLE_STEP))
+
+    return [
+        _fid_ellipse_point(
+            _FID_OPENING_HALF_ANGLE
+            + step * (360 - 2 * _FID_OPENING_HALF_ANGLE) / steps
+        )
+        for step in range(steps + 1)
+    ]
+
+
+def _distance_to_shape(point, shape, scale, offset_x, offset_y):
+
+    """
+    Distance from `point` to one echelon shape's own CENTRELINE, with
+    the row's transform applied. The strokes are added by the caller,
+    which knows both of them.
+    """
+
+    px, py = point
+
+    if shape[0] == "disc":
+
+        cx = shape[1] * scale + offset_x
+        cy = shape[2] * scale + offset_y
+
+        return math.hypot(px - cx, py - cy) - shape[3] * scale
+
+    x1 = shape[1] * scale + offset_x
+    y1 = shape[2] * scale + offset_y
+    x2 = shape[3] * scale + offset_x
+    y2 = shape[4] * scale + offset_y
+
+    dx = x2 - x1
+    dy = y2 - y1
+
+    length_squared = dx * dx + dy * dy
+
+    if length_squared == 0:
+        return math.hypot(px - x1, py - y1)
+
+    # Clamped, so a sample beyond either end measures to the nearer
+    # END of the segment rather than to its infinite line.
+    along = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / length_squared))
+
+    return math.hypot(px - (x1 + along * dx), py - (y1 + along * dy))
+
+
+def _fid_row_clears(shapes, placement, half_stroke, required_gap, samples):
+
+    """
+    True when every one of the row's own shapes, placed by `placement`,
+    leaves at least `required_gap` of clear space between its ink and
+    the arc's.
+    """
+
+    scale, offset_x, offset_y = placement
+
+    needed = half_stroke * scale + required_gap
+
+    for point in samples:
+
+        for shape in shapes:
+
+            if (
+                _distance_to_shape(point, shape, scale, offset_x, offset_y)
+                < needed
+            ):
+                return False
+
+    return True
+
+
+def _fid_placement(scale, centre_x, centre_y):
+
+    """
+    The row scaled about its own centre and then dropped so that centre
+    lands on the ellipse's topmost point - as the three rounded numbers
+    the transform will actually be written with.
+    """
+
+    return (
+        _round_drawn(scale),
+        _round_drawn(centre_x - scale * centre_x),
+        _round_drawn(_UNIT_FRAME_TOP - scale * centre_y),
+    )
+
+
+def _fid_echelon_placement(shapes, half_stroke, arc_half_stroke):
+
+    """
+    The largest of milsymbol's own size the row can keep and still clear
+    the arc, as a placement - never larger than milsymbol's own.
+
+    The gap enforced between the two inks is the arc's own half stroke.
+    Zero would not do: a row that merely fails to overlap still reads as
+    touching at map size.
+    """
+
+    left = min(
+        shape[1] - shape[3] if shape[0] == "disc" else min(shape[1], shape[3])
+        for shape in shapes
+    )
+    right = max(
+        shape[1] + shape[3] if shape[0] == "disc" else max(shape[1], shape[3])
+        for shape in shapes
+    )
+    top = min(
+        shape[2] - shape[3] if shape[0] == "disc" else min(shape[2], shape[4])
+        for shape in shapes
+    )
+    bottom = max(
+        shape[2] + shape[3] if shape[0] == "disc" else max(shape[2], shape[4])
+        for shape in shapes
+    )
+
+    centre_x = (left + right) / 2
+    centre_y = (top + bottom) / 2
+
+    samples = _fid_arc_samples()
+
+    def clears(scale):
+
+        placement = _fid_placement(scale, centre_x, centre_y)
+
+        return (
+            placement
+            if _fid_row_clears(
+                shapes, placement, half_stroke, arc_half_stroke, samples
+            )
+            else None
+        )
+
+    full = clears(1.0)
+
+    if full is not None:
+        return full
+
+    low = 0.0
+    high = 1.0
+    best = None
+
+    # Bisection on the ROUNDED candidate, so what is tested is what gets
+    # written. It stops when rounding can no longer tell the two ends
+    # apart.
+    for _ in range(60):
+
+        candidate = _round_drawn((low + high) / 2)
+
+        if candidate <= low or candidate >= high:
+            break
+
+        placement = clears(candidate)
+
+        if placement is None:
+            high = candidate
+        else:
+            best = placement
+            low = candidate
+
+    if best is None:
+        raise ValueError(
+            "no echelon row size clears Forces in Defence's own opening"
+        )
+
+    return best
+
+
+_FID_ECHELON_PLACEMENTS = {}
+
+
+def straddle_echelon_on_opening(svg, echelon):
+
+    """
+    Lay Forces in Defence's echelon row across the ellipse's own
+    opening - see this section's own comment.
+
+    A no-op when there is no echelon group (Unspecified) or no arc.
+    Each echelon's placement is worked out once and kept: the row's
+    geometry and both stroke widths are the same on every render of
+    that echelon, whatever the affiliation or status.
+
+    Runs on the render BEFORE scale_svg_stroke_width(), so that the
+    designations can be measured and fitted against the finished shape
+    afterwards. The strokes it measures clearance with are therefore
+    the widths in the markup TIMES that same scale - what will be
+    drawn, not what is written here.
+    """
+
+    group = _ECHELON_GROUP_PATTERN.search(svg)
+    arc = _FID_ARC_PATTERN.search(svg)
+
+    if group is None or arc is None:
+        return svg
+
+    shapes = _echelon_shapes(group.group(0))
+
+    if not shapes:
+        raise ValueError("echelon group has no geometry to measure")
+
+    placement = _FID_ECHELON_PLACEMENTS.get(echelon)
+
+    if placement is None:
+
+        placement = _fid_echelon_placement(
+            shapes,
+            _half_stroke(group.group(0)) * DEFAULT_STROKE_SCALE,
+            _half_stroke(arc.group(1)) * DEFAULT_STROKE_SCALE,
+        )
+
+        _FID_ECHELON_PLACEMENTS[echelon] = placement
+
+    scale, offset_x, offset_y = placement
+
+    transform = f"translate({offset_x:g},{offset_y:g})"
+
+    if scale != 1:
+        transform += f" scale({scale:g})"
+
+    straddled = group.group(0).replace(
+        'transform="translate(0,0)"', f'transform="{transform}"', 1
+    )
+
+    svg = svg[: group.start()] + straddled + svg[group.end():]
+
+    half = _half_stroke(group.group(0)) * DEFAULT_STROKE_SCALE * scale
+
+    top = min(shape[2] - shape[3] if shape[0] == "disc" else min(shape[2], shape[4])
+              for shape in shapes) * scale + offset_y - half
+
+    return _declare_forces_in_defence_viewbox(svg, top)
+
+
+# milsymbol's own margin round a frame-only icon: its viewBox for one is
+# 21 46 158 108, four units clear of the frame on every side.
+_FID_VIEWBOX_MARGIN = 4
+
+_FID_VIEWBOX_X = _UNIT_FRAME_LEFT - _FID_VIEWBOX_MARGIN
+_FID_VIEWBOX_WIDTH = (
+    _UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT + 2 * _FID_VIEWBOX_MARGIN
+)
+_FID_VIEWBOX_BOTTOM = _UNIT_FRAME_BOTTOM + _FID_VIEWBOX_MARGIN
+
+
+def _declare_forces_in_defence_viewbox(svg, row_top):
+
+    """
+    Restate the viewBox as the frame-only one, grown upward only as far
+    as the echelon row actually reaches.
+
+    milsymbol sized its own box for a row sitting ABOVE the frame. This
+    row lies across the frame's top instead, and a shrunk one lies
+    lower still, so milsymbol's box is left with a band of empty space
+    at the top - which would shift the symbol off the marker's own
+    anchor and, because QGIS scales a marker by its declared WIDTH,
+    shrink it against every other Land Unit. Declaring the frame's own
+    box keeps this entity the same size on the map as its siblings.
+    """
+
+    top = min(_UNIT_FRAME_TOP - _FID_VIEWBOX_MARGIN, _floor_drawn(row_top))
+
+    height = _FID_VIEWBOX_BOTTOM - top
+
+    svg = _VIEWBOX_PATTERN.sub(
+        f'viewBox="{_FID_VIEWBOX_X:g} {top:g} '
+        f'{_FID_VIEWBOX_WIDTH:g} {height:g}"',
+        svg,
+        count=1,
+    )
+
+    # The root width/height have to follow the viewBox - see the same
+    # step in the Aviation glyphs' own renderer for why a mismatched
+    # pair leaves QGIS and the SVG disagreeing about the icon's aspect.
+    root_end = svg.find(">")
+
+    return (
+        _WIDTH_HEIGHT_PATTERN.sub(
+            f'width="{_FID_VIEWBOX_WIDTH:g}" height="{height:g}"',
+            svg[: root_end + 1],
+            count=1,
+        )
+        + svg[root_end + 1:]
+    )
+
+
 def apply_nonnato_unit_fixups(svg, entity, echelon):
 
     """
@@ -2620,6 +3171,15 @@ def render_nonnato_unit_svg(
             headquarters = False
             combined_arms = False
 
+        # Forces in Defence keeps its echelons but refuses the other
+        # two, and refuses them HERE rather than in the dialog: the
+        # mast hangs off the frame's own bottom-left corner and
+        # Combined Arms sits on its top edge, and an ellipse has
+        # neither - see this module's own Forces in Defence comment.
+        if entity == FORCES_IN_DEFENCE_ENTITY:
+            headquarters = False
+            combined_arms = False
+
         sidc = build_sidc(
             affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
             entity=_UNIT_ENTITY_KEY_ALIASES.get(entity, entity),
@@ -2639,6 +3199,13 @@ def render_nonnato_unit_svg(
         svg = apply_nonnato_unit_fixups(
             render_symbol_svg(sidc, options), entity, echelon
         )
+
+        # Before the designations, not after: straddling moves the
+        # echelon row and re-declares the viewBox milsymbol had sized
+        # for a row sitting above the frame, and the designations are
+        # then measured and fitted against the finished shape.
+        if entity == FORCES_IN_DEFENCE_ENTITY:
+            svg = straddle_echelon_on_opening(svg, echelon)
 
         combined_arms_colour = colour
 
@@ -2667,7 +3234,10 @@ def render_nonnato_unit_svg(
             svg, combined_arms_rect_svg(echelon, combined_arms_colour)
         )
 
-    # Last, on the finished render - see seat_echelon_on_frame().
+    # Last, on the finished render - see seat_echelon_on_frame(). A
+    # no-op for Forces in Defence, whose own row was placed further up
+    # by straddle_echelon_on_opening() and no longer carries the
+    # untouched transform this looks for.
     return seat_echelon_on_frame(
         scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
     )
@@ -3376,8 +3946,96 @@ BRIDGE_DEMOLISHED_ENTITY = "nonnato_bridge_demolished"
 # the bridge".
 GAP_SAFE_LANE_ENTITY = "nonnato_gap_safe_lane"
 
+# --- LORROS and BFSR ---------------------------------------------------
+#
+# Dictated on the Office companion 2026-09-24: the Radar with an "L" in
+# a circle beside it, and the same with a "B".
+#
+# **The circle is computed, not chosen.** A fixed radius made it wider
+# than the radar itself. It is half the letter's own cap-box DIAGONAL -
+# the width from Qt's own advance for that letter, the height from the
+# cap-height ratio - plus clear air and half a stroke. L and B come out
+# slightly different, each fitting its own letter.
+#
+# It sits on the RADAR's own vertical middle, not the frame's centre
+# line, and it is added as an ordinary equipment fixup so both entities
+# inherit the Radar's mobility and designation rather than
+# reimplementing either.
+LORROS_ENTITY = "nonnato_lorros"
+BFSR_ENTITY = "nonnato_bfsr"
+
+_LETTERED_RADAR_LETTERS = {
+    LORROS_ENTITY: "L",
+    BFSR_ENTITY: "B",
+}
+
+# Between the letter's own cap box and the circle around it.
+_LETTERED_RADAR_CLEAR_AIR = 2.0
+
+
+def _lettered_radar_fixup(letter):
+
+    def fixup(svg):
+
+        # The Radar as THIS plugin draws it, mast included - both of
+        # these are that symbol with a letter beside it, not
+        # milsymbol's bare dish.
+        svg = add_radar_center_mast(svg)
+
+        colour = _injected_text_colour(svg)
+
+        bounds = _content_bounds(svg, None)
+
+        if bounds is None:
+            return svg
+
+        x, y, width, height = bounds
+
+        cap = _CAP_HEIGHT_RATIO * _DESIGNATION_FONT_SIZE
+
+        radius = (
+            math.hypot(
+                _designation_text_width(letter, _DESIGNATION_FONT_SIZE), cap
+            )
+            / 2
+            + _LETTERED_RADAR_CLEAR_AIR
+            + _INJECTED_HALF_STROKE
+        )
+
+        centre_x = x + width + _DESIGNATION_GAP + radius
+        centre_y = y + height / 2
+
+        marks = (
+            f'<circle cx="{_round_drawn(centre_x):g}" '
+            f'cy="{_round_drawn(centre_y):g}" r="{_round_drawn(radius):g}" '
+            f'stroke-width="3" stroke="{colour}" fill="none"></circle>'
+            f'<text x="{_round_drawn(centre_x):g}" '
+            f'y="{_round_drawn(centre_y + cap / 2):g}" '
+            'text-anchor="middle" '
+            f'font-size="{_DESIGNATION_FONT_SIZE:g}" font-family="Arial" '
+            'font-weight="bold" '
+            f'stroke-width="0" stroke="none" fill="{colour}" >'
+            f"{letter}</text>"
+        )
+
+        svg = _expand_viewbox_for_rect(
+            svg,
+            centre_x - radius - _INJECTED_HALF_STROKE,
+            centre_y - radius - _INJECTED_HALF_STROKE,
+            2 * (radius + _INJECTED_HALF_STROKE),
+            2 * (radius + _INJECTED_HALF_STROKE),
+        )
+
+        return _inject_before_closing_svg(svg, marks)
+
+    return fixup
+
+
 _EQUIPMENT_ENTITY_KEY_ALIASES = {
     SIGINT_RADAR_ENTITY: "radar",
+    # Both are the Radar with a lettered circle beside it - see above.
+    LORROS_ENTITY: "radar",
+    BFSR_ENTITY: "radar",
     BRIDGE_LAYER_TANK_ENTITY: "armored_protected_vehicle",
     ARMOURED_RECCE_VEHICLE_ENTITY: "armored_protected_vehicle",
     APV_WHEELED_ENTITY: "armored_protected_vehicle",
@@ -3394,6 +4052,8 @@ _EQUIPMENT_ENTITY_KEY_ALIASES = {
 _EQUIPMENT_SYMBOL_SET_OVERRIDES = {
     "jammer": "sigint_land",
     SIGINT_RADAR_ENTITY: "sigint_land",
+    LORROS_ENTITY: "sigint_land",
+    BFSR_ENTITY: "sigint_land",
 }
 
 
@@ -3633,7 +4293,7 @@ def armoured_recce_vehicle_mark(svg):
     return _inject_before_closing_svg(svg, mark)
 
 
-# Armoured Protection Vehicle (Wheeled)'s own three wheels - "add three
+# Armoured Protected Vehicle (Wheeled)'s own three wheels - "add three
 # circles below the oval, slightly inside the edges, touching the oval,
 # radii size can be 1/3 of semi-minor axis". Radius is a third of the
 # oval's own semi-minor axis (20); the centres sit one radius below its
@@ -3926,10 +4586,12 @@ _SYNTHETIC_VEHICLE_SVG = {
 _BRIDGE_SPAN_CENTRE_X = 100
 
 # milsymbol's own bridge path, matched so Gap/Safe Lane can swap it for
-# a widened copy.
+# a widened copy - and reused whole, turned a quarter turn, by Bridge
+# Head. Checked against a live render by a test.
+_BRIDGE_GLYPH_D = "m 70,115 10,-10 40,0 10,10 m -60,-30 10,10 40,0 10,-10"
+
 _BRIDGE_PATH_PATTERN = re.compile(
-    r'<path d="m 70,115 10,-10 40,0 10,10 m -60,-30 10,10 40,0 10,-10"'
-    r'[^>]*></path>'
+    r'<path d="' + re.escape(_BRIDGE_GLYPH_D) + r'"[^>]*></path>'
 )
 _BRIDGE_FLARE_TOP = 85
 _BRIDGE_FLARE_BOTTOM = 115
@@ -4382,6 +5044,10 @@ def _gap_safe_lane_fixup(svg, mine_type=None, colour=None):
 
 
 _EQUIPMENT_ENTITY_FIXUPS = {
+    **{
+        entity: _lettered_radar_fixup(letter)
+        for entity, letter in _LETTERED_RADAR_LETTERS.items()
+    },
     "antipersonnel_land_mine": unfilled_antipersonnel_fragmentation_mine,
     SIGINT_RADAR_ENTITY: add_radar_center_mast,
     "antitank_missile_launcher": separate_antitank_missile_launcher_dome,
@@ -4441,6 +5107,10 @@ NONNATO_ENTITY_SIZE_MULTIPLIERS = {
     # from measured bounding boxes, not a guess.
     "jammer": _SIGINT_SIZE_MULTIPLIER,
     SIGINT_RADAR_ENTITY: _SIGINT_SIZE_MULTIPLIER,
+    # Both are the Radar plus a lettered circle, so they take its own
+    # multiplier too.
+    LORROS_ENTITY: _SIGINT_SIZE_MULTIPLIER,
+    BFSR_ENTITY: _SIGINT_SIZE_MULTIPLIER,
 
     # The opposite problem - the Vehicle family draws nearly edge to
     # edge in its own viewBox and is close to twice as tall as a
@@ -4501,7 +5171,7 @@ def nonnato_entity_size_multiplier_expression(entities):
 #
 # **Drawn straight into the SVG, deliberately.** The record used to say
 # that a shape added below milsymbol's own declared draw area is clipped
-# by QGIS's marker rendering, which is why Armoured Protection Vehicle
+# by QGIS's marker rendering, which is why Armoured Protected Vehicle
 # (Wheeled)'s own wheels became separate QGIS symbol layers. That
 # conclusion was wrong - re-measured 2026-09-06 by injecting exactly
 # those wheels into the same APV glyph and rendering the marker through
@@ -4922,14 +5592,26 @@ def render_nonnato_pillbox_svg(affiliation, status="present", designation=None):
         edition="2525E",
     )
 
-    options = {}
+    # Pill Box is one of the entities milsymbol will not designate -
+    # see UNDESIGNATED_BY_MILSYMBOL - so the text is injected here
+    # rather than asked for, by the same rule Command Post and NBC
+    # Shelter beside it already use.
+    svg = scale_svg_stroke_width(
+        apply_pillbox_fixup(render_symbol_svg(sidc, None)),
+        DEFAULT_STROKE_SCALE,
+    )
 
     if designation:
-        options["uniqueDesignation"] = str(designation).upper()
 
-    svg = apply_pillbox_fixup(render_symbol_svg(sidc, options or None))
+        svg = inject_side_designations(
+            svg,
+            None,
+            str(designation).upper(),
+            _milsymbol_point_colour(affiliation),
+            centre_y=_CONTROL_MEASURE_CENTRE_Y,
+        )
 
-    return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+    return svg
 
 
 # --- Control Measure Points -------------------------------------------
@@ -4947,6 +5629,32 @@ def render_nonnato_pillbox_svg(affiliation, status="present", designation=None):
 # 2026-09-17. Fort, Pill Box and both Shelters keep milsymbol's colours.
 # Only the two colours milsymbol emits here are swapped, on stroke and
 # fill; "none" is left alone. The affiliation still goes into the SIDC.
+# milsymbol emits NO designation for these, whatever is passed to its
+# own uniqueDesignation option - checked directly against raw renders,
+# not inferred. Reported live 2026-09-24 against Artillery Observation
+# Post ("unique designation is not being inserted - need to insert it on
+# the right - vertically center aligned like all others"); measuring the
+# whole layer found six more behaving the same way, and the maintainer
+# took the fix across all seven so no entity on the layer behaves
+# differently from its neighbours.
+#
+# Nothing was being dropped in this plugin's own code - the text was
+# never drawn. Each of these now gets it injected here instead, to the
+# RIGHT of the ink on the symbol's own centre line, by the same measured
+# rule Command Post and NBC Shelter already use.
+#
+# A test re-derives this set from live renders, so a milsymbol update
+# that starts (or stops) drawing one of them fails rather than drifting.
+UNDESIGNATED_BY_MILSYMBOL = frozenset({
+    "fort",
+    "impact_point",
+    "observation_post",
+    "observation_post_forward_observer",
+    "shelter",
+    "shelter_above_ground",
+    "shelter_below_ground",
+})
+
 CONTROL_MEASURE_PALETTE_ENTITIES = frozenset({
     "decision_point",
     "impact_point",
@@ -5027,6 +5735,1617 @@ def fire_trench_svg(colour):
     )
 
 
+# --- The Echelons layer -------------------------------------------------
+#
+# Dictated on the Office companion 2026-09-24: ten entities, Detachment
+# through Army Group, each drawing milsymbol's own echelon marker
+# ALONE. No Unspecified - it has no marker.
+#
+# **All ten share ONE box**, the union of the widest and the tallest.
+# A box around each marker's own ink makes them absurd beside each
+# other: Company is a single 5-unit bar and Army Group is 170 units of
+# crosses, so at one chosen size the bar would come out as wide as the
+# whole Army Group row. Sharing a box means a Company inserted at 24 mm
+# is the same bar you would see on a 24 mm unit symbol.
+ECHELON_MARKER_ENTITIES = (
+    "team_crew",
+    "squad",
+    "platoon",
+    "company",
+    "battalion",
+    "brigade",
+    "division",
+    "corps",
+    "army",
+    "army_group",
+)
+
+# Any framed entity would do - the marker is milsymbol's own and does
+# not vary with what it sits above. Military Police is the one every
+# other frame-only symbol here already borrows.
+_ECHELON_DONOR_ENTITY = "military_police"
+
+_ECHELON_SHARED_BOX = []
+
+
+def _echelon_marker_group(affiliation, echelon):
+
+    """milsymbol's own marker for `echelon`, in `affiliation`'s colour, untouched."""
+
+    colour = AFFILIATION_COLOURS.get(affiliation, AFFILIATION_COLOURS["friend"])
+
+    svg = render_symbol_svg(
+        build_sidc(
+            affiliation=SIDC_AFFILIATION_FOR.get(affiliation, "friend"),
+            entity=_ECHELON_DONOR_ENTITY,
+            symbol_set="ground_unit",
+            echelon=echelon,
+            status="present",
+            headquarters=False,
+            edition="2525E",
+        ),
+        {"frame": True, "fill": False, "monoColor": colour},
+    )
+
+    # Through the unit layers' own echelon fixup, not round it:
+    # Detachment's slash is stripped on every unit this plugin draws,
+    # and the same echelon must not look like two different things on
+    # two layers.
+    svg = scale_svg_stroke_width(
+        apply_nonnato_unit_fixups(svg, _ECHELON_DONOR_ENTITY, echelon),
+        DEFAULT_STROKE_SCALE,
+    )
+
+    group = _ECHELON_GROUP_PATTERN.search(svg)
+
+    if group is None:
+        raise ValueError(f"echelon {echelon!r} draws no marker")
+
+    return group.group(0)
+
+
+def echelon_shared_box():
+
+    """
+    The one box all ten markers are drawn in - the union of every
+    marker's own ink, worked out once from real renders rather than
+    written down, so a milsymbol change moves it instead of breaking
+    the markers.
+    """
+
+    if _ECHELON_SHARED_BOX:
+        return _ECHELON_SHARED_BOX[0]
+
+    left = top = None
+    right = bottom = None
+
+    for echelon in ECHELON_MARKER_ENTITIES:
+
+        group = _echelon_marker_group("friend", echelon)
+
+        half = _half_stroke(group)
+
+        for shape in _echelon_shapes(group):
+
+            if shape[0] == "disc":
+                xs = (shape[1] - shape[3], shape[1] + shape[3])
+                ys = (shape[2] - shape[3], shape[2] + shape[3])
+            else:
+                xs = (shape[1], shape[3])
+                ys = (shape[2], shape[4])
+
+            for x in xs:
+                left = min(x - half, left if left is not None else x - half)
+                right = max(x + half, right if right is not None else x + half)
+
+            for y in ys:
+                top = min(y - half, top if top is not None else y - half)
+                bottom = max(y + half, bottom if bottom is not None else y + half)
+
+    box = (
+        _floor_drawn(left),
+        _floor_drawn(top),
+        _round_drawn(right - left),
+        _round_drawn(bottom - top),
+    )
+
+    _ECHELON_SHARED_BOX.append(box)
+
+    return box
+
+
+def render_nonnato_echelon_svg(affiliation, echelon):
+
+    """One echelon marker on its own, in the box all ten share."""
+
+    x, y, width, height = echelon_shared_box()
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        f'baseProfile="tiny" viewBox="{x:g} {y:g} {width:g} {height:g}">'
+        + _echelon_marker_group(affiliation, echelon)
+        + "</svg>"
+    )
+
+
+# --- DF (SOS) ----------------------------------------------------------
+#
+# Dictated on the Office companion 2026-09-24: "the Target cross with
+# 'SOS' beside it, at font 33". Anchored by its LEFT edge,
+# _DESIGNATION_GAP clear of the upright's own ink, with its baseline on
+# the cross's bottom arm - so the letters sit in the lower right
+# quadrant the cross makes.
+#
+# It was anchored by its RIGHT edge to the cross's own right arm first,
+# and at that size it reached back across the upright.
+DF_SOS_ENTITY = "nonnato_df_sos"
+
+_DF_SOS_LETTERS = "SOS"
+
+_DF_SOS_FONT_SIZE = 33
+
+_TARGET_CROSS_ENTITY = "target_reference_point"
+
+# milsymbol's own cross, checked against a live render by a test.
+_TARGET_CROSS_D = "m 50,100 100,0 m -50,-50 0,100"
+
+_TARGET_CROSS_HALF = 50
+
+
+def df_sos_fixup(svg):
+
+    """DF (SOS) - see this section's own comment."""
+
+    colour = _injected_text_colour(svg)
+
+    upright_ink = (
+        _CONTROL_MEASURE_CENTRE_Y
+        + _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+    )
+
+    text_x = upright_ink + _DESIGNATION_GAP
+
+    baseline = _CONTROL_MEASURE_CENTRE_Y + _TARGET_CROSS_HALF
+
+    letters = (
+        f'<text x="{_round_drawn(text_x):g}" y="{baseline:g}" '
+        'text-anchor="start" '
+        f'font-size="{_DF_SOS_FONT_SIZE:g}" font-family="Arial" '
+        'font-weight="bold" '
+        f'stroke-width="0" stroke="none" fill="{colour}" >'
+        f"{_DF_SOS_LETTERS}</text>"
+    )
+
+    width = _designation_text_width(_DF_SOS_LETTERS, _DF_SOS_FONT_SIZE)
+
+    svg = _expand_viewbox_for_rect(
+        svg,
+        text_x,
+        baseline - _CAP_HEIGHT_RATIO * _DF_SOS_FONT_SIZE,
+        width,
+        _CAP_HEIGHT_RATIO * _DF_SOS_FONT_SIZE,
+    )
+
+    return _inject_before_closing_svg(svg, letters)
+
+
+# --- The NAI / TAI four ------------------------------------------------
+#
+# Dictated on the Office companion 2026-09-24, built there first. All
+# four come out of **Point of Interest's own render** - its circle, its
+# pointer, its pointer's tip and the font its designation is set in are
+# lifted, not retyped.
+#
+# Point of Interest ITSELF is unchanged. A rename to "Point of Interest
+# / Point NAI" was asked for and withdrawn the same day.
+#
+# **The trapezium is a construction, not a set of coordinates.** Every
+# number comes from the donor circle's DIAMETER: long side = the
+# diameter, short side = 0.625 of it, height = 0.7 of it. That last is
+# the maintainer's "reduce the height of trapezium by 30%", and it
+# leaves a 1 x 0.7 bounding box - close to the unit frame's 3:2, which
+# is what "dimensionally similar as the standard rectangle" asked for.
+# Area NAI alone is 20% wider and 10% shorter, kept as FACTORS on the
+# family's own ratios so it stays visibly a variation rather than three
+# new numbers.
+#
+# **A word that mattered.** The instruction said "parallelogram" with a
+# "shorter side" up or down - but a parallelogram's opposite sides are
+# equal, so that phrase picks out nothing on one. It only means
+# something on a TRAPEZIUM. Both were drawn on the companion and the
+# trapezium confirmed. Worth remembering if the same wording turns up
+# again.
+#
+# **Status is inert on all four**, because it is inert on their donor:
+# milsymbol renders Point of Interest identically for Present and
+# Planned.
+POINT_NAI_ENTITY = "nonnato_point_nai"
+POINT_TAI_ENTITY = "nonnato_point_tai"
+AREA_NAI_ENTITY = "nonnato_area_nai"
+AREA_TAI_ENTITY = "nonnato_area_tai"
+
+_POI_ENTITY = "point_of_interest"
+
+# milsymbol's own, checked against a live render by a test.
+_POI_POINTER_D = (
+    "M 129.021,41.957 C 121.48,49.9458 110.986,54.4816 100,54.5 "
+    "89.0432,54.4928 78.569,49.9914 71.0234,42.0469 L 100,100 Z"
+)
+
+_POI_CIRCLE_CENTRE = (100.0, 15.0)
+_POI_CIRCLE_RADIUS = 40.0
+
+# The pointer's own tip, which Point TAI's triangle reaches down to.
+_POI_TIP = (100.0, 100.0)
+
+_POI_FONT_SIZE = 40
+
+_TRAPEZIUM_SHORT_FACTOR = 0.625
+_TRAPEZIUM_HEIGHT_FACTOR = 0.7
+
+_AREA_NAI_WIDTH_FACTOR = 1.2
+_AREA_NAI_HEIGHT_FACTOR = 0.9
+
+_POI_CIRCLE_PATTERN = re.compile(r'<circle cx="100" cy="15" r="40"[^>]*></circle>')
+
+_POI_POINTER_PATTERN = re.compile(
+    r'<path d="' + re.escape(_POI_POINTER_D) + r'"[^>]*></path>'
+)
+
+
+def _trapezium_points(centre, width, short_down):
+
+    """
+    The four corners, long side first, as the family's own ratios put
+    them: long side = `width`, short side 0.625 of it, height 0.7 of
+    it, centred on `centre`.
+    """
+
+    centre_x, centre_y = centre
+
+    short = _TRAPEZIUM_SHORT_FACTOR * width
+    height = _TRAPEZIUM_HEIGHT_FACTOR * width
+
+    long_y = centre_y + (-height / 2 if short_down else height / 2)
+    short_y = centre_y + (height / 2 if short_down else -height / 2)
+
+    return (
+        (centre_x - width / 2, long_y),
+        (centre_x + width / 2, long_y),
+        (centre_x + short / 2, short_y),
+        (centre_x - short / 2, short_y),
+    )
+
+
+def _trapezium_d(points, closed=True):
+
+    corners = points if closed else (points[3], points[0], points[1], points[2])
+
+    d = " ".join(
+        f"{'M' if index == 0 else 'L'}"
+        f"{_round_drawn(x):g},{_round_drawn(y):g}"
+        for index, (x, y) in enumerate(corners)
+    )
+
+    return d + " Z" if closed else d
+
+
+def _poi_designation(text, colour, centre, room):
+
+    """
+    The donor's own designation, moved to the centre of whatever shape
+    holds it - same font and weight, shrunk if `room` is narrower than
+    the text.
+
+    Point of Interest's own 40 fits its own circle; it does not fit a
+    trapezium two thirds as wide, and a designation that spills over
+    the shape holding it is not "in its centre". So the size is the
+    donor's, or smaller.
+
+    The baseline is computed rather than left to `dominant-baseline`:
+    **Qt ignores that attribute on both versions this project tests
+    against** - measured directly, see _text_element_bounds() - so a
+    glyph centred by it would sit a half cap-height low on the map
+    while looking right in a browser.
+    """
+
+    if not text:
+        return ""
+
+    centre_x, centre_y = centre
+
+    size = _designation_font_size(text, room, base_size=_POI_FONT_SIZE)
+
+    baseline = centre_y + _CAP_HEIGHT_RATIO * size / 2
+
+    return (
+        f'<text x="{centre_x:g}" y="{_round_drawn(baseline):g}" '
+        'text-anchor="middle" '
+        f'font-size="{_round_drawn(size):g}" font-family="Arial" '
+        'font-weight="bold" '
+        f'stroke-width="0" stroke="none" fill="{colour}" >'
+        f"{_escape_text(text)}</text>"
+    )
+
+
+def _room_inside_circle(radius):
+
+    """
+    How wide a line of text can be on a circle's own centre line and
+    still sit inside it - the chord at the text's own cap height, not
+    the diameter.
+    """
+
+    cap = _CAP_HEIGHT_RATIO * _POI_FONT_SIZE
+
+    return 2 * math.sqrt(max(radius ** 2 - (cap / 2) ** 2, 0.0))
+
+
+def _room_inside_trapezium(width):
+
+    """
+    How wide a line of text can be inside the trapezium - its width at
+    the NARROW end of the text's own cap box, not on its centre line.
+
+    A trapezium narrows towards its short side, so text measured
+    against the mean width still catches the sloping sides with its
+    lower half. Measured at the base font's cap height, which is the
+    largest the text can be.
+    """
+
+    short = _TRAPEZIUM_SHORT_FACTOR * width
+    height = _TRAPEZIUM_HEIGHT_FACTOR * width
+
+    cap = _CAP_HEIGHT_RATIO * _POI_FONT_SIZE
+
+    towards_short = 0.5 + min(cap / (2 * height), 0.5)
+
+    return width + towards_short * (short - width)
+
+
+def point_nai_fixup(svg, designation):
+
+    """
+    Point NAI - "the same glyph as Point of Interest with unfilled
+    triangle".
+
+    milsymbol's own pointer, simply not filled. Its top follows the
+    circle's ARC, so it still reads as one clean pin; a straight-sided
+    version was drawn on the companion and put a visible chord across
+    the circle's base, so it was not taken.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    svg = _POI_POINTER_PATTERN.sub(
+        lambda match: match.group(0).replace(f'fill="{colour}"', 'fill="none"'),
+        svg,
+        count=1,
+    )
+
+    return _inject_before_closing_svg(
+        svg,
+        _poi_designation(
+            designation,
+            colour,
+            _POI_CIRCLE_CENTRE,
+            _room_inside_circle(_POI_CIRCLE_RADIUS),
+        ),
+    )
+
+
+def point_tai_fixup(svg, designation):
+
+    """
+    Point TAI - the circle replaced by a trapezium, shorter side down,
+    designation in its centre; below it a hollow triangle with three
+    STRAIGHT sides standing on that short side and reaching the donor
+    pointer's own tip.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    points = _trapezium_points(
+        _POI_CIRCLE_CENTRE, 2 * _POI_CIRCLE_RADIUS, short_down=True
+    )
+
+    left, right = points[3], points[2]
+
+    marks = (
+        f'<path d="{_trapezium_d(points)}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+        f'<path d="M{_round_drawn(left[0]):g},{_round_drawn(left[1]):g} '
+        f'L{_POI_TIP[0]:g},{_POI_TIP[1]:g} '
+        f'L{_round_drawn(right[0]):g},{_round_drawn(right[1]):g} Z" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+    svg = _POI_CIRCLE_PATTERN.sub("", svg, count=1)
+    svg = _POI_POINTER_PATTERN.sub("", svg, count=1)
+
+    return _inject_before_closing_svg(
+        svg,
+        marks
+        + _poi_designation(
+            designation,
+            colour,
+            _POI_CIRCLE_CENTRE,
+            _room_inside_trapezium(2 * _POI_CIRCLE_RADIUS),
+        ),
+    )
+
+
+def area_nai_fixup(svg, designation):
+
+    """
+    Area NAI - the circle kept, the pointer replaced by a trapezium
+    hanging from it, short side up and left UNDRAWN, its two ends
+    sitting ON the circumference. Designation inside the circle.
+
+    20% wider and 10% shorter than the family's own trapezium, which is
+    what puts its short side's two ends on the circle rather than
+    inside it.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    width = 2 * _POI_CIRCLE_RADIUS * _AREA_NAI_WIDTH_FACTOR
+
+    short = _TRAPEZIUM_SHORT_FACTOR * width
+    height = (
+        _TRAPEZIUM_HEIGHT_FACTOR * width * _AREA_NAI_HEIGHT_FACTOR
+    )
+
+    # Its short side is a chord of the donor circle, so where that
+    # chord sits is not chosen - it follows from its own length.
+    half = short / 2
+
+    drop = math.sqrt(max(_POI_CIRCLE_RADIUS ** 2 - half ** 2, 0.0))
+
+    short_y = _POI_CIRCLE_CENTRE[1] + drop
+    long_y = short_y + height
+
+    corners = (
+        (_POI_CIRCLE_CENTRE[0] - half, short_y),
+        (_POI_CIRCLE_CENTRE[0] - width / 2, long_y),
+        (_POI_CIRCLE_CENTRE[0] + width / 2, long_y),
+        (_POI_CIRCLE_CENTRE[0] + half, short_y),
+    )
+
+    d = " ".join(
+        f"{'M' if index == 0 else 'L'}"
+        f"{_round_drawn(x):g},{_round_drawn(y):g}"
+        for index, (x, y) in enumerate(corners)
+    )
+
+    marks = (
+        f'<path d="{d}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+    svg = _POI_POINTER_PATTERN.sub("", svg, count=1)
+
+    svg = _expand_viewbox_for_rect(
+        svg,
+        _POI_CIRCLE_CENTRE[0] - width / 2,
+        short_y,
+        width,
+        height,
+    )
+
+    return _inject_before_closing_svg(
+        svg,
+        marks
+        + _poi_designation(
+            designation,
+            colour,
+            _POI_CIRCLE_CENTRE,
+            _room_inside_circle(_POI_CIRCLE_RADIUS),
+        ),
+    )
+
+
+def area_tai_fixup(svg, designation):
+
+    """
+    Area TAI - the same trapezium the other way up, on the circle's own
+    centre, nothing below it, designation inside.
+
+    Read as replacing the circle rather than sitting over it, which is
+    what makes the four a family: the two Point symbols carry something
+    that points at a place, and the two Area ones do not.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    points = _trapezium_points(
+        _POI_CIRCLE_CENTRE, 2 * _POI_CIRCLE_RADIUS, short_down=True
+    )
+
+    marks = (
+        f'<path d="{_trapezium_d(points)}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+    svg = _POI_CIRCLE_PATTERN.sub("", svg, count=1)
+    svg = _POI_POINTER_PATTERN.sub("", svg, count=1)
+
+    return _inject_before_closing_svg(
+        svg,
+        marks
+        + _poi_designation(
+            designation,
+            colour,
+            _POI_CIRCLE_CENTRE,
+            _room_inside_trapezium(2 * _POI_CIRCLE_RADIUS),
+        ),
+    )
+
+
+_NAI_TAI_FIXUPS = {
+    POINT_NAI_ENTITY: point_nai_fixup,
+    POINT_TAI_ENTITY: point_tai_fixup,
+    AREA_NAI_ENTITY: area_nai_fixup,
+    AREA_TAI_ENTITY: area_tai_fixup,
+}
+
+
+# --- The Observation Post family --------------------------------------
+#
+# Dictated on the Office companion 2026-09-24, built there first. All
+# three are Artillery Observation Post's own triangle with its dot
+# replaced or added to, so each is a fixup on a real render and each
+# keeps that entity's palette, status and - since today - its
+# right-side designation.
+LISTENING_POST_ENTITY = "nonnato_listening_post"
+AIR_FORCE_OP_ENTITY = "nonnato_air_force_op"
+AIR_DEFENCE_OP_ENTITY = "nonnato_air_defence_op"
+
+_ARTILLERY_OP_ENTITY = "observation_post_forward_observer"
+
+# milsymbol's own triangle and dot, checked against a live render by a
+# test so an update that moves either one fails rather than drifting.
+# The triangle is very slightly asymmetric - 47.6 to its left and 48 to
+# its right - which is milsymbol's own, kept rather than tidied.
+_ARTILLERY_OP_TRIANGLE_D = "m 100,45 48,83 H 52.4 Z"
+
+_ARTILLERY_OP_APEX = (100.0, 45.0)
+_ARTILLERY_OP_BOTTOM_RIGHT = (148.0, 128.0)
+_ARTILLERY_OP_BOTTOM_LEFT = (52.4, 128.0)
+
+_ARTILLERY_OP_DOT_PATTERN = re.compile(
+    r'<path d="m 115,100 c[^"]*" stroke-width="[^"]*" stroke="[^"]*" '
+    r'fill="[^"]*" ></path>'
+)
+
+# How much clear air a glyph inside the triangle keeps from its sides.
+_OP_GLYPH_CLEARANCE = 2.0
+
+
+def _artillery_op_svg(affiliation, status):
+
+    """Artillery Observation Post's own render, the donor for all three."""
+
+    return scale_svg_stroke_width(
+        render_symbol_svg(
+            build_sidc(
+                affiliation=affiliation,
+                entity=_ARTILLERY_OP_ENTITY,
+                symbol_set="control_measure",
+                echelon="unspecified",
+                status=status,
+                headquarters=False,
+                edition="2525E",
+            ),
+            None,
+        ),
+        DEFAULT_STROKE_SCALE,
+    )
+
+
+def _triangle_half_width(y):
+
+    """
+    Half the triangle's own width at height `y`, and the x its centre
+    line sits at there - the two sides slope in at slightly different
+    rates, so neither is assumed.
+    """
+
+    apex_x, apex_y = _ARTILLERY_OP_APEX
+
+    if y <= apex_y:
+        return apex_x, 0.0
+
+    down = (y - apex_y) / (_ARTILLERY_OP_BOTTOM_LEFT[1] - apex_y)
+
+    left = apex_x + down * (_ARTILLERY_OP_BOTTOM_LEFT[0] - apex_x)
+    right = apex_x + down * (_ARTILLERY_OP_BOTTOM_RIGHT[0] - apex_x)
+
+    return (left + right) / 2, (right - left) / 2
+
+
+def _ink_profile(markup):
+
+    """
+    One glyph's own ink, row by row: a list of (y, left x, right x) in
+    path units.
+
+    Rasterised rather than parsed, because these glyphs are beziers and
+    because a bounding BOX is far too blunt for fitting a wide flat
+    shape into a triangle - the propeller's corners carry no ink at
+    all, and a box would shrink it for clearance it does not need.
+
+    A convex container is exactly the set of rows between its top and
+    bottom with an x range at each row, so checking each row's two
+    extremes is enough to check every point of the glyph.
+    """
+
+    try:
+
+        from qgis.PyQt.QtCore import Qt
+        from qgis.PyQt.QtGui import QImage, QPainter
+        from qgis.PyQt.QtSvg import QSvgRenderer
+
+    except ImportError:
+        return []
+
+    box = 200
+    step = 2
+
+    image = QImage(box * step, box * step, QImage.Format.Format_ARGB32)
+    image.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(image)
+
+    renderer = QSvgRenderer(
+        (
+            '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+            f'baseProfile="tiny" viewBox="0 0 {box:g} {box:g}">'
+            + markup
+            + "</svg>"
+        ).encode("utf-8")
+    )
+
+    renderer.render(painter)
+
+    painter.end()
+
+    profile = []
+
+    for row in range(image.height()):
+
+        left = None
+        right = None
+
+        for column in range(image.width()):
+
+            if image.pixelColor(column, row).alpha() > 0:
+
+                if left is None:
+                    left = column
+
+                right = column
+
+        if left is not None:
+            profile.append((row / step, left / step, right / step))
+
+    return profile
+
+
+def _fit_profile_in_triangle(profile, centre):
+
+    """
+    The largest scale at which `profile`, scaled about `centre`, still
+    sits inside the triangle with its clearance - never more than the
+    glyph's own size.
+    """
+
+    if not profile:
+        return 1.0
+
+    centre_x, centre_y = centre
+
+    def fits(scale):
+
+        for y, left, right in profile:
+
+            row = centre_y + scale * (y - centre_y)
+
+            if not (
+                _ARTILLERY_OP_APEX[1] < row < _ARTILLERY_OP_BOTTOM_LEFT[1]
+            ):
+                return False
+
+            middle, half = _triangle_half_width(row)
+
+            half -= _OP_GLYPH_CLEARANCE
+
+            for edge in (left, right):
+
+                if abs(
+                    centre_x + scale * (edge - centre_x) - middle
+                ) > half:
+                    return False
+
+        return True
+
+    if fits(1.0):
+        return 1.0
+
+    low = 0.0
+    high = 1.0
+    best = None
+
+    for _ in range(60):
+
+        candidate = _round_drawn((low + high) / 2)
+
+        if candidate <= low or candidate >= high:
+            break
+
+        if fits(candidate):
+            best = candidate
+            low = candidate
+        else:
+            high = candidate
+
+    if best is None:
+        raise ValueError("no size of this glyph fits inside the triangle")
+
+    return best
+
+
+def _altitude_foot(corner, apex, other):
+
+    """
+    Where the altitude from `corner` meets the opposite side - the
+    perpendicular from the corner, not the line to the opposite corner.
+    "Starting at bottom edges and drawing the altitude"; the
+    corner-to-corner reading was offered on the companion and this one
+    confirmed.
+    """
+
+    side_x = other[0] - apex[0]
+    side_y = other[1] - apex[1]
+
+    length_squared = side_x * side_x + side_y * side_y
+
+    along = (
+        (corner[0] - apex[0]) * side_x + (corner[1] - apex[1]) * side_y
+    ) / length_squared
+
+    return (apex[0] + along * side_x, apex[1] + along * side_y)
+
+
+def listening_post_fixup(svg):
+
+    """
+    Listening Post / Infantry Observation Post - "Replace the dot with
+    a cross - two diagonals - starting at bottom edges and drawing the
+    altitude".
+    """
+
+    colour = _injected_text_colour(svg)
+
+    strokes = ""
+
+    for corner, other in (
+        (_ARTILLERY_OP_BOTTOM_LEFT, _ARTILLERY_OP_BOTTOM_RIGHT),
+        (_ARTILLERY_OP_BOTTOM_RIGHT, _ARTILLERY_OP_BOTTOM_LEFT),
+    ):
+
+        foot = _altitude_foot(corner, _ARTILLERY_OP_APEX, other)
+
+        strokes += (
+            f'<path d="M{corner[0]:g},{corner[1]:g} '
+            f'L{_round_drawn(foot[0]):g},{_round_drawn(foot[1]):g}" '
+            f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+            f'stroke="{colour}" fill="none"></path>'
+        )
+
+    return _inject_before_closing_svg(
+        _ARTILLERY_OP_DOT_PATTERN.sub("", svg, count=1), strokes
+    )
+
+
+def air_force_op_fixup(svg):
+
+    """
+    Air Force Observation Post - the dot replaced by Army Aviation's
+    own closed figure of eight, scaled to sit inside the triangle.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    centre = (_ARTILLERY_OP_APEX[0], _CONTROL_MEASURE_CENTRE_Y)
+
+    scale = _op_glyph_scale(_ARMY_AVIATION_PROPELLER_SOLID_D, centre)
+
+    glyph = _scaled_path(
+        _ARMY_AVIATION_PROPELLER_SOLID_D,
+        colour,
+        _PROPELLER_CENTRE,
+        scale,
+        centre,
+    )
+
+    return _inject_before_closing_svg(
+        _ARTILLERY_OP_DOT_PATTERN.sub("", svg, count=1), glyph
+    )
+
+
+# Air Defence's own curve, as milsymbol draws it inside the unit frame
+# - ends on the frame's two bottom corners, both control points
+# straight above them. Checked against a live render by a test.
+_AIR_DEFENCE_CURVE_D = "M25,150 C25,110 175,110 175,150"
+
+# Lifted as a CONSTRUCTION, not as coordinates: the control points rise
+# by this fraction of the span between the two ends. On the frame that
+# is 40 over 150.
+_AIR_DEFENCE_RISE_FRACTION = (
+    (_UNIT_FRAME_BOTTOM - 110) / (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT)
+)
+
+# A cubic whose two control points are the same height reaches its
+# extreme three quarters of the way to them - the same arithmetic the
+# Ammunition glyphs' own measurements use.
+_CUBIC_EXTREME = 0.75
+
+
+def _air_defence_curve(inset):
+
+    """
+    The curve with both ends moved `inset` in along the triangle's own
+    floor. Returns the `d`, and the height its own crest reaches.
+    """
+
+    left = _ARTILLERY_OP_BOTTOM_LEFT[0] + inset
+    right = _ARTILLERY_OP_BOTTOM_RIGHT[0] - inset
+
+    floor = _ARTILLERY_OP_BOTTOM_LEFT[1]
+
+    rise = _AIR_DEFENCE_RISE_FRACTION * (right - left)
+
+    control = floor - rise
+
+    return (
+        f"M{_round_drawn(left):g},{floor:g} "
+        f"C{_round_drawn(left):g},{_round_drawn(control):g} "
+        f"{_round_drawn(right):g},{_round_drawn(control):g} "
+        f"{_round_drawn(right):g},{floor:g}"
+    ), floor - _CUBIC_EXTREME * rise
+
+
+def _air_defence_curve_clears(inset):
+
+    """
+    True when every sampled point of the curve clears both sloping
+    sides by the two strokes between them.
+
+    **On a rectangle this curve cannot leave the frame; on a TRIANGLE
+    it leaves at once** - it rises vertically out of each end while the
+    sides slope inward, so ANY rise at all puts the ends outside.
+    Reducing the rise does not help; the ends have to come IN. That is
+    why this searches the inset and keeps the rise proportional, as
+    instructed.
+    """
+
+    left = _ARTILLERY_OP_BOTTOM_LEFT[0] + inset
+    right = _ARTILLERY_OP_BOTTOM_RIGHT[0] - inset
+
+    floor = _ARTILLERY_OP_BOTTOM_LEFT[1]
+
+    rise = _AIR_DEFENCE_RISE_FRACTION * (right - left)
+
+    control = floor - rise
+
+    needed = _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE
+
+    for step in range(201):
+
+        t = step / 200
+
+        one = 1 - t
+
+        x = (
+            one ** 3 * left
+            + 3 * one ** 2 * t * left
+            + 3 * one * t ** 2 * right
+            + t ** 3 * right
+        )
+        y = (
+            one ** 3 * floor
+            + 3 * one ** 2 * t * control
+            + 3 * one * t ** 2 * control
+            + t ** 3 * floor
+        )
+
+        middle, half = _triangle_half_width(y)
+
+        if abs(x - middle) > half - needed:
+            return False
+
+    return True
+
+
+def _air_defence_op_inset():
+
+    """The smallest inset that clears, so the curve stays as wide as it can."""
+
+    low = 0.0
+    high = _ARTILLERY_OP_BOTTOM_RIGHT[0] - _ARTILLERY_OP_APEX[0]
+
+    for _ in range(60):
+
+        candidate = _round_drawn((low + high) / 2)
+
+        if candidate <= low or candidate >= high:
+            break
+
+        if _air_defence_curve_clears(candidate):
+            high = candidate
+        else:
+            low = candidate
+
+    return high
+
+
+def air_defence_op_fixup(svg):
+
+    """
+    Air Defence Observation Post - Air Defence's own curve across the
+    triangle's floor, with Artillery's dot kept above it.
+
+    The curve runs through where the dot was, because the triangle's
+    floor sits only 28 above the dot's centre where the rectangle's sat
+    50. Settled on the companion: keep the proportional curve and
+    shrink the dot to the largest that still clears it, then "shift the
+    dot upwards, double the size of the dot" - done by lifting it by
+    exactly the radius it gains, so its lower edge stays where it was
+    and it grows upward.
+    """
+
+    colour = _injected_text_colour(svg)
+
+    d, crest = _air_defence_curve(_air_defence_op_inset())
+
+    half_stroke = _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+
+    # The largest dot that still clears the crest, on the dot's own
+    # centre...
+    fitted = (
+        crest
+        - half_stroke
+        - _OP_GLYPH_CLEARANCE
+        - half_stroke
+        - _CONTROL_MEASURE_CENTRE_Y
+    )
+
+    # ...then doubled, and lifted by exactly what it gained.
+    radius = 2 * fitted
+
+    centre_y = _CONTROL_MEASURE_CENTRE_Y - fitted
+
+    marks = (
+        f'<path d="{d}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+        f'<circle cx="{_ARTILLERY_OP_APEX[0]:g}" '
+        f'cy="{_round_drawn(centre_y):g}" r="{_round_drawn(radius):g}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="{colour}"></circle>'
+    )
+
+    return _inject_before_closing_svg(
+        _ARTILLERY_OP_DOT_PATTERN.sub("", svg, count=1), marks
+    )
+
+
+# --- Mobile Observation Post -------------------------------------------
+#
+# Air Force OP, "so the propeller stays", with a mast above the apex a
+# third of the triangle's height and a W straddling its tip.
+#
+# **The W is drawn, not lifted, and that was a decision on the
+# companion.** The scheme's own wavy line is Amphibious', and it was
+# tried first - but its humps are near-square and at this size they
+# read as two brackets rather than a W. What IS lifted is the
+# PROPORTION: the W's rise is Amphibious' own rise over run applied to
+# a quarter of the W's width, so it stays in the same family as the
+# wave even though its curve is gentler.
+_MOBILE_OP_ENTITY = "nonnato_mobile_op"
+
+MOBILE_OP_ENTITY = _MOBILE_OP_ENTITY
+
+_MOBILE_OP_MAST_FRACTION = 1 / 3
+
+_MOBILE_OP_W_FRACTION = 2 / 3
+
+# Amphibious' own hump: 18.8 across and 20 up, from _AMPHIBIOUS_WAVE_D.
+_AMPHIBIOUS_RISE_OVER_RUN = 20 / 18.8
+
+
+def mobile_op_fixup(svg):
+
+    """Mobile Observation Post - see this section's own comment."""
+
+    colour = _injected_text_colour(svg)
+
+    apex_x, apex_y = _ARTILLERY_OP_APEX
+
+    height = _ARTILLERY_OP_BOTTOM_LEFT[1] - apex_y
+
+    mast = height * _MOBILE_OP_MAST_FRACTION
+
+    tip = apex_y - mast
+
+    # Two thirds of the triangle's own width (2026-09-25). It took the
+    # mast's length first, which nothing in the instruction fixed, and
+    # that drew too small to read as a W at map size.
+    width = _MOBILE_OP_W_FRACTION * (
+        _ARTILLERY_OP_BOTTOM_RIGHT[0] - _ARTILLERY_OP_BOTTOM_LEFT[0]
+    )
+
+    rise = _AMPHIBIOUS_RISE_OVER_RUN * (width / 4)
+
+    points = []
+
+    for step in range(5):
+
+        points.append((
+            apex_x - width / 2 + step * width / 4,
+            tip + (rise / 2 if step % 2 else -rise / 2),
+        ))
+
+    letter = " ".join(
+        f"{'M' if index == 0 else 'L'}"
+        f"{_round_drawn(x):g},{_round_drawn(y):g}"
+        for index, (x, y) in enumerate(points)
+    )
+
+    marks = (
+        f'<path d="M{apex_x:g},{apex_y:g} L{apex_x:g},{_round_drawn(tip):g}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+        f'<path d="{letter}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+    svg = air_force_op_fixup(svg)
+
+    # The mast and its W stand above the apex, outside the box
+    # milsymbol sized for the triangle alone.
+    half_stroke = _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+
+    svg = _expand_viewbox_for_rect(
+        svg,
+        apex_x - width / 2 - half_stroke,
+        tip - rise / 2 - half_stroke,
+        width + 2 * half_stroke,
+        rise + 2 * half_stroke,
+    )
+
+    return _inject_before_closing_svg(svg, marks)
+
+
+_OP_FAMILY_FIXUPS = {
+    LISTENING_POST_ENTITY: listening_post_fixup,
+    AIR_FORCE_OP_ENTITY: air_force_op_fixup,
+    AIR_DEFENCE_OP_ENTITY: air_defence_op_fixup,
+    MOBILE_OP_ENTITY: mobile_op_fixup,
+}
+
+
+_OP_GLYPH_SCALES = {}
+
+
+def _op_glyph_scale(d, centre):
+
+    """The largest this glyph fits inside the triangle at - worked out once and kept."""
+
+    scale = _OP_GLYPH_SCALES.get(d)
+
+    if scale is None:
+
+        markup = (
+            f'<path d="{d}" '
+            f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE:g}" '
+            'stroke="#000000" fill="none"></path>'
+        )
+
+        scale = _fit_profile_in_triangle(_ink_profile(markup), centre)
+
+        _OP_GLYPH_SCALES[d] = scale
+
+    return scale
+
+
+# --- Control Measure Points built on the ellipse, turned over ---------
+#
+# Dictated on the Office companion 2026-09-23 and built there first:
+# "Use the same ellipse as Forces in defence but rotate it 180 deg", so
+# the 60 degree opening is at the BOTTOM. Each then carries one glyph
+# the scheme already draws, centred, shrunk only as far as it must be
+# to clear the arc.
+#
+# Like Forces in Defence, the symbol crossed over and the method did
+# not - the maintainer's ruling that "the implementation methodology
+# may vary between QGIS and Office".
+#
+# Affiliation is the scheme's own palette, as the six recoloured
+# entities on this layer already use. Planned dashes THE FRAME and only
+# the frame: the arc is the frame here, and the glyph inside it stays
+# solid.
+BEACH_HEAD_ENTITY = "nonnato_beach_head"
+BRIDGE_HEAD_ENTITY = "nonnato_bridge_head"
+AIR_HEAD_ENTITY = "nonnato_air_head"
+VITAL_POINT_ENTITY = "nonnato_vital_point"
+VITAL_AREA_ENTITY = "nonnato_vital_area"
+
+_CMP_ELLIPSE_ARC_START, _CMP_ELLIPSE_ARC_END, _CMP_ELLIPSE_ARC_D = (
+    _open_ellipse_arc(180)
+)
+
+# The frame's own stroke, as the unit frames draw it - these are
+# frames, not interior glyphs.
+_CMP_ELLIPSE_STROKE_WIDTH = 4
+
+# milsymbol's own Planned dash, copied rather than invented so a dashed
+# ellipse matches a dashed unit frame beside it on the map.
+_PLANNED_DASHARRAY = "8,12"
+
+# The declared box, matching Forces in Defence's own and Command Post's
+# - both of which are frames on this same scale. A control measure
+# point whose ink is a frame is sized like a frame.
+_CMP_ELLIPSE_VIEWBOX = (
+    f"{_FID_VIEWBOX_X:g} {_UNIT_FRAME_TOP - _FID_VIEWBOX_MARGIN:g} "
+    f"{_FID_VIEWBOX_WIDTH:g} "
+    f"{_FID_VIEWBOX_BOTTOM - _UNIT_FRAME_TOP + _FID_VIEWBOX_MARGIN:g}"
+)
+
+# Amphibious draws a stadium AND a wave; only the wave is wanted -
+# "insert the wavy glyph from land unit - amphibous - the wave should
+# not touch the ellipse". milsymbol's own path, checked against a live
+# Amphibious render by a test, so an update that moves it fails rather
+# than drifting.
+_AMPHIBIOUS_WAVE_D = (
+    "m 25,90 c 18.8,0 0,20 18.8,20 18.8,0 0,-20 18.8,-20 18.8,0 0,20 "
+    "18.8,20 18.8,0 0,-20 18.8,-20 18.8,0 0,20 18.8,20 18.8,0 0,-20 "
+    "18.8,-20 18.8,0 0,20 18.8,20 18.8,0 0,-20 20,-20"
+)
+
+# The interior glyphs' own stroke, as milsymbol draws them.
+_CMP_GLYPH_STROKE_WIDTH = 3
+
+# The clear space left between a glyph's ink and the arc's, in path
+# units. The same rule Forces in Defence's echelon row follows: the
+# frame's own half stroke, because zero still reads as touching.
+_CMP_GLYPH_CLEARANCE = _CMP_ELLIPSE_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+
+
+def _cmp_ellipse_glyph_scale(width, height):
+
+    """
+    The largest scale at which a glyph `width` x `height`, centred on
+    the ellipse, still clears the arc - never more than milsymbol's own
+    size.
+
+    The ellipse is shrunk by the two half strokes and the clearance,
+    and the glyph's own bounding box is then fitted inside THAT: a box
+    of half-extents a, b sits inside an ellipse rx, ry exactly when
+    (a/rx)^2 + (b/ry)^2 <= 1, so the scale that puts its corners on the
+    curve is one over the root of that sum.
+
+    Fitting the BOX rather than the ink is conservative in principle.
+    In practice it is exact for the one glyph here that has to shrink:
+    the wave's own path ENDS at the corner of its box, so the corner is
+    ink. The others clear at full size with room to spare, where the
+    difference cannot change the answer.
+    """
+
+    inset = (
+        _CMP_ELLIPSE_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+        + _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+        + _CMP_GLYPH_CLEARANCE
+    )
+
+    reach = math.hypot(
+        (width / 2) / (_FID_RX - inset), (height / 2) / (_FID_RY - inset)
+    )
+
+    if reach == 0:
+        return 1.0
+
+    return min(1.0, _floor_drawn(1 / reach))
+
+
+def _arc_markup(d, colour, status):
+
+    """One open ellipse, dashed if the feature is Planned - the arc is
+    the frame on these symbols, and Planned dashes the frame and only
+    the frame."""
+
+    dashes = (
+        f' stroke-dasharray="{_PLANNED_DASHARRAY}"'
+        if status == "planned" else ""
+    )
+
+    return (
+        f'<path d="{d}" '
+        f'stroke-width="{_CMP_ELLIPSE_STROKE_WIDTH:g}" stroke="{colour}"'
+        f'{dashes} fill="none"></path>'
+    )
+
+
+def _cmp_ellipse_svg(colour, status, glyph=""):
+
+    """The turned-over ellipse, with `glyph` already placed inside it."""
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        f'baseProfile="tiny" viewBox="{_CMP_ELLIPSE_VIEWBOX}">'
+        + _arc_markup(_CMP_ELLIPSE_ARC_D, colour, status)
+        + glyph
+        + '</svg>'
+    )
+
+
+def beach_head_svg(colour, status="present"):
+
+    """
+    Beach Head - the turned-over ellipse with Amphibious' own wave
+    across its middle.
+
+    The wave runs the frame's whole width at milsymbol's own size, so
+    it is the one glyph of the three that actually has to shrink.
+    """
+
+    bounds = _path_bounds(_AMPHIBIOUS_WAVE_D, _CMP_GLYPH_STROKE_WIDTH)
+
+    x, y, width, height = bounds
+
+    scale = _cmp_ellipse_glyph_scale(width, height)
+
+    glyph = _scaled_path(
+        _AMPHIBIOUS_WAVE_D,
+        colour,
+        (x + width / 2, y + height / 2),
+        scale,
+        (_FID_CENTRE_X, _UNIT_FRAME_CENTRE_Y),
+    )
+
+    return _cmp_ellipse_svg(colour, status, glyph)
+
+
+def _placed_path(d, colour, own_centre, scale, target, turn=0):
+
+    """
+    _scaled_path()'s counterpart for a glyph that also has to TURN -
+    `d` rotated `turn` degrees and scaled by `scale` about
+    `own_centre`, with that centre landing on `target`.
+
+    Read right to left, the transform moves the glyph's own centre to
+    the origin, turns it, scales it, and puts it down on the target.
+    The stroke is divided by the scale alone, since a rotation does not
+    change it, so the glyph keeps the same line weight as its
+    neighbours.
+    """
+
+    own_x, own_y = own_centre
+    target_x, target_y = target
+
+    return (
+        f'<path transform="translate({target_x:g},{target_y:g}) '
+        f'scale({scale:g}) rotate({turn:g}) '
+        f'translate({-own_x:g},{-own_y:g})" d="{d}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH / scale:g}" '
+        f'stroke="{colour}" fill="none"></path>'
+    )
+
+
+def bridge_head_svg(colour, status="present"):
+
+    """
+    Bridge Head - the turned-over ellipse with milsymbol's own bridge
+    inside it, "inserted length wise vertically".
+
+    The quarter turn is the same one Gap/Safe Lane already applies to
+    this glyph; unlike that one, this keeps milsymbol's own proportions
+    rather than widening the channel, and keeps milsymbol's own path
+    data rather than rebuilding the brackets.
+    """
+
+    x, y, width, height = _path_bounds(
+        _BRIDGE_GLYPH_D, _CMP_GLYPH_STROKE_WIDTH
+    )
+
+    # A quarter turn swaps the two, and the fit is measured on what
+    # ends up on the map.
+    scale = _cmp_ellipse_glyph_scale(height, width)
+
+    glyph = _placed_path(
+        _BRIDGE_GLYPH_D,
+        colour,
+        (x + width / 2, y + height / 2),
+        scale,
+        (_FID_CENTRE_X, _UNIT_FRAME_CENTRE_Y),
+        turn=90,
+    )
+
+    return _cmp_ellipse_svg(colour, status, glyph)
+
+
+def air_head_svg(colour, status="present"):
+
+    """
+    Air Head - the turned-over ellipse with Army Aviation's own closed
+    figure of eight inside it, hollow.
+
+    The same path Army Aviation draws filled; drawing it with no fill
+    is exactly what hollow_army_aviation_propeller() does to the real
+    entity.
+    """
+
+    x, y, width, height = _path_bounds(
+        _ARMY_AVIATION_PROPELLER_SOLID_D, _CMP_GLYPH_STROKE_WIDTH
+    )
+
+    scale = _cmp_ellipse_glyph_scale(width, height)
+
+    glyph = _scaled_path(
+        _ARMY_AVIATION_PROPELLER_SOLID_D,
+        colour,
+        (x + width / 2, y + height / 2),
+        scale,
+        (_FID_CENTRE_X, _UNIT_FRAME_CENTRE_Y),
+    )
+
+    return _cmp_ellipse_svg(colour, status, glyph)
+
+
+# --- Vital Point -------------------------------------------------------
+#
+# "Start with the ellipse of Forces in Defence" - so the opening stays
+# at the TOP for this one - "at the top draw a circle with diameter
+# same as the gap in the ellipse, add two triangles base touching the
+# inner circle, top and bottom with the points pointing inwards", then
+# "Use C filled" from a sheet of three readings.
+#
+# The circle needs no radius of its own: **the gap's two arc ends ARE
+# its diameter**, and it is centred on the chord between them, so both
+# ends land exactly on it. Nothing here is a chosen number.
+_VITAL_POINT_CIRCLE_CENTRE = (
+    _FID_CENTRE_X,
+    _FID_ARC_START[1],
+)
+
+_VITAL_POINT_CIRCLE_RADIUS = (_FID_ARC_START[0] - _FID_ARC_END[0]) / 2
+
+# The apexes point inward but stop short of the centre rather than
+# meeting there - at this fraction of the radius, which is the one
+# proportion this symbol invents.
+_VITAL_POINT_APEX_FRACTION = 0.18
+
+
+def _vital_point_wedge(direction):
+
+    """
+    One of the two wedges: its base an ARC OF THE INNER CIRCLE
+    subtending the opening's own 60 degrees, its apex pointing the
+    other way. `direction` is -1 for the one whose base is at the top.
+
+    The base follows the circle rather than cutting across it as a
+    chord - "base of triangle should follow the line of ellipse -
+    presently it does not look good with straight line base"
+    (2026-09-23). A chord leaves a visible crescent of white between
+    the wedge and the circle it is supposed to sit against.
+
+    The sweep flag follows `direction`: both wedges are written left
+    end first, so the top one takes the short way OVER the top
+    (clockwise on screen) and the bottom one the short way UNDER the
+    bottom.
+    """
+
+    centre_x, centre_y = _VITAL_POINT_CIRCLE_CENTRE
+
+    radius = _VITAL_POINT_CIRCLE_RADIUS
+
+    half = math.radians(_FID_OPENING_HALF_ANGLE)
+
+    base_x = radius * math.sin(half)
+    base_y = direction * radius * math.cos(half)
+
+    apex_y = direction * radius * _VITAL_POINT_APEX_FRACTION
+
+    sweep = 1 if direction < 0 else 0
+
+    return (
+        f"M{_round_drawn(centre_x - base_x):g},"
+        f"{_round_drawn(centre_y + base_y):g} "
+        f"A{radius:g},{radius:g} 0 0 {sweep:d} "
+        f"{_round_drawn(centre_x + base_x):g},"
+        f"{_round_drawn(centre_y + base_y):g} "
+        f"L{centre_x:g},{_round_drawn(centre_y + apex_y):g} Z"
+    )
+
+
+def vital_point_svg(colour, status="present"):
+
+    """Vital Point - see this section's own comment."""
+
+    centre_x, centre_y = _VITAL_POINT_CIRCLE_CENTRE
+
+    circle = (
+        f'<circle cx="{centre_x:g}" cy="{centre_y:g}" '
+        f'r="{_VITAL_POINT_CIRCLE_RADIUS:g}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH:g}" stroke="{colour}" '
+        'fill="none"></circle>'
+    )
+
+    wedges = "".join(
+        f'<path d="{_vital_point_wedge(direction)}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH:g}" stroke="{colour}" '
+        f'fill="{colour}"></path>'
+        for direction in (-1, 1)
+    )
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        f'baseProfile="tiny" viewBox="{_CMP_ELLIPSE_VIEWBOX}">'
+        + _arc_markup(_FID_ARC_D, colour, status)
+        + circle
+        + wedges
+        + '</svg>'
+    )
+
+    # The circle sits IN the opening, so most of it is above the
+    # ellipse's own top - well outside the frame-sized box the other
+    # four fit inside. Declaring that box unchanged would leave the
+    # symbol drawn off its own anchor, so the box grows upward to hold
+    # the circle's ink. Its WIDTH does not change, which is what QGIS
+    # sizes the marker by, so this stays the size of its neighbours.
+    half_stroke = _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+
+    reach = _VITAL_POINT_CIRCLE_RADIUS + half_stroke
+
+    return _expand_viewbox_for_rect(
+        svg,
+        centre_x - reach,
+        centre_y - reach,
+        2 * reach,
+        2 * reach,
+    )
+
+
+# --- Vital Area --------------------------------------------------------
+#
+# "Start with a circle (like administration and logistics), insert
+# Artillery dot in the circle (at 0.8x size), add two small arrows -
+# vertical - one from top edge of circle downwards and the other from
+# bottom edge upwards - both pointing to the dot, arrow heads towards
+# the dot".
+#
+# The circle is Administration or Logistics' own radius and the dot is
+# Artillery's own glyph at 0.8. The arrows stop clear of the dot's INK
+# - its outer edge, stroke included - not of its geometric radius. The
+# heads are the only numbers this symbol invents.
+_ARTILLERY_DOT_RADIUS = 15
+
+_VITAL_AREA_DOT_SCALE = 0.8
+
+_VITAL_AREA_ARROW_HEAD = 9
+_VITAL_AREA_ARROW_HEAD_ANGLE = 28
+
+# The clear space between an arrow's tip and the dot's own INK - "there
+# should be a distinct gap between the arrows and dot" (2026-09-23).
+# The usual half-stroke clearance the rest of these symbols use is
+# enough to stop them touching but reads as touching at map size, which
+# is the same trap Forces in Defence's echelon row records. Half the
+# dot's own radius is unmistakable, and scales with the dot.
+_VITAL_AREA_ARROW_GAP = _VITAL_AREA_DOT_SCALE * _ARTILLERY_DOT_RADIUS / 2
+
+
+def vital_area_svg(colour, status="present"):
+
+    """Vital Area - see this section's own comment."""
+
+    centre_x = _FID_CENTRE_X
+    centre_y = _UNIT_FRAME_CENTRE_Y
+
+    radius = _VITAL_AREA_DOT_SCALE * _ARTILLERY_DOT_RADIUS
+
+    # The dot's own ink reaches half a stroke beyond its radius, and
+    # the arrow stops its own gap short of THAT - measured against the
+    # ink, not against the radius, or the stroke eats the gap.
+    tip_offset = (
+        radius
+        + _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
+        + _VITAL_AREA_ARROW_GAP
+    )
+
+    spread = math.radians(_VITAL_AREA_ARROW_HEAD_ANGLE)
+
+    barb_x = _VITAL_AREA_ARROW_HEAD * math.sin(spread)
+    barb_y = _VITAL_AREA_ARROW_HEAD * math.cos(spread)
+
+    arrows = ""
+
+    for direction, edge in (
+        (1, _UNIT_FRAME_TOP), (-1, _UNIT_FRAME_BOTTOM)
+    ):
+
+        tip = centre_y - direction * tip_offset
+
+        arrows += (
+            f'<path d="M{centre_x:g},{edge:g} '
+            f'L{centre_x:g},{_round_drawn(tip):g} '
+            f'M{_round_drawn(centre_x - barb_x):g},'
+            f'{_round_drawn(tip - direction * barb_y):g} '
+            f'L{centre_x:g},{_round_drawn(tip):g} '
+            f'L{_round_drawn(centre_x + barb_x):g},'
+            f'{_round_drawn(tip - direction * barb_y):g}" '
+            f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH:g}" stroke="{colour}" '
+            'fill="none"></path>'
+        )
+
+    frame = (
+        f'<circle cx="{centre_x:g}" cy="{centre_y:g}" '
+        f'r="{_ADMIN_LOGISTICS_RADIUS:g}" '
+        f'stroke-width="{_CMP_ELLIPSE_STROKE_WIDTH:g}" stroke="{colour}"'
+        + (
+            f' stroke-dasharray="{_PLANNED_DASHARRAY}"'
+            if status == "planned" else ""
+        )
+        + ' fill="none"></circle>'
+    )
+
+    dot = (
+        f'<circle cx="{centre_x:g}" cy="{centre_y:g}" r="{radius:g}" '
+        f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH:g}" stroke="{colour}" '
+        f'fill="{colour}"></circle>'
+    )
+
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        f'baseProfile="tiny" viewBox="{_CMP_ELLIPSE_VIEWBOX}">'
+        + frame
+        + dot
+        + arrows
+        + '</svg>'
+    )
+
+
+_CMP_ELLIPSE_DRAWINGS = {
+    BEACH_HEAD_ENTITY: beach_head_svg,
+    BRIDGE_HEAD_ENTITY: bridge_head_svg,
+    AIR_HEAD_ENTITY: air_head_svg,
+    VITAL_POINT_ENTITY: vital_point_svg,
+    VITAL_AREA_ENTITY: vital_area_svg,
+}
+
+
+def _path_bounds(d, stroke_width):
+
+    """
+    One path's own ink bounds, measured the way every other measurement
+    in this module is - through QSvgRenderer, so beziers are measured
+    rather than approximated.
+    """
+
+    return _content_bounds(
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.2" '
+        'baseProfile="tiny" viewBox="0 0 200 200">'
+        f'<path d="{d}" stroke-width="{stroke_width:g}" stroke="#000000" '
+        'fill="none"></path></svg>',
+        (0, 0, 200, 200),
+    )
+
+
 def render_nonnato_control_measure_svg(
     affiliation, entity, status="present", designation=None,
     default_designation=True,
@@ -5080,6 +7399,113 @@ def render_nonnato_control_measure_svg(
 
         return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 
+    if entity == DF_SOS_ENTITY:
+
+        svg = recolour_to_affiliation_palette(
+            df_sos_fixup(
+                scale_svg_stroke_width(
+                    render_symbol_svg(
+                        build_sidc(
+                            affiliation=affiliation,
+                            entity=_TARGET_CROSS_ENTITY,
+                            symbol_set="control_measure",
+                            echelon="unspecified",
+                            status=status,
+                            headquarters=False,
+                            edition="2525E",
+                        ),
+                        None,
+                    ),
+                    DEFAULT_STROKE_SCALE,
+                )
+            ),
+            affiliation,
+        )
+
+        if designation:
+
+            svg = inject_side_designations(
+                svg,
+                None,
+                designation,
+                AFFILIATION_COLOURS.get(
+                    affiliation, AFFILIATION_COLOURS["friend"]
+                ),
+                centre_y=_CONTROL_MEASURE_CENTRE_Y,
+            )
+
+        return svg
+
+    if entity in _NAI_TAI_FIXUPS:
+
+        # All four out of Point of Interest's own render, recoloured
+        # with it. Their designation goes INSIDE the shape that holds
+        # it, not to the right, so it is passed into the fixup rather
+        # than injected afterwards.
+        svg = render_symbol_svg(
+            build_sidc(
+                affiliation=affiliation,
+                entity=_POI_ENTITY,
+                symbol_set="control_measure",
+                echelon="unspecified",
+                status=status,
+                headquarters=False,
+                edition="2525E",
+            ),
+            None,
+        )
+
+        svg = _NAI_TAI_FIXUPS[entity](
+            scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE), designation
+        )
+
+        return recolour_to_affiliation_palette(svg, affiliation)
+
+    if entity in _OP_FAMILY_FIXUPS:
+
+        # Built on Artillery Observation Post's own render and
+        # recoloured with it, so all four stay one family: same
+        # triangle, same palette, same status behaviour, same
+        # right-side designation.
+        svg = recolour_to_affiliation_palette(
+            _OP_FAMILY_FIXUPS[entity](
+                _artillery_op_svg(affiliation, status)
+            ),
+            affiliation,
+        )
+
+        if designation:
+
+            svg = inject_side_designations(
+                svg,
+                None,
+                designation,
+                AFFILIATION_COLOURS.get(
+                    affiliation, AFFILIATION_COLOURS["friend"]
+                ),
+                centre_y=_CONTROL_MEASURE_CENTRE_Y,
+            )
+
+        return svg
+
+    if entity in _CMP_ELLIPSE_DRAWINGS:
+
+        # The scheme's own palette, not milsymbol's black and red -
+        # these are drawn here, so there is nothing to recolour.
+        colour = AFFILIATION_COLOURS.get(
+            affiliation, AFFILIATION_COLOURS["friend"]
+        )
+
+        svg = inject_side_designations(
+            _CMP_ELLIPSE_DRAWINGS[entity](colour, status),
+            None,
+            designation,
+            colour,
+            centre_y=_CONTROL_MEASURE_CENTRE_Y,
+        )
+
+        return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
+
     sidc = build_sidc(
         affiliation=affiliation,
         entity=(
@@ -5109,7 +7535,16 @@ def render_nonnato_control_measure_svg(
 
         return scale_svg_stroke_width(svg, DEFAULT_STROKE_SCALE)
 
-    options = {"uniqueDesignation": designation} if designation else None
+    # milsymbol draws no designation at all for the entities in
+    # UNDESIGNATED_BY_MILSYMBOL, so asking it for one is not merely
+    # pointless - it would widen the declared viewBox for text that is
+    # never drawn, and the size stabiliser reads that width.
+    designates_itself = entity not in UNDESIGNATED_BY_MILSYMBOL
+
+    options = (
+        {"uniqueDesignation": designation}
+        if designation and designates_itself else None
+    )
 
     svg = scale_svg_stroke_width(
         render_symbol_svg(sidc, options), DEFAULT_STROKE_SCALE
@@ -5118,4 +7553,31 @@ def render_nonnato_control_measure_svg(
     if entity in CONTROL_MEASURE_PALETTE_ENTITIES:
         svg = recolour_to_affiliation_palette(svg, affiliation)
 
+    if designation and not designates_itself:
+
+        svg = inject_side_designations(
+            svg,
+            None,
+            designation,
+            _designation_colour(svg, affiliation, entity),
+            centre_y=_CONTROL_MEASURE_CENTRE_Y,
+        )
+
     return svg
+
+
+def _designation_colour(svg, affiliation, entity):
+
+    """
+    The colour an injected designation takes: the scheme's own palette
+    where the entity has been recoloured into it, and milsymbol's own
+    tactical-point colour otherwise - so the text always matches the
+    ink beside it.
+    """
+
+    if entity in CONTROL_MEASURE_PALETTE_ENTITIES:
+        return AFFILIATION_COLOURS.get(
+            affiliation, AFFILIATION_COLOURS["friend"]
+        )
+
+    return _milsymbol_point_colour(affiliation)

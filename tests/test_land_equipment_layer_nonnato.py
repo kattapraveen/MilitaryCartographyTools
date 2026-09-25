@@ -39,6 +39,8 @@ from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     LIGHT_RECCE_VEHICLE_ENTITY,
     MOBILITY_SELF_PROPELLED,
     MOBILITY_TRACKED,
+    BFSR_ENTITY,
+    LORROS_ENTITY,
     SIGINT_RADAR_ENTITY,
 )
 from MilitaryCartographyTools.military_symbology.sidc import (
@@ -61,11 +63,19 @@ WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
 # the ONLY way to reach a Radar-like icon from this layer at all. This
 # maps each STORED key to the real APP-6E entity key SIDC resolution
 # actually needs (identical for jammer).
-SIGINT_ENTITIES = frozenset({"jammer", SIGINT_RADAR_ENTITY})
+#
+# LORROS and BFSR joined 2026-09-25: the Radar exactly as this plugin
+# draws it, with a lettered circle beside it, so they resolve to the
+# same real "radar" key and live under the same symbol set.
+SIGINT_ENTITIES = frozenset({
+    "jammer", SIGINT_RADAR_ENTITY, LORROS_ENTITY, BFSR_ENTITY,
+})
 
 SIGINT_REAL_ENTITY_KEYS = {
     "jammer": "jammer",
     SIGINT_RADAR_ENTITY: "radar",
+    LORROS_ENTITY: "radar",
+    BFSR_ENTITY: "radar",
 }
 
 # Three synthetic entities built from Armoured Protected Vehicle's own
@@ -141,7 +151,8 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
         # family (9 entities) moved out to its own "Mines and Obstacles
         # (Non-NATO)" layer 2026-09-03 - see
         # test_mines_and_obstacles_layer_nonnato.py.
-        self.assertEqual(len(ENTITY_LABELS), 55)
+        # Plus LORROS and BFSR, 2026-09-25.
+        self.assertEqual(len(ENTITY_LABELS), 57)
 
         for entity in SIGINT_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)

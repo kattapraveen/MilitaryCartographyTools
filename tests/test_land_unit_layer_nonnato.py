@@ -46,6 +46,7 @@ from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     RECCE_SUPPORT_WHEELED_ENTITY,
     SELF_PROPELLED_ARTILLERY_ENTITY,
     STATIC_FORMATION_HQ_ENTITY,
+    FORCES_IN_DEFENCE_ENTITY,
     ENEMY_DESIGNATION_UNKNOWN_ENTITY,
     ENEMY_ECHELON_UNKNOWN_ENTITY,
     ENEMY_INFO_UNKNOWN_ENTITY,
@@ -82,6 +83,7 @@ SYNTHETIC_ENTITIES = (
     ORDNANCE_ENTITY,
     REMOUNT_VETERINARY_ENTITY,
     STA_ENTITY,
+    FORCES_IN_DEFENCE_ENTITY,
 )
 
 
@@ -127,10 +129,12 @@ class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
         # parachute respectively, also 2026-09-06), and six built on
         # Military Police's own framed glyph - Information Warfare,
         # Postal Unit, Intelligence, Supplies and Transport, Ordnance
-        # and Remount and Veterinary Corps (also 2026-09-06) - none of
-        # the nineteen has a matching real ground_unit key of its own. See the rules record's "Required
+        # and Remount and Veterinary Corps (also 2026-09-06) - and Forces
+        # in Defence (an open ellipse in place of the frame, no SIDC of
+        # its own either, 2026-09-23) - none of
+        # the twenty has a matching real ground_unit key of its own. See the rules record's "Required
         # entities" section.
-        self.assertEqual(len(ENTITY_LABELS), 38)
+        self.assertEqual(len(ENTITY_LABELS), 39)
 
         for entity in SYNTHETIC_ENTITIES:
             self.assertIn(entity, ENTITY_LABELS)

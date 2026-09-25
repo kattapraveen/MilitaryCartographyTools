@@ -7,6 +7,20 @@ New 2026-09-09: "Minefield (General) - this will be a line feature -
 type of mines will be required input, draw two parallel lines, populate
 the mines as per selection".
 
+**Trench System joined it 2026-09-25**, and is the one symbol on the
+whole branch that is a NATO symbol unchanged: "Use the Fortified Line
+of NATO symbology for it, no change", then "we can use the NATO field
+fortification as is". It takes field_fortification.fortified_line_
+symbol() WHOLE - tile size, merlon proportions, the opening and closing
+level runs, ramparts to the LEFT of travel, and the affiliation colour
+rather than obstacle green (H.5.22.1 makes none of the exception
+H.5.21.1 makes for obstacles - see that module's own docstring).
+
+That is why this layer now carries an `affiliation` field it did not
+have: Minefield (General) is MINE_GREEN whoever laid it, but Trench
+System is coloured like the NATO symbol it IS. The two entities
+therefore need a rule each rather than one shared symbol.
+
 Its own layer rather than a row on mines_and_obstacles_layer_nonnato.py
 because a QGIS vector layer carries ONE geometry type, and that one is
 points. Everything else about it matches its point sibling - the same
@@ -44,6 +58,7 @@ Military Cartography Tools
 
 from qgis.core import (
     QgsDefaultValue,
+    QgsRuleBasedRenderer,
     QgsEditorWidgetSetup,
     QgsField,
     QgsLineSymbol,
@@ -54,7 +69,6 @@ from qgis.core import (
     QgsSimpleLineSymbolLayer,
     QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
-    QgsSingleSymbolRenderer,
     QgsSymbolLayer,
     QgsTemplatedLineSymbolLayerBase,
     QgsVectorLayer,
@@ -63,7 +77,11 @@ from qgis.core import (
 from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QColor
 
-from ._control_measure_shared import add_layer_if_absent
+from ._control_measure_shared import (
+    _configure_affiliation_field,
+    add_layer_if_absent,
+)
+from .field_fortification import fortified_line_symbol
 from .nonnato_symbol_engine import (
     MINE_GREEN,
     MINE_TYPE_ANTIPERSONNEL,
@@ -78,8 +96,11 @@ LAYER_NAME = "Mines and Obstacles Lines (Non-NATO)"
 
 DEFAULT_ENTITY = MINEFIELD_GENERAL_ENTITY
 
+TRENCH_SYSTEM_ENTITY = "nonnato_trench_system"
+
 ENTITY_LABELS = {
     MINEFIELD_GENERAL_ENTITY: "Minefield (General)",
+    TRENCH_SYSTEM_ENTITY: "Trench System",
 }
 
 # Millimetres, like every other size on these layers.
@@ -250,8 +271,13 @@ def _configure_attribute_form(layer):
         fields.indexOf("mine_type"), QgsDefaultValue("''")
     )
 
+    # The lines-and-areas vocabulary, not the four SIDC identities:
+    # this one only ever picks a Qt colour, and it is the NATO
+    # Fortified Line's own field.
+    _configure_affiliation_field(layer)
 
-def _build_renderer():
+
+def _minefield_symbol():
 
     symbol = QgsLineSymbol()
 
@@ -262,7 +288,37 @@ def _build_renderer():
     for layer in parallels[1:] + _mine_run_layers():
         symbol.appendSymbolLayer(layer)
 
-    return QgsSingleSymbolRenderer(symbol)
+    return symbol
+
+
+_SYMBOL_BUILDERS = {
+    MINEFIELD_GENERAL_ENTITY: _minefield_symbol,
+    # Taken whole from the NATO side - see this module's own docstring.
+    TRENCH_SYSTEM_ENTITY: fortified_line_symbol,
+}
+
+
+def _build_renderer():
+
+    """
+    One rule per entity. A single symbol served this layer while
+    Minefield (General) was alone on it; Trench System is a different
+    symbol entirely, not a variation, so there is nothing to
+    data-define between them.
+    """
+
+    root_rule = QgsRuleBasedRenderer.Rule(None)
+
+    for entity, build_symbol in _SYMBOL_BUILDERS.items():
+
+        rule = QgsRuleBasedRenderer.Rule(build_symbol())
+
+        rule.setFilterExpression(f'"entity" = \'{entity}\'')
+        rule.setLabel(ENTITY_LABELS[entity])
+
+        root_rule.appendChild(rule)
+
+    return QgsRuleBasedRenderer(root_rule)
 
 
 def build_mines_and_obstacles_lines_layer_nonnato():
@@ -278,6 +334,8 @@ def build_mines_and_obstacles_lines_layer_nonnato():
     layer.dataProvider().addAttributes([
         QgsField("entity", QMetaType.Type.QString),
         QgsField("mine_type", QMetaType.Type.QString),
+        # Read only by Trench System - see this module's own docstring.
+        QgsField("affiliation", QMetaType.Type.QString),
     ])
 
     layer.updateFields()

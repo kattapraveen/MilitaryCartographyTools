@@ -824,7 +824,10 @@ to).
   at their own lowest point, but are no longer the same size. Final
   line: (75,80) [touching] to (85.6,58.8) -
   `armoured_recce_vehicle_mark()`.
-- **APV Wheeled, later renamed Armoured Protection Vehicle (Wheeled)**:
+- **APV Wheeled, later renamed Armoured Protected Vehicle
+  (Wheeled)** - the label read "Protection" from 2026-09-03 until
+  the misspelling was corrected 2026-09-22; the entity key never
+  changed:
   "add APV Wheeled - start with APV glyph and add three circles below
   the oval, slightly inside the edges, touching the oval, radii size
   can be 1/3 of semi-minor axis" - radius = 20/3, left/right circles
@@ -1039,7 +1042,7 @@ exactly as before, so features predating the field are unaffected.
 - **The designation shift came free.** It is placed from the SVG's own
   measured ink, and the mark is part of that ink, so it drops below by
   itself - which is what "the unique designation text needs to shift if
-  selected" asks for. For Armoured Protection Vehicle (Wheeled) the
+  selected" asks for. For Armoured Protected Vehicle (Wheeled) the
   mark takes the same `min_content_bottom` floor the designation
   already had, since that icon's wheels are outside the SVG.
 
@@ -1057,7 +1060,7 @@ same thing independently, and the regression test deliberately covers
 the NO-designation case, since that distinction is the whole bug.
 
 **Correction: there is no QGIS clipping trap, and there never was.**
-The Armoured Protection Vehicle (Wheeled) entry above records a
+The Armoured Protected Vehicle (Wheeled) entry above records a
 conclusion that QGIS's own marker rendering clips to milsymbol's
 original declared draw area, which is why those wheels became separate
 QGIS symbol layers. That conclusion is **wrong**. Re-measured
