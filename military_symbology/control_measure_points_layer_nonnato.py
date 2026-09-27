@@ -97,11 +97,11 @@ MARKER_SIZE_MM = 8.0
 
 PILLBOX_ENTITY = "shelter"
 
-# The thirteen entities. Real keys are sidc.py's own
-# ENTITIES["control_measure"] keys, unchanged; the three added
-# 2026-09-17 are the engine's own synthetic keys (see this module's
-# docstring). Booby Trap (`booby_trap`) moved out to its own layer
-# 2026-09-03.
+# Twenty-seven entities: ten real and seventeen SYNTHETIC_ENTITIES.
+# Real keys are sidc.py's own ENTITIES["control_measure"] keys,
+# unchanged; every synthetic one is the engine's own key (see this
+# module's docstring). Booby Trap (`booby_trap`) moved out to its own
+# layer 2026-09-03.
 ENTITY_LABELS = {
     AIR_DEFENCE_OP_ENTITY: "Air Defence Observation Post",
     AIR_FORCE_OP_ENTITY: "Air Force Observation Post",

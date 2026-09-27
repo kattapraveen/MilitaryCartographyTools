@@ -16,9 +16,9 @@ logic this layer's renderer calls into via mct_nonnato_unit_svg()
 (expressions/nonnato_symbology_functions.py).
 
 Scope, deliberately narrow (see the rules record's "Required entities"
-section): 38 entities - the 19 APP-6E ground_unit entities the
+section): 39 entities - the 19 APP-6E ground_unit entities the
 maintainer's reviewed check sheet confirmed and this layer still
-carries, plus nineteen with no matching real ground_unit key of their
+carries, plus TWENTY with no matching real ground_unit key of their
 own: the four Enemy entities (Info Unknown, and Echelon / Designation /
 Type Unknown added 2026-09-06 - standalone frame variants with no
 APP-6E entity at all, differing only in where a "?" sits), Air Defence
@@ -28,7 +28,8 @@ Headquarters, Self Propelled Artillery, Parachute Field Artillery, and
 seven built on Military Police's own framed glyph - Information
 Warfare, Postal Unit, Intelligence, Supplies and Transport, Ordnance,
 Remount and Veterinary Corps, and Surveillance and Target Acquisition
-(added 2026-09-09).
+(added 2026-09-09) - and Forces in Defence (an open ellipse in place of
+the frame, added 2026-09-23).
 
 Army Aviation and Air Force MOVED OUT 2026-09-06 to the new "Aviation
 (Non-NATO)" layer - see aviation_layer_nonnato.py - which is why the
@@ -114,8 +115,8 @@ DEFAULT_ENTITY = "infantry"
 
 MARKER_SIZE_MM = 8.0
 
-# Display labels for the 20 real APP-6E entities the reviewed check
-# sheet confirmed and still carried here, plus nineteen entries with no
+# Display labels for the 19 real APP-6E entities the reviewed check
+# sheet confirmed and still carried here, plus twenty entries with no
 # matching real ground_unit key of their own - see this module's own docstring for
 # the list. Every other entry's KEY is a real ground_unit key
 # sidc_2525e.py already defines (unchanged, so render_nonnato_unit_

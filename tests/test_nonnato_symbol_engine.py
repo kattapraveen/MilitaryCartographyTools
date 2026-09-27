@@ -5611,3 +5611,49 @@ class TestNaiTaiAndDfSos(QgisTestCase):
                     )
                     self.assertNotIn('"black"', svg)
                     self.assertNotIn("rgb(255, 0, 0)", svg)
+
+
+class TestDonorGeometryIsStillMilsymbols(QgisTestCase):
+
+    """
+    Every glyph these symbols are built FROM is written down here as a
+    path string. Each one is checked against a live render, so a
+    milsymbol update that moves any of them fails rather than drifting
+    into a symbol that no longer matches its donor.
+    """
+
+    def test_air_defences_curve(self):
+
+        svg = nse.render_nonnato_unit_svg("friend", "air_defense")
+
+        self.assertIn(f'd="{nse._AIR_DEFENCE_CURVE_D}"', svg)
+
+
+    def test_the_rise_fraction_comes_out_of_that_curve(self):
+
+        # Read from the `d` rather than restated beside it, so the two
+        # cannot drift.
+        self.assertAlmostEqual(
+            nse._AIR_DEFENCE_RISE_FRACTION,
+            40 / (nse._UNIT_FRAME_RIGHT - nse._UNIT_FRAME_LEFT),
+            places=9,
+        )
+
+
+    def test_the_artillery_dot_radius(self):
+
+        svg = nse.render_nonnato_unit_svg("friend", "field_artillery")
+
+        self.assertIn(f'r="{nse._ARTILLERY_DOT_RADIUS:g}"', svg)
+
+
+    def test_the_armour_oval_and_ammunition_glyph(self):
+
+        self.assertIn(
+            f'd="{nse._ARMOUR_OVAL_D}"',
+            nse.render_nonnato_unit_svg("friend", "armor_mechanized"),
+        )
+        self.assertIn(
+            f'd="{nse._AMMUNITION_GLYPH_D}"',
+            nse.render_nonnato_unit_svg("friend", "ammunition"),
+        )

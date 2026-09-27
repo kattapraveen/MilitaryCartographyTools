@@ -12881,7 +12881,12 @@ the arc:
   whole width, so it has to shrink.
 - **Bridge Head** - "Insert the bridge icon in the center of the ellipse
   - bridge is inserted length wise vertically". The quarter turn is the
-  same one this plugin already applies on Gap / Safe Lane.
+  same one this plugin already applies on Gap / Safe Lane, but NOT the
+  widening that goes with it there: milsymbol's channel is 10 wide
+  against a 40-long span, so turned it reads as a thin "I". Gap / Safe
+  Lane widens the channel to 30 for exactly that reason. The
+  alternative was put to the maintainer with the render and
+  milsymbol's own proportions kept - **confirmed 2026-09-27**.
 - **Air Head** - "Insert the Aviation propeller (figure of 8) inside the
   ellipse". Army Aviation's own closed figure of eight.
 
@@ -13231,7 +13236,9 @@ than the parallelogram the instruction's wording literally named.
 **Area TAI is read as REPLACING the circle**, not sitting over it. That
 is what makes the four a family: the two Point symbols carry something
 that points at a place, and the two Area ones do not. The instruction
-does not settle it either way.
+does not settle it either way, so the reading was put to the maintainer
+with the render and **confirmed 2026-09-27** - it is the symbol now,
+not an assumption waiting to be corrected.
 
 **The designation had to be made to fit.** The donor's own 40 fits its
 own circle and does not fit a trapezium two thirds as wide - it spilled
@@ -13336,6 +13343,59 @@ companion. Three things it may want back:
    Area's arrows stop half the dot's radius clear of its ink - both
    changed on sight here 2026-09-23, after the companion had built
    them.
+
+## Housekeeping and cleanup on the branch (2026-09-27)
+
+Run on the widened checklist the 2026-08-17 pass settled - code and
+docs, user-facing text, attribution, repo hygiene - because everything
+that had actually rotted last time was on a surface a USER sees.
+
+**Four stale entity counts**, all in prose that no test reads. Land
+Unit's docstring said 38 and its ENTITY_LABELS comment said "20 real
+plus nineteen" - the layer is 39, and the split is 19 real to 20
+synthetic, so the comment had been wrong about the split as well as the
+total. Land Equipment said 55, is 57. Control Measure Points said "the
+thirteen entities", is 27 (ten real, seventeen synthetic). All four
+were derived from the live dicts rather than counted by hand.
+
+**Two stale user-facing strings.** The Mines and Obstacles (Lines)
+tooltip still said "for minefields drawn as lines" - that layer carries
+Trench System now, which is not a minefield. And the Non-NATO Symbols
+group tooltip listed seven layers when there are nine. No tooltip
+states an entity count, which a test still enforces.
+
+**The rules record had stopped at 2026-09-18.** Nine days and roughly
+twenty symbols were missing from
+`docs/non-nato-symbology-tracker.md`, which is the branch's own
+authoritative record and the first thing a later session is told to
+check. Every batch since is now in it, in its own voice.
+
+**One dead constant, kept by being used.** `_AIR_DEFENCE_CURVE_D` was
+written down as documentation and then never read - the rise fraction
+beside it restated 110 as a literal. The fraction is now parsed OUT of
+that `d`, so the two cannot drift, and a new test class checks four
+donor geometries against live renders: Air Defence's curve, Artillery's
+dot, Armour's oval and the Ammunition glyph. That is the class to add
+to whenever a new symbol is built on a donor.
+
+**The two new toolbar icons were the wrong colour** - black, against a
+family drawn in `#1f3a5f`. Caught by rendering the whole non-NATO icon
+strip together rather than looking at each one alone.
+
+Checked clean: pyflakes over every tracked file (one hit, a deliberate
+`# noqa` import in a test that asserts a module is gone); Bandit zero
+issues; detect-secrets `--all-files` clean apart from two files inside
+the gitignored, unpackaged vendored milsymbol examples; no TODO or
+FIXME in runtime code (the hits are in vendored geomag and one quoting
+milsymbol's own upstream marker); no non-NATO wording anywhere in the
+shipped README, user guide or metadata; and the branch's only NATO-side
+divergences from `main` are two documented, additive ones - the
+`frame`/`fill` passthrough on `mct_sidc_svg()` and the public name on
+the Fortified Line symbol.
+
+`main` merged in, bringing 1.4.1's approval note. **`metadata.txt` was
+NOT touched** - the branch does not carry a version of its own, and
+nothing here is packaged. 2007 tests on QGIS 4.2.2 and 3.44.12.
 
 ---
 

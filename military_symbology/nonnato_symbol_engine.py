@@ -6583,12 +6583,30 @@ def air_force_op_fixup(svg):
 # straight above them. Checked against a live render by a test.
 _AIR_DEFENCE_CURVE_D = "M25,150 C25,110 175,110 175,150"
 
-# Lifted as a CONSTRUCTION, not as coordinates: the control points rise
-# by this fraction of the span between the two ends. On the frame that
-# is 40 over 150.
-_AIR_DEFENCE_RISE_FRACTION = (
-    (_UNIT_FRAME_BOTTOM - 110) / (_UNIT_FRAME_RIGHT - _UNIT_FRAME_LEFT)
-)
+def _air_defence_rise_fraction():
+
+    """
+    Lifted as a CONSTRUCTION, not as coordinates: the control points
+    rise by this fraction of the span between the two ends. On the
+    frame that is 40 over 150.
+
+    Read out of the curve's own `d` rather than restated, so the two
+    cannot drift - the whole point of keeping that string is that it is
+    the one place milsymbol's geometry is written down here.
+    """
+
+    numbers = [
+        float(value) for value in re.findall(r"-?[\d.]+", _AIR_DEFENCE_CURVE_D)
+    ]
+
+    start_x, start_y, control_y, end_x = (
+        numbers[0], numbers[1], numbers[3], numbers[6]
+    )
+
+    return (start_y - control_y) / (end_x - start_x)
+
+
+_AIR_DEFENCE_RISE_FRACTION = _air_defence_rise_fraction()
 
 # A cubic whose two control points are the same height reaches its
 # extreme three quarters of the way to them - the same arithmetic the

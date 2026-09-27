@@ -22,7 +22,7 @@ them are unchanged (layer-agnostic); only which QGIS layer offers them
 changed.
 
 Scope, deliberately narrow (see the rules record's "Required entities"
-section): 55 entities - 5 non-tiered real APP-6E entities, 13 weapon
+section): 57 entities - 5 non-tiered real APP-6E entities, 13 weapon
 families with real Light/Medium/Heavy siblings (39 entities, each
 family's own tier renamed up one per the settled weapon-tier rule),
 Machine Gun's own three tiers built on APP-6E's RIFLE glyph rather
@@ -33,7 +33,8 @@ Armoured Recce Vehicle, Armoured Protected Vehicle (Wheeled), added
 2026-09-03), three FULLY synthetic Vehicle-family entities that
 replaced APP-6E's own real "vehicle" entity ('B' Vehicle, 'C' Vehicle,
 Light Recce Vehicle, 2026-09-05), plus Jammer and Radar (Land-scoped
-SIGINT), merged in here 2026-09-02 once a two-entity layer stopped
+SIGINT) and the two built on that Radar - LORROS and BFSR, added
+2026-09-25 - merged in here 2026-09-02 once a two-entity layer stopped
 justifying its own module ("merge sigint glyphs (since there are only
 two) with land equipment"). Not the full 189-entity NATO vocabulary.
 

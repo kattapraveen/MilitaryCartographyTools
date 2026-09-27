@@ -1265,7 +1265,7 @@ class MilitaryCartographyTools:
             "Mines and Obstacles (Lines)",
             tooltip=(
                 "Add a Mines and Obstacles Lines (Non-NATO) layer for "
-                "minefields drawn as lines rather than placed as points"
+                "obstacles drawn along a line rather than placed as points"
             ),
             callback=self.create_nonnato_mines_and_obstacles_lines,
             standalone=False
@@ -1858,8 +1858,8 @@ class MilitaryCartographyTools:
                     "(own affiliation colours, entity renames, custom "
                     "icons): Land Units, Land Equipment (including "
                     "SIGINT), Control Measure Points, Mines and "
-                    "Obstacles as points or as lines, Aviation, and "
-                    "Ammunition and FOL - "
+                    "Obstacles as points or as lines, Aviation, "
+                    "Ammunition and FOL, Areas and Echelons - "
                     "not part of MIL-STD-2525D/E or "
                     "APP-6D/E, and not yet merged into this plugin's "
                     "released symbology"

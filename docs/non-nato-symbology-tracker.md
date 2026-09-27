@@ -1820,4 +1820,82 @@ Meta-questions likely to come up regardless of category/domain.
       and Combined Arms off for all ten. Static Formation HQ's echelons
       now seat on its pennant, so every unit echelon now touches its
       frame.
+- [x] **Forces in Defence (2026-09-23)** - a Land Unit entity whose
+      FRAME is an open ellipse on the rectangle's own footprint
+      (centre 100,100, rx 75, ry 50), drawn as one 300 degree arc with
+      a 60 degree opening across the top. Headquarters and Combined
+      Arms are refused in the RENDER, not just left out of the dialog:
+      the mast hangs off the frame's bottom-left corner and Combined
+      Arms sits on its top edge, and an ellipse has neither. Echelons
+      apply and lie ACROSS the opening - milsymbol's own markers,
+      unrotated, in one straight row whose vertical middle sits on the
+      ellipse's topmost point, shrunk AS A ROW only where they would
+      meet the arc (Platoon 0.921756, Corps 0.707657, Army 0.516383,
+      Army Group 0.413991). The stroke shrinks with the row, settled
+      on sight of both treatments side by side.
+- [x] **Areas (Non-NATO), the first POLYGON layer (2026-09-23)** - Key
+      Terrain Feature (45 degree hatch), Boggy Terrain (horizontal
+      dashes), Restricted Terrain (horizontal lines), Severely
+      Restricted Terrain (those plus a vertical run crossing them).
+      **No affiliation and no status** - terrain is terrain whoever
+      holds it - and a solid boundary always. Black, corrected from
+      green on sight. Explicitly NOT for the Office companion.
+- [x] **Five Control Measure Points on that ellipse turned over
+      (2026-09-23)** - Beach Head (Amphibious' wave, the stadium
+      dropped), Bridge Head (milsymbol's bridge turned a quarter turn,
+      its own proportions KEPT rather than widened as Gap/Safe Lane
+      does - confirmed 2026-09-27), Air Head (Army Aviation's figure
+      of eight, hollow), Vital Point (a circle whose diameter IS the
+      gap, with two filled wedges whose bases are ARCS of that circle,
+      not chords) and Vital Area (Admin/Log's circle, Artillery's dot
+      at 0.8, two arrows stopping half the dot's radius clear of its
+      INK). Planned dashes the frame and only the frame.
+- [x] **Seven Control Measure Points that never drew a designation
+      (2026-09-24)** - reported against Artillery Observation Post;
+      milsymbol emits none for Fort, Impact Point, both Observation
+      Posts, Pill Box and both Shelters either. Nothing was being lost
+      in plugin code - the text was never drawn. All seven now inject
+      one to the right of their own ink, and the set is re-derived
+      from live renders by a test.
+- [x] **Four Observation Posts (2026-09-24/25)** - all on Artillery
+      OP's own triangle. Listening Post/Infantry OP takes true
+      ALTITUDES from each bottom corner; Air Force OP takes the
+      propeller, fitted against the triangle by rasterising its ink row
+      by row rather than its bounding box; Air Defence OP takes Air
+      Defence's curve as a CONSTRUCTION, its ends searched inward
+      because on a triangle that curve leaves at once, with the dot
+      fitted to the crest then doubled and lifted by the radius it
+      gains; Mobile OP adds a mast a third of the triangle's height
+      and a W two thirds of its width, drawn rather than lifted but
+      keeping Amphibious' own rise over run.
+- [x] **The NAI/TAI four and DF (SOS) (2026-09-25)** - all four out of
+      Point of Interest's own render, which is untouched itself. The
+      trapezium is built from the donor circle's DIAMETER (long side
+      the diameter, short 0.625, height 0.7; Area NAI 20% wider and
+      10% shorter). It is a TRAPEZIUM, not the parallelogram the
+      instruction's wording named - "shorter side" only means
+      something on one of them. Area TAI replaces the circle rather
+      than sitting over it (confirmed 2026-09-27). The designation is
+      shrunk to fit the shape holding it, measured against the
+      circle's chord or the trapezium's width at the narrow end of the
+      cap box. DF (SOS) is the Target cross with "SOS" at font 33,
+      left-anchored in the lower right quadrant.
+- [x] **LORROS and BFSR (2026-09-25)** - the Radar exactly as this
+      plugin draws it, mast included, with a lettered circle beside
+      it. The radius is half the letter's own cap-box DIAGONAL plus
+      clear air and half a stroke, so L and B differ; a fixed radius
+      drew wider than the radar itself. It sits on the RADAR's
+      vertical middle, not the frame's centre line.
+- [x] **Echelons (Non-NATO) (2026-09-25)** - ten markers, Detachment
+      through Army Group, each drawn ALONE. No Unspecified, which has
+      no marker. All ten share ONE box, the union of every marker's
+      ink: a box round each separately would draw Company's single bar
+      as wide as the whole Army Group row. Detachment's slash is
+      stripped, as on a unit.
+- [x] **Trench System (2026-09-25)** - "use the NATO field
+      fortification as is". The NATO Fortified Line symbol is called
+      DIRECTLY, not copied, so a change there changes this too. It
+      brought an `affiliation` field to Mines and Obstacles Lines,
+      since Minefield (General) is green whoever laid it and this one
+      is coloured like the NATO symbol it is.
 - [ ] Anything else that surfaces while specifying the above
