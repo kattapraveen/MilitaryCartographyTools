@@ -6902,8 +6902,8 @@ def _op_glyph_scale(d, centre):
 BEACH_HEAD_ENTITY = "nonnato_beach_head"
 BRIDGE_HEAD_ENTITY = "nonnato_bridge_head"
 AIR_HEAD_ENTITY = "nonnato_air_head"
-VITAL_POINT_ENTITY = "nonnato_vital_point"
 VITAL_AREA_ENTITY = "nonnato_vital_area"
+VITAL_POINT_ENTITY = "nonnato_vital_point"
 
 _CMP_ELLIPSE_ARC_START, _CMP_ELLIPSE_ARC_END, _CMP_ELLIPSE_ARC_D = (
     _open_ellipse_arc(180)
@@ -7126,7 +7126,7 @@ def air_head_svg(colour, status="present"):
     return _cmp_ellipse_svg(colour, status, glyph)
 
 
-# --- Vital Point -------------------------------------------------------
+# --- Vital Area -------------------------------------------------------
 #
 # "Start with the ellipse of Forces in Defence" - so the opening stays
 # at the TOP for this one - "at the top draw a circle with diameter
@@ -7137,20 +7137,20 @@ def air_head_svg(colour, status="present"):
 # The circle needs no radius of its own: **the gap's two arc ends ARE
 # its diameter**, and it is centred on the chord between them, so both
 # ends land exactly on it. Nothing here is a chosen number.
-_VITAL_POINT_CIRCLE_CENTRE = (
+_VITAL_AREA_CIRCLE_CENTRE = (
     _FID_CENTRE_X,
     _FID_ARC_START[1],
 )
 
-_VITAL_POINT_CIRCLE_RADIUS = (_FID_ARC_START[0] - _FID_ARC_END[0]) / 2
+_VITAL_AREA_CIRCLE_RADIUS = (_FID_ARC_START[0] - _FID_ARC_END[0]) / 2
 
 # The apexes point inward but stop short of the centre rather than
 # meeting there - at this fraction of the radius, which is the one
 # proportion this symbol invents.
-_VITAL_POINT_APEX_FRACTION = 0.18
+_VITAL_AREA_APEX_FRACTION = 0.18
 
 
-def _vital_point_wedge(direction):
+def _vital_area_wedge(direction):
 
     """
     One of the two wedges: its base an ARC OF THE INNER CIRCLE
@@ -7169,16 +7169,16 @@ def _vital_point_wedge(direction):
     bottom.
     """
 
-    centre_x, centre_y = _VITAL_POINT_CIRCLE_CENTRE
+    centre_x, centre_y = _VITAL_AREA_CIRCLE_CENTRE
 
-    radius = _VITAL_POINT_CIRCLE_RADIUS
+    radius = _VITAL_AREA_CIRCLE_RADIUS
 
     half = math.radians(_FID_OPENING_HALF_ANGLE)
 
     base_x = radius * math.sin(half)
     base_y = direction * radius * math.cos(half)
 
-    apex_y = direction * radius * _VITAL_POINT_APEX_FRACTION
+    apex_y = direction * radius * _VITAL_AREA_APEX_FRACTION
 
     sweep = 1 if direction < 0 else 0
 
@@ -7192,21 +7192,21 @@ def _vital_point_wedge(direction):
     )
 
 
-def vital_point_svg(colour, status="present"):
+def vital_area_svg(colour, status="present"):
 
-    """Vital Point - see this section's own comment."""
+    """Vital Area - see this section's own comment."""
 
-    centre_x, centre_y = _VITAL_POINT_CIRCLE_CENTRE
+    centre_x, centre_y = _VITAL_AREA_CIRCLE_CENTRE
 
     circle = (
         f'<circle cx="{centre_x:g}" cy="{centre_y:g}" '
-        f'r="{_VITAL_POINT_CIRCLE_RADIUS:g}" '
+        f'r="{_VITAL_AREA_CIRCLE_RADIUS:g}" '
         f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH:g}" stroke="{colour}" '
         'fill="none"></circle>'
     )
 
     wedges = "".join(
-        f'<path d="{_vital_point_wedge(direction)}" '
+        f'<path d="{_vital_area_wedge(direction)}" '
         f'stroke-width="{_CMP_GLYPH_STROKE_WIDTH:g}" stroke="{colour}" '
         f'fill="{colour}"></path>'
         for direction in (-1, 1)
@@ -7229,7 +7229,7 @@ def vital_point_svg(colour, status="present"):
     # sizes the marker by, so this stays the size of its neighbours.
     half_stroke = _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
 
-    reach = _VITAL_POINT_CIRCLE_RADIUS + half_stroke
+    reach = _VITAL_AREA_CIRCLE_RADIUS + half_stroke
 
     return _expand_viewbox_for_rect(
         svg,
@@ -7240,7 +7240,7 @@ def vital_point_svg(colour, status="present"):
     )
 
 
-# --- Vital Area --------------------------------------------------------
+# --- Vital Point --------------------------------------------------------
 #
 # "Start with a circle (like administration and logistics), insert
 # Artillery dot in the circle (at 0.8x size), add two small arrows -
@@ -7254,10 +7254,10 @@ def vital_point_svg(colour, status="present"):
 # heads are the only numbers this symbol invents.
 _ARTILLERY_DOT_RADIUS = 15
 
-_VITAL_AREA_DOT_SCALE = 0.8
+_VITAL_POINT_DOT_SCALE = 0.8
 
-_VITAL_AREA_ARROW_HEAD = 9
-_VITAL_AREA_ARROW_HEAD_ANGLE = 28
+_VITAL_POINT_ARROW_HEAD = 9
+_VITAL_POINT_ARROW_HEAD_ANGLE = 28
 
 # The clear space between an arrow's tip and the dot's own INK - "there
 # should be a distinct gap between the arrows and dot" (2026-09-23).
@@ -7265,17 +7265,17 @@ _VITAL_AREA_ARROW_HEAD_ANGLE = 28
 # enough to stop them touching but reads as touching at map size, which
 # is the same trap Forces in Defence's echelon row records. Half the
 # dot's own radius is unmistakable, and scales with the dot.
-_VITAL_AREA_ARROW_GAP = _VITAL_AREA_DOT_SCALE * _ARTILLERY_DOT_RADIUS / 2
+_VITAL_POINT_ARROW_GAP = _VITAL_POINT_DOT_SCALE * _ARTILLERY_DOT_RADIUS / 2
 
 
-def vital_area_svg(colour, status="present"):
+def vital_point_svg(colour, status="present"):
 
-    """Vital Area - see this section's own comment."""
+    """Vital Point - see this section's own comment."""
 
     centre_x = _FID_CENTRE_X
     centre_y = _UNIT_FRAME_CENTRE_Y
 
-    radius = _VITAL_AREA_DOT_SCALE * _ARTILLERY_DOT_RADIUS
+    radius = _VITAL_POINT_DOT_SCALE * _ARTILLERY_DOT_RADIUS
 
     # The dot's own ink reaches half a stroke beyond its radius, and
     # the arrow stops its own gap short of THAT - measured against the
@@ -7283,13 +7283,13 @@ def vital_area_svg(colour, status="present"):
     tip_offset = (
         radius
         + _CMP_GLYPH_STROKE_WIDTH * DEFAULT_STROKE_SCALE / 2
-        + _VITAL_AREA_ARROW_GAP
+        + _VITAL_POINT_ARROW_GAP
     )
 
-    spread = math.radians(_VITAL_AREA_ARROW_HEAD_ANGLE)
+    spread = math.radians(_VITAL_POINT_ARROW_HEAD_ANGLE)
 
-    barb_x = _VITAL_AREA_ARROW_HEAD * math.sin(spread)
-    barb_y = _VITAL_AREA_ARROW_HEAD * math.cos(spread)
+    barb_x = _VITAL_POINT_ARROW_HEAD * math.sin(spread)
+    barb_y = _VITAL_POINT_ARROW_HEAD * math.cos(spread)
 
     arrows = ""
 
@@ -7342,8 +7342,8 @@ _CMP_ELLIPSE_DRAWINGS = {
     BEACH_HEAD_ENTITY: beach_head_svg,
     BRIDGE_HEAD_ENTITY: bridge_head_svg,
     AIR_HEAD_ENTITY: air_head_svg,
-    VITAL_POINT_ENTITY: vital_point_svg,
     VITAL_AREA_ENTITY: vital_area_svg,
+    VITAL_POINT_ENTITY: vital_point_svg,
 }
 
 

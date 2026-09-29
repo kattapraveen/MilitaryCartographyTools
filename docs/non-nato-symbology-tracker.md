@@ -1845,11 +1845,13 @@ Meta-questions likely to come up regardless of category/domain.
       dropped), Bridge Head (milsymbol's bridge turned a quarter turn,
       its own proportions KEPT rather than widened as Gap/Safe Lane
       does - confirmed 2026-09-27), Air Head (Army Aviation's figure
-      of eight, hollow), Vital Point (a circle whose diameter IS the
+      of eight, hollow), Vital Area (a circle whose diameter IS the
       gap, with two filled wedges whose bases are ARCS of that circle,
-      not chords) and Vital Area (Admin/Log's circle, Artillery's dot
+      not chords) and Vital Point (Admin/Log's circle, Artillery's dot
       at 0.8, two arrows stopping half the dot's radius clear of its
-      INK). Planned dashes the frame and only the frame.
+      INK). Planned dashes the frame and only the frame. **The two
+      Vital names were interchanged 2026-09-29** - the drawings are
+      unchanged, and both were dictated under the opposite name.
 - [x] **Seven Control Measure Points that never drew a designation
       (2026-09-24)** - reported against Artillery Observation Post;
       milsymbol emits none for Fort, Impact Point, both Observation

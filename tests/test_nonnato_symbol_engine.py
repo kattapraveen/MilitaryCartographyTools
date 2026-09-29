@@ -4434,15 +4434,15 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
 
     """
     The five added 2026-09-23 - three on Forces in Defence's own
-    ellipse turned over, plus Vital Point and Vital Area.
+    ellipse turned over, plus Vital Area and Vital Point.
     """
 
     ENTITIES = (
         nse.BEACH_HEAD_ENTITY,
         nse.BRIDGE_HEAD_ENTITY,
         nse.AIR_HEAD_ENTITY,
-        nse.VITAL_POINT_ENTITY,
         nse.VITAL_AREA_ENTITY,
+        nse.VITAL_POINT_ENTITY,
     )
 
     TURNED_OVER = (
@@ -4486,10 +4486,10 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
                 self.assertIn(nse._CMP_ELLIPSE_ARC_D, self.render(entity))
 
 
-    def test_vital_point_keeps_the_opening_at_the_top(self):
+    def test_vital_area_keeps_the_opening_at_the_top(self):
 
         # "Start with the ellipse of Forces in Defence" - not turned.
-        self.assertIn(nse._FID_ARC_D, self.render(nse.VITAL_POINT_ENTITY))
+        self.assertIn(nse._FID_ARC_D, self.render(nse.VITAL_AREA_ENTITY))
 
 
     def test_the_wave_is_milsymbols_own(self):
@@ -4588,26 +4588,26 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
                 self.assertLess(reach, 1.0)
 
 
-    def test_vital_points_circle_is_the_gap_itself(self):
+    def test_vital_areas_circle_is_the_gap_itself(self):
 
         # "a circle with diameter same as the gap in the ellipse" - the
         # gap's two arc ends ARE its diameter, so both land on it.
-        centre_x, centre_y = nse._VITAL_POINT_CIRCLE_CENTRE
+        centre_x, centre_y = nse._VITAL_AREA_CIRCLE_CENTRE
 
         for end in (nse._FID_ARC_START, nse._FID_ARC_END):
 
             self.assertAlmostEqual(
                 math.hypot(end[0] - centre_x, end[1] - centre_y),
-                nse._VITAL_POINT_CIRCLE_RADIUS,
+                nse._VITAL_AREA_CIRCLE_RADIUS,
                 places=4,
             )
 
 
-    def test_vital_points_wedges_point_inward_without_meeting(self):
+    def test_vital_areas_wedges_point_inward_without_meeting(self):
 
-        svg = self.render(nse.VITAL_POINT_ENTITY)
+        svg = self.render(nse.VITAL_AREA_ENTITY)
 
-        _, centre_y = nse._VITAL_POINT_CIRCLE_CENTRE
+        _, centre_y = nse._VITAL_AREA_CIRCLE_CENTRE
 
         apexes = []
 
@@ -4617,8 +4617,8 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
             # straight base leaves a crescent of white against the
             # circle it sits in.
             self.assertIn(
-                f"A{nse._VITAL_POINT_CIRCLE_RADIUS:g},"
-                f"{nse._VITAL_POINT_CIRCLE_RADIUS:g}",
+                f"A{nse._VITAL_AREA_CIRCLE_RADIUS:g},"
+                f"{nse._VITAL_AREA_CIRCLE_RADIUS:g}",
                 d,
             )
 
@@ -4643,10 +4643,10 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
 
                 self.assertAlmostEqual(
                     math.hypot(
-                        end[0] - nse._VITAL_POINT_CIRCLE_CENTRE[0],
-                        end[1] - nse._VITAL_POINT_CIRCLE_CENTRE[1],
+                        end[0] - nse._VITAL_AREA_CIRCLE_CENTRE[0],
+                        end[1] - nse._VITAL_AREA_CIRCLE_CENTRE[1],
                     ),
-                    nse._VITAL_POINT_CIRCLE_RADIUS,
+                    nse._VITAL_AREA_CIRCLE_RADIUS,
                     places=3,
                 )
 
@@ -4661,35 +4661,35 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
             self.assertNotAlmostEqual(apex, centre_y, places=3)
 
             self.assertLess(
-                abs(apex - centre_y), nse._VITAL_POINT_CIRCLE_RADIUS / 2
+                abs(apex - centre_y), nse._VITAL_AREA_CIRCLE_RADIUS / 2
             )
 
         self.assertLess(min(apexes), centre_y)
         self.assertGreater(max(apexes), centre_y)
 
 
-    def test_vital_points_triangles_are_filled(self):
+    def test_vital_areas_triangles_are_filled(self):
 
-        svg = self.render(nse.VITAL_POINT_ENTITY)
+        svg = self.render(nse.VITAL_AREA_ENTITY)
 
         colour = nse.AFFILIATION_COLOURS["friend"]
 
         self.assertEqual(svg.count(f'fill="{colour}"></path>'), 2)
 
 
-    def test_the_viewbox_holds_vital_points_circle(self):
+    def test_the_viewbox_holds_vital_areas_circle(self):
 
-        svg = self.render(nse.VITAL_POINT_ENTITY)
+        svg = self.render(nse.VITAL_AREA_ENTITY)
 
         _, vb_y, vb_width, _ = (
             float(value) for value in nse._VIEWBOX_PATTERN.search(svg).groups()
         )
 
-        _, centre_y = nse._VITAL_POINT_CIRCLE_CENTRE
+        _, centre_y = nse._VITAL_AREA_CIRCLE_CENTRE
 
         top = (
             centre_y
-            - nse._VITAL_POINT_CIRCLE_RADIUS
+            - nse._VITAL_AREA_CIRCLE_RADIUS
             - nse._CMP_GLYPH_STROKE_WIDTH * nse.DEFAULT_STROKE_SCALE / 2
         )
 
@@ -4700,30 +4700,30 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
         self.assertEqual(vb_width, nse._FID_VIEWBOX_WIDTH)
 
 
-    def test_vital_areas_circle_and_dot_are_borrowed_whole(self):
+    def test_vital_points_circle_and_dot_are_borrowed_whole(self):
 
-        svg = self.render(nse.VITAL_AREA_ENTITY)
+        svg = self.render(nse.VITAL_POINT_ENTITY)
 
         # Administration or Logistics' own circle...
         self.assertIn(f'r="{nse._ADMIN_LOGISTICS_RADIUS:g}"', svg)
 
         # ...and Artillery's own dot at 0.8.
         self.assertIn(
-            f'r="{nse._VITAL_AREA_DOT_SCALE * nse._ARTILLERY_DOT_RADIUS:g}"',
+            f'r="{nse._VITAL_POINT_DOT_SCALE * nse._ARTILLERY_DOT_RADIUS:g}"',
             svg,
         )
 
 
-    def test_vital_areas_arrows_stop_clear_of_the_dots_ink(self):
+    def test_vital_points_arrows_stop_clear_of_the_dots_ink(self):
 
-        svg = self.render(nse.VITAL_AREA_ENTITY)
+        svg = self.render(nse.VITAL_POINT_ENTITY)
 
-        radius = nse._VITAL_AREA_DOT_SCALE * nse._ARTILLERY_DOT_RADIUS
+        radius = nse._VITAL_POINT_DOT_SCALE * nse._ARTILLERY_DOT_RADIUS
 
         ink = radius + nse._CMP_GLYPH_STROKE_WIDTH * nse.DEFAULT_STROKE_SCALE / 2
 
         # A distinct gap, not merely "not touching".
-        ink += nse._VITAL_AREA_ARROW_GAP
+        ink += nse._VITAL_POINT_ARROW_GAP
 
         tips = []
 
@@ -4795,7 +4795,7 @@ class TestEllipseControlMeasurePoints(QgisTestCase):
 
                 x = float(re.search(r'<text x="([\d.]+)"', svg).group(1))
 
-                # Clear of THIS symbol's own ink - Vital Area's circle
+                # Clear of THIS symbol's own ink - Vital Point's circle
                 # stops well short of where the ellipses reach.
                 self.assertGreaterEqual(x, bounds[0] + bounds[2])
                 self.assertIn(">V1</text>", svg)

@@ -12890,7 +12890,21 @@ the arc:
 - **Air Head** - "Insert the Aviation propeller (figure of 8) inside the
   ellipse". Army Aviation's own closed figure of eight.
 
-**Vital Point** - "Start with the ellipse of Forces in Defence - at the
+**The two Vital names were interchanged 2026-09-29** - "interchange
+Vital Area and Vital Points - i've mixed up the naming, glyphs are ok".
+Neither drawing changed; which NAME each one answers to did. **Both
+quoted instructions below were dictated under the OLD naming**, and are
+left as they were said rather than rewritten - so the instruction that
+begins "Start with the ellipse of Forces in Defence" was given for
+what is now Vital Area, and the one beginning "Start with a circle" for
+what is now Vital Point.
+
+The entity KEYS did not change: `nonnato_vital_point` still means the
+symbol labelled Vital Point, so nothing already digitised points at the
+wrong row. What a feature DRAWS does change, which is unavoidable -
+that is what interchanging the names means.
+
+**Vital Area** - "Start with the ellipse of Forces in Defence - at the
 top draw a circle with diameter same as the gap in the ellipse, add two
 triangles base touching the inner circle, top and bottom with the points
 pointing inwards", then "Use C filled" from a sheet of three readings.
@@ -12909,7 +12923,7 @@ base is an ARC of the inner circle, written with that circle's own
 radius. A chord leaves a visible crescent of white between the wedge and
 the circle it is meant to sit against.
 
-**Vital Area** - "Start with a circle (like administration and
+**Vital Point** - "Start with a circle (like administration and
 logistics), insert Artillery dot in the circle (at 0.8x size), add two
 small arrows - vertical - one from top edge of circle downwards and the
 other from bottom edge upwards - both pointing to the dot, arrow heads
@@ -12926,7 +12940,7 @@ trap Forces in Defence's echelon row records. It is now half the dot's
 own radius, which is unmistakable and scales with the dot.
 
 **Planned dashes the frame and only the frame** - the arc on the three
-ellipse symbols, the outer circle on Vital Area (which is that symbol's
+ellipse symbols, the outer circle on Vital Point (which is that symbol's
 frame the way Administration or Logistics' circle is). Dots, arrows and
 triangles stay solid.
 
@@ -13339,10 +13353,14 @@ companion. Three things it may want back:
    other six are new to it.
 2. Mobile Observation Post's W is two thirds of the triangle's width
    here, settled on sight 2026-09-25.
-3. Vital Point's wedge bases are arcs of the inner circle, and Vital
-   Area's arrows stop half the dot's radius clear of its ink - both
+3. Vital Area's wedge bases are arcs of the inner circle, and Vital
+   Point's arrows stop half the dot's radius clear of its ink - both
    changed on sight here 2026-09-23, after the companion had built
    them.
+4. **The two Vital names are interchanged** as of 2026-09-29 -
+   "interchange Vital Area and Vital Points - i've mixed up the naming,
+   glyphs are ok". The companion built both under the old naming and
+   needs the same swap; neither drawing changes.
 
 ## Housekeeping and cleanup on the branch (2026-09-27)
 
@@ -13396,6 +13414,84 @@ the Fortified Line symbol.
 `main` merged in, bringing 1.4.1's approval note. **`metadata.txt` was
 NOT touched** - the branch does not carry a version of its own, and
 nothing here is packaged. 2007 tests on QGIS 4.2.2 and 3.44.12.
+
+---
+
+## Vital Area and Vital Point: the two names interchanged (2026-09-29)
+
+Found on the Office companion during the first real check of the
+symbols in Word, and dictated there: **"just interchange the names in
+case of VA and VP"**.
+
+Nothing about either drawing changed. What was built on 2026-09-23 as
+Vital Area - the Administration or Logistics circle with Artillery's
+dot at 0.8x and two arrows closing on it - is **Vital Point** from now
+on, and what was built as Vital Point - Forces in Defence's ellipse
+with the circle seated in its opening and two filled triangles reading
+C - is **Vital Area**.
+
+**For this plugin**, both symbols already exist on Control Measure
+Points (`SYNTHETIC_ENTITIES`, engine fixups `vital_area_svg()` and
+`vital_point_svg()` in `nonnato_symbol_engine.py`), drawn to the
+original assignment. Whichever way it is done here, it is a rename of
+two existing symbols, not new work.
+
+**One decision worth making deliberately.** On the companion the
+GEOMETRY was moved between the two declarations rather than the labels
+between the two keys, so that key, label and drawing still agree -
+`nonnato_vital_point` draws the circle-and-arrows there now. That
+choice was free on the companion because nothing persists an entity
+key: the pane inserts a picture and forgets.
+
+**It is not free here.** `entity` is a stored attribute on a QGIS
+layer, so moving the geometry between keys silently reinterprets every
+Vital Area and Vital Point already placed in a saved project - they
+would keep their key, keep their stored name, and quietly start
+drawing the other symbol. Swapping the two LABELS in
+`control_measure_points_layer_nonnato.ENTITY_LABELS` leaves existing
+features alone and costs only that `nonnato_vital_area` is thereafter
+labelled "Vital Point", which is a comment's job to explain.
+
+**The two forks therefore diverge in their code and agree on the
+screen**, which is the usual arrangement here and is declared rather
+than discovered.
+
+### For the Office companion
+
+Done there already - this entry is the other direction for once.
+
+---
+
+## Three gaps in the companion's canvas renderer (2026-09-29)
+
+**Nothing to do in this plugin.** Recorded only so that the next
+symbol built on an arc or a rotated glyph is not assumed to be free on
+the Office side.
+
+QGIS draws these symbols through Qt's own SVG renderer. The companion
+cannot: Office takes a raster image, so the pane re-draws the same SVG
+onto an HTML canvas itself (`taskpane/svg-canvas.js`), and that
+renderer supports only the SVG subset it has been taught. Three things
+it had never met turned up at once when Forces in Defence and the five
+Control Measure Points were first inserted for real:
+
+- the **`A` (elliptical arc)** path command - every open-ellipse
+  symbol, which threw "Unsupported path command: A" on insert;
+- the **`rotate()` transform** - Beach Head, Bridge Head and Air Head,
+  each of which turns a lifted glyph;
+- **`stroke-linejoin`**, dropped entirely, which left a miter spike at
+  all six corners of the two filled triangles.
+
+All three rendered perfectly in the pane's own preview, which is real
+SVG in a real browser. Only the insert path was affected, so a symbol
+could look finished and still be unusable.
+
+**The reason none of it was caught** is worth carrying: the
+companion's pixel harness (`taskpane/verify-canvas.html`) drives its
+entity list from THIS plugin's truth dump, so the 28 symbols the pane
+draws on its own were never in the run at all - and one entity with no
+truth file aborted the whole sweep part way, silently. Both are fixed
+there.
 
 ---
 
