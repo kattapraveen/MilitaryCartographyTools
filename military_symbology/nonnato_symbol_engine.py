@@ -7128,6 +7128,12 @@ def air_head_svg(colour, status="present"):
 
 # --- Vital Area -------------------------------------------------------
 #
+# **The quoted instruction below was dictated under the OTHER name.**
+# The two Vital names were interchanged 2026-09-29 ("i've mixed up the
+# naming, glyphs are ok"); the drawings did not change, only which name
+# each answers to. The quote is left as it was said rather than
+# rewritten - see docs/roadmap.md's own entry for that date.
+#
 # "Start with the ellipse of Forces in Defence" - so the opening stays
 # at the TOP for this one - "at the top draw a circle with diameter
 # same as the gap in the ellipse, add two triangles base touching the
@@ -7241,6 +7247,12 @@ def vital_area_svg(colour, status="present"):
 
 
 # --- Vital Point --------------------------------------------------------
+#
+# **The quoted instruction below was dictated under the OTHER name.**
+# The two Vital names were interchanged 2026-09-29 ("i've mixed up the
+# naming, glyphs are ok"); the drawings did not change, only which name
+# each answers to. The quote is left as it was said rather than
+# rewritten - see docs/roadmap.md's own entry for that date.
 #
 # "Start with a circle (like administration and logistics), insert
 # Artillery dot in the circle (at 0.8x size), add two small arrows -

@@ -13359,8 +13359,10 @@ companion. Three things it may want back:
    them.
 4. **The two Vital names are interchanged** as of 2026-09-29 -
    "interchange Vital Area and Vital Points - i've mixed up the naming,
-   glyphs are ok". The companion built both under the old naming and
-   needs the same swap; neither drawing changes.
+   glyphs are ok". Nothing to carry back: the companion made the same
+   swap first, and this plugin followed the same day - see that date's
+   own entry for why the two forks could both move the geometry
+   between the names rather than the names between the keys.
 
 ## Housekeeping and cleanup on the branch (2026-09-27)
 
@@ -13430,50 +13432,49 @@ on, and what was built as Vital Point - Forces in Defence's ellipse
 with the circle seated in its opening and two filled triangles reading
 C - is **Vital Area**.
 
-**For this plugin**, both symbols already exist on Control Measure
-Points (`SYNTHETIC_ENTITIES`, engine fixups `vital_area_svg()` and
-`vital_point_svg()` in `nonnato_symbol_engine.py`), drawn to the
-original assignment. Whichever way it is done here, it is a rename of
-two existing symbols, not new work.
+**Done here the same day**, and done the same way as on the companion:
+the NAMES were moved onto the drawings. `vital_point_svg()` became
+`vital_area_svg()` and vice versa, and every private constant went with
+its own symbol - `_VITAL_POINT_CIRCLE_CENTRE` /`_CIRCLE_RADIUS`
+/`_APEX_FRACTION` to `_VITAL_AREA_*`, and `_VITAL_AREA_DOT_SCALE`
+/`_ARROW_HEAD` /`_ARROW_HEAD_ANGLE` /`_ARROW_GAP` to `_VITAL_POINT_*`.
+The entity keys did not move, so `nonnato_vital_area` now resolves to
+the ellipse symbol and `nonnato_vital_point` to the circle one, and
+key, label, function name and geometry all still agree.
 
-**One decision worth making deliberately.** On the companion the
-GEOMETRY was moved between the two declarations rather than the labels
-between the two keys, so that key, label and drawing still agree -
-`nonnato_vital_point` draws the circle-and-arrows there now. That
-choice was free on the companion because nothing persists an entity
-key: the pane inserts a picture and forgets.
+**The one thing that made this a decision rather than a rename**:
+`entity` is a stored attribute on a QGIS layer, so moving the geometry
+between two keys reinterprets any feature already placed under either
+name - it keeps its key, keeps its stored name, and quietly starts
+drawing the other symbol. That is survivable only because this branch
+has never been merged or released: no project in anyone's hands carries
+either entity yet. **If a Vital Area or Vital Point ever ships, a
+rename of this shape stops being free** and has to move the labels
+instead, leaving the keys pointing where they always did.
 
-**It is not free here.** `entity` is a stored attribute on a QGIS
-layer, so moving the geometry between keys silently reinterprets every
-Vital Area and Vital Point already placed in a saved project - they
-would keep their key, keep their stored name, and quietly start
-drawing the other symbol. Swapping the two LABELS in
-`control_measure_points_layer_nonnato.ENTITY_LABELS` leaves existing
-features alone and costs only that `nonnato_vital_area` is thereafter
-labelled "Vital Point", which is a comment's job to explain.
-
-**The two forks therefore diverge in their code and agree on the
-screen**, which is the usual arrangement here and is declared rather
-than discovered.
+The companion made the identical choice for a different reason - it
+persists no entity key at all, because it inserts a picture and forgets.
 
 ### For the Office companion
 
-Done there already - this entry is the other direction for once.
+Done there first; nothing to carry back.
 
 ---
 
 ## Three gaps in the companion's canvas renderer (2026-09-29)
 
-**Nothing to do in this plugin.** Recorded only so that the next
-symbol built on an arc or a rotated glyph is not assumed to be free on
-the Office side.
+**Nothing to do in this plugin, confirmed on the day** - "in plugin,
+there was no issue in inserting Forces in Defence". Recorded only so
+that the next symbol built on an arc or a rotated glyph is not assumed
+to be free on the Office side.
 
-QGIS draws these symbols through Qt's own SVG renderer. The companion
-cannot: Office takes a raster image, so the pane re-draws the same SVG
-onto an HTML canvas itself (`taskpane/svg-canvas.js`), and that
-renderer supports only the SVG subset it has been taught. Three things
-it had never met turned up at once when Forces in Defence and the five
-Control Measure Points were first inserted for real:
+QGIS draws these symbols through Qt's own SVG renderer, which handles
+the whole language. The companion cannot: Office takes a raster image,
+so the pane re-draws the same SVG onto an HTML canvas itself
+(`taskpane/svg-canvas.js`), and that renderer only supports the SVG
+subset it has been taught. Three things it had never met turned up
+together when Forces in Defence and the five Control Measure Points
+were first inserted for real:
 
 - the **`A` (elliptical arc)** path command - every open-ellipse
   symbol, which threw "Unsupported path command: A" on insert;
@@ -13484,14 +13485,55 @@ Control Measure Points were first inserted for real:
 
 All three rendered perfectly in the pane's own preview, which is real
 SVG in a real browser. Only the insert path was affected, so a symbol
-could look finished and still be unusable.
+could look finished here AND there and still be unusable in Word.
 
-**The reason none of it was caught** is worth carrying: the
-companion's pixel harness (`taskpane/verify-canvas.html`) drives its
+**The reason none of it was caught** is the part worth carrying: the
+companion's pixel harness (`taskpane/verify-canvas.html`) drove its
 entity list from THIS plugin's truth dump, so the 28 symbols the pane
 draws on its own were never in the run at all - and one entity with no
-truth file aborted the whole sweep part way, silently. Both are fixed
-there.
+truth file aborted the whole sweep part way, silently, so the page had
+never produced a result. Both fixed there.
+
+**The asymmetry to remember:** a symbol this plugin draws through Qt
+proves nothing about whether the companion can insert it. The two draw
+the same bytes with different renderers.
+
+## Housekeeping check after the Vital rename (2026-09-29)
+
+A focused re-run of the 2026-09-27 checklist over what had changed
+since, rather than the whole sweep again.
+
+**One contradiction, and it was mine.** The 2026-09-25 batch's Office
+hand-off list still said the companion "needs the same swap" for the
+two Vital names. It does not - the companion made that swap FIRST and
+this plugin followed the same day, which the 2026-09-29 entry above
+says plainly. A hand-off item that tells the other fork to do something
+it has already done is worse than none, because the next session there
+acts on it. Rewritten to point at that entry instead.
+
+**Two comments that would have misled a reader of the code.** Both
+Vital sections in `nonnato_symbol_engine.py` open by quoting the
+instruction that produced them, and both of those instructions were
+dictated under the OTHER name. The quotes are correct and are left
+alone; each section now says so in a line above, so nobody re-derives
+the confusion from the source. The roadmap already carried the same
+note, but a reader in the engine would not have seen it.
+
+Checked clean and unchanged: 2007 tests on QGIS 4.2.2 and 3.44.12;
+pyflakes over every tracked file (the one hit is the deliberate
+`# noqa` import in a test that asserts a module is gone); Bandit zero
+issues; detect-secrets `--all-files` clean outside the gitignored,
+unpackaged vendored milsymbol examples; every layer's entity count
+still matching its own prose (39 / 57 / 27 / 16 / 10 / 10 / 8 / 4 / 2);
+and `sidc.py` and `maritime_control_measures.py` still byte-identical
+to `main`, so NATO's own `vital_area_center` and the VTUA reference
+point never moved.
+
+**Nothing pending from the Office side.** Every entry it has written
+here is either applied, applied-and-recorded, or marked "nothing to do
+in this plugin" - the newest of those being the canvas-renderer gaps
+of 2026-09-29, confirmed on the day with "in plugin, there was no issue
+in inserting Forces in Defence".
 
 ---
 
