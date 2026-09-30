@@ -78,7 +78,13 @@ def build_aviation_layer_nonnato():
 
     """A fresh, empty "Aviation (Non-NATO)" layer - never added to the project itself, see add_aviation_layer_nonnato()."""
 
-    return build_unit_style_layer(LAYER_NAME, ENTITY_LABELS, DEFAULT_ENTITY)
+    # No Combined Arms here - "in aviation - there is no requirement for
+    # combined arms" (2026-09-30). The field is dropped outright rather
+    # than left inert, so the dialog does not offer a switch that
+    # changes nothing. Land Unit and Ammunition and FOL keep theirs.
+    return build_unit_style_layer(
+        LAYER_NAME, ENTITY_LABELS, DEFAULT_ENTITY, combined_arms=False
+    )
 
 
 def add_aviation_layer_nonnato(iface):

@@ -428,12 +428,66 @@ class TestAmmunitionLayerMatchesLandUnit(QgisTestCase):
         super().tearDown()
 
 
-    def test_the_fields_are_identical(self):
+    # Echelon, Headquarters and Combined Arms were dropped 2026-09-30 -
+    # none of the ten entities draws any of them. Written as a
+    # subtraction from Land Unit's own list rather than as a literal
+    # one, so a field added to Land Unit later still has to be
+    # accounted for here.
+    DROPPED = ("echelon", "combined_arms", "headquarters")
+
+
+    def test_the_fields_are_identical_but_for_the_three_dropped(self):
 
         self.assertEqual(
             [(f.name(), f.type()) for f in build_ammunition_fol_layer_nonnato().fields()],
-            [(f.name(), f.type()) for f in build_land_unit_layer_nonnato().fields()],
+            [
+                (f.name(), f.type())
+                for f in build_land_unit_layer_nonnato().fields()
+                if f.name() not in self.DROPPED
+            ],
         )
+
+
+    def test_none_of_the_three_dropped_fields_is_present(self):
+
+        """Dropped outright, not left inert: a control that changes
+        nothing is worse than no control."""
+
+        layer = build_ammunition_fol_layer_nonnato()
+
+        for name in self.DROPPED:
+            with self.subTest(field=name):
+                self.assertEqual(layer.fields().indexOf(name), -1)
+
+
+    def test_the_renderer_names_none_of_the_dropped_fields(self):
+
+        """
+        A reference to a field that does not exist evaluates to NULL,
+        and one NULL argument blanks the whole icon - so the expression
+        has to carry literals in their place. Rendering itself is
+        covered by the tests below; this pins the reason.
+        """
+
+        layer = build_ammunition_fol_layer_nonnato()
+
+        properties = layer.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties()
+
+        rendering = [
+            (key, properties.property(key).expressionString())
+            for key in properties.propertyKeys()
+            if "mct_nonnato_unit_svg" in
+            properties.property(key).expressionString()
+        ]
+
+        self.assertTrue(rendering, "no symbol expression to check")
+
+        for key, expression in rendering:
+            for name in self.DROPPED:
+                with self.subTest(property=key, field=name):
+                    self.assertNotIn(f'"{name}"', expression)
 
 
     def test_the_entity_dropdown_lists_this_layers_own_entities(self):

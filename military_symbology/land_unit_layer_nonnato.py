@@ -252,7 +252,10 @@ def _value_map(labels):
     return {label: value for value, label in labels.items()}
 
 
-def configure_unit_attribute_form(layer, entity_labels, default_entity):
+def configure_unit_attribute_form(
+    layer, entity_labels, default_entity,
+    echelon=True, combined_arms=True, headquarters=True,
+):
 
     """
     The Land Unit dialog - affiliation, entity, echelon, status,
@@ -261,8 +264,12 @@ def configure_unit_attribute_form(layer, entity_labels, default_entity):
     Parameterised on the entity list 2026-09-06 so the "Aviation
     (Non-NATO)" layer can present exactly the same dialog over its own
     entities: "same rules as land unit i.e. same dialog box
-    replicated". Nothing but the entity dropdown differs between the
-    two.
+    replicated".
+
+    `echelon`, `combined_arms` and `headquarters` each leave their own
+    control out entirely, for a layer whose field list does not carry
+    it - see build_unit_style_layer()'s own note. Aviation drops
+    Combined Arms; Ammunition and FOL drops all three (2026-09-30).
     """
 
     fields = layer.fields()
@@ -283,13 +290,17 @@ def configure_unit_attribute_form(layer, entity_labels, default_entity):
         fields.indexOf("entity"), QgsDefaultValue(f"'{default_entity}'")
     )
 
-    layer.setEditorWidgetSetup(
-        fields.indexOf("echelon"),
-        QgsEditorWidgetSetup("ValueMap", {"map": _value_map(ECHELON_LABELS)})
-    )
-    layer.setDefaultValueDefinition(
-        fields.indexOf("echelon"), QgsDefaultValue("'unspecified'")
-    )
+    if echelon:
+
+        layer.setEditorWidgetSetup(
+            fields.indexOf("echelon"),
+            QgsEditorWidgetSetup(
+                "ValueMap", {"map": _value_map(ECHELON_LABELS)}
+            )
+        )
+        layer.setDefaultValueDefinition(
+            fields.indexOf("echelon"), QgsDefaultValue("'unspecified'")
+        )
 
     layer.setEditorWidgetSetup(
         fields.indexOf("status"),
@@ -299,31 +310,35 @@ def configure_unit_attribute_form(layer, entity_labels, default_entity):
         fields.indexOf("status"), QgsDefaultValue("'present'")
     )
 
-    layer.setEditorWidgetSetup(
-        fields.indexOf("combined_arms"),
-        QgsEditorWidgetSetup("CheckBox", {})
-    )
-    layer.setDefaultValueDefinition(
-        fields.indexOf("combined_arms"), QgsDefaultValue("false")
-    )
+    if combined_arms:
+
+        layer.setEditorWidgetSetup(
+            fields.indexOf("combined_arms"),
+            QgsEditorWidgetSetup("CheckBox", {})
+        )
+        layer.setDefaultValueDefinition(
+            fields.indexOf("combined_arms"), QgsDefaultValue("false")
+        )
 
     # milsymbol's own flag-mast amplifier (SIDC Field S), added
     # 2026-09-06 - "there is a choice for Headquarters in the NATO
     # symbology wherein a flag mast is added to the glyph - implement
     # the same in non-nato also". Same widget and default the NATO
     # layers use for it (_point_symbol_layer.include_headquarters).
-    layer.setEditorWidgetSetup(
-        fields.indexOf("headquarters"),
-        QgsEditorWidgetSetup("CheckBox", {})
-    )
-    layer.setDefaultValueDefinition(
-        fields.indexOf("headquarters"), QgsDefaultValue("false")
-    )
+    if headquarters:
+
+        layer.setEditorWidgetSetup(
+            fields.indexOf("headquarters"),
+            QgsEditorWidgetSetup("CheckBox", {})
+        )
+        layer.setDefaultValueDefinition(
+            fields.indexOf("headquarters"), QgsDefaultValue("false")
+        )
 
     configure_rotation_and_scale_fields(layer)
 
 
-def build_unit_renderer():
+def build_unit_renderer(echelon=True, combined_arms=True, headquarters=True):
 
     # Field values are passed straight through - affiliation/entity/
     # echelon/status all use the same stored keys render_nonnato_unit_
@@ -347,7 +362,9 @@ def build_unit_renderer():
     # is NULL. echelon/status were still bare references until
     # 2026-09-06, when building the Aviation layer's own tests surfaced
     # it - a feature with no echelon set rendered nothing at all.
-    echelon_expression = 'coalesce("echelon", \'unspecified\')'
+    echelon_expression = (
+        'coalesce("echelon", \'unspecified\')' if echelon else "'unspecified'"
+    )
     status_expression = 'coalesce("status", \'present\')'
 
     # coalesce() around BOTH booleans, not just a tidy-up: QGIS returns
@@ -359,8 +376,15 @@ def build_unit_renderer():
     # evaluation 2026-09-06; "combined_arms" had carried this latent
     # blank-icon bug since it was added, and adding "headquarters"
     # beside it is what surfaced it.
-    combined_arms_expression = 'coalesce("combined_arms", false)'
-    headquarters_expression = 'coalesce("headquarters", false)'
+    # A layer without the field at all passes the literal instead: a
+    # reference to a field that does not exist evaluates to NULL, and a
+    # NULL argument blanks the whole icon (see the note above).
+    combined_arms_expression = (
+        'coalesce("combined_arms", false)' if combined_arms else 'false'
+    )
+    headquarters_expression = (
+        'coalesce("headquarters", false)' if headquarters else 'false'
+    )
 
     expression = (
         'mct_nonnato_unit_svg('
@@ -434,12 +458,28 @@ def build_unit_renderer():
     return QgsSingleSymbolRenderer(symbol)
 
 
-def build_unit_style_layer(layer_name, entity_labels, default_entity):
+def build_unit_style_layer(
+    layer_name, entity_labels, default_entity,
+    echelon=True, combined_arms=True, headquarters=True,
+):
 
     """
     A fresh, empty layer carrying the full Land Unit dialog and
-    renderer - shared with "Aviation (Non-NATO)" since 2026-09-06, which
-    differs only in its name and its own entity list.
+    renderer - shared with "Aviation (Non-NATO)" since 2026-09-06 and
+    "Ammunition and FOL (Non-NATO)" since 2026-09-17.
+
+    `echelon`, `combined_arms` and `headquarters` each drop their own
+    field, its control and its argument to the renderer. Aviation drops
+    Combined Arms - "in aviation - there is no requirement for combined
+    arms" - and Ammunition and FOL drops all three, none of its ten
+    entities having ever drawn one (both 2026-09-30). A field nothing
+    reads is worse than no field: it offers the user a switch that does
+    nothing to the drawing.
+
+    Dropping a field means the renderer must pass a LITERAL in its
+    place. A reference to a field that does not exist evaluates to
+    NULL, and one NULL argument blanks the whole icon - the same trap
+    coalesce() guards against everywhere else here.
     """
 
     crs = QgsProject.instance().crs()
@@ -450,13 +490,25 @@ def build_unit_style_layer(layer_name, entity_labels, default_entity):
         "memory"
     )
 
+    # Built up in order rather than filtered, so the optional fields sit
+    # exactly where they do on Land Unit and the dialog reads the same.
     attributes = [
         QgsField("affiliation", QMetaType.Type.QString),
         QgsField("entity", QMetaType.Type.QString),
-        QgsField("echelon", QMetaType.Type.QString),
-        QgsField("status", QMetaType.Type.QString),
-        QgsField("combined_arms", QMetaType.Type.Bool),
-        QgsField("headquarters", QMetaType.Type.Bool),
+    ]
+
+    if echelon:
+        attributes.append(QgsField("echelon", QMetaType.Type.QString))
+
+    attributes.append(QgsField("status", QMetaType.Type.QString))
+
+    if combined_arms:
+        attributes.append(QgsField("combined_arms", QMetaType.Type.Bool))
+
+    if headquarters:
+        attributes.append(QgsField("headquarters", QMetaType.Type.Bool))
+
+    attributes += [
         QgsField("unique_designation_left", QMetaType.Type.QString),
         QgsField("unique_designation_right", QMetaType.Type.QString),
         QgsField("rotation", QMetaType.Type.Double),
@@ -467,9 +519,20 @@ def build_unit_style_layer(layer_name, entity_labels, default_entity):
 
     layer.updateFields()
 
-    configure_unit_attribute_form(layer, entity_labels, default_entity)
+    configure_unit_attribute_form(
+        layer, entity_labels, default_entity,
+        echelon=echelon,
+        combined_arms=combined_arms,
+        headquarters=headquarters,
+    )
 
-    layer.setRenderer(build_unit_renderer())
+    layer.setRenderer(
+        build_unit_renderer(
+            echelon=echelon,
+            combined_arms=combined_arms,
+            headquarters=headquarters,
+        )
+    )
 
     return layer
 

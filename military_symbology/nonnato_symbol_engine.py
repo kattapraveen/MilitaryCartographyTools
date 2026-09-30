@@ -1288,6 +1288,67 @@ def strip_detachment_slash(svg):
     return _DETACHMENT_SLASH_PATTERN.sub("", svg)
 
 
+# --- Echelon fixup: one radius for both circles ----------------------
+#
+# milsymbol draws Detachment (NATO's Team/Crew) as a hollow circle of
+# radius 15, Section (NATO's Squad) as a filled one of radius 7.5, and
+# Platoon as three filled ones of 7.5 - different sizes for marks that
+# sit in the same place and read as a set. Consistent across every
+# layer, but consistently mismatched: "the size of circle for
+# detachment and section (circle and filled circle) is different in all
+# layers - keep the size consistent for echelons markers everywhere"
+# (2026-10-01). Settled at 11, between milsymbol's two, so neither mark
+# is left as it was at the other's expense. Detachment stays
+# distinguishable by being hollow, not by being bigger.
+#
+# EVERY circle in the echelon group is rewritten, not a named few.
+# Platoon's middle dot carries exactly the same signature as Section's
+# single dot, so a fixup that picked circles by coordinate would either
+# have to be gated on the echelon name - leaving Platoon's one dot
+# resized and its two neighbours alone if the gate were ever dropped -
+# or catch all three anyway. Taking the whole group removes the trap:
+# the three dots cannot come out uneven, and the bar echelons, which
+# have no circles at all, are untouched without needing to be named.
+# At r=11 with centres 30 apart the three dots keep an 8-unit gap, so
+# Platoon still reads as three.
+#
+# Applied inside apply_nonnato_unit_fixups(), which means it runs
+# BEFORE straddle_echelon_on_opening() and seat_echelon_on_frame(),
+# both of which measure the marker to place it - so the placement is
+# computed from the radius actually drawn. echelon_shared_box() works
+# the Echelons layer's box out from real renders through this same
+# path, so that follows too rather than needing its own update.
+ECHELON_CIRCLE_RADIUS = 11
+
+_ECHELON_CIRCLE_RADIUS_PATTERN = re.compile(r'(<circle\b[^>]*?\sr=")[\d.]+(")')
+
+
+def normalise_echelon_circle(svg):
+
+    """
+    Every circle in the echelon group to ECHELON_CIRCLE_RADIUS -
+    Detachment's ring, Section's dot and all three of Platoon's.
+    Rewritten only inside that group, so no circle belonging to the
+    entity's own icon can be caught. A no-op for the seven echelons
+    that draw no circle at all.
+    """
+
+    group = _ECHELON_GROUP_PATTERN.search(svg)
+
+    if group is None:
+        return svg
+
+    rewritten, count = _ECHELON_CIRCLE_RADIUS_PATTERN.subn(
+        r"\g<1>" + f"{ECHELON_CIRCLE_RADIUS:g}" + r"\g<2>",
+        group.group(0),
+    )
+
+    if not count:
+        return svg
+
+    return svg[: group.start()] + rewritten + svg[group.end():]
+
+
 # --- Entity-specific fixup: Army Aviation's propeller -----------------
 
 # aviation_fixed_wing's icon is a filled bowtie/propeller shape - one
@@ -3092,15 +3153,27 @@ def apply_nonnato_unit_fixups(svg, entity, echelon):
 
     """
     Every post-render fixup a Land Unit icon might need, applied in
-    order: the echelon fixup (entity-independent - Detachment's slash
-    is stripped whenever that echelon is selected, on any entity),
-    then whichever entity-specific fixup applies. Both are no-ops for
-    every icon that doesn't match, so this is safe to call
-    unconditionally on every render.
+    order: the echelon fixups (entity-independent - Detachment's slash
+    is stripped whenever that echelon is selected, and every circular
+    echelon marker is brought to one radius, on any entity), then
+    whichever entity-specific fixup applies. All are no-ops for every
+    icon that doesn't match, so this is safe to call unconditionally on
+    every render.
+
+    The echelon fixups run here, first, so that the two functions which
+    PLACE the marker - straddle_echelon_on_opening() and
+    seat_echelon_on_frame() - measure the marker as it will actually be
+    drawn.
     """
 
     if echelon == "team_crew":
         svg = strip_detachment_slash(svg)
+
+    # Unconditional: it rewrites every circle in the echelon group, and
+    # there is no group, or no circle in it, for the echelons that draw
+    # none. No echelon name is named anywhere, so a new circular marker
+    # would be picked up without this needing to be edited.
+    svg = normalise_echelon_circle(svg)
 
     fixup = _ENTITY_FIXUPS.get(entity)
 

@@ -98,15 +98,68 @@ class TestAviationLayerMatchesLandUnit(QgisTestCase):
         super().tearDown()
 
 
-    def test_the_fields_are_identical(self):
+    def test_the_fields_are_identical_but_for_combined_arms(self):
+
+        """
+        Aviation carries Land Unit's field list with exactly one field
+        removed - "in aviation - there is no requirement for combined
+        arms" (2026-09-30). Written as a subtraction rather than as its
+        own literal list so that a field added to Land Unit later still
+        has to be accounted for here.
+        """
 
         aviation = build_aviation_layer_nonnato()
         land_unit = build_land_unit_layer_nonnato()
 
         self.assertEqual(
             [(f.name(), f.type()) for f in aviation.fields()],
-            [(f.name(), f.type()) for f in land_unit.fields()],
+            [
+                (f.name(), f.type())
+                for f in land_unit.fields()
+                if f.name() != "combined_arms"
+            ],
         )
+
+
+    def test_there_is_no_combined_arms_field(self):
+
+        """The exception itself, pinned: dropped outright, not left
+        inert. A checkbox that changes nothing is worse than none."""
+
+        aviation = build_aviation_layer_nonnato()
+
+        self.assertEqual(aviation.fields().indexOf("combined_arms"), -1)
+
+
+    def test_the_renderer_passes_combined_arms_as_a_literal_false(self):
+
+        """
+        A reference to a field that does not exist evaluates to NULL,
+        and one NULL argument blanks the whole icon - so dropping the
+        field means the expression has to stop naming it. Rendering is
+        covered below; this pins the reason.
+        """
+
+        aviation = build_aviation_layer_nonnato()
+
+        properties = aviation.renderer().symbol().symbolLayer(
+            0
+        ).dataDefinedProperties()
+
+        rendering = [
+            (key, properties.property(key).expressionString())
+            for key in properties.propertyKeys()
+            if "mct_nonnato_unit_svg" in
+            properties.property(key).expressionString()
+        ]
+
+        self.assertTrue(rendering, "no symbol expression to check")
+
+        for key, expression in rendering:
+
+            with self.subTest(property=key):
+                self.assertNotIn("combined_arms", expression)
+                self.assertIn(",false,", expression)
 
 
     def test_every_widget_matches_except_the_entity_list(self):
@@ -114,8 +167,7 @@ class TestAviationLayerMatchesLandUnit(QgisTestCase):
         aviation = build_aviation_layer_nonnato()
         land_unit = build_land_unit_layer_nonnato()
 
-        for name in ("affiliation", "echelon", "status", "combined_arms",
-                     "headquarters"):
+        for name in ("affiliation", "echelon", "status", "headquarters"):
 
             with self.subTest(field=name):
 
@@ -137,7 +189,13 @@ class TestAviationLayerMatchesLandUnit(QgisTestCase):
         self.assertEqual(set(setup.config()["map"]), set(ENTITY_LABELS.values()))
 
 
-    def test_the_renderer_expressions_are_identical(self):
+    def test_the_renderer_expressions_match_but_for_combined_arms(self):
+
+        """
+        Same renderer as Land Unit's, with the one substitution the
+        dropped field forces. Comparing the substituted text rather
+        than skipping the check keeps every other argument pinned.
+        """
 
         aviation = build_aviation_layer_nonnato()
         land_unit = build_land_unit_layer_nonnato()
@@ -151,7 +209,12 @@ class TestAviationLayerMatchesLandUnit(QgisTestCase):
                 for key in properties.propertyKeys()
             }
 
-        self.assertEqual(expressions(aviation), expressions(land_unit))
+        land_unit_without_the_field = {
+            key: value.replace('coalesce("combined_arms", false)', "false")
+            for key, value in expressions(land_unit).items()
+        }
+
+        self.assertEqual(expressions(aviation), land_unit_without_the_field)
 
 
 class TestAviationRendering(QgisTestCase):

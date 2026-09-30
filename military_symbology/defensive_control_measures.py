@@ -729,6 +729,32 @@ _AREA_DESIGNATION_LABEL_EXPRESSION = (
     " ELSE '' END"
 )
 
+# WHERE the echelon glyph sits: the middle of the first line segment,
+# between the first and second digitized vertices.
+#
+# It was anchored on the first vertex itself until 2026-10-01 - "take
+# the origin point as the place to insert the echelon", 2026-08-10 -
+# which put the glyph exactly on a corner. The maintainer found that
+# uncomfortable to read: "if I select the echelon as brigade the X is
+# marked at the first point - from a UI point of view it is not
+# comfortable, so lets draw the echelon - suitably masked on the first
+# line segment i.e. between the first two points."
+#
+# centroid() of a two-point line IS its midpoint, so this needs no
+# interpolation by length. The glyph stays masked exactly as before,
+# and the mask now falls on a straight run of the perimeter rather
+# than across a corner, which is what made the old placement look
+# wrong - a gap cut at a corner removes part of two edges at once.
+#
+# Two close-together first vertices are not a problem: the midpoint is
+# on the segment wherever they are, and the mask is sized in
+# millimetres on the page rather than in map units, so it cuts the same
+# gap however short the segment is.
+_ECHELON_ANCHOR_EXPRESSION = (
+    "centroid(make_line(point_n($geometry, 1), point_n($geometry, 2)))"
+)
+
+
 # The echelon glyph itself (Table D-III) - just the character, no name/
 # prefix, since it renders as its own separate label (see
 # _configure_area_designation_labeling()). Only battle_position/
@@ -754,10 +780,10 @@ def _configure_area_designation_labeling(layer):
     own echelon label (rule 2, filtered to just those two measure types
     with a non-blank echelon).
 
-    The echelon label is anchored at the polygon's own ORIGIN point -
-    its first digitized vertex, `point_n($geometry, 1)` - per the
-    project maintainer's own explicit instruction ("take the origin
-    point as the place to insert the echelon"), via a label geometry
+    The echelon label is anchored at the MIDDLE OF THE FIRST LINE
+    SEGMENT - between the first and second digitized vertices, see
+    _ECHELON_ANCHOR_EXPRESSION for the expression and for why it moved
+    off the origin vertex on 2026-10-01 - via a label geometry
     generator (QgsPalLayerSettings.geometryGenerator*) rather than the
     feature's own polygon geometry, the labeling-engine equivalent of
     the QgsGeometryGeneratorSymbolLayer technique already used elsewhere
@@ -816,7 +842,7 @@ def _configure_area_designation_labeling(layer):
 
     echelon_settings.geometryGeneratorEnabled = True
 
-    echelon_settings.geometryGenerator = "point_n($geometry, 1)"
+    echelon_settings.geometryGenerator = _ECHELON_ANCHOR_EXPRESSION
 
     echelon_settings.geometryGeneratorType = Qgis.GeometryType.Point
 

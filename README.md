@@ -1,6 +1,7 @@
 # Military Cartography Tools
 
 A QGIS plugin for military mapping: MIL-STD-2525D/E and APP-6D/E tactical graphics,
+a separate non-NATO symbology scheme,
 MGRS coordinate conversion, military grid generation, terrain analysis, and
 automated print-layout production. Runs fully offline — no external services,
 no data leaves your machine.
@@ -42,6 +43,12 @@ Requires QGIS 3.44 or later.
 - **Insert Symbol** — place a MIL-STD-2525/APP-6 symbol directly onto a
   print layout page, for a legend key or callout rather than a
   georeferenced map feature.
+- **Non-NATO symbology** — a separate scheme with its own affiliation
+  colours, entity names and hand-built icons, on nine layers of its own:
+  Land Units, Land Equipment, Control Measure Points, Mines and Obstacles
+  as points or as lines, Aviation, Ammunition and FOL, Areas and
+  Echelons. 173 entities, none of them part of MIL-STD-2525 or APP-6, and
+  none of them affecting the NATO layers.
 - **Grid convergence and magnetic declination** (WMM2025) as expression
   functions, usable anywhere in QGIS or wired into a layout's own
   marginalia.

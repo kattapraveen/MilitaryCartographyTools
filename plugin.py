@@ -1860,9 +1860,8 @@ class MilitaryCartographyTools:
                     "SIGINT), Control Measure Points, Mines and "
                     "Obstacles as points or as lines, Aviation, "
                     "Ammunition and FOL, Areas and Echelons - "
-                    "not part of MIL-STD-2525D/E or "
-                    "APP-6D/E, and not yet merged into this plugin's "
-                    "released symbology"
+                    "not part of MIL-STD-2525D/E or APP-6D/E, and "
+                    "kept on layers of its own"
                 ),
                 [
                     self.nonnato_land_units_action,

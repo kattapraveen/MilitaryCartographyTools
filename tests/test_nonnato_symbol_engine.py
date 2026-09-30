@@ -49,7 +49,10 @@ class TestDetachmentSlashStrip(QgisTestCase):
         fixed = nse.apply_nonnato_unit_fixups(svg, "infantry", "team_crew")
 
         self.assertNotIn("M80,40L120,20", fixed)
-        self.assertIn('<circle cx="100" cy="30" r="15"', fixed)
+        self.assertIn(
+            f'<circle cx="100" cy="30" r="{nse.ECHELON_CIRCLE_RADIUS:g}"',
+            fixed,
+        )
 
 
     def test_leaves_other_echelons_untouched(self):
@@ -289,7 +292,10 @@ class TestRenderNonnatoUnitSvg(QgisTestCase):
         )
 
         self.assertNotIn("M80,40L120,20", svg)
-        self.assertIn('<circle cx="100" cy="30" r="15"', svg)
+        self.assertIn(
+            f'<circle cx="100" cy="30" r="{nse.ECHELON_CIRCLE_RADIUS:g}"',
+            svg,
+        )
 
 
     def test_aviation_fixed_wing_propeller_is_hollow(self):
@@ -3688,6 +3694,138 @@ class TestBoobyTrapStrokeMatchesItsNeighbours(QgisTestCase):
         self.assertIn('stroke-width="3"', nse.booby_trap_control_measure_svg())
 
 
+class TestEchelonCirclesShareOneRadius(QgisTestCase):
+
+    """
+    Detachment (a hollow circle) and Section (a filled one) are drawn
+    at the SAME radius wherever either appears - "keep the size
+    consistent for echelons markers everywhere" (2026-10-01).
+
+    milsymbol draws them at 15 and 7.5. The mismatch was consistent
+    across every layer, which is exactly why measuring one layer would
+    not have caught it: every layer agreed, and every layer was wrong
+    together. So this checks all three paths that draw an echelon
+    marker, not just one.
+    """
+
+    CIRCLE_ECHELONS = ("team_crew", "squad", "platoon")
+
+
+    def _radii(self, svg):
+
+        return [
+            float(r)
+            for r in re.findall(r'<circle\b[^>]*?\sr="([\d.]+)"', svg)
+        ]
+
+
+    def test_the_marker_drawn_alone_uses_the_settled_radius(self):
+
+        for echelon in self.CIRCLE_ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_echelon_svg("friend", echelon)
+
+                self.assertTrue(self._radii(svg))
+                self.assertEqual(
+                    set(self._radii(svg)), {nse.ECHELON_CIRCLE_RADIUS}
+                )
+
+
+    def test_the_marker_on_a_unit_uses_the_settled_radius(self):
+
+        for echelon in self.CIRCLE_ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", "infantry", echelon=echelon
+                )
+
+                self.assertTrue(self._radii(svg))
+                self.assertEqual(
+                    set(self._radii(svg)), {nse.ECHELON_CIRCLE_RADIUS}
+                )
+
+
+    def test_forces_in_defence_straddled_row_uses_the_settled_radius(self):
+
+        # Forces in Defence places its echelon differently from every
+        # other entity - straddling the ellipse's opening rather than
+        # seating on a frame - so it gets its own check rather than
+        # being assumed to follow.
+        for echelon in self.CIRCLE_ECHELONS:
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", nse.FORCES_IN_DEFENCE_ENTITY, echelon=echelon
+                )
+
+                self.assertTrue(
+                    self._radii(svg),
+                    "no echelon circle found to measure",
+                )
+                for radius in self._radii(svg):
+                    self.assertEqual(radius, nse.ECHELON_CIRCLE_RADIUS)
+
+
+    def test_an_entitys_own_circular_icon_is_not_resized(self):
+
+        """
+        The fixup rewrites circles only inside the echelon group.
+        Administration or Logistics' own icon IS a circle (r=50), and
+        it has to survive an echelon being set on it.
+        """
+
+        svg = nse.render_nonnato_unit_svg(
+            "friend", "nonnato_admin_logistics", echelon="squad"
+        )
+
+        self.assertIn(50.0, self._radii(svg))
+        self.assertIn(nse.ECHELON_CIRCLE_RADIUS, self._radii(svg))
+
+
+    def test_the_two_are_still_told_apart_by_fill_not_size(self):
+
+        detachment = nse.render_nonnato_echelon_svg("friend", "team_crew")
+        section = nse.render_nonnato_echelon_svg("friend", "squad")
+
+        self.assertEqual(self._radii(detachment), self._radii(section))
+
+        self.assertNotIn("fill=\"#", detachment.split("<circle")[1])
+        self.assertIn("fill=\"#", section.split("<circle")[1])
+
+
+    def test_platoons_three_dots_are_all_the_same_size(self):
+
+        """
+        Platoon's MIDDLE dot carries exactly the signature Section's
+        single dot does. A fixup that picked circles by coordinate
+        would resize that one and leave its two neighbours alone,
+        drawing a big dot between two small ones. Taking the whole
+        echelon group is what prevents it - this is the regression
+        test for that.
+        """
+
+        radii = self._radii(nse.render_nonnato_echelon_svg("friend", "platoon"))
+
+        self.assertEqual(len(radii), 3)
+        self.assertEqual(set(radii), {nse.ECHELON_CIRCLE_RADIUS})
+
+
+    def test_the_bar_echelons_have_no_circle_at_all(self):
+
+        for echelon in ("company", "brigade", "army_group"):
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_echelon_svg("friend", echelon)
+
+                self.assertEqual(self._radii(svg), [])
+
+
 class TestEchelonTouchesFrame(QgisTestCase):
 
     """
@@ -3695,9 +3833,13 @@ class TestEchelonTouchesFrame(QgisTestCase):
     Office companion 2026-09-16) - see seat_echelon_on_frame().
     """
 
+    # team_crew joined this list 2026-10-01. Its ring used to reach the
+    # frame on its own at milsymbol's r=15, so there was nothing to
+    # close; at the settled ECHELON_CIRCLE_RADIUS it no longer does, and
+    # it is seated like every other marker.
     ECHELONS = (
-        "squad", "platoon", "company", "battalion", "brigade",
-        "division", "corps", "army", "army_group",
+        "team_crew", "squad", "platoon", "company", "battalion",
+        "brigade", "division", "corps", "army", "army_group",
     )
 
     FRAME_TOP_INK = 50 - 5.2 / 2
@@ -3738,11 +3880,26 @@ class TestEchelonTouchesFrame(QgisTestCase):
 
     def test_the_gaps_it_closes_are_the_measured_ones(self):
 
-        company = nse.render_nonnato_unit_svg("friend", "infantry", echelon="company")
-        section = nse.render_nonnato_unit_svg("friend", "infantry", echelon="squad")
+        # Detachment and Section share a drop because, since
+        # 2026-10-01, they share a radius - which is the whole point of
+        # ECHELON_CIRCLE_RADIUS. Section's was 7.3 while its dot was
+        # milsymbol's own r=7.5.
+        expected = {
+            "team_crew": 3.8,
+            "squad": 3.8,
+            "platoon": 3.8,
+            "company": 4.8,
+        }
 
-        self.assertAlmostEqual(self._drop(company), 4.8, places=6)
-        self.assertAlmostEqual(self._drop(section), 7.3, places=6)
+        for echelon, drop in expected.items():
+
+            with self.subTest(echelon=echelon):
+
+                svg = nse.render_nonnato_unit_svg(
+                    "friend", "infantry", echelon=echelon
+                )
+
+                self.assertAlmostEqual(self._drop(svg), drop, places=6)
 
 
     def test_only_the_translate_changes(self):
@@ -3764,17 +3921,16 @@ class TestEchelonTouchesFrame(QgisTestCase):
                 self.assertEqual(nse.seat_echelon_on_frame(unseated), svg)
 
 
-    def test_no_echelon_and_detachment_are_left_alone(self):
+    def test_no_echelon_is_left_alone(self):
 
-        for echelon in ("unspecified", "team_crew"):
+        # Unspecified draws no marker, so there is nothing to seat.
+        # Detachment used to be here too - see this class's own
+        # ECHELONS comment for why it no longer is.
+        svg = nse.render_nonnato_unit_svg(
+            "friend", "infantry", echelon="unspecified"
+        )
 
-            with self.subTest(echelon=echelon):
-
-                svg = nse.render_nonnato_unit_svg(
-                    "friend", "infantry", echelon=echelon
-                )
-
-                self.assertEqual(self._drop(svg), 0.0)
+        self.assertEqual(self._drop(svg), 0.0)
 
 
     def test_frameless_aviation_glyphs_are_left_alone(self):

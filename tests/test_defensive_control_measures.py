@@ -399,13 +399,15 @@ class TestCreateDefensiveControlMeasuresAreasLayer(QgisTestCase):
         )
 
 
-    def test_echelon_label_is_anchored_at_the_polygons_origin_point(self):
+    def test_echelon_label_sits_on_the_middle_of_the_first_segment(self):
 
-        # Per the project maintainer's own explicit instruction: "take
-        # the origin point as the place to insert the echelon" - a label
+        # Moved off the origin VERTEX 2026-10-01 - "the X is marked at
+        # the first point - from a UI point of view it is not
+        # comfortable, so lets draw the echelon - suitably masked on the
+        # first line segment i.e. between the first two points". A label
         # geometry generator (the labeling-engine equivalent of
-        # QgsGeometryGeneratorSymbolLayer) feeding the feature's own
-        # first digitized vertex, not its centroid/default anchor.
+        # QgsGeometryGeneratorSymbolLayer) feeding a computed point, not
+        # the feature's own centroid/default anchor.
         layer = create_defensive_control_measures_areas_layer()
 
         echelon_settings = self._rule_by_filter(layer, has_filter=True).settings()
@@ -413,7 +415,7 @@ class TestCreateDefensiveControlMeasuresAreasLayer(QgisTestCase):
         self.assertTrue(echelon_settings.geometryGeneratorEnabled)
         self.assertEqual(
             echelon_settings.geometryGenerator,
-            "point_n($geometry, 1)"
+            "centroid(make_line(point_n($geometry, 1), point_n($geometry, 2)))"
         )
         self.assertEqual(
             echelon_settings.geometryGeneratorType,

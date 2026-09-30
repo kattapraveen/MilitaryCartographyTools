@@ -25,6 +25,7 @@ military grid generation, and automated print-layout production.
 - [Map Sheet Series](#map-sheet-series)
 - [Tactical Graphics - point symbol layers](#tactical-graphics---point-symbol-layers)
 - [Tactical Graphics - Control Measures](#tactical-graphics---control-measures)
+- [Non-NATO symbols](#non-nato-symbols)
 - [Expression functions](#expression-functions)
 
 ---
@@ -53,8 +54,8 @@ it needs no network.
 ## The toolbar, at a glance
 
 The toolbar has three standalone buttons (About, User Guide and
-Symbology Edition) plus six grouped dropdown buttons — click a button to open its menu, then pick
-the specific tool. The same six groups are mirrored as submenus under
+Symbology Edition) plus seven grouped dropdown buttons — click a button to open its menu, then pick
+the specific tool. The same seven groups are mirrored as submenus under
 **Plugins → Military Cartography Tools**, so every tool is reachable
 from either place.
 
@@ -69,8 +70,9 @@ Left to right:
 | Compass rose | **Navigation** | Coordinate Probe, Bearing / Range |
 | Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage, Regenerate Sensor Coverage |
 | Location pin | **Waypoints** | Import Waypoints, Export Waypoints |
-| Printed sheet with a folded corner | **Print Production** | New Military Layout, Map Sheet Series |
 | Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/E and APP-6D/E point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |
+| Rectangular frame with a separate dot | **Non-NATO Symbols** | The nine layers of the separate non-NATO scheme — Land Units, Land Equipment, Control Measure Points, Mines and Obstacles, Mines and Obstacles (Lines), Aviation, Ammunition and FOL, Areas, Echelons; see [Non-NATO symbols](#non-nato-symbols) |
+| Printed sheet with a folded corner | **Print Production** | New Military Layout, Map Sheet Series |
 
 Each individual tool keeps its own icon and behaviour exactly as
 described in its own section below (checkable tools still show as
@@ -1159,9 +1161,12 @@ a "Points" layer (H.5.12.2, Table H-IX).
 **Battle Position** and **Strong Point** both carry an optional
 **Echelon** field (the same Table D-III amplifier Boundary uses under
 C2 Measures - Ø, •, ••, •••, I, II, III, X, XX, ...) - drawn IN the
-perimeter line itself, at the point where you started digitizing the
-polygon, with a real gap cut in the line around it (the same masked-gap
-technique Boundary uses), not as a floating label. Battle Position also
+perimeter line itself, halfway along the first segment you digitized
+(between your first and second clicks), with a real gap cut in the line
+around it (the same masked-gap technique Boundary uses), not as a
+floating label. It sat on the first click itself until 2026-10-01,
+which put the glyph on a corner and cut the gap out of two edges at
+once. Battle Position also
 has a **Prepared** field - set it to add a "(P) " prefix to the name for
 a battle position that's dug in and ready but not yet occupied (e.g.
 "(P) MARS"); setting Prepared always draws the outline dashed, even if
@@ -1947,6 +1952,210 @@ W/W1) are not modelled, the same as everywhere else in this appendix.
 
 ---
 
+## Non-NATO symbols
+
+Nine actions inside the toolbar's **Non-NATO Symbols** dropdown, each
+adding one layer. This is a separate symbology scheme with its own
+affiliation colours, its own entity names and its own hand-built
+icons. It is **not** MIL-STD-2525D/E or APP-6D/E, and nothing in it
+changes the NATO layers described above - the two sets sit side by side
+in the same project and never share a layer.
+
+Because this scheme is not published in any standard, this guide is the
+only place the whole set is written down. The tables below list every
+entity each layer offers, and the HTML guide draws each one.
+
+| Menu entry | Layer added | Geometry | Entities |
+|---|---|---|---|
+| Land Units | Land Unit (Non-NATO) | Point | 39 |
+| Land Equipment | Land Equipment (Non-NATO) | Point | 57 |
+| Control Measure Points | Control Measure Points (Non-NATO) | Point | 27 |
+| Mines and Obstacles | Mines and Obstacles (Non-NATO) | Point | 16 |
+| Mines and Obstacles (Lines) | Mines and Obstacles Lines (Non-NATO) | Line | 2 |
+| Aviation | Aviation (Non-NATO) | Point | 8 |
+| Ammunition and FOL | Ammunition and FOL (Non-NATO) | Point | 10 |
+| Areas | Areas (Non-NATO) | Area | 4 |
+| Echelons | Echelons (Non-NATO) | Point | 10 |
+
+**Placing a symbol** works exactly as it does on the NATO layers: switch
+editing on, use QGIS's own **Add Point Feature** (or **Add Line
+Feature** / **Add Polygon Feature**), and fill in the attribute form
+that appears. There is no symbol picker. The plugin draws the symbol
+from the attributes, and redraws it the moment you change one.
+
+### The fields, layer by layer
+
+Not every layer carries every field, because not every symbol has
+anywhere to put it.
+
+| Layer | Affiliation | Entity | Echelon | Status | HQ | Combined Arms | Designation | Mobility | Mine type | Rotation | Scale |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Land Unit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | left + right | — | — | ✅ | ✅ |
+| Aviation | ✅ | ✅ | ✅ | ✅ | ✅ | — | left + right | — | — | ✅ | ✅ |
+| Ammunition and FOL | ✅ | ✅ | — | ✅ | — | — | left + right | — | — | ✅ | ✅ |
+| Land Equipment | ✅ | ✅ | — | — | — | — | one | ✅ | — | ✅ | ✅ |
+| Control Measure Points | ✅ | ✅ | — | ✅ | — | — | one | — | — | ✅ | ✅ |
+| Mines and Obstacles | ✅ | ✅ | — | — | — | — | one | — | ✅ | ✅ | ✅ |
+| Mines and Obstacles (Lines) | ✅ | ✅ | — | — | — | — | — | — | ✅ | — | — |
+| Areas | — | ✅ | — | — | — | — | — | — | — | — | — |
+| Echelons | ✅ | ✅ | — | — | — | — | — | — | — | — | ✅ |
+
+Aviation and Ammunition and FOL are built from the Land Unit layer's own
+definition, but each drops the fields its own entities never draw -
+Aviation drops Combined Arms, Ammunition and FOL drops Echelon,
+Headquarters and Combined Arms. Of what remains, whether a given
+**entity** actually uses it is a further question - see *Which entities
+use which marks* below.
+
+### Affiliation
+
+Affiliation is who the symbol belongs to, and here it is carried by
+**colour alone**. The frame shape does not change, which is the main
+visible difference from the NATO layers, where hostile is a diamond and
+neutral a square.
+
+| Affiliation | Colour |
+|---|---|
+| Friendly | `#3060c0` blue |
+| Friendly Paramilitary | `#8b5a2b` brown |
+| Hostile | `#c02020` red |
+| Neutral | `#20a020` green |
+| Non-state Hostile | `#8020a0` purple |
+| Unknown | `#c08010` amber |
+
+Fifteen entities fix their own colour and ignore Affiliation entirely:
+the eleven mine-family entities and Minefield (General) on the Lines
+layer are always green - a minefield is a minefield - and the four
+Enemy entities are always red.
+
+### Status
+
+The **Status** field offers **Solid** and **Dashed**, named after the
+line itself rather than after the unit's condition, because the same
+dashed frame is used for planned, anticipated and on-order alike. Only
+the frame dashes; what sits inside it stays solid, so the symbol still
+reads at a glance.
+
+Status applies to the Land Unit family and to six Control Measure
+Points - Air Head, Beach Head, Bridge Head, Command Post, Vital Area and
+Vital Point. On the rest of the Control Measure Points it is present in
+the form but changes nothing, because the symbol those entities are
+built from is drawn solid either way.
+
+### Echelon, Headquarters and Combined Arms
+
+**Echelon** is the size of the formation, drawn above the symbol.
+**Headquarters** adds the staff on the left. **Combined Arms** marks a
+grouping of more than one arm. Echelon and Headquarters are fields on
+the Land Unit and Aviation layers; Combined Arms is on Land Unit alone.
+Aviation has no use for Combined Arms, and Ammunition and FOL has no
+use for any of the three, so none of them appears on that layer at all
+(both dropped 2026-09-30).
+
+The Echelon field offers: Unspecified, Detachment, Section,
+Platoon/Troop, Company/Battery/Flight/Squadron,
+Battalion/Regiment/Avn Squadron, Brigade, Division, Corps, Command and
+Army Group. These are this scheme's own names; the stored values are the
+same ones the NATO layers use, so the two schemes agree about what a
+mark *means* even where they disagree about what to call it.
+
+#### Which entities use which marks
+
+| Entities | Echelon | HQ | Combined Arms | Status | Designations |
+|---|---|---|---|---|---|
+| Land Unit, except the five below | ✅ | ✅ | ✅ | ✅ | left + right |
+| Forces in Defence | ✅ | — | — | ✅ | left + right |
+| The four Enemy entities | — | — | ✅ | — | left + right |
+| Aviation: Air Force, Army Aviation | ✅ | ✅ | — | ✅ | left + right |
+| Aviation: the other six | — | — | — | — | left + right |
+| Ammunition and FOL, all ten | — | — | — | ✅ | left + right |
+
+The fields are still in the form on every one of these layers. Setting
+one an entity does not use is harmless - it simply does not appear.
+
+### Designations
+
+Designations are your own text - a unit's number and name, a point's
+label. The Land Unit family takes one on each side; every other point
+layer takes a single one.
+
+A designation sits **outside** the symbol, so adding one never shrinks
+the symbol itself. The picture grows instead, and two symbols set to the
+same Scale still match each other whether or not they carry text.
+
+Seven Control Measure Points draw no designation of their own and have
+one injected beside their ink instead: Fort, Impact Point, Observation
+Post, Artillery Observation Post, Pill Box, Shelter Above Ground and
+Shelter Below Ground. Nothing is different from the outside - it is
+recorded here only because those seven were silently dropping the text
+until 2026-09-24.
+
+### Mobility
+
+Land Equipment can carry a mobility mark underneath it - **Self-Propelled**
+or **Tracked**, or none at all - saying how the piece moves. A gun may be
+towed, carried on wheels or tracked, and the symbol is the same either
+way until the mark says otherwise.
+
+### Mine type
+
+Minefields carry the kind of mine laid in them: **Antipersonnel** (hollow
+circles), **Antitank** (filled), **Both (alternating)**, or none. The
+field is on the Mines and Obstacles Lines layer, where the pattern
+repeats along whatever path you draw, and on two point entities -
+Gap / Safe Lane and Minefield (with number of mines).
+
+Leaving mine type unset on a Minefield (General) line is legal and draws
+two bare parallel lines with nothing between them. That is the field
+doing what it is told, not a rendering fault.
+
+### Areas
+
+The Areas layer is the only non-NATO layer that takes polygons. It draws
+four terrain types, all in plain black - the layer has no affiliation to
+colour them with.
+
+| Entity | Fill |
+|---|---|
+| Key Terrain Feature | Slanted lines, `\` |
+| Boggy Terrain | Dashes |
+| Restricted Terrain | Horizontal lines |
+| Severely Restricted Terrain | Horizontal and vertical lines |
+
+### Mines and Obstacles (Lines)
+
+Two symbols run along a path rather than sitting at a point.
+
+**Minefield (General)** is green whoever laid it, and carries the mine
+type described above. **Trench System** uses the NATO Fortified Line
+symbol exactly as the NATO layers draw it - it is the same code, called
+directly rather than copied, so it is coloured by Affiliation like the
+NATO symbol it is. That is also why this layer has an Affiliation field
+at all when Minefield (General) ignores it.
+
+### Echelons
+
+The Echelons layer places one echelon mark on its own, with no symbol
+under it - for labelling a boundary, a box or a sketch where the unit
+itself is drawn some other way. It offers the ten real marks; there is
+no Unspecified, because that has no mark to draw.
+
+All ten share one drawing box, the union of every marker's ink. A box
+around each separately would draw Company's single bar as wide as the
+whole Army Group row.
+
+This layer's names are the Land Unit layer's Echelon names, derived
+from them rather than copied, so the same mark can never be offered
+under two names. Four of the ten had drifted until 2026-10-01.
+
+### Rotation and Scale
+
+**Rotation** turns the whole symbol, amplifiers included, as one picture.
+**Scale** is a percentage of the symbol's own default size. Both behave
+exactly as they do on the NATO point layers. The Echelons layer has
+Scale but no Rotation, and the Areas and Lines layers have neither -
+an area's fill and a line's pattern follow the geometry you drew.
+
 ## Expression functions
 
 All registered under the **Military Cartography Tools** group in the
@@ -2017,6 +2226,32 @@ toolbar, which silently evaluated it as NULL (shown as `nan`) even though
 creates itself (they're always built in the project's own CRS); if you
 reuse these functions on a layer whose CRS was later changed independently
 of the project, reproject the layer to match first.
+
+#### Non-NATO symbology
+
+Eight more functions serve the non-NATO layers. They take named
+components rather than a SIDC, because that scheme needs real logic - its
+own affiliation colour map, its icon fixups, Combined Arms - that a SIDC
+passthrough cannot express. All arguments after the first two are
+optional and positional.
+
+| Function | Returns |
+|---|---|
+| `mct_nonnato_unit_svg(affiliation, entity, echelon, status, designation_left, designation_right, combined_arms, headquarters)` | A Land Unit / Aviation / Ammunition and FOL symbol as `"base64:<...>"` |
+| `mct_nonnato_unit_svg_width(...)` | The rendered width of exactly that symbol, for the icon-size stabiliser |
+| `mct_nonnato_equipment_svg(affiliation, entity, designation, mobility, mine_type)` | A Land Equipment or Mines and Obstacles symbol |
+| `mct_nonnato_equipment_svg_width(...)` | The rendered width of exactly that symbol |
+| `mct_nonnato_control_measure_svg(affiliation, entity, status, designation)` | A Control Measure Points symbol |
+| `mct_nonnato_control_measure_svg_width(..., default_designation)` | The rendered width of exactly that symbol |
+| `mct_nonnato_booby_trap_svg()` | The Booby Trap symbol, which takes no arguments at all |
+| `mct_nonnato_echelon_svg(affiliation, entity)` | One echelon mark drawn on its own |
+
+Each `_svg` function has a `_width` companion because a symbol that grows
+sideways - one carrying a designation, say - would otherwise be scaled
+down by QGIS to fit its declared viewBox width. The pair lets the layer
+hold the glyph's size steady while the box around it changes. You will
+not normally call these yourself; the layers wire them up when they are
+created.
 
 Every function returns a short error string (e.g. `"Layout not found"`,
 `"Need latitude, longitude"`) instead of failing silently if its arguments

@@ -6,9 +6,29 @@ description=Military cartography, MIL-STD-2525D/E and APP-6D/E tactical graphics
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.4.1
+version=1.5.0
 
-changelog=1.4.1
+changelog=1.5.0
+    - New Non-NATO Symbols toolbar group: a separate symbology scheme
+      with its own affiliation colours, entity names and hand-built
+      icons, on nine layers of its own. Land Units, Land Equipment,
+      Control Measure Points, Mines and Obstacles, Mines and Obstacles
+      (Lines), Aviation, Ammunition and FOL, Areas and Echelons - 173
+      entities in all. It is not MIL-STD-2525D/E or APP-6D/E, it lives
+      on its own layers, and it changes nothing about the NATO
+      symbology.
+    - Areas (Non-NATO) is the plugin's first area symbology layer:
+      Key Terrain Feature, Boggy Terrain, Restricted Terrain and
+      Severely Restricted Terrain, drawn as hatched fills.
+    - Trench System on the Mines and Obstacles (Lines) layer calls the
+      NATO Fortified Line symbol directly rather than copying it, so
+      the two can never drift apart.
+    - Eight new expression functions, mct_nonnato_*, for the above.
+    - The user guide has a new section 12, Non-NATO symbols, which
+      draws every one of the 173 entities - the only written record of
+      the scheme, since no published standard contains it. Sections 12
+      to 15 are now 13 to 16.
+    1.4.1
     - The About box, the README and THIRD_PARTY_NOTICES.md now credit
       React, which the user guide carries inside it to draw itself.
     - The user guide has a new section 15, Licences and credits: the

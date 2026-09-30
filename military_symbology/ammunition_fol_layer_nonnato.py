@@ -78,7 +78,18 @@ def build_ammunition_fol_layer_nonnato():
 
     """A fresh, empty "Ammunition and FOL (Non-NATO)" layer - never added to the project itself, see add_ammunition_fol_layer_nonnato()."""
 
-    return build_unit_style_layer(LAYER_NAME, ENTITY_LABELS, DEFAULT_ENTITY)
+    # Echelon, Headquarters and Combined Arms all dropped 2026-09-30.
+    # None of the ten entities has ever drawn any of the three - measured
+    # entity by entity, not assumed - so the form offered three switches
+    # that changed nothing. Same call as Aviation's, one field further.
+    return build_unit_style_layer(
+        LAYER_NAME,
+        ENTITY_LABELS,
+        DEFAULT_ENTITY,
+        echelon=False,
+        combined_arms=False,
+        headquarters=False,
+    )
 
 
 def add_ammunition_fol_layer_nonnato(iface):

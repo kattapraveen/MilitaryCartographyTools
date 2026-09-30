@@ -1900,4 +1900,46 @@ Meta-questions likely to come up regardless of category/domain.
       brought an `affiliation` field to Mines and Obstacles Lines,
       since Minefield (General) is green whoever laid it and this one
       is coloured like the NATO symbol it is.
+- [x] **Merged into main (2026-09-30)** - "let's merge it into main",
+      reversing the standing rule that had kept the branch off main
+      since it began. `--no-ff`, so the eighty-seven commits sit behind
+      one revertable commit. Released as 1.5.0 the same day, the
+      first version to carry the scheme; 1.4.1 remains the last one
+      without it.
+- [x] **The user guide, Section 12 (2026-09-30)** - the scheme is
+      documented, with all 173 entities drawn: point symbols as inline
+      SVG from the engine, and the echelon marks, area fills and line
+      symbols as real map renders, since those are QGIS symbols and the
+      preview helper draws the Trench System blank. Modelled on the
+      Office companion's own guide at the maintainer's direction. What
+      each entity accepts is MEASURED per entity, not declared.
+- [x] **Aviation: Combined Arms dropped (2026-09-30)** - "there is no
+      requirement for combined arms". The field is removed from the
+      layer rather than left inert; the renderer passes a literal
+      `false`, because naming a field that does not exist would
+      evaluate to NULL and blank the icon.
+- [ ] **Mines and Obstacles: mobility (2026-09-30)** - nothing to drop.
+      The layer never had a mobility field and hard-codes the argument
+      empty. The GUIDE was wrong, having measured the engine rather
+      than the layer; fixed by filtering every probe through the
+      layer's own field list. Left unticked only because there was no
+      change to make in the plugin.
+- [x] **Echelon names unified (2026-10-01)** - "it should be section
+      everywhere no squad ... the echelon naming in land units is the
+      master". Only the Echelons layer was out of step, on four of the
+      ten; it now DERIVES its labels from ECHELON_LABELS instead of
+      copying them. The Office companion was read first and already
+      agreed with Land Unit on all ten, so nothing changed there.
+- [x] **One radius for every circular echelon marker (2026-10-01)** -
+      milsymbol draws Detachment at r=15 and Section and Platoon's
+      dots at 7.5. Settled at 11 for all of them, picked off a
+      rendered comparison. The fixup rewrites every circle in the
+      echelon group and names no echelon, because Platoon's middle dot
+      has the same signature as Section's single one. Detachment is
+      now seated on the frame like the rest, which it never used to
+      need.
+- [x] **Ammunition and FOL: Echelon, HQ and Combined Arms dropped
+      (2026-09-30)** - none of the ten entities draws any of them.
+      Same treatment as Aviation's Combined Arms, via flags on the
+      shared builder.
 - [ ] Anything else that surfaces while specifying the above

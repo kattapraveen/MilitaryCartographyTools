@@ -47,25 +47,26 @@ from qgis.core import (
 from qgis.PyQt.QtCore import QMetaType
 
 from ._control_measure_shared import add_layer_if_absent
-from .land_unit_layer_nonnato import AFFILIATION_LABELS
+from .land_unit_layer_nonnato import AFFILIATION_LABELS, ECHELON_LABELS
+from .nonnato_symbol_engine import ECHELON_MARKER_ENTITIES
 
 
 LAYER_NAME = "Echelons (Non-NATO)"
 
-# The same renaming the Land Unit dialog uses, minus Unspecified, which
-# milsymbol draws no marker for. Kept in the engine's own
+# DERIVED from the Land Unit dialog's own names, minus Unspecified,
+# which milsymbol draws no marker for. In the engine's own
 # ECHELON_MARKER_ENTITIES order, which a test holds these to.
+#
+# Derived rather than copied since 2026-10-01. The copy had drifted on
+# four of the ten - Squad for Section, Army for Command, and shortened
+# forms of Company and Battalion - so the same mark was offered under
+# two different names depending on which layer you opened it from. The
+# maintainer settled it: "it should be section everywhere no squad ...
+# when in doubt the echelon naming in land units is the master". The
+# Office companion's own list already agreed with Land Unit, so this
+# was the only list out of step anywhere.
 ENTITY_LABELS = {
-    "team_crew": "Detachment",
-    "squad": "Squad",
-    "platoon": "Platoon/Troop",
-    "company": "Company/Squadron/Battery",
-    "battalion": "Battalion",
-    "brigade": "Brigade",
-    "division": "Division",
-    "corps": "Corps",
-    "army": "Army",
-    "army_group": "Army Group",
+    entity: ECHELON_LABELS[entity] for entity in ECHELON_MARKER_ENTITIES
 }
 
 DEFAULT_ENTITY = "company"

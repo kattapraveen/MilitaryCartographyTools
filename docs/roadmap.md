@@ -13537,6 +13537,219 @@ in inserting Forces in Defence".
 
 ---
 
+## The branch merged into main, the guide written, two fields dropped (2026-09-30)
+
+**The non-NATO branch is merged into `main`.** "ok - i think we have
+largely completed the non-nato symbols except for some lines and areas
+- so let's merge it into main", reversing the standing "i still don't
+want the non-nato touching the main" that had held since the branch
+began. Merged with `--no-ff` on purpose: `main` is the published
+release line, so the eighty-seven commits sit behind one revertable
+commit rather than arriving as a fast-forward that leaves no marker.
+Six files that already existed in `main` are touched - `plugin.py`,
+the two public wrappers, their two tests, and this file - and none of
+them changes what the NATO symbology draws.
+
+**Version bumped to 1.5.0** the same day - "we can bump the version".
+A feature release: nine new layers and a new toolbar group, nothing
+existing broken, so the minor digit is the honest one. 1.4.1 remains
+the last version without the scheme. Nothing has been packaged or
+uploaded yet.
+
+### The user guide
+
+The guide now documents the scheme, as Section 12, with the Office
+companion's own guide used as the model: "be sure to update the user
+guide also - you can check the guide i made in the office fork for non
+nato symbols", then "we can improve own guide also based on the office
+guide". What was taken from it is the idea that a symbology guide
+should *show the symbols* - the companion's grid of rendered tiles.
+What was not taken is its mechanics, which are the task pane's, not a
+QGIS plugin's.
+
+All 173 entities are drawn in the guide: the 157 point symbols as
+inline SVG straight out of `nonnato_symbol_engine`, and the ten
+echelon marks, four area fills and two line symbols as real map
+renders, because Areas and Lines are QGIS symbols rather than SVG
+markers and `symbolPreviewPixmap()` draws the Trench System blank.
+
+The line under each tile - what that entity accepts - is **measured,
+not declared**: each amplifier is applied, the render compared against
+the plain one, and the difference reported. That is the same method
+that found the seven undesignated Control Measure Points on
+2026-09-24, and it immediately earned its keep here (see below).
+
+### Aviation: Combined Arms dropped
+
+"in aviation - there is no requirement for combined arms". The field
+is gone from the layer, not merely ignored - a checkbox that changes
+nothing is worse than no checkbox. `build_unit_style_layer()` and the
+two functions under it take a `combined_arms` flag; Aviation passes
+`False`, Land Unit and Ammunition and FOL are untouched.
+
+The renderer has to pass the literal `false` rather than name the
+field, because a reference to a field that does not exist evaluates to
+NULL and one NULL argument blanks the whole icon - the same trap
+`coalesce()` guards everywhere else on these layers. Pinned by its own
+test, and the "Aviation is Land Unit's dialog" tests were rewritten as
+a subtraction rather than deleted, so a field added to Land Unit later
+still has to be accounted for.
+
+### Mines and Obstacles: mobility, which was never actually offered
+
+"in mines and obstacles - there is no requirement for mobility - it
+can be dropped". Nothing had to be dropped: the layer has no
+`mobility` field and its expression hard-codes that argument empty, so
+a user could never ask for one. What was wrong was the **guide**,
+which credited all sixteen mine entities with a mobility mark.
+
+The cause is worth recording, because the method was sound and the
+application was not. The first measurement pass probed
+`render_nonnato_equipment_svg()` directly, and the engine will happily
+draw a mobility mark on a mine if asked. Measuring the engine answers
+"can this be drawn", which is not the question - the question is "can
+the user ask for it", and only the layer's own field list answers
+that. The dump now builds each layer and filters every probe by the
+fields that layer really carries. With that fixed, the plugin's
+measured capability table and the companion's hand-written one agree
+entity for entity.
+
+### For the Office companion
+
+Both of the above were marked for the companion explicitly - "mark the
+same for office fork also" (mobility), "mark it for office also"
+(combined arms).
+
+1. **Aviation has no Combined Arms.** Drop it from the pane there too,
+   rather than greying it out. The companion's own guide already lists
+   its six plain Aviation entities as taking designations only, but it
+   shows Air Force and Army Aviation as taking combined arms - those
+   two are the ones to change.
+2. **Mines and Obstacles has no mobility.** The companion already
+   agrees - its guide lists the mine entities as taking a designation,
+   and Gap / Safe Lane and Minefield as taking a mine type. Nothing to
+   change there; recorded so it is not reintroduced.
+
+---
+
+## Echelon names unified, one circle size, and Battle Position's echelon off the corner (2026-10-01)
+
+### Non-NATO: one set of echelon names
+
+"it should be section everywhere no squad ... even within our plugin
+the echelon naming is different in echelon layers vs others. When in
+doubt the echelon naming in land units is the master."
+
+Only one list was out of step: the **Echelons layer's** own
+`ENTITY_LABELS`, which had drifted on four of the ten - Squad for
+Section, Army for Command, and shortened forms of Company and
+Battalion - so the same mark was offered under two different names
+depending on which layer you opened it from. Its own comment claimed
+it was "the same renaming the Land Unit dialog uses", which is exactly
+how a copy rots: the claim was in a comment, not in the code.
+
+It is now **derived** from `ECHELON_LABELS` rather than copied, in the
+engine's own `ECHELON_MARKER_ENTITIES` order, so the two cannot drift
+apart again.
+
+The Office companion was read first, as instructed - "read the office
+fork for correct names of sections". Its `nonnato-data.js` carries the
+list twice (the echelon amplifier and its own Echelons entities) and
+both already agreed with Land Unit, entity for entity. So the master
+was right and nothing needed changing there. "company/troop", queried
+as a possible further variant, does not appear in either fork - the
+real name is Platoon/Troop, which both already had.
+
+### Non-NATO: one radius for every circular echelon marker
+
+"the size of circle for detachment and section (circle and filled
+circle) is different in all layers - keep the size consistent for
+echelons markers everywhere."
+
+milsymbol draws Detachment as a hollow circle of r=15, Section as a
+filled one of r=7.5, and Platoon as three filled ones of r=7.5. The
+mismatch was consistent across every layer - which is precisely why
+looking at one layer would never have found it: every layer agreed,
+and every layer was wrong together.
+
+Settled at **11**, between milsymbol's two, on the maintainer's pick
+from a rendered comparison of both extremes, so neither mark is left
+unchanged at the other's expense. Detachment stays distinguishable by
+being hollow, not by being bigger.
+
+Three things fell out of it, all worth recording:
+
+1. **Platoon had to follow.** With Section's single dot at 11 and
+   Platoon's three at 7.5, the same dot was drawn at two sizes - a new
+   inconsistency in place of the old one. Shown as a render and
+   settled: all three follow. At r=11 with centres 30 apart they keep
+   8 units of clear space, so Platoon still reads as three dots, but
+   it is tight and worth a look on a real map.
+2. **Platoon's middle dot carries the same signature as Section's** -
+   `cx="100" cy="30" r="7.5"`. A fixup picking circles by coordinate
+   would have grown that one dot and left its neighbours alone. The
+   fixup therefore rewrites EVERY circle in the echelon group and names
+   no echelon at all, which removes the trap rather than documenting
+   it. Its own regression test renders Platoon and asserts all three
+   match.
+3. **Detachment is now seated on the frame like everything else.** Its
+   r=15 ring used to reach the frame on its own, so `seat_echelon_on_
+   frame()` had nothing to close and a test asserted it was left alone.
+   At r=11 it no longer reaches, and it seats at 3.8 like Section and
+   Platoon. The fixup runs before both placement functions for exactly
+   this reason - they measure what will actually be drawn.
+
+`echelon_shared_box()` needed no update: it works the Echelons layer's
+box out from real renders, so it followed on its own, 35.2 to 31.2.
+
+### NATO: Battle Position's echelon moved off the corner
+
+"if I select the echelon as brigade the X is marked at the first point
+- from a UI point of view it is not comfortable, so lets draw the
+echelon - suitably masked on the first line segment i.e. between the
+first two points."
+
+The label's geometry generator was `point_n($geometry, 1)`, placing the
+glyph on the polygon's first digitized vertex - per an instruction from
+2026-08-10, "take the origin point as the place to insert the echelon".
+It is now the midpoint of the first segment:
+
+    centroid(make_line(point_n($geometry, 1), point_n($geometry, 2)))
+
+`centroid()` of a two-point line IS its midpoint, so no interpolation
+by length is needed. Checked against three real polygons, including one
+whose first two vertices are two units apart, which the maintainer
+raised directly ("even if the first two point are close together - I
+think it will render ok"): the midpoint is on the segment wherever they
+are, and the mask is sized in millimetres on the page rather than in
+map units, so it cuts the same gap however short the segment is.
+
+This also explains why the old placement looked wrong rather than just
+unfamiliar: a masked gap cut at a corner removes part of two edges at
+once. On a straight run it removes part of one.
+
+**Strong Point moved with it** - the two share the rule, and the same
+reasoning applies to both.
+
+### Ammunition and FOL: three fields dropped
+
+Following 2026-09-30's Aviation change, and confirmed the same way:
+none of the ten entities responds to Echelon, Headquarters or Combined
+Arms, so all three are gone from the layer rather than left inert. The
+shared `build_unit_style_layer()` now takes a flag for each, and builds
+its field list in order rather than by index, so the optional fields
+sit exactly where they do on Land Unit.
+
+### The guide
+
+Section 12's Echelons tiles are redrawn with the corrected names and
+the single radius, and the note saying the two lists differ is gone -
+there is no difference left to warn about. Ammunition and FOL's row in
+the fields table loses three ticks, and the Battle Position echelon's
+placement is corrected in both the markdown and the HTML.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
