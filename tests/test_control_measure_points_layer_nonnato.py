@@ -1,0 +1,462 @@
+# -*- coding: utf-8 -*-
+
+"""
+Tests for military_symbology/control_measure_points_layer_nonnato.py -
+the "Control Measure Points (Non-NATO)" layer. Every entity renders
+through mct_nonnato_control_measure_svg() since 2026-09-17; what each
+one gets is tested in test_nonnato_symbol_engine.py's
+TestControlMeasurePoints, and here only that the layer wires it up.
+Booby Trap moved
+out to its own "Mines and Obstacles (Non-NATO)" layer 2026-09-03 - see
+test_mines_and_obstacles_layer_nonnato.py.
+
+Military Cartography Tools
+"""
+
+import base64
+import re
+
+from qgis.core import (
+    QgsCoordinateReferenceSystem,
+    QgsExpressionContext,
+    QgsExpressionContextUtils,
+    QgsFeature,
+    QgsGeometry,
+    QgsPointXY,
+    QgsProject,
+    QgsRenderContext,
+    QgsSymbolLayer,
+)
+
+from .qgis_test_case import FakeIface, QgisTestCase
+
+from MilitaryCartographyTools.expressions import (
+    military_symbology_functions,
+    nonnato_symbology_functions,
+)
+from MilitaryCartographyTools.military_symbology.control_measure_points_layer_nonnato import (
+    PILLBOX_ENTITY,
+    LAYER_NAME,
+    ENTITY_LABELS,
+    SYNTHETIC_ENTITIES,
+    add_control_measure_points_layer_nonnato,
+    build_control_measure_points_layer_nonnato,
+)
+from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
+    AIR_DEFENCE_OP_ENTITY,
+    AIR_FORCE_OP_ENTITY,
+    AREA_NAI_ENTITY,
+    AREA_TAI_ENTITY,
+    DF_SOS_ENTITY,
+    POINT_NAI_ENTITY,
+    POINT_TAI_ENTITY,
+    AIR_HEAD_ENTITY,
+    LISTENING_POST_ENTITY,
+    MOBILE_OP_ENTITY,
+    BEACH_HEAD_ENTITY,
+    BRIDGE_HEAD_ENTITY,
+    VITAL_AREA_ENTITY,
+    VITAL_POINT_ENTITY,
+    AFFILIATION_COLOURS,
+    COMMAND_POST_ENTITY,
+    FIRE_TRENCH_ENTITY,
+    NBC_SHELTER_ENTITY,
+)
+from MilitaryCartographyTools.military_symbology.sidc import (
+    build_sidc,
+    entities_for_edition,
+)
+
+
+WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
+
+
+class TestEntityLabelsMatchTheReviewedList(QgisTestCase):
+
+    def test_every_key_is_a_valid_app6e_control_measure_entity(self):
+
+        real_keys = entities_for_edition("2525E")["control_measure"]
+
+        for key in set(ENTITY_LABELS) - SYNTHETIC_ENTITIES:
+
+            with self.subTest(entity=key):
+
+                self.assertIn(key, real_keys)
+
+
+    def test_count_matches_the_reviewed_list(self):
+
+        # 10 of 241 real entities - Booby Trap moved out to Mines and
+        # Obstacles 2026-09-03 (was 11) - plus three drawn by the engine,
+        # added 2026-09-17, five more added 2026-09-23, and the four
+        # Observation Posts added 2026-09-24, and the NAI/TAI four
+        # plus DF (SOS) added 2026-09-25.
+        self.assertEqual(len(ENTITY_LABELS), 27)
+        self.assertEqual(
+            SYNTHETIC_ENTITIES,
+            {
+                COMMAND_POST_ENTITY,
+                FIRE_TRENCH_ENTITY,
+                NBC_SHELTER_ENTITY,
+                AIR_HEAD_ENTITY,
+                BEACH_HEAD_ENTITY,
+                BRIDGE_HEAD_ENTITY,
+                VITAL_AREA_ENTITY,
+                VITAL_POINT_ENTITY,
+                LISTENING_POST_ENTITY,
+                AIR_FORCE_OP_ENTITY,
+                AIR_DEFENCE_OP_ENTITY,
+                MOBILE_OP_ENTITY,
+                POINT_NAI_ENTITY,
+                POINT_TAI_ENTITY,
+                AREA_NAI_ENTITY,
+                AREA_TAI_ENTITY,
+                DF_SOS_ENTITY,
+            },
+        )
+
+
+    def test_the_three_added_entities_are_named_as_asked(self):
+
+        self.assertEqual(ENTITY_LABELS[COMMAND_POST_ENTITY], "Command Post")
+        self.assertEqual(ENTITY_LABELS[NBC_SHELTER_ENTITY], "NBC Shelter")
+        self.assertEqual(
+            ENTITY_LABELS[FIRE_TRENCH_ENTITY],
+            "Fire Trench/Weapon Pit/Weapon Emplacement",
+        )
+
+
+    def test_booby_trap_is_gone(self):
+
+        # "shift booby trap also into this new layer" (Mines and
+        # Obstacles, 2026-09-03) - must no longer be reachable here.
+        self.assertNotIn("booby_trap", ENTITY_LABELS)
+
+
+    def test_the_three_renames_are_in_place(self):
+
+        self.assertEqual(
+            ENTITY_LABELS["target_reference_point"], "Target/DF Task"
+        )
+        self.assertEqual(ENTITY_LABELS["shelter"], "Pill Box")
+        self.assertEqual(
+            ENTITY_LABELS["observation_post_forward_observer"],
+            "Artillery Observation Post",
+        )
+
+
+class TestBuildControlMeasurePointsLayerNonnato(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+        nonnato_symbology_functions.register()
+
+
+    def tearDown(self):
+
+        nonnato_symbology_functions.unregister()
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def _render_path_for(self, layer, attributes):
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+        expr_context.setFeature(feature)
+
+        render_context = QgsRenderContext()
+        render_context.setExpressionContext(expr_context)
+
+        symbol = layer.renderer().symbol().clone()
+        symbol.startRender(render_context, layer.fields())
+
+        svg_layer = symbol.symbolLayer(0)
+
+        path, ok = svg_layer.dataDefinedProperties().valueAsString(
+            QgsSymbolLayer.Property.Name, expr_context, ""
+        )
+
+        self.assertTrue(ok, "expression failed to evaluate")
+
+        return path
+
+
+    def _decoded_svg_for(self, layer, attributes):
+
+        path = self._render_path_for(layer, attributes)
+
+        self.assertTrue(path.startswith("base64:"))
+
+        return base64.b64decode(path[len("base64:"):]).decode("utf-8")
+
+
+    def _render_size_for(self, layer, attributes):
+
+        feature = QgsFeature(layer.fields())
+        feature.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+
+        for name, value in attributes.items():
+            feature.setAttribute(name, value)
+
+        expr_context = QgsExpressionContext()
+        expr_context.appendScope(QgsExpressionContextUtils.layerScope(layer))
+        expr_context.setFeature(feature)
+
+        render_context = QgsRenderContext()
+        render_context.setExpressionContext(expr_context)
+
+        symbol = layer.renderer().symbol().clone()
+        symbol.startRender(render_context, layer.fields())
+
+        svg_layer = symbol.symbolLayer(0)
+
+        size, ok = svg_layer.dataDefinedProperties().valueAsDouble(
+            QgsSymbolLayer.Property.Size, expr_context, 0.0
+        )
+
+        self.assertTrue(ok, "size expression failed to evaluate")
+
+        return size
+
+
+    def test_every_field_exists_with_the_right_type(self):
+
+        layer = build_control_measure_points_layer_nonnato()
+
+        field_names = [field.name() for field in layer.fields()]
+
+        self.assertEqual(
+            field_names,
+            ["affiliation", "entity", "status", "unique_designation",
+             "rotation", "scale"]
+        )
+
+
+    def test_no_echelon_or_headquarters_field(self):
+
+        layer = build_control_measure_points_layer_nonnato()
+
+        field_names = [field.name() for field in layer.fields()]
+
+        for absent in ("echelon", "headquarters", "combined_arms"):
+            self.assertNotIn(absent, field_names)
+
+
+    def test_every_entity_renders_a_valid_symbol_path(self):
+
+        layer = build_control_measure_points_layer_nonnato()
+
+        for entity in ENTITY_LABELS:
+
+            with self.subTest(entity=entity):
+
+                path = self._render_path_for(
+                    layer,
+                    {
+                        "affiliation": "friend", "entity": entity,
+                        "status": "present",
+                    }
+                )
+
+                self.assertTrue(path.startswith("base64:"))
+
+
+    def test_pillbox_renders_hollow(self):
+
+        # Reported live: "pillbox is rendering as filled rectangle, it
+        # should be just the outline, no fill" - milsymbol's own `fill:
+        # false` option does nothing for this icon (a hardcoded fill),
+        # so this is a post-render fixup (apply_pillbox_fixup()).
+        layer = build_control_measure_points_layer_nonnato()
+
+        svg = self._decoded_svg_for(
+            layer,
+            {
+                "affiliation": "friend", "entity": PILLBOX_ENTITY,
+                "status": "present",
+            }
+        )
+
+        self.assertIn('fill="none"', svg)
+
+
+    def test_pillbox_glyph_is_stable_regardless_of_designation(self):
+
+        # `shelter` defines no designation slot of milsymbol's own, so
+        # until 2026-09-24 a typed one drew nothing at all and the
+        # marker size was simply identical either way. It is now
+        # injected like Command Post's, which widens the declared box,
+        # so what has to hold steady is the GLYPH - the stabiliser
+        # grows the marker to match and the text hangs outside.
+        layer = build_control_measure_points_layer_nonnato()
+
+        plain = {
+            "affiliation": "friend", "entity": PILLBOX_ENTITY,
+            "status": "present", "unique_designation": "",
+        }
+
+        self.assertAlmostEqual(
+            self._glyph_scale(layer, plain),
+            self._glyph_scale(layer, dict(plain, unique_designation="HQ 3")),
+            places=3,
+        )
+
+
+    def _glyph_scale(self, layer, attributes):
+
+        # Marker size per unit of viewBox width - how big the glyph
+        # itself draws, whatever text widens the box.
+        svg = self._decoded_svg_for(layer, attributes)
+        width = float(re.search(r'viewBox="\S+ \S+ (\S+) \S+"', svg).group(1))
+
+        return self._render_size_for(layer, attributes) / width
+
+
+    def test_a_typed_designation_does_not_shrink_command_post(self):
+
+        layer = build_control_measure_points_layer_nonnato()
+
+        plain = {
+            "affiliation": "friend", "entity": COMMAND_POST_ENTITY,
+            "status": "present", "unique_designation": "",
+        }
+
+        self.assertAlmostEqual(
+            self._glyph_scale(layer, plain),
+            self._glyph_scale(layer, dict(plain, unique_designation="HQ 3")),
+            places=5,
+        )
+
+
+    def test_nbc_shelters_default_text_does_not_shrink_it(self):
+
+        # The glyph draws as big as its neighbour Shelter Below Ground's.
+        layer = build_control_measure_points_layer_nonnato()
+
+        nbc = {
+            "affiliation": "friend", "entity": NBC_SHELTER_ENTITY,
+            "status": "present",
+        }
+
+        self.assertAlmostEqual(
+            self._glyph_scale(layer, nbc),
+            self._glyph_scale(layer, dict(nbc, entity="shelter_below_ground")),
+            places=5,
+        )
+
+
+    def test_the_six_palette_entities_take_the_affiliation_colour(self):
+
+        layer = build_control_measure_points_layer_nonnato()
+
+        for affiliation in ("friend", "hostile"):
+
+            with self.subTest(affiliation=affiliation):
+
+                svg = self._decoded_svg_for(
+                    layer,
+                    {
+                        "affiliation": affiliation, "entity": "decision_point",
+                        "status": "present",
+                    },
+                )
+
+                self.assertIn(AFFILIATION_COLOURS[affiliation], svg)
+
+
+    def test_a_feature_with_null_fields_still_draws(self):
+
+        # A pasted feature arrives without the form's defaults.
+        layer = build_control_measure_points_layer_nonnato()
+
+        svg = self._decoded_svg_for(layer, {"entity": FIRE_TRENCH_ENTITY})
+
+        self.assertTrue(svg.startswith("<svg"))
+
+
+    def test_designation_reaches_a_plain_milsymbol_entity(self):
+
+        layer = build_control_measure_points_layer_nonnato()
+
+        svg = self._decoded_svg_for(
+            layer,
+            {
+                "affiliation": "friend", "entity": "target_reference_point",
+                "status": "present", "unique_designation": "a1",
+            },
+        )
+
+        self.assertIn("A1", svg)
+
+
+    def test_entity_keys_match_a_real_control_measure_sidc(self):
+
+        for entity in set(ENTITY_LABELS) - SYNTHETIC_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                build_sidc(
+                    affiliation="friend", entity=entity,
+                    symbol_set="control_measure", edition="2525E",
+                )
+
+
+class TestAddControlMeasurePointsLayerNonnato(QgisTestCase):
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(WGS84)
+
+        military_symbology_functions.register()
+        nonnato_symbology_functions.register()
+
+        self.iface = FakeIface()
+
+
+    def tearDown(self):
+
+        nonnato_symbology_functions.unregister()
+        military_symbology_functions.unregister()
+
+        super().tearDown()
+
+
+    def test_adds_a_layer_named_control_measure_points_nonnato(self):
+
+        layer = add_control_measure_points_layer_nonnato(self.iface)
+
+        self.assertIsNotNone(layer)
+
+        matching = QgsProject.instance().mapLayersByName(LAYER_NAME)
+
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0].id(), layer.id())
+
+
+    def test_guards_against_a_duplicate(self):
+
+        first = add_control_measure_points_layer_nonnato(self.iface)
+
+        result = add_control_measure_points_layer_nonnato(self.iface)
+
+        self.assertIsNone(result)
+
+        matching = QgsProject.instance().mapLayersByName(LAYER_NAME)
+
+        self.assertEqual(len(matching), 1)
+        self.assertEqual(matching[0].id(), first.id())

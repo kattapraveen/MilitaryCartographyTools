@@ -236,6 +236,29 @@ def _rampart_connector_layer(placement, length_mm, offset_along_line_mm=0.0):
     return marker_line
 
 
+def fortified_line_symbol():
+
+    """
+    Public name for _fortified_line_symbol(), so the non-NATO layers
+    can take this symbol WHOLE rather than reimplementing it.
+
+    The non-NATO scheme's Trench System is this symbol with nothing
+    changed - "Use the Fortified Line of NATO symbology for it, no
+    change" (2026-09-24), confirmed again 2026-09-25 ("we can use the
+    NATO field fortification as is"). It therefore inherits the tile
+    size, the merlon proportions, the opening and closing level runs
+    that tell the reader which side the ramparts stand on, the
+    ramparts-to-the-LEFT-of-travel convention, and the affiliation
+    colouring rather than obstacle green.
+
+    **Anything changed in here changes that symbol too**, on a layer
+    whose own module will not mention it. See
+    mines_and_obstacles_lines_layer_nonnato.py.
+    """
+
+    return _fortified_line_symbol()
+
+
 def _fortified_line_symbol():
 
     """

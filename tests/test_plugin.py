@@ -88,6 +88,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "waypoints",
                     "print_production",
                     "nato_symbols",
+                    "non_nato_symbols",
                 }
             )
 
@@ -131,6 +132,37 @@ class TestPluginLifecycle(QgisTestCase):
                     "SIGINT",
                     "Space",
                     "Subsurface",
+                ],
+                # SIGINT used to be its own third entry here, merged
+                # into "Land" (Land Equipment) 2026-09-02 - only two
+                # entities stopped justifying a separate action. Mines
+                # and Obstacles added 2026-09-03, consolidating the mine
+                # family (from Land) and Booby Trap (from Control
+                # Measure Points) onto their own layer. Aviation added
+                # 2026-09-06, taking Army Aviation and Air Force out of
+                # Land Unit and adding six mast-carrying entities of its
+                # own.
+                "non_nato_symbols": [
+                    # One entry per layer since 2026-09-17 - "Land"
+                    # used to add both of these together.
+                    "Land Units",
+                    "Land Equipment",
+                    "Control Measure Points",
+                    "Mines and Obstacles",
+                    # Built 2026-09-09, but missing from this list -
+                    # and so from the toolbar and Plugins menu alike -
+                    # until 2026-09-12: "the mine layer - line feature
+                    # is not built correct?". The layer itself was
+                    # fine; there was simply no way to add it.
+                    "Mines and Obstacles (Lines)",
+                    "Aviation",
+                    # Added 2026-09-18.
+                    "Ammunition and FOL",
+                    # Added 2026-09-23 - the scheme's first POLYGON
+                    # layer.
+                    "Areas",
+                    # Added 2026-09-25.
+                    "Echelons",
                 ],
             }
 
@@ -248,6 +280,15 @@ class TestPluginLifecycle(QgisTestCase):
         self.assertIsNone(plugin.tactical_graphics_activities_action)
         self.assertIsNone(plugin.tactical_graphics_sigint_action)
         self.assertIsNone(plugin.tactical_graphics_cyberspace_action)
+        self.assertIsNone(plugin.nonnato_land_units_action)
+        self.assertIsNone(plugin.nonnato_land_equipment_action)
+        self.assertIsNone(plugin.nonnato_control_measure_points_action)
+        self.assertIsNone(plugin.nonnato_mines_and_obstacles_action)
+        self.assertIsNone(plugin.nonnato_mines_and_obstacles_lines_action)
+        self.assertIsNone(plugin.nonnato_aviation_action)
+        self.assertIsNone(plugin.nonnato_ammunition_fol_action)
+        self.assertIsNone(plugin.nonnato_areas_action)
+        self.assertIsNone(plugin.nonnato_echelons_action)
         self.assertIsNone(plugin.c2_measures_action)
         self.assertIsNone(plugin.maneuver_control_measures_action)
         self.assertIsNone(plugin.defensive_control_measures_action)
@@ -279,6 +320,90 @@ class TestPluginLifecycle(QgisTestCase):
         plugin.unload()
         plugin.initGui()
         plugin.unload()
+
+
+class TestNonnatoLandButtons(QgisTestCase):
+
+    """
+    "Land Units" and "Land Equipment" each add their own layer, and only
+    that one - they replaced a single "Land" button that added both,
+    2026-09-17.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+
+        self.plugin, self.iface, self.window, self.canvas = make_plugin()
+
+        self.plugin.initGui()
+
+        self.addCleanup(self.plugin.unload)
+
+
+    def _layer_names(self):
+
+        return sorted(
+            layer.name() for layer in QgsProject.instance().mapLayers().values()
+        )
+
+
+    def test_land_units_adds_only_the_land_unit_layer(self):
+
+        self.plugin.nonnato_land_units_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Land Unit (Non-NATO)"])
+
+
+    def test_land_equipment_adds_only_the_land_equipment_layer(self):
+
+        self.plugin.nonnato_land_equipment_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Land Equipment (Non-NATO)"])
+
+
+    def test_ammunition_and_fol_adds_only_its_own_layer(self):
+
+        self.plugin.nonnato_ammunition_fol_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Ammunition and FOL (Non-NATO)"])
+
+
+    def test_areas_adds_only_its_own_layer(self):
+
+        self.plugin.nonnato_areas_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Areas (Non-NATO)"])
+
+
+    def test_echelons_adds_only_its_own_layer(self):
+
+        self.plugin.nonnato_echelons_action.trigger()
+
+        self.assertEqual(self._layer_names(), ["Echelons (Non-NATO)"])
+
+
+    def test_no_non_nato_tooltip_states_an_entity_count(self):
+
+        # Counts go stale as symbols are added - Mines and Obstacles'
+        # said 10 when the layer had 16.
+        actions = self.plugin.group_menus["non_nato_symbols"].actions()
+
+        self.assertTrue(actions)
+
+        for action in actions:
+
+            with self.subTest(action=action.text()):
+
+                self.assertNotRegex(action.toolTip(), r"\d+ entities")
+
+
+    def test_the_bundled_land_button_is_gone(self):
+
+        self.assertFalse(hasattr(self.plugin, "nonnato_land_action"))
+        self.assertFalse(hasattr(self.plugin, "create_nonnato_land"))
 
 
 class TestUserGuide(QgisTestCase):

@@ -30,6 +30,7 @@ from qgis.core import (
 
 from .expressions import mgrs_functions
 from .expressions import military_symbology_functions
+from .expressions import nonnato_symbology_functions
 from .core.layout_refresh import connect_layout_refresh, disconnect_layout_refresh
 from .core.coordinate_probe_tool import CoordinateProbeTool
 from .core.bearing_range_tool import BearingRangeTool
@@ -52,6 +53,33 @@ from .military_symbology.subsurface_layer import add_subsurface_layers
 from .military_symbology.activities_layer import add_activities_layer
 from .military_symbology.sigint_layer import add_sigint_layer
 from .military_symbology.cyberspace_layer import add_cyberspace_layer
+from .military_symbology.land_unit_layer_nonnato import (
+    add_land_unit_layer_nonnato,
+)
+from .military_symbology.land_equipment_layer_nonnato import (
+    add_land_equipment_layer_nonnato,
+)
+from .military_symbology.control_measure_points_layer_nonnato import (
+    add_control_measure_points_layer_nonnato,
+)
+from .military_symbology.mines_and_obstacles_layer_nonnato import (
+    add_mines_and_obstacles_layer_nonnato,
+)
+from .military_symbology.areas_layer_nonnato import (
+    add_areas_layer_nonnato,
+)
+from .military_symbology.echelons_layer_nonnato import (
+    add_echelons_layer_nonnato,
+)
+from .military_symbology.mines_and_obstacles_lines_layer_nonnato import (
+    add_mines_and_obstacles_lines_layer_nonnato,
+)
+from .military_symbology.ammunition_fol_layer_nonnato import (
+    add_ammunition_fol_layer_nonnato,
+)
+from .military_symbology.aviation_layer_nonnato import (
+    add_aviation_layer_nonnato,
+)
 from .military_symbology.sustainment_control_measures import (
     add_sustainment_points_layer,
 )
@@ -205,6 +233,31 @@ class MilitaryCartographyTools:
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
 
+        # Non-NATO symbology (military_symbology/nonnato_symbol_engine.py)
+        # - a separate rendering scheme layered on the same milsymbol.js
+        # pipeline, not part of MIL-STD-2525D/E or APP-6D/E proper. Kept
+        # in its own toolbar group (see _setup_toolbar_groups()) rather
+        # than folded into "NATO Symbols", so the two schemes are never
+        # visually conflated. One action per layer: "Land" used to add
+        # Land Unit and Land Equipment together, mirroring NATO's own
+        # bundled Land action, until 2026-09-17 - "Since we have all
+        # layers with single set of symbols in them - remove the Land
+        # layer and recreate it as Land Units layer and Land Equipment
+        # Layer". SIGINT was its own action until it merged into Land
+        # Equipment 2026-09-02 (see land_equipment_layer_nonnato.py), and
+        # Mines and Obstacles gathered the mine family and Booby Trap
+        # onto their own layer 2026-09-03 (see
+        # mines_and_obstacles_layer_nonnato.py).
+        self.nonnato_land_units_action = None
+        self.nonnato_land_equipment_action = None
+        self.nonnato_control_measure_points_action = None
+        self.nonnato_mines_and_obstacles_action = None
+        self.nonnato_aviation_action = None
+        self.nonnato_mines_and_obstacles_lines_action = None
+        self.nonnato_areas_action = None
+        self.nonnato_echelons_action = None
+        self.nonnato_ammunition_fol_action = None
+
         # "Control Measures" nests as its own flyout submenu (like Sub
         # Grid below) rather than a single QAction, since Appendix H's
         # ~17 H.5.x logical groups (C2 Measures, Maneuver, Defensive,
@@ -296,6 +349,7 @@ class MilitaryCartographyTools:
 
         mgrs_functions.register()
         military_symbology_functions.register()
+        nonnato_symbology_functions.register()
 
         self.log(
             "MGRS expression functions registered."
@@ -337,6 +391,15 @@ class MilitaryCartographyTools:
         self._setup_tactical_graphics_activities_action()
         self._setup_tactical_graphics_sigint_action()
         self._setup_tactical_graphics_cyberspace_action()
+        self._setup_nonnato_land_units_action()
+        self._setup_nonnato_land_equipment_action()
+        self._setup_nonnato_control_measure_points_action()
+        self._setup_nonnato_mines_and_obstacles_action()
+        self._setup_nonnato_aviation_action()
+        self._setup_nonnato_mines_and_obstacles_lines_action()
+        self._setup_nonnato_areas_action()
+        self._setup_nonnato_echelons_action()
+        self._setup_nonnato_ammunition_fol_action()
         self._setup_control_measures_menu()
 
         # Assembles every action built above (all built with
@@ -1109,6 +1172,179 @@ class MilitaryCartographyTools:
         )
 
 
+    def _setup_nonnato_land_units_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/land_unit_layer_nonnato.py. Split out of the
+        # old bundled "Land" action 2026-09-17, so every non-NATO layer
+        # has its own entry.
+        self.nonnato_land_units_action = self._build_action(
+            "nonnato_land_units.svg",
+            "Land Units",
+            tooltip=(
+                "Add a Land Unit (Non-NATO) layer that renders each "
+                "point's own symbol automatically from its attributes"
+            ),
+            callback=self.create_nonnato_land_units,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_land_equipment_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/land_equipment_layer_nonnato.py. Split out
+        # of the old bundled "Land" action 2026-09-17. Jammer/Radar
+        # (Land-scoped SIGINT) live on this layer since 2026-09-02.
+        self.nonnato_land_equipment_action = self._build_action(
+            "nonnato_land_equipment.svg",
+            "Land Equipment",
+            tooltip=(
+                "Add a Land Equipment (Non-NATO) layer (including "
+                "Jammer/Radar) that renders each point's own symbol "
+                "automatically from its attributes"
+            ),
+            callback=self.create_nonnato_land_equipment,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_control_measure_points_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/control_measure_points_layer_nonnato.py.
+        # Booby Trap moved out to Mines and Obstacles 2026-09-03 - see
+        # _setup_nonnato_mines_and_obstacles_action() below. No entity
+        # count in any of these tooltips: the Mines and Obstacles one
+        # still said 10 after the layer reached 16, found in the
+        # 2026-09-18 housekeeping.
+        self.nonnato_control_measure_points_action = self._build_action(
+            "nonnato_control_measure_points.svg",
+            "Control Measure Points",
+            tooltip=(
+                "Add a Control Measure Points (Non-NATO) layer that "
+                "renders each point's own symbol automatically from "
+                "its attributes"
+            ),
+            callback=self.create_nonnato_control_measure_points,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_mines_and_obstacles_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/mines_and_obstacles_layer_nonnato.py. Added
+        # 2026-09-03: "let's move all the mines to a different layer -
+        # say mines and obstacles; shift booby trap also into this new
+        # layer" - consolidates the nine-entity mine family (previously
+        # on Land Equipment) and Booby Trap (previously on Control
+        # Measure Points) onto one dedicated layer, since both were
+        # already fixed-green, non-affiliation-coloured custom icons.
+        self.nonnato_mines_and_obstacles_action = self._build_action(
+            "nonnato_mines_and_obstacles.svg",
+            "Mines and Obstacles",
+            tooltip=(
+                "Add a Mines and Obstacles (Non-NATO) layer that "
+                "renders each point's own symbol automatically from "
+                "its attributes"
+            ),
+            callback=self.create_nonnato_mines_and_obstacles,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_mines_and_obstacles_lines_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # mines_and_obstacles_lines_layer_nonnato.py. Added 2026-09-09
+        # for Minefield (General), which is a LINE feature and so cannot
+        # share the point layer next to it.
+        self.nonnato_mines_and_obstacles_lines_action = self._build_action(
+            "nonnato_mines_and_obstacles_lines.svg",
+            "Mines and Obstacles (Lines)",
+            tooltip=(
+                "Add a Mines and Obstacles Lines (Non-NATO) layer for "
+                "obstacles drawn along a line rather than placed as points"
+            ),
+            callback=self.create_nonnato_mines_and_obstacles_lines,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_areas_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # areas_layer_nonnato.py. Added 2026-09-23: the scheme's first
+        # POLYGON layer, which is why it cannot share any of the
+        # layers above it.
+        self.nonnato_areas_action = self._build_action(
+            "nonnato_areas.svg",
+            "Areas",
+            tooltip=(
+                "Add an Areas (Non-NATO) layer for terrain drawn as "
+                "areas - key terrain, boggy and restricted going"
+            ),
+            callback=self.create_nonnato_areas,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_echelons_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # echelons_layer_nonnato.py. Added 2026-09-25: a bare echelon
+        # marker, for annotating something that is not a unit symbol.
+        self.nonnato_echelons_action = self._build_action(
+            "nonnato_echelons.svg",
+            "Echelons",
+            tooltip=(
+                "Add an Echelons (Non-NATO) layer for placing an "
+                "echelon marker on its own"
+            ),
+            callback=self.create_nonnato_echelons,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_aviation_action(self):
+
+        # One-shot action, not a map tool - see
+        # military_symbology/aviation_layer_nonnato.py. Added
+        # 2026-09-06: "make a separate layer called aviation / move army
+        # aviation and airforce into that, same rules as land unit i.e.
+        # same dialog box replicated" - so it presents the Land Unit
+        # dialog exactly, over its own eight entities.
+        self.nonnato_aviation_action = self._build_action(
+            "nonnato_aviation.svg",
+            "Aviation",
+            tooltip=(
+                "Add an Aviation (Non-NATO) layer that renders each "
+                "point's own symbol automatically from its attributes"
+            ),
+            callback=self.create_nonnato_aviation,
+            standalone=False
+        )
+
+
+    def _setup_nonnato_ammunition_fol_action(self):
+
+        # One-shot action, not a map tool - see military_symbology/
+        # ammunition_fol_layer_nonnato.py. Added 2026-09-18: "New Layer
+        # called Ammunition and FOL". Land Unit's dialog, like Aviation.
+        self.nonnato_ammunition_fol_action = self._build_action(
+            "nonnato_ammunition_fol.svg",
+            "Ammunition and FOL",
+            tooltip=(
+                "Add an Ammunition and FOL (Non-NATO) layer that "
+                "renders each point's own symbol automatically from "
+                "its attributes"
+            ),
+            callback=self.create_nonnato_ammunition_fol,
+            standalone=False
+        )
+
+
     def _setup_control_measures_menu(self):
 
         # "Control Measures" nests as its own flyout submenu (same
@@ -1613,6 +1849,38 @@ class MilitaryCartographyTools:
                     self.tactical_graphics_subsurface_action,
                 ],
             ),
+            (
+                "non_nato_symbols",
+                "group_nonnato_symbols.svg",
+                "Non-NATO Symbols",
+                (
+                    "A separate non-NATO tactical symbology scheme "
+                    "(own affiliation colours, entity renames, custom "
+                    "icons): Land Units, Land Equipment (including "
+                    "SIGINT), Control Measure Points, Mines and "
+                    "Obstacles as points or as lines, Aviation, "
+                    "Ammunition and FOL, Areas and Echelons - "
+                    "not part of MIL-STD-2525D/E or "
+                    "APP-6D/E, and not yet merged into this plugin's "
+                    "released symbology"
+                ),
+                [
+                    self.nonnato_land_units_action,
+                    self.nonnato_land_equipment_action,
+                    self.nonnato_control_measure_points_action,
+                    self.nonnato_mines_and_obstacles_action,
+                    # Its own entry right after the point layer it is
+                    # the line half of - built 2026-09-09 but left out
+                    # of this list until 2026-09-12, which made the
+                    # layer unreachable: the action is standalone=False,
+                    # so a group is the ONLY place it can appear.
+                    self.nonnato_mines_and_obstacles_lines_action,
+                    self.nonnato_aviation_action,
+                    self.nonnato_ammunition_fol_action,
+                    self.nonnato_areas_action,
+                    self.nonnato_echelons_action,
+                ],
+            ),
             # Print Production stays last, always (2026-08-09, at the
             # maintainer's request) - "creating print layouts" is the
             # natural final step of a mapping workflow, so its own group
@@ -1743,6 +2011,7 @@ class MilitaryCartographyTools:
 
         mgrs_functions.unregister()
         military_symbology_functions.unregister()
+        nonnato_symbology_functions.unregister()
 
         disconnect_layout_refresh()
 
@@ -1922,6 +2191,15 @@ class MilitaryCartographyTools:
         self.tactical_graphics_activities_action = None
         self.tactical_graphics_sigint_action = None
         self.tactical_graphics_cyberspace_action = None
+        self.nonnato_land_units_action = None
+        self.nonnato_land_equipment_action = None
+        self.nonnato_control_measure_points_action = None
+        self.nonnato_mines_and_obstacles_action = None
+        self.nonnato_mines_and_obstacles_lines_action = None
+        self.nonnato_areas_action = None
+        self.nonnato_echelons_action = None
+        self.nonnato_aviation_action = None
+        self.nonnato_ammunition_fol_action = None
         self.c2_measures_action = None
         self.maneuver_control_measures_action = None
         self.defensive_control_measures_action = None
@@ -2367,6 +2645,103 @@ class MilitaryCartographyTools:
         """
 
         add_cyberspace_layer(
+            self.iface
+        )
+
+
+    def create_nonnato_land_units(self):
+        """
+        Add a "Land Unit (Non-NATO)" layer, ready for placing symbols
+        with QGIS's own native point editing tools.
+        """
+
+        add_land_unit_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_land_equipment(self):
+        """
+        Add a "Land Equipment (Non-NATO)" layer (including Jammer/Radar),
+        ready for placing symbols with QGIS's own native point editing
+        tools.
+        """
+
+        add_land_equipment_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_control_measure_points(self):
+        """
+        Add a "Control Measure Points (Non-NATO)" layer, ready for
+        placing symbols with QGIS's own native point editing tools.
+        """
+
+        add_control_measure_points_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_mines_and_obstacles(self):
+        """
+        Add a "Mines and Obstacles (Non-NATO)" layer, ready for placing
+        symbols with QGIS's own native point editing tools.
+        """
+
+        add_mines_and_obstacles_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_mines_and_obstacles_lines(self):
+
+        """
+        Add a "Mines and Obstacles Lines (Non-NATO)" layer, ready for
+        drawing Minefield (General) as a line.
+        """
+
+        add_mines_and_obstacles_lines_layer_nonnato(self.iface)
+
+
+    def create_nonnato_areas(self):
+
+        """
+        Add an "Areas (Non-NATO)" layer, ready for drawing terrain as
+        areas.
+        """
+
+        add_areas_layer_nonnato(self.iface)
+
+
+    def create_nonnato_echelons(self):
+
+        """
+        Add an "Echelons (Non-NATO)" layer, ready for placing echelon
+        markers on their own.
+        """
+
+        add_echelons_layer_nonnato(self.iface)
+
+
+    def create_nonnato_aviation(self):
+        """
+        Add an "Aviation (Non-NATO)" layer, ready for placing symbols
+        with QGIS's own native point editing tools.
+        """
+
+        add_aviation_layer_nonnato(
+            self.iface
+        )
+
+
+    def create_nonnato_ammunition_fol(self):
+        """
+        Add an "Ammunition and FOL (Non-NATO)" layer, ready for placing
+        symbols with QGIS's own native point editing tools.
+        """
+
+        add_ammunition_fol_layer_nonnato(
             self.iface
         )
 
