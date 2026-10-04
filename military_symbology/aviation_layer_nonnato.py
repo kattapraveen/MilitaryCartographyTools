@@ -81,7 +81,9 @@ def build_aviation_layer_nonnato():
     # No Combined Arms here - "in aviation - there is no requirement for
     # combined arms" (2026-09-30). The field is dropped outright rather
     # than left inert, so the dialog does not offer a switch that
-    # changes nothing. Land Unit and Ammunition and FOL keep theirs.
+    # changes nothing. Land Unit is the only layer that still carries
+    # it: Ammunition and FOL dropped Echelon and Headquarters too, on
+    # the same day and for the same reason.
     return build_unit_style_layer(
         LAYER_NAME, ENTITY_LABELS, DEFAULT_ENTITY, combined_arms=False
     )
