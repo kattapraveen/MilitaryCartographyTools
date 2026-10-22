@@ -13750,6 +13750,167 @@ placement is corrected in both the markdown and the HTML.
 
 ---
 
+## Tanaka Contours at country scale, and a Contours tool (2026-10-20)
+
+Reported live: **Create Tanaka Contours fails with
+`QgsProcessingException: Could not create memory layer`** on QGIS
+4.2.2, against a Kenya SRTM 30 m DEM. Later, on a second attempt over
+Tanzania, QGIS "practically hung" instead.
+
+Nothing has been changed in the plugin for any of this yet. The tasks
+are at the end of this entry.
+
+### The error message points at the wrong thing
+
+`native:splitlinesbylength` raises exactly `Could not create memory
+layer` **when its INPUT layer is invalid** - measured directly. An
+invalid layer reports `wkbType() == Unknown`, so the sink it tries to
+build has no geometry type and `QgsMemoryProviderUtils::
+createMemoryLayer()` returns something invalid. The split step is
+where it surfaces; the fault is always upstream, in whatever produced
+the layer handed to it.
+
+`_generate_contour_segments()` never checks either intermediate, so
+any failure in `gdal:warpreproject` or `gdal:contour` is reported two
+calls later under a message that names neither.
+
+### What was ruled out, by measurement not reasoning
+
+The bug report arrived with three hypotheses. All three are wrong, and
+each was checked against a real render on 4.2.2:
+
+1. **"`OUTPUT` uses `memory:`, QGIS 4 wants `TEMPORARY_OUTPUT`."** The
+   code already passes `QgsProcessing.TEMPORARY_OUTPUT`, at both call
+   sites. It already does what the report recommends.
+2. **"The contour layer has no CRS or an invalid CRS."** Ran it with no
+   CRS on the contour layer, and with no CRS written to the source DEM.
+   Both succeed - `clip_and_reproject_dem()` reprojects to local UTM
+   regardless.
+3. **"A field type the memory provider rejects."** The contour GPKG
+   carries `fid` (Integer64), `ID` (Integer), `ELEV` (Real). All
+   ordinary.
+
+Also ruled out, as the obvious real-data differences: a DEM producing
+**zero contours** (handled - an empty but valid layer), **SRTM -32768
+nodata voids** (GDAL honours the band nodata; contours stayed inside
+the real elevation range), a **geographic source DEM** (the synthetic
+test DEMs are already EPSG:4326 and are reprojected), and a **DEM
+stored inside a GeoPackage** (the whole pipeline ran against one -
+though only with a single raster table, see below).
+
+### What it actually was: extent
+
+Confirmed by the maintainer - "i'm sure the extent is too large".
+
+The governing relation, which is worth keeping:
+
+    segments = area * mean_gradient / (interval * segment_length)
+
+Tanzania at the defaults (20 m interval, 50 m segments, gradient 0.04)
+is **~38 million segments**. The extent passed in one clip attempt -
+33.27E/1.43N to 42.33E/9.00S - is 1,007 x 1,154 km, **twice the area
+of Kenya**, and ~46 million segments. The dialog offers no way to ask
+for less: `tanaka_dialog.py` passes `dem_layer.extent()`, always.
+
+Two further pieces of arithmetic that shaped the advice given:
+
+- **Thinning contours in flat ground saves almost nothing.** Split
+  Kenya 70/20/10 by area into plains/rolling/highland at gradients
+  0.01/0.05/0.15, and the plains - 70% of the country - are 22% of the
+  segments, while the highlands' 10% of area is 47% of them. Spacing
+  is `interval/gradient`, so flat ground is already cheap. Only the
+  interval moves the total.
+- **The interval belongs to the map scale, not the DEM.** Keeping
+  contours 0.4 mm apart on paper, a 1:1,000,000 sheet needs ~60 m on
+  15% slopes; published sheets at that scale use 200-500 m. Kenya at
+  200 m / 500 m is ~232,000 segments - one run, no tiling.
+
+And the conclusion that matters for the tool: **Tanaka is a
+large-scale technique.** At 1:1M every line is a hairline and the
+illumination weighting is invisible. The right national product is
+plain contours plus a hypsometric tint, which the plugin cannot
+currently produce.
+
+### Two QGIS limitations hit along the way, neither ours
+
+- **A raster inside a GeoPackage cannot be clipped by the GDAL tools.**
+  QGIS resolved the layer as `GPKG:<file>:<table>` and then built
+  `gdal_translate ... "<file>"`, dropping the subdataset selector;
+  GDAL refused with "Input file contains subdatasets". Workaround:
+  pass the full `GPKG:<file>:<table>` string to `gdal_translate`
+  directly, which was verified to clip correctly.
+- **`gdal:retile` fails against `TEMPORARY_OUTPUT`.** `gdal_retile.py`
+  writes into a directory but will not create one, and QGIS never
+  makes the temporary folder: "TargetDir ... does not exist", exit 1,
+  nothing written. Verified both ways - with the directory created
+  first it produces tiles correctly. The output directory must be a
+  real one.
+
+### Already closed, do not reopen
+
+The report flagged the `provider.bandStatistics()` DeprecationWarning
+at `terrain/_dem_utils.py:120` as "worth cleaning up separately". It
+has already been investigated and deliberately accepted - see that
+function's own docstring. All four argument forms warn, because
+passing a stats argument at all selects the deprecated overload;
+omitting it is the only silent form and makes QGIS compute the full
+statistics set, measured at 0.224 s against 0.058 s. The warning is
+the cheaper of the two.
+
+### The tasks
+
+Estimates include what a change costs in this repo: tests on both QGIS
+versions, the user guide in three files, and a roadmap entry - call it
+30-40% of each figure, not an afterthought.
+
+- [ ] **1. Validity guards and named errors in the Tanaka pipeline**
+      (~2 hours). Check `clipped_dem` and `contour_layer` and raise an
+      error naming the stage that failed, instead of letting
+      `native:splitlinesbylength` report "Could not create memory
+      layer" two calls downstream. Cheapest item, and it makes every
+      other failure here legible - including the GeoPackage one, if it
+      ever reaches this code.
+- [ ] **2. An up-front cost guard** (~half a day). Refuse with real
+      numbers rather than hanging: "this extent gives ~46 million
+      segments; clip the DEM or raise the interval to 200 m". After
+      `gdal:contour` and **before** the split, the contour lengths can
+      be summed and divided by `segment_length` for an EXACT count,
+      cheaply. Pair that with a rough pre-check from extent and
+      interval so the worst cases never start contouring at all.
+- [ ] **3. An extent control on the Tanaka dialog** (~half a day). The
+      root gap: it can only ever use the DEM's own full extent, so a
+      country DEM has no safe setting. Keep the DEM extent as the
+      default - `test_generation_uses_the_dems_own_extent_not_the_
+      canvas` exists because clipping to the canvas was a real bug
+      once - and allow an override.
+- [ ] **4. A Contours tool** (~2-3 days). Plain contours with military
+      styling: index contours every 5th at a heavier weight, labelled
+      in a masked gap in the line, intermediate hairline, interval
+      defaulting from the map scale. Scope is comparable to
+      Hypsometric Tint - module, dialog, action, icon, registration,
+      tests - plus the masked-label technique, which
+      `defensive_control_measures.py` already does and can be reused.
+      This is the one that delivers a capability rather than a fix:
+      plain contours skip the segment splitting and the per-segment
+      DEM sampling entirely, so a whole country at 200 m is one
+      ordinary run.
+- [ ] **5. Harden the Echelons label table** (~1 hour). Unrelated to
+      the above, carried from the 2026-10-04 code review.
+      `echelons_layer_nonnato.py`'s `ENTITY_LABELS` indexes
+      `ECHELON_LABELS` at module scope, so a mismatch between the two
+      tables raises `KeyError` during import - and `plugin.py` imports
+      it at module level, so the whole plugin fails to load over a
+      missing label string.
+
+**Suggested order: 1, 2, 3, 4, 5.** Item 1 is cheap and makes the rest
+easier to diagnose; 2 stops the hang; 3 removes the need to pre-clip
+for ordinary work; 4 is the real capability. If only one is done, it
+should be 4 - it is the tool the national sheet actually needs, and
+the Tanaka fixes matter less once it is no longer being asked to do a
+job it was never suited to.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
@@ -13765,6 +13926,7 @@ placement is corrected in both the markdown and the HTML.
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
 12. ✅ ~~Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology)~~ — **complete 2026-08-17**; the appendix work itself finished 2026-08-16 when Appendix H closed, and shipped in 1.0.0. Every appendix built or explicitly triaged out (I/METOC decided not needed). What is left inside this phase is expansion, not completion - the Land entity vocabularies and the Land sector 1/2 modifiers - tracked separately rather than holding the phase open. The history below is kept because the reasoning still matters. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix. **Update 2026-08-09/10**: H0-H14 built and tested headlessly; live hands-on QGIS smoke-testing by the project maintainer (started 2026-08-09, table-by-table henceforth via a dedicated tracker artifact) found and fixed real construction defects in H3 (FLOT/Line of Contact/Phase Line/FEBA/Principal Direction of Fire/Fortified Area, plus building the previously-skipped Limited Access Area) and H4 (echelon placement, Strong Point tick direction/masking, Battle Position's "prepared" line style) - see both dated entries above for the full list. Also, at the maintainer's own request, Table H-VI and Table H-IX's point-type entries moved out of the shared `control_measure_points.py` layer into their own dedicated Points layers (C2 Measures/Defensive Control Measures respectively), matching every other H.5.x group's own "own layer(s)" convention - the remaining groups' own points (Airspace/Maritime control points; everything under the not-yet-built H15-H22) are scoped to move the same way once each group's own mini-phase is built, not preemptively. H15-H22 remain pending. 696 tests passing on both QGIS versions as of 2026-08-10. **Update 2026-08-16: APPENDIX H IS COMPLETE.** H15-H22 are all built, smoke-tested and cleared - the last of them Table H-XXIV's own 24 mission-task lines, finished 2026-08-16. Every drawable row of every Appendix H table now has a symbol; the only rows still recorded as unbuilt anywhere are two group parents the standard gives no template for, kept so each module's row arithmetic still reconciles. See the "Appendix H — complete" section at the end of this file for the authoritative ledger. 1289 tests passing on both QGIS versions.
 13. ✅ ~~Phase 12 — MIL-STD-2525E / APP-6E symbology~~ — **complete
+14. ⬜ **Terrain: the Tanaka extent problem, and a Contours tool** — five tasks, ~4-5 days in all, none started. See "Tanaka Contours at country scale, and a Contours tool (2026-10-20)" above for the measurements behind them and the suggested order. In short: guard the pipeline so a failure names its own stage (~2 h), refuse an extent that would hang instead of hanging (~half a day), give the Tanaka dialog an extent control (~half a day), build a plain Contours tool with military styling (~2-3 days), and harden the Echelons label table against an import-time KeyError (~1 h).
     2026-08-18**: 978 entities and 226 sector modifiers across every
     symbol set, an edition setting on the toolbar, every Land layer's
     own modifiers covering both editions, and E-8 (the 93 common
