@@ -13902,7 +13902,72 @@ versions, the user guide in three files, and a roadmap entry - call it
       it at module level, so the whole plugin fails to load over a
       missing label string.
 
-**Suggested order: 1, 2, 3, 4, 5.** Item 1 is cheap and makes the rest
+- [ ] **6. Range rings, to mark an aircraft's ROA** (added 2026-10-23,
+      spec arrived 2026-10-23, not started). Geodesic range circles
+      around points, overlapping ones merged, outline only with the
+      label placed outside.
+
+      **A working prototype exists** - a standalone
+      `QgsProcessingAlgorithm`, 253 lines, at
+      `prototypes/range_rings.py`. It passes a
+      syntax check and has NOT been run in QGIS 4.2.
+
+      Copied into the repository 2026-10-23 as
+      `prototypes/range_rings.py`, verbatim. That folder is not on
+      `package_plugin.sh`'s include list, so nothing there ships -
+      which is also why it was not dropped into `terrain/`, where it
+      would have shipped as dead code.
+
+      What it does: point layer in (honouring "Selected features
+      only"); radius in km (default 900), line colour/style/width,
+      merge-overlapping and add-label toggles, optional label text;
+      out comes an EPSG:4326 polygon layer with `label` and
+      `radius_km`, no fill. Each circle is built in a local azimuthal
+      equidistant projection centred on its own point
+      (`+proj=aeqd +lat_0=<y> +lon_0=<x>`), buffered by radius x 1000
+      at 90 segments per quarter, then transformed to EPSG:4326 - so
+      the radius is a true ground distance. Merging is
+      `unaryUnion(...).asGeometryCollection()`, one feature per merged
+      shape so each keeps its own label. Styling and labelling happen
+      in a `QgsProcessingLayerPostProcessorInterface`, which needs a
+      class-level reference or Python garbage-collects it.
+
+      To integrate: register it as a Processing provider algorithm, or
+      call it from a menu action the way every other tool here is
+      wired. Fields must use `QMetaType.Type.*`, not `QVariant`
+      (QGIS 4 / Qt6) - the prototype already does.
+
+      Still to verify: a real QGIS 4.2 run with several points, both
+      overlapping and not; that labels land outside on multi-part
+      results; and the `Qgis.LabelPlacement.OutsidePolygons` vs
+      `QgsPalLayerSettings.OutsidePolygons` fallback the prototype
+      already carries. Circles crossing +/-180 degrees or the poles
+      are not handled, which does not matter for Africa.
+
+      **Two corrections to the handoff this came with.** First, it
+      warns that "this plugin's layout refresh restyles some layers
+      (see the airfield stroke-width bug)" and says to keep the
+      range-ring layer away from that hook. **That is false and must
+      not be designed around.** `core/layout_refresh.py` only calls
+      `layout.refresh()`; it touches no layer and no symbology, and
+      the plugin has no hook that can restyle a layer it did not
+      create - the full audit is in the 2026-10-23 entry below. The
+      airfield bug was QGIS's own
+      `QgsSvgMarkerSymbolLayer::setPath()` resetting a parametrised
+      SVG's stroke width and colour to the file's `param()` defaults.
+      Nothing needs guarding.
+
+      Second, none of Sensor Coverage's limits apply here, despite the
+      shared "range" wording. An ROA ring is pure geometry - how far
+      an aircraft can fly and return - with no DEM, no line of sight
+      and no curvature. Sensor Coverage's 500 km `MAX_MAX_DISTANCE_M`
+      cap and its DEM-bounded footprints exist because it computes
+      VISIBILITY. A 900 km ring is perfectly ordinary and needs no DEM
+      at all. Do not reuse that module's machinery or inherit its
+      ceiling.
+
+**Suggested order: 1, 2, 3, 4, 5.** Item 6 is unscheduled and
+unspecified. Item 1 is cheap and makes the rest
 easier to diagnose; 2 stops the hang; 3 removes the need to pre-clip
 for ordinary work; 4 is the real capability. If only one is done, it
 should be 4 - it is the tool the national sheet actually needs, and
@@ -13926,7 +13991,7 @@ job it was never suited to.
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
 12. ✅ ~~Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology)~~ — **complete 2026-08-17**; the appendix work itself finished 2026-08-16 when Appendix H closed, and shipped in 1.0.0. Every appendix built or explicitly triaged out (I/METOC decided not needed). What is left inside this phase is expansion, not completion - the Land entity vocabularies and the Land sector 1/2 modifiers - tracked separately rather than holding the phase open. The history below is kept because the reasoning still matters. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix. **Update 2026-08-09/10**: H0-H14 built and tested headlessly; live hands-on QGIS smoke-testing by the project maintainer (started 2026-08-09, table-by-table henceforth via a dedicated tracker artifact) found and fixed real construction defects in H3 (FLOT/Line of Contact/Phase Line/FEBA/Principal Direction of Fire/Fortified Area, plus building the previously-skipped Limited Access Area) and H4 (echelon placement, Strong Point tick direction/masking, Battle Position's "prepared" line style) - see both dated entries above for the full list. Also, at the maintainer's own request, Table H-VI and Table H-IX's point-type entries moved out of the shared `control_measure_points.py` layer into their own dedicated Points layers (C2 Measures/Defensive Control Measures respectively), matching every other H.5.x group's own "own layer(s)" convention - the remaining groups' own points (Airspace/Maritime control points; everything under the not-yet-built H15-H22) are scoped to move the same way once each group's own mini-phase is built, not preemptively. H15-H22 remain pending. 696 tests passing on both QGIS versions as of 2026-08-10. **Update 2026-08-16: APPENDIX H IS COMPLETE.** H15-H22 are all built, smoke-tested and cleared - the last of them Table H-XXIV's own 24 mission-task lines, finished 2026-08-16. Every drawable row of every Appendix H table now has a symbol; the only rows still recorded as unbuilt anywhere are two group parents the standard gives no template for, kept so each module's row arithmetic still reconciles. See the "Appendix H — complete" section at the end of this file for the authoritative ledger. 1289 tests passing on both QGIS versions.
 13. ✅ ~~Phase 12 — MIL-STD-2525E / APP-6E symbology~~ — **complete
-14. ⬜ **Terrain: the Tanaka extent problem, and a Contours tool** — five tasks, ~4-5 days in all, none started. See "Tanaka Contours at country scale, and a Contours tool (2026-10-20)" above for the measurements behind them and the suggested order. In short: guard the pipeline so a failure names its own stage (~2 h), refuse an extent that would hang instead of hanging (~half a day), give the Tanaka dialog an extent control (~half a day), build a plain Contours tool with military styling (~2-3 days), and harden the Echelons label table against an import-time KeyError (~1 h).
+14. ⬜ **Terrain: the Tanaka extent problem, and a Contours tool** — five tasks, ~4-5 days in all, none started, plus an unspecified sixth (aircraft ROA range markers). See "Tanaka Contours at country scale, and a Contours tool (2026-10-20)" above for the measurements behind them and the suggested order. In short: guard the pipeline so a failure names its own stage (~2 h), refuse an extent that would hang instead of hanging (~half a day), give the Tanaka dialog an extent control (~half a day), build a plain Contours tool with military styling (~2-3 days), and harden the Echelons label table against an import-time KeyError (~1 h).
     2026-08-18**: 978 entities and 226 sector modifiers across every
     symbol set, an edition setting on the toolbar, every Land layer's
     own modifiers covering both editions, and E-8 (the 93 common
