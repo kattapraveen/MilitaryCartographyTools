@@ -12,6 +12,7 @@ import os
 from unittest.mock import patch
 
 from qgis.core import (
+    QgsCoordinateReferenceSystem,
     QgsExpressionContext,
     QgsFeature,
     QgsGeometry,
@@ -1040,3 +1041,130 @@ class TestUphillSampleOffsetPixelSizeAwareness(QgisTestCase):
                 expected_offset,
                 places=6
             )
+
+
+class TestPipelineNamesTheStageThatFailed(QgisTestCase):
+
+    """
+    A broken intermediate must fail where it was made, naming that
+    step, rather than surfacing further down the pipeline under a
+    message about something else.
+
+    Measured 2026-10-20 against a live report: an invalid layer
+    reports wkbType() == Unknown, so native:splitlinesbylength cannot
+    build a sink from it and answers "Could not create memory layer".
+    That message names the sink and mentions neither the contour step
+    that actually failed nor the DEM, and a whole session went into
+    chasing the wrong end of the pipeline because of it.
+    """
+
+    def test_an_unreadable_dem_names_the_clip_step_and_the_layer(self):
+
+        broken = QgsRasterLayer(
+            "/nonexistent/not_a_dem.tif",
+            "my_broken_dem"
+        )
+
+        with self.assertRaises(ValueError) as raised:
+
+            _clip_and_reproject(
+                broken,
+                QgsRectangle(0.0, 0.0, 1.0, 1.0),
+                QgsCoordinateReferenceSystem("EPSG:4326")
+            )
+
+        message = str(raised.exception)
+
+        # The layer's own name, so the user knows WHICH dem, and the
+        # step, so they know where in the chain it went wrong.
+        self.assertIn("my_broken_dem", message)
+        self.assertIn("gdal:warpreproject", message)
+
+
+    def test_unreadable_contours_name_the_contour_step(self):
+
+        """
+        gdal:contour is hard to make fail on demand, so its OUTPUT is
+        replaced with a path that cannot be opened - exactly the state
+        the guard exists to catch.
+        """
+
+        dem_path = build_synthetic_cone_dem(width=40, height=40)
+
+        try:
+
+            dem = QgsRasterLayer(dem_path, "cone")
+
+            clipped = _clip_and_reproject(
+                dem,
+                dem.extent(),
+                dem.crs()
+            )
+
+            with patch(
+                "MilitaryCartographyTools.terrain.tanaka_contours"
+                ".processing.run",
+                return_value={"OUTPUT": "/nonexistent/contours.gpkg"},
+            ):
+
+                with self.assertRaises(ValueError) as raised:
+
+                    _generate_contour_segments(
+                        clipped,
+                        interval=20.0,
+                        segment_length=50.0
+                    )
+
+            message = str(raised.exception)
+
+            self.assertIn("gdal:contour", message)
+            self.assertIn("/nonexistent/contours.gpkg", message)
+
+            # The message native:splitlinesbylength would have given
+            # instead - the whole point is that it no longer reaches
+            # that call.
+            self.assertNotIn("memory layer", message)
+
+        finally:
+
+            try:
+                os.remove(dem_path)
+            except OSError:
+                pass
+
+
+    def test_a_dem_with_no_contours_is_not_treated_as_a_failure(self):
+
+        """
+        An empty contour layer is legitimate - a DEM flatter than one
+        interval produces no lines at all - and must pass through, so
+        the guard cannot simply check the feature count.
+        """
+
+        dem_path = build_synthetic_sloped_dem(width=30, height=30)
+
+        try:
+
+            dem = QgsRasterLayer(dem_path, "flat_enough")
+
+            clipped = _clip_and_reproject(
+                dem,
+                dem.extent(),
+                dem.crs()
+            )
+
+            segments = _generate_contour_segments(
+                clipped,
+                interval=100000.0,       # far wider than the DEM's range
+                segment_length=50.0
+            )
+
+            self.assertTrue(segments.isValid())
+            self.assertEqual(segments.featureCount(), 0)
+
+        finally:
+
+            try:
+                os.remove(dem_path)
+            except OSError:
+                pass

@@ -107,6 +107,18 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
     roughly uniform segment_length pieces so illumination can vary
     smoothly along a line rather than in one chunk per original
     (unevenly spaced) contour vertex run.
+
+    Raises ValueError if gdal:contour produces nothing readable,
+    rather than handing an invalid layer to the split below. Measured
+    2026-10-20: native:splitlinesbylength answers an invalid INPUT
+    with "Could not create memory layer" - an invalid layer reports
+    wkbType() == Unknown, so the sink it tries to build has no
+    geometry type and cannot be created. The message names the sink,
+    never the contour step that actually failed, and a live report
+    spent a whole session chasing the wrong end of the pipeline
+    because of it. A layer with no FEATURES is fine and is not
+    guarded: a DEM flatter than one interval legitimately yields an
+    empty contour layer, and the split handles that.
     """
 
     contour_result = processing.run(
@@ -131,6 +143,15 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
         "tanaka_contours_raw",
         "ogr"
     )
+
+    if not contour_layer.isValid():
+
+        raise ValueError(
+            "Could not read the contours gdal:contour produced at "
+            f"{contour_result['OUTPUT']} (interval {interval}). The "
+            "contour step ran but left nothing openable, so there is "
+            "nothing to split into segments."
+        )
 
     split_result = processing.run(
         "native:splitlinesbylength",

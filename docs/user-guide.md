@@ -308,6 +308,16 @@ means every line is cut into more pieces, each needing its own elevation
 sample). If a run is taking longer than you want to wait, crop the DEM
 itself first, or start with a coarser interval and refine from there.
 
+**If a run fails, the error names the step that failed and the layer it
+failed on.** "Could not clip and reproject the DEM *name*" means the DEM
+could not be read or warped — check it opens on its own, and note that a
+raster stored inside a GeoPackage cannot be clipped by QGIS's own GDAL
+tools. "Could not read the contours" means the contour step ran but left
+nothing openable. The named step is where to look, not whatever appears
+on the traceback's last line — before these checks existed, a failure in
+either step surfaced two calls later as "Could not create memory layer",
+which named neither.
+
 ### Getting a DEM
 
 This plugin doesn't include a DEM downloader — that's a generic GIS task

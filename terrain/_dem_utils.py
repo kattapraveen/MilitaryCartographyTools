@@ -31,6 +31,17 @@ def clip_and_reproject_dem(dem_layer, extent, extent_crs):
     gdal:warpreproject call. Downstream elevation/geometry math needs
     a projected, metric CRS - the source DEM may well be geographic
     (confirmed true for real SRTM-style data).
+
+    Raises ValueError if the warp produces nothing readable. Six
+    features clip through here (Tanaka Contours, Hypsometric Tint,
+    Hillshade Combinations, Line of Sight and Viewshed twice), and an
+    invalid raster returned silently does not fail where it was made -
+    it fails somewhere downstream under a message naming neither this
+    step nor the DEM. That cost real time on 2026-10-20: a Tanaka run
+    surfaced as "Could not create memory layer" raised by
+    native:splitlinesbylength, two calls further on, because an
+    invalid layer reports wkbType() == Unknown and the sink built from
+    it cannot be created. See docs/roadmap.md's own 2026-10-20 entry.
     """
 
     transform_to_wgs84 = QgsCoordinateTransform(
@@ -67,10 +78,23 @@ def clip_and_reproject_dem(dem_layer, extent, extent_crs):
         }
     )
 
-    return QgsRasterLayer(
+    clipped = QgsRasterLayer(
         result["OUTPUT"],
         "clipped_dem"
     )
+
+    if not clipped.isValid():
+
+        raise ValueError(
+            "Could not clip and reproject the DEM "
+            f"'{dem_layer.name()}': gdal:warpreproject produced no "
+            f"readable raster at {result['OUTPUT']}. The source DEM "
+            "may be unreadable, outside the requested extent, or in a "
+            "format GDAL cannot warp from here - a raster stored "
+            "inside a GeoPackage is one known case."
+        )
+
+    return clipped
 
 
 def band_min_max(raster_layer, band=1):
