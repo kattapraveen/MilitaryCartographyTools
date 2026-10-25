@@ -14289,14 +14289,87 @@ Both dialogs now use `QgsExtentWidget` - which does carry that signal
 connected to a `_set_visible_for_drawing()` slot. "Map canvas extent"
 always worked and was how the maintainer got round it.
 
-### Still open from the same run
+### Resolved on the second run
 
-The contours came out "too few and far" over a map-canvas extent.
-The likely cause is the interval the dialog suggested: the canvas was
-zoomed out to the whole country, and the suggestion is derived from
-the CANVAS scale, which is not necessarily the scale the user intends
-to print at. Not yet confirmed - the interval the dialog actually
-offered has been asked for rather than assumed.
+**The interval suggestion is accepted as is.** At 1:1,295,550 the
+dialog offered 500 m where the maintainer had used 250 m in GDAL;
+the verdict was "auto default is fine, user can select an interval as
+desired if not happy with results". No change. (500 rather than 250
+because the beyond-table ratio gives 259, and round_up_nicely's
+1/2/5 steps take that to 500.)
+
+**With the pixel limit gone, the full 1-billion-plus-pixel DEM
+contoured fine** - "quite ok" - which is the capability the borrowed
+limit had been blocking.
+
+**Draw on Canvas cannot work from these dialogs, and the button is
+now hidden.** Switching to QgsExtentWidget and wiring
+toggleDialogVisibility was not enough, and never could have been:
+show_*_dialog uses exec(), so the dialog is MODAL and Qt blocks
+input to the main window for the whole modal loop. The maintainer put
+it exactly - "dialog open, you can't do anything in qgis ... draw on
+canvas still doesnt work - all other extent selections do".
+`setMapCanvas(canvas, False)` removes the option. Offering a control
+that cannot work is worse than not offering it.
+
+Making these dialogs MODELESS would fix it properly, and the
+visibility slot is left connected so that half is already done. Not
+attempted: it changes the accept flow and every dialog test, for one
+extent mode among five that work.
+
+### Everything else from the test pass
+
+Tests 2, 3, 4, 5, 6, 8, 9, 10, 11, 12b, 13, 14 and 15 all pass.
+Label density "ok", contours ending at the DEM limit "not an issue",
+and on colour: "normally brown is fine, against hypsometric tint also
+ok ... against basemap it is perfect".
+
+---
+
+## Pending: progress reporting across the terrain tools (2026-10-26)
+
+Asked for after the Contours test pass: "when we run this or tanaka
+etc - there is no progress bar like what gdal displays ... esp in
+tanaka, sensor coverage and now contours - the user is kept wondering
+if the plugin will work or not."
+
+A real gap, and the right complaint. These tools can run for minutes
+and give no sign they are alive - which is also how the 2026-10-20
+hang was experienced before the guards existed.
+
+**Nothing in the plugin reports progress today.** The only
+setProgress() anywhere is in prototypes/range_rings.py, which is not
+wired in. The work is spread across:
+
+    terrain/viewshed.py              7 processing.run calls
+    terrain/tanaka_contours.py       2
+    terrain/hillshade_combination.py 2
+    terrain/contours.py              1
+    terrain/_dem_utils.py            1  (shared by six features)
+
+plus hypsometric_tint.py, line_of_sight.py and sensor_coverage.py,
+which do their own loops rather than calling Processing - sensor
+coverage especially, since it runs a full viewshed per sensor.
+
+**The shape of the work**, not yet decided or started:
+
+1. Thread a `QgsProcessingFeedback` through the generators into each
+   `processing.run`, so GDAL's own percentages are captured rather
+   than invented.
+2. Report it in the QGIS message bar, the idiom QGIS itself uses,
+   with the step named ("Clipping the DEM", "Generating contours",
+   "Splitting segments") - the step name matters more than the
+   percentage for the tools that have only one or two stages.
+3. For the loop-based tools, report per item: sensor 3 of 12.
+
+**The catch worth knowing before starting:** all of this runs
+synchronously on the GUI thread, so a progress bar will not repaint
+without processEvents() pumping - which is ugly and can re-enter.
+Doing it properly means QgsTask and a background thread, which is a
+much larger change and has to be careful about creating layers off
+the main thread. The honest options are a modal progress dialog that
+blocks but shows life, or a real background task. That choice has
+not been made.
 
 ---
 

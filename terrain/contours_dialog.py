@@ -66,16 +66,23 @@ class ContoursDialog(QDialog):
         # Same extent control, defaults and reset-on-DEM-change as the
         # Tanaka dialog - see terrain/tanaka_dialog.py for the
         # reasoning, which applies unchanged here.
-        # QgsExtentWidget, NOT QgsExtentGroupBox. The group box is a
-        # QGroupBox and does not expose toggleDialogVisibility, which
-        # is the signal the "Draw on Canvas" button relies on to hide
-        # its dialog while you drag a box and bring it back after.
-        # Without it the button just dismissed this dialog and nothing
-        # could be drawn - reported live 2026-10-26.
+        # QgsExtentWidget rather than QgsExtentGroupBox, because only
+        # the widget exposes toggleDialogVisibility.
+        #
+        # drawOnCanvasOption=False deliberately. This dialog is MODAL
+        # (show_*_dialog uses exec()), and Qt blocks input to the main
+        # window for the whole modal loop - so even with the dialog
+        # hidden, the canvas cannot be clicked and no box can be
+        # dragged. Reported live 2026-10-26: "dialog open, you can't
+        # do anything in qgis ... draw on canvas still doesnt work -
+        # all other extent selections do". Wiring the visibility
+        # signal was not enough and never could be; offering a button
+        # that cannot work is worse than not offering it. Making these
+        # dialogs modeless would fix it properly - see docs/roadmap.md.
         self.extent_group = QgsExtentWidget()
 
         if canvas is not None:
-            self.extent_group.setMapCanvas(canvas)
+            self.extent_group.setMapCanvas(canvas, False)
 
         self.extent_group.toggleDialogVisibility.connect(
             self._set_visible_for_drawing
@@ -236,8 +243,11 @@ class ContoursDialog(QDialog):
         """
         Hide this dialog while the user drags an extent on the map,
         and bring it back afterwards. QgsExtentWidget asks for this
-        through toggleDialogVisibility; without a handler, "Draw on
-        Canvas" leaves the dialog in the way or dismisses it.
+        through toggleDialogVisibility.
+
+        Kept connected although the draw-on-canvas button is
+        currently disabled (see the constructor): if these dialogs are
+        ever made modeless, this is the half that already works.
         """
 
         self.setVisible(visible)
