@@ -14254,6 +14254,52 @@ should never have seen.
 
 ---
 
+## Two faults the first live run of Contours found (2026-10-26)
+
+### Tanaka's pixel limit had no business in this tool
+
+The Contours module imported `MAX_DEM_PIXELS` from
+tanaka_contours.py. That limit exists because Tanaka splits every
+contour into segments and samples the DEM twice per segment - a cost
+this tool does not have at all. Borrowing it gated **the exact
+capability the tool was built to provide**.
+
+The maintainer found it on the first run, with the evidence that
+settles it: GDAL's own contour extraction handled the whole of
+Tanzania - 2,376,271,908 pixels, 40,668 x 58,431 - at a 250 m
+interval perfectly well, while this tool refused a far smaller area.
+
+There is now **no pixel limit here**, and a test asserts the constant
+is absent so it cannot creep back. What costs in this tool is the
+number of lines QGIS has to draw and label, so that is what is
+checked, after contouring where the count is exact:
+`MAX_CONTOUR_FEATURES = 1,000,000`, far above any sensible sheet,
+catching only a runaway interval.
+
+### "Draw on Canvas" dismissed the dialog instead of drawing
+
+`QgsExtentGroupBox` is a `QGroupBox`. It does **not** expose
+`toggleDialogVisibility`, which is the signal the Draw on Canvas
+button relies on to hide its dialog while the user drags a box and
+bring it back afterwards. With nothing connected, the button simply
+dismissed the dialog.
+
+Both dialogs now use `QgsExtentWidget` - which does carry that signal
+- wrapped in a plain `QGroupBox` for the title, with the signal
+connected to a `_set_visible_for_drawing()` slot. "Map canvas extent"
+always worked and was how the maintainer got round it.
+
+### Still open from the same run
+
+The contours came out "too few and far" over a map-canvas extent.
+The likely cause is the interval the dialog suggested: the canvas was
+zoomed out to the whole country, and the suggestion is derived from
+the CANVAS scale, which is not necessarily the scale the user intends
+to print at. Not yet confirmed - the interval the dialog actually
+offered has been asked for rather than assumed.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

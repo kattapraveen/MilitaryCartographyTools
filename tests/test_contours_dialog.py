@@ -332,7 +332,7 @@ class TestRefusalsReachTheUserNotTheErrorDialog(_ContoursDialogTestCase):
 
         from MilitaryCartographyTools.terrain import contours
 
-        with patch.object(contours, "MAX_DEM_PIXELS", 10):
+        with patch.object(contours, "MAX_CONTOUR_FEATURES", 1):
 
             return generate_from_dialog_values(
                 self.iface,
@@ -365,8 +365,8 @@ class TestRefusalsReachTheUserNotTheErrorDialog(_ContoursDialogTestCase):
             str(part) for part in self.iface.messageBar().calls[0]
         )
 
-        self.assertIn("too large to contour", text)
-        self.assertIn("Clip the DEM", text)
+        self.assertIn("contour lines", text)
+        self.assertIn("interval", text)
 
 
     def test_it_also_catches_on_the_add_as_new_layer_path(self):

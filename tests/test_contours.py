@@ -12,6 +12,7 @@ Military Cartography Tools
 """
 
 import os
+import re
 
 from unittest.mock import patch
 
@@ -400,26 +401,52 @@ class TestGenerateContours(QgisTestCase):
             self._generate(interval=50.0, index_every=0)
 
 
-    def test_a_dem_too_large_to_contour_is_refused_before_contouring(self):
+    def test_there_is_no_pixel_limit_on_this_tool(self):
 
-        # clip_and_reproject_dem is stubbed rather than left to run:
-        # patching contours.processing.run would also patch
-        # _dem_utils's, since `import processing` yields the same
-        # module object, and the clip would break before the guard
-        # was ever reached.
-        with patch.object(
-            contours, "clip_and_reproject_dem", return_value=self.dem
-        ):
+        """
+        Deliberately so, and the regression test for a real mistake.
 
-            with patch.object(contours, "MAX_DEM_PIXELS", 10):
+        The first version imported Tanaka Contours' own
+        MAX_DEM_PIXELS, which gated the exact capability this tool
+        exists to provide: gdal:contour handled the whole of Tanzania
+        (2,376,271,908 pixels, 40,668 x 58,431) at a 250 m interval
+        perfectly well, while this tool refused a far smaller area.
+        Tanaka's limit exists because Tanaka splits every contour and
+        samples the DEM twice per segment; this tool does neither.
+        """
 
-                with patch.object(contours.processing, "run") as never_run:
+        self.assertFalse(hasattr(contours, "MAX_DEM_PIXELS"))
 
-                    with self.assertRaises(ValueError) as raised:
-                        self._generate(interval=50.0)
 
-        self.assertEqual(never_run.call_count, 0)
-        self.assertIn("too large to contour", str(raised.exception))
+    def test_too_many_contour_lines_is_refused_with_a_way_out(self):
+
+        """
+        What actually costs here is the number of lines QGIS has to
+        draw and label, checked after contouring where it is exact.
+        """
+
+        with patch.object(contours, "MAX_CONTOUR_FEATURES", 5):
+
+            with self.assertRaises(ValueError) as raised:
+                self._generate(interval=50.0)
+
+        message = str(raised.exception)
+
+        self.assertIn("contour lines", message)
+        self.assertIn("interval", message)
+
+
+    def test_the_refusal_suggests_a_coarser_interval(self):
+
+        with patch.object(contours, "MAX_CONTOUR_FEATURES", 5):
+
+            with self.assertRaises(ValueError) as raised:
+                self._generate(interval=50.0)
+
+        suggested = re.search(r"to about ([0-9.]+) m", str(raised.exception))
+
+        self.assertIsNotNone(suggested)
+        self.assertGreater(float(suggested.group(1)), 50.0)
 
 
     def test_the_defaults_are_usable_on_their_own(self):

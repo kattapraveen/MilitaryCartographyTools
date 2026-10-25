@@ -41,8 +41,26 @@ from qgis.core import (
 from qgis.PyQt.QtGui import QColor, QFont
 
 from ._dem_utils import clip_and_reproject_dem
-from .tanaka_contours import MAX_DEM_PIXELS
 
+
+# How many contour LINES is too many. There is deliberately no pixel
+# limit here, unlike Tanaka Contours.
+#
+# The first version of this module imported Tanaka's own
+# MAX_DEM_PIXELS, which was simply wrong: that limit exists because
+# Tanaka splits every contour into segments and samples the DEM twice
+# per segment, and it gated the exact capability this tool was built
+# to provide. The maintainer found it immediately, on the first live
+# run - gdal:contour handled the whole of Tanzania (2,376,271,908
+# pixels, 40,668 x 58,431) at a 250 m interval perfectly well, while
+# this tool refused a far smaller area.
+#
+# So the cost that matters here is the number of lines QGIS then has
+# to draw and label, not the size of the raster they came from, and
+# it is checked after contouring where the count is exact. A million
+# is far above any sensible sheet and well above a country at a
+# sensible interval; it catches only a runaway interval.
+MAX_CONTOUR_FEATURES = 1_000_000
 
 OUTPUT_LAYER_NAME = "Contours"
 
@@ -375,17 +393,6 @@ def generate_contours(
         extent_crs
     )
 
-    pixels = clipped_dem.width() * clipped_dem.height()
-
-    if pixels > MAX_DEM_PIXELS:
-
-        raise ValueError(
-            f"This DEM is too large to contour: {pixels:,} pixels "
-            f"({clipped_dem.width():,} x {clipped_dem.height():,}) "
-            f"against a limit of {MAX_DEM_PIXELS:,}. Clip the DEM, or "
-            "narrow the extent."
-        )
-
     result = processing.run(
         "gdal:contour",
         {
@@ -415,6 +422,20 @@ def generate_contours(
             "Could not read the contours gdal:contour produced at "
             f"{result['OUTPUT']} (interval {interval:g}). The contour "
             "step ran but left nothing openable."
+        )
+
+    if layer.featureCount() > MAX_CONTOUR_FEATURES:
+
+        suggested = round_up_nicely(
+            interval * (layer.featureCount() / MAX_CONTOUR_FEATURES)
+        )
+
+        raise ValueError(
+            f"That would draw {layer.featureCount():,} contour lines, "
+            f"against a limit of {MAX_CONTOUR_FEATURES:,}. QGIS would "
+            "struggle to draw and label that many. Raise the contour "
+            f"interval from {interval:g} m to about {suggested:g} m, "
+            "or narrow the extent."
         )
 
     layer.setRenderer(

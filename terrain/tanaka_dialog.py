@@ -19,13 +19,14 @@ Military Cartography Tools
 """
 
 from qgis.core import QgsMapLayerProxyModel, QgsProject
-from qgis.gui import QgsExtentGroupBox, QgsMapLayerComboBox
+from qgis.gui import QgsExtentWidget, QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
+    QGroupBox,
     QLabel,
     QVBoxLayout,
     QDoubleSpinBox,
@@ -85,14 +86,20 @@ class TanakaContourDialog(QDialog):
         # the user deliberately narrows it. `canvas` is optional only
         # so the tests can build this without one - with it, the box
         # also offers the canvas extent and draw-on-canvas.
-        self.extent_group = QgsExtentGroupBox()
-
-        self.extent_group.setTitle(
-            "Extent"
-        )
+        # QgsExtentWidget, NOT QgsExtentGroupBox. The group box is a
+        # QGroupBox and does not expose toggleDialogVisibility, which
+        # is the signal the "Draw on Canvas" button relies on to hide
+        # its dialog while you drag a box and bring it back after.
+        # Without it the button just dismissed this dialog and nothing
+        # could be drawn - reported live 2026-10-26.
+        self.extent_group = QgsExtentWidget()
 
         if canvas is not None:
             self.extent_group.setMapCanvas(canvas)
+
+        self.extent_group.toggleDialogVisibility.connect(
+            self._set_visible_for_drawing
+        )
 
         self.dem_combo.layerChanged.connect(
             self._sync_extent_to_dem
@@ -256,13 +263,31 @@ class TanakaContourDialog(QDialog):
         outer = QVBoxLayout()
 
         outer.addLayout(form)
-        outer.addWidget(self.extent_group)
+        extent_box = QGroupBox("Extent")
+
+        extent_box_layout = QVBoxLayout()
+        extent_box_layout.addWidget(self.extent_group)
+        extent_box.setLayout(extent_box_layout)
+
+        outer.addWidget(extent_box)
         outer.addWidget(self.caution_label)
         outer.addWidget(buttons)
 
         self.setLayout(
             outer
         )
+
+
+    def _set_visible_for_drawing(self, visible):
+
+        """
+        Hide this dialog while the user drags an extent on the map,
+        and bring it back afterwards. QgsExtentWidget asks for this
+        through toggleDialogVisibility; without a handler, "Draw on
+        Canvas" leaves the dialog in the way or dismisses it.
+        """
+
+        self.setVisible(visible)
 
 
     def _sync_extent_to_dem(self, dem_layer):
