@@ -19,6 +19,7 @@ import os
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
+    QgsRectangle,
     QgsProject,
     QgsRasterLayer,
     QgsSymbolLayer,
@@ -341,3 +342,190 @@ class TestGenerationTimeCaution(QgisTestCase):
         self.assertIn("Caution", CAUTION_TEXT)
         self.assertIn("Tanaka Contour", CAUTION_TEXT)
         self.assertIn("long time", CAUTION_TEXT)
+
+
+class TestExtentControl(QgisTestCase):
+
+    """
+    The dialog could only ever use the DEM's own full extent until
+    2026-10-25, which was the root gap behind a live report where a
+    country-sized DEM made QGIS hang: no setting made the job smaller.
+    An override now exists, and the default must not have moved.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        self._dem_path = build_synthetic_sloped_dem()
+
+        self.dem_layer = QgsRasterLayer(self._dem_path, "test_dem")
+
+        QgsProject.instance().addMapLayer(self.dem_layer)
+
+        self.iface = FakeIface(canvas=make_canvas())
+
+
+    def tearDown(self):
+
+        try:
+            os.remove(self._dem_path)
+        except OSError:
+            pass
+
+        super().tearDown()
+
+
+    def _values(self, **overrides):
+
+        values = {
+            "dem_layer": self.dem_layer,
+            "interval": 20.0,
+            "segment_length": 20.0,
+            "light_azimuth_deg": 315.0,
+            "min_width_mm": 0.15,
+            "max_width_mm": 0.6,
+            "style_mode": STYLE_ELEVATION_COLOR,
+            "add_as_new_layer": True,
+        }
+
+        values.update(overrides)
+
+        return values
+
+
+    def test_the_box_defaults_to_the_selected_dems_own_extent(self):
+
+        dialog = TanakaContourDialog()
+
+        dialog.dem_combo.setLayer(self.dem_layer)
+
+        self.assertEqual(
+            dialog.extent_group.outputExtent().toString(4),
+            self.dem_layer.extent().toString(4)
+        )
+
+
+    def test_choosing_a_different_dem_resets_the_extent_to_that_dem(self):
+
+        """
+        An extent carried over from a previous DEM may not overlap the
+        new one at all, which would silently produce an empty layer.
+        """
+
+        other_path = build_synthetic_sloped_dem(width=20, height=20)
+
+        try:
+
+            other = QgsRasterLayer(other_path, "other_dem")
+
+            QgsProject.instance().addMapLayer(other)
+
+            dialog = TanakaContourDialog()
+
+            dialog.dem_combo.setLayer(self.dem_layer)
+            dialog.dem_combo.setLayer(other)
+
+            self.assertEqual(
+                dialog.extent_group.outputExtent().toString(4),
+                other.extent().toString(4)
+            )
+
+        finally:
+
+            try:
+                os.remove(other_path)
+            except OSError:
+                pass
+
+
+    def test_values_carries_the_extent_and_its_crs(self):
+
+        dialog = TanakaContourDialog()
+
+        dialog.dem_combo.setLayer(self.dem_layer)
+
+        values = dialog.values()
+
+        self.assertIn("extent", values)
+        self.assertIn("extent_crs", values)
+        self.assertFalse(values["extent"].isEmpty())
+
+
+    def test_a_narrowed_extent_produces_less_than_the_whole_dem(self):
+
+        full = generate_from_dialog_values(
+            self.iface,
+            self._values()
+        )
+
+        extent = self.dem_layer.extent()
+
+        quarter = QgsRectangle(
+            extent.xMinimum(),
+            extent.yMinimum(),
+            extent.xMinimum() + extent.width() / 2.0,
+            extent.yMinimum() + extent.height() / 2.0
+        )
+
+        narrowed = generate_from_dialog_values(
+            self.iface,
+            self._values(
+                extent=quarter,
+                extent_crs=self.dem_layer.crs()
+            )
+        )
+
+        self.assertGreater(full.featureCount(), 0)
+        self.assertGreater(narrowed.featureCount(), 0)
+        self.assertLess(narrowed.featureCount(), full.featureCount())
+
+
+    def test_a_caller_that_omits_the_extent_still_gets_the_whole_dem(self):
+
+        """
+        Every caller predating the extent control - and every test
+        that builds a values dict by hand - leaves these keys out.
+        """
+
+        with_extent = generate_from_dialog_values(
+            self.iface,
+            self._values(
+                extent=self.dem_layer.extent(),
+                extent_crs=self.dem_layer.crs()
+            )
+        )
+
+        without = generate_from_dialog_values(
+            self.iface,
+            self._values()
+        )
+
+        self.assertEqual(
+            without.featureCount(),
+            with_extent.featureCount()
+        )
+
+
+    def test_an_empty_rectangle_falls_back_to_the_whole_dem(self):
+
+        """
+        QgsExtentGroupBox hands back an empty rectangle before it has
+        been given a layer to work from.
+        """
+
+        full = generate_from_dialog_values(
+            self.iface,
+            self._values()
+        )
+
+        empty = generate_from_dialog_values(
+            self.iface,
+            self._values(extent=QgsRectangle(), extent_crs=None)
+        )
+
+        self.assertEqual(empty.featureCount(), full.featureCount())

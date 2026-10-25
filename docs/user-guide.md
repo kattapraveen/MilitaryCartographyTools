@@ -308,6 +308,16 @@ means every line is cut into more pieces, each needing its own elevation
 sample). If a run is taking longer than you want to wait, crop the DEM
 itself first, or start with a coarser interval and refine from there.
 
+**Extent** sets the ground the contours cover. It starts as the DEM's
+own full extent and follows whichever DEM you pick, so leaving it alone
+behaves exactly as before. Narrow it — to the canvas, by drawing on the
+map, or by typing coordinates — when the DEM covers far more ground
+than the sheet you are making. This is the setting to reach for when a
+run is refused as too large, and it is usually better than coarsening
+the interval. Changing the DEM resets the extent to that DEM's own,
+deliberately: an extent left over from a different DEM might not
+overlap the new one at all, which would quietly produce nothing.
+
 **A run that could not finish is refused up front, with the numbers.**
 Rather than appearing to hang, the tool stops and tells you what you
 asked for: either "this DEM is too large to contour" with its pixel

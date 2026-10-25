@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
 
 """
-Qt UI for generating Tanaka contours - picks a DEM plus the
-illumination/styling parameters, then hands off to
-tanaka_contours.generate_tanaka_contours() for the DEM's own full
-extent. Carries a standing caution about generation time (see
+Qt UI for generating Tanaka contours - picks a DEM, an extent, and
+the illumination/styling parameters, then hands off to
+tanaka_contours.generate_tanaka_contours().
+
+The extent defaults to the DEM's own, which is what this dialog could
+ONLY ever do until 2026-10-25 - and that was the root gap behind a
+live report where a country-sized DEM made QGIS hang: there was no
+setting that made the job smaller. An override now exists, while the
+default is unchanged (see _sync_extent_to_dem(), and
+test_generation_uses_the_dems_own_extent_not_the_canvas, which exists
+because clipping to the CANVAS was a real bug once). Carries a standing caution about generation time (see
 CAUTION_TEXT), since a large DEM and/or a fine contour interval can
 leave the dialog looking hung for a while.
 
@@ -12,7 +19,7 @@ Military Cartography Tools
 """
 
 from qgis.core import QgsMapLayerProxyModel, QgsProject
-from qgis.gui import QgsMapLayerComboBox
+from qgis.gui import QgsExtentGroupBox, QgsMapLayerComboBox
 
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
@@ -59,7 +66,7 @@ CAUTION_TEXT = (
 
 class TanakaContourDialog(QDialog):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, canvas=None):
 
         super().__init__(parent)
 
@@ -71,6 +78,28 @@ class TanakaContourDialog(QDialog):
 
         self.dem_combo.setFilters(
             QgsMapLayerProxyModel.Filter.RasterLayer
+        )
+
+        # Defaults to the selected DEM's own extent and follows the
+        # combo, so the dialog behaves exactly as it always did unless
+        # the user deliberately narrows it. `canvas` is optional only
+        # so the tests can build this without one - with it, the box
+        # also offers the canvas extent and draw-on-canvas.
+        self.extent_group = QgsExtentGroupBox()
+
+        self.extent_group.setTitle(
+            "Extent"
+        )
+
+        if canvas is not None:
+            self.extent_group.setMapCanvas(canvas)
+
+        self.dem_combo.layerChanged.connect(
+            self._sync_extent_to_dem
+        )
+
+        self._sync_extent_to_dem(
+            self.dem_combo.currentLayer()
         )
 
         self.interval_spin = QDoubleSpinBox()
@@ -227,6 +256,7 @@ class TanakaContourDialog(QDialog):
         outer = QVBoxLayout()
 
         outer.addLayout(form)
+        outer.addWidget(self.extent_group)
         outer.addWidget(self.caution_label)
         outer.addWidget(buttons)
 
@@ -235,10 +265,37 @@ class TanakaContourDialog(QDialog):
         )
 
 
+    def _sync_extent_to_dem(self, dem_layer):
+
+        """
+        Point the extent box at the newly-selected DEM and reset it to
+        that DEM's own full extent.
+
+        Resetting on every change is deliberate. An extent carried
+        over from a previous DEM is worse than useless - it may not
+        overlap the new one at all, which would silently produce an
+        empty layer - and the DEM's own extent is the documented
+        default this dialog has always used.
+        """
+
+        if dem_layer is None:
+            return
+
+        extent = dem_layer.extent()
+        crs = dem_layer.crs()
+
+        self.extent_group.setOriginalExtent(extent, crs)
+        self.extent_group.setCurrentExtent(extent, crs)
+        self.extent_group.setOutputCrs(crs)
+        self.extent_group.setOutputExtentFromOriginal()
+
+
     def values(self):
 
         return {
             "dem_layer": self.dem_combo.currentLayer(),
+            "extent": self.extent_group.outputExtent(),
+            "extent_crs": self.extent_group.outputCrs(),
             "interval": self.interval_spin.value(),
             "segment_length": self.segment_length_spin.value(),
             "light_azimuth_deg": self.azimuth_spin.value(),
@@ -286,12 +343,28 @@ def generate_from_dialog_values(iface, values):
 
     dem_layer = values["dem_layer"]
 
+    # .get() rather than [] on purpose: every caller that predates the
+    # extent control - and every test that builds a values dict by
+    # hand - omits these, and must keep getting the DEM's own full
+    # extent. An empty rectangle falls back the same way, since
+    # QgsExtentGroupBox hands one back before it has been given a
+    # layer to work from.
+    extent = values.get("extent")
+    extent_crs = values.get("extent_crs")
+
+    if extent is None or extent.isEmpty():
+        extent = dem_layer.extent()
+        extent_crs = dem_layer.crs()
+
+    elif extent_crs is None or not extent_crs.isValid():
+        extent_crs = dem_layer.crs()
+
     def generate():
 
         return generate_tanaka_contours(
             dem_layer,
-            dem_layer.extent(),
-            dem_layer.crs(),
+            extent,
+            extent_crs,
             interval=values["interval"],
             segment_length=values["segment_length"],
             light_azimuth_deg=values["light_azimuth_deg"],
@@ -328,14 +401,15 @@ def generate_from_dialog_values(iface, values):
 def show_tanaka_contour_dialog(iface):
 
     """
-    Prompt for a DEM and illumination/styling parameters, then
-    generate the Tanaka contour layer for the DEM's own full extent
-    if accepted. Returns the new layer, or None if the dialog was
+    Prompt for a DEM, an extent and the illumination/styling
+    parameters, then generate the Tanaka contour layer if accepted.
+    The extent defaults to the DEM's own full one. Returns the new layer, or None if the dialog was
     cancelled or no DEM layer was available to pick.
     """
 
     dialog = TanakaContourDialog(
-        iface.mainWindow()
+        iface.mainWindow(),
+        canvas=iface.mapCanvas()
     )
 
     if dialog.exec() != QDialog.DialogCode.Accepted:
