@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- plain contour rings: EVEN weight all the way round, unlike
+       tanaka_contours.svg's deliberately uneven arcs, with the
+       middle ring heavier to read as an index contour -->
+  <circle cx="12" cy="12" r="9.2" fill="none" stroke="#1f3a5f" stroke-width="0.8"/>
+  <circle cx="12" cy="12" r="6.4" fill="none" stroke="#1f3a5f" stroke-width="2.0"/>
+  <circle cx="12" cy="12" r="3.6" fill="none" stroke="#1f3a5f" stroke-width="0.8"/>
+  <circle cx="12" cy="12" r="1.1" fill="none" stroke="#1f3a5f" stroke-width="0.8"/>
+</svg>

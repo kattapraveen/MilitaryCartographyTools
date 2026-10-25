@@ -104,6 +104,7 @@ class TestPluginLifecycle(QgisTestCase):
                     "Bearing / Range",
                 ],
                 "terrain_analysis": [
+                    "Contours",
                     "Tanaka Contours",
                     "Hypsometric Tint",
                     "Hillshade Combinations",

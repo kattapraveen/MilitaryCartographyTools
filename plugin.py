@@ -160,6 +160,7 @@ from .military_symbology.target_acquisition_control_measures import (
     add_range_fans_layer,
 )
 from .terrain import (
+    show_contours_dialog,
     show_tanaka_contour_dialog,
     show_hypsometric_tint_dialog,
     show_hillshade_combination_dialog,
@@ -214,6 +215,7 @@ class MilitaryCartographyTools:
         self.new_layout_action = None
         self.coordinate_probe_action = None
         self.bearing_range_action = None
+        self.contours_action = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
         self.line_of_sight_action = None
@@ -374,6 +376,7 @@ class MilitaryCartographyTools:
         self._setup_coordinate_probe_action()
         self._setup_bearing_range_action()
         self._setup_new_layout_action()
+        self._setup_contours_action()
         self._setup_tanaka_contours_action()
         self._setup_hypsometric_tint_action()
         self._setup_line_of_sight_action()
@@ -774,6 +777,27 @@ class MilitaryCartographyTools:
                 "size, orientation, and starting scale"
             ),
             callback=self.create_new_layout,
+            standalone=False
+        )
+
+
+    def _setup_contours_action(self):
+
+        # Plain contour lines with the usual topographic styling -
+        # index contours heavier and labelled, intermediates
+        # hairline. Deliberately separate from Tanaka Contours: this
+        # one costs nothing per segment, so it is the tool for a
+        # small-scale sheet where Tanaka's illumination would be
+        # invisible anyway. See terrain/contours.py.
+        self.contours_action = self._build_action(
+            "contours.svg",
+            "Contours",
+            tooltip=(
+                "Generate plain contour lines from a DEM, with index "
+                "contours labelled - the interval defaults to what a "
+                "sheet at the current map scale would use"
+            ),
+            callback=self.create_contours,
             standalone=False
         )
 
@@ -1800,11 +1824,12 @@ class MilitaryCartographyTools:
                 "group_terrain_analysis.svg",
                 "Terrain Analysis",
                 (
-                    "DEM-derived terrain analysis: Tanaka Contours, "
-                    "Hypsometric Tint, Hillshade Combinations, Line of "
-                    "Sight, Viewshed, Sensor Coverage"
+                    "DEM-derived terrain analysis: Contours, Tanaka "
+                    "Contours, Hypsometric Tint, Hillshade Combinations, "
+                    "Line of Sight, Viewshed, Sensor Coverage"
                 ),
                 [
+                    self.contours_action,
                     self.tanaka_contours_action,
                     self.hypsometric_tint_action,
                     self.hillshade_combination_action,
@@ -2161,6 +2186,7 @@ class MilitaryCartographyTools:
         self.coordinate_probe_tool = None
         self.bearing_range_action = None
         self.bearing_range_tool = None
+        self.contours_action = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
         self.line_of_sight_action = None
@@ -2371,6 +2397,17 @@ class MilitaryCartographyTools:
         """
 
         show_tanaka_contour_dialog(
+            self.iface
+        )
+
+
+    def create_contours(self):
+        """
+        Prompt for a DEM, an extent, an interval and a colour, then
+        generate a plain contour layer.
+        """
+
+        show_contours_dialog(
             self.iface
         )
 

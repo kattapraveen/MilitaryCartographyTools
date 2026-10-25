@@ -6,6 +6,8 @@ Terrain analysis module.
 Military Cartography Tools
 """
 
+from .contours import generate_contours
+from .contours_dialog import show_contours_dialog
 from .tanaka_contours import generate_tanaka_contours
 from .tanaka_dialog import show_tanaka_contour_dialog
 from .hypsometric_tint import generate_hypsometric_tint
@@ -17,6 +19,8 @@ from .viewshed import generate_viewshed
 
 
 __all__ = [
+    "generate_contours",
+    "show_contours_dialog",
     "generate_tanaka_contours",
     "show_tanaka_contour_dialog",
     "generate_hypsometric_tint",

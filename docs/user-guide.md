@@ -15,6 +15,7 @@ military grid generation, and automated print-layout production.
 - [New Military Layout](#new-military-layout)
 - [Military Layout Settings panel](#military-layout-settings-panel)
 - [Print-layout toolbar](#print-layout-toolbar)
+- [Contours](#contours)
 - [Tanaka Contours](#tanaka-contours)
 - [Hypsometric Tint](#hypsometric-tint)
 - [Line of Sight](#line-of-sight)
@@ -68,7 +69,7 @@ Left to right:
 | Toggle switch | *(standalone)* | **Symbology Edition** — MIL-STD-2525D/APP-6D or MIL-STD-2525E/APP-6E; picks which standard newly added symbology layers use, see [below](#tactical-graphics---point-symbol-layers) |
 | 3×3 grid | **Grid** | UTM Grid, MGRS 100km Grid, Sub Grid (10km/5km/1km spacing, itself a nested flyout), Clear Grid |
 | Compass rose | **Navigation** | Coordinate Probe, Bearing / Range |
-| Layered peaks with a contour line | **Terrain Analysis** | Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage, Regenerate Sensor Coverage |
+| Layered peaks with a contour line | **Terrain Analysis** | Contours, Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage, Regenerate Sensor Coverage |
 | Location pin | **Waypoints** | Import Waypoints, Export Waypoints |
 | Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/E and APP-6D/E point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |
 | Rectangular frame with a separate dot | **Non-NATO Symbols** | The nine layers of the separate non-NATO scheme — Land Units, Land Equipment, Control Measure Points, Mines and Obstacles, Mines and Obstacles (Lines), Aviation, Ammunition and FOL, Areas, Echelons; see [Non-NATO symbols](#non-nato-symbols) |
@@ -243,6 +244,44 @@ This is the standard topographic/military-map convention: ticks and numbers
 on the neatline rather than labels drawn over the map content.
 
 ---
+
+## Contours
+
+Click the contour-rings icon for **plain contours** — ordinary contour
+lines styled the way a topographic sheet draws them. Every fifth line
+is an **index contour**, drawn heavier and labelled with its height,
+set into a real gap cut in the line rather than printed over it. The
+lines in between are hairlines, unlabelled. Both are brown by default,
+the usual convention, and you can change that.
+
+**This is not Tanaka Contours, and the difference matters.** Tanaka
+varies each line's *width* by terrain illumination, which means cutting
+every contour into short segments and sampling the DEM twice for each
+one. That is what makes it a map-sheet technique and nothing larger.
+Plain contours do neither — one feature per line, styling by renderer —
+so a whole country at a sensible interval is an ordinary run. Use
+Tanaka for a 1:50,000 sheet where the relief shading earns its cost,
+and this for anything smaller, where that shading would be invisible
+anyway.
+
+| Setting | What it does |
+|---|---|
+| **DEM layer** | Any elevation raster in your project. |
+| **Extent** | The ground the contours cover. Starts as the DEM's own and follows whichever DEM you pick. |
+| **Contour interval** | Height between one line and the next. Opens at whatever a sheet at the map's current scale would normally use — press **From scale** to re-derive it after zooming. |
+| **Index contours** | How often a line is drawn heavy and labelled. Every 5th by default; 4 and 10 both appear on real sheets. |
+| **Colour** | Brown by default. Change it to match a sheet, or for a monochrome print. |
+| **Add as a new layer** | Off by default, so re-running corrects the existing Contours layer instead of piling up copies. |
+
+**The interval suggestion follows what sheets actually use** — 20 m at
+1:50,000, 50 m at 1:250,000, 200 m at 1:1,000,000 — not the bare limit
+of what the eye can separate. That limit is far finer, around 1 m at
+1:50,000, but a sheet drawn at it is an unreadable thicket. It is also
+finer than the data supports: SRTM is accurate to roughly ±10 m
+vertically, so anything below about 20 m contours the error rather than
+the ground.
+
+It is only a suggestion. Type whatever you need.
 
 ## Tanaka Contours
 
