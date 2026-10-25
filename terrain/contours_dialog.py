@@ -252,6 +252,38 @@ class ContoursDialog(QDialog):
         }
 
 
+def _run_and_report(iface, run):
+
+    """
+    Run `run()`, turning a deliberate refusal into a message-bar
+    warning instead of QGIS's generic Python error dialog.
+
+    The guards in terrain/contours.py and terrain/tanaka_contours.py
+    raise ValueError with a message written FOR the user - "this DEM
+    is too large to contour: 2,376,271,908 pixels ... clip the DEM,
+    or narrow the extent". Letting that propagate shows it under "An
+    error has occurred while executing Python code" with a full
+    traceback, which reads as a crash rather than as the considered
+    refusal it is. Reported live 2026-10-26.
+
+    Only ValueError is caught, and only here at the dialog boundary.
+    Anything else is a real fault and still belongs in the error
+    dialog where it can be reported.
+    """
+
+    try:
+        return run()
+
+    except ValueError as refusal:
+
+        iface.messageBar().pushWarning(
+            "Military Cartography Tools",
+            str(refusal)
+        )
+
+        return None
+
+
 def generate_from_dialog_values(iface, values):
 
     """
@@ -297,7 +329,7 @@ def generate_from_dialog_values(iface, values):
 
     if values["add_as_new_layer"]:
 
-        new_layer = generate()
+        new_layer = _run_and_report(iface, generate)
 
         if new_layer is None:
             return None
@@ -313,10 +345,13 @@ def generate_from_dialog_values(iface, values):
     # preserving wherever the user has since dragged it in the Layers
     # panel. Only replaces layers by this exact name, so a layer the
     # user has since renamed is left alone.
-    return replace_named_layer(
-        OUTPUT_LAYER_NAME,
-        generate,
-        default_insert_position
+    return _run_and_report(
+        iface,
+        lambda: replace_named_layer(
+            OUTPUT_LAYER_NAME,
+            generate,
+            default_insert_position
+        )
     )
 
 

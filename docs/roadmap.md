@@ -14215,6 +14215,45 @@ ever reached. The clip is stubbed instead.
 
 ---
 
+## A refusal must not look like a crash (2026-10-26)
+
+Found by the maintainer on the first live run of the new Contours
+tool, against a real 2.4-gigapixel SRTM mosaic (40,668 x 58,431).
+
+The pixel guard fired exactly as designed and said exactly the right
+thing - "This DEM is too large to contour: 2,376,271,908 pixels
+(40,668 x 58,431) against a limit of 500,000,000. Clip the DEM, or
+narrow the extent." The message was written FOR the user and tells
+them what to do.
+
+It arrived under **"An error has occurred while executing Python
+code"**, with a full traceback through plugin.py, contours_dialog.py,
+_layer_utils.py and contours.py. A considered refusal presented as a
+crash.
+
+That was my fault in all three of tasks 1, 2 and 4: the guards raise
+`ValueError`, and nothing caught it at the dialog boundary, so it
+reached QGIS's generic Python error handler. Every guard added over
+the last two days had it.
+
+`_run_and_report()` in both terrain/contours_dialog.py and
+terrain/tanaka_dialog.py now catches `ValueError` around the generate
+call and pushes the message to the message bar instead, returning
+None.
+
+**Only ValueError, and only at the dialog boundary.** A genuine bug
+must still reach the error dialog where it can be reported rather
+than being quietly downgraded to a warning - there is a test for that
+on both dialogs, asserting a RuntimeError still propagates.
+
+Worth remembering generally: a guard is not finished when it raises
+the right message. It is finished when the user SEES the right
+message, in the right place. The headless tests could not have caught
+this - they assert on the exception, which is exactly what the user
+should never have seen.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.

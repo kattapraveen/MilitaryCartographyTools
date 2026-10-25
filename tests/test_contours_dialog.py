@@ -312,3 +312,95 @@ class TestGenerateFromDialogValues(_ContoursDialogTestCase):
         rules = layer.renderer().rootRule().children()
 
         self.assertEqual(rules[0].symbol().color().name(), "#112233")
+
+
+class TestRefusalsReachTheUserNotTheErrorDialog(_ContoursDialogTestCase):
+
+    """
+    A guard's message is written FOR the user - "this DEM is too
+    large to contour: 2,376,271,908 pixels ... clip the DEM, or
+    narrow the extent". Letting the ValueError propagate shows it
+    under "An error has occurred while executing Python code" with a
+    full traceback, which reads as a crash rather than as the
+    considered refusal it is. Reported live 2026-10-26, against a
+    real 2.4-gigapixel SRTM mosaic.
+    """
+
+    def _too_large(self, **overrides):
+
+        from unittest.mock import patch
+
+        from MilitaryCartographyTools.terrain import contours
+
+        with patch.object(contours, "MAX_DEM_PIXELS", 10):
+
+            return generate_from_dialog_values(
+                self.iface,
+                self._values(**overrides)
+            )
+
+
+    def test_a_refusal_comes_back_as_none_rather_than_raising(self):
+
+        self.assertIsNone(self._too_large())
+
+
+    def test_the_refusal_reaches_the_message_bar(self):
+
+        self._too_large()
+
+        self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+    def test_the_message_bar_carries_the_guards_own_wording(self):
+
+        """
+        Not a generic "something went wrong" - the numbers and the way
+        out are the whole value of the message.
+        """
+
+        self._too_large()
+
+        text = " ".join(
+            str(part) for part in self.iface.messageBar().calls[0]
+        )
+
+        self.assertIn("too large to contour", text)
+        self.assertIn("Clip the DEM", text)
+
+
+    def test_it_also_catches_on_the_add_as_new_layer_path(self):
+
+        """
+        Two different routes reach the generator; both have to report
+        the same way.
+        """
+
+        self.assertIsNone(self._too_large(add_as_new_layer=True))
+        self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+
+    def test_a_real_fault_is_NOT_swallowed(self):
+
+        """
+        Only ValueError is caught, and only at this boundary. A
+        genuine bug must still reach the error dialog where it can be
+        reported, rather than being quietly turned into a warning.
+        """
+
+        from unittest.mock import patch
+
+        from MilitaryCartographyTools.terrain import contours_dialog
+
+        with patch.object(
+            contours_dialog,
+            "generate_contours",
+            side_effect=RuntimeError("a real bug")
+        ):
+
+            with self.assertRaises(RuntimeError):
+
+                generate_from_dialog_values(
+                    self.iface,
+                    self._values()
+                )

@@ -529,3 +529,98 @@ class TestExtentControl(QgisTestCase):
         )
 
         self.assertEqual(empty.featureCount(), full.featureCount())
+
+
+class TestRefusalsReachTheUserNotTheErrorDialog(QgisTestCase):
+
+    """
+    The same fault the Contours tool had, reported live 2026-10-26:
+    a guard's ValueError propagating to QGIS's generic Python error
+    dialog, so a considered refusal reads as a crash. Tanaka's guards
+    (tasks 1 and 2 of the 2026-10-20 list) had it too.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        QgsProject.instance().setCrs(
+            QgsCoordinateReferenceSystem("EPSG:4326")
+        )
+
+        self._dem_path = build_synthetic_sloped_dem()
+
+        self.dem_layer = QgsRasterLayer(self._dem_path, "test_dem")
+
+        self.iface = FakeIface(canvas=make_canvas())
+
+
+    def tearDown(self):
+
+        try:
+            os.remove(self._dem_path)
+        except OSError:
+            pass
+
+        super().tearDown()
+
+
+    def _values(self, **overrides):
+
+        values = {
+            "dem_layer": self.dem_layer,
+            "interval": 20.0,
+            "segment_length": 20.0,
+            "light_azimuth_deg": 315.0,
+            "min_width_mm": 0.15,
+            "max_width_mm": 0.6,
+            "style_mode": STYLE_ELEVATION_COLOR,
+            "add_as_new_layer": False,
+        }
+
+        values.update(overrides)
+
+        return values
+
+
+    def test_a_refusal_becomes_a_message_rather_than_a_traceback(self):
+
+        from unittest.mock import patch
+
+        from MilitaryCartographyTools.terrain import tanaka_contours
+
+        with patch.object(tanaka_contours, "MAX_DEM_PIXELS", 10):
+
+            result = generate_from_dialog_values(
+                self.iface,
+                self._values()
+            )
+
+        self.assertIsNone(result)
+        self.assertEqual(len(self.iface.messageBar().calls), 1)
+
+        text = " ".join(
+            str(part) for part in self.iface.messageBar().calls[0]
+        )
+
+        self.assertIn("too large to contour", text)
+
+
+    def test_a_real_fault_is_NOT_swallowed(self):
+
+        from unittest.mock import patch
+
+        from MilitaryCartographyTools.terrain import tanaka_dialog
+
+        with patch.object(
+            tanaka_dialog,
+            "generate_tanaka_contours",
+            side_effect=RuntimeError("a real bug")
+        ):
+
+            with self.assertRaises(RuntimeError):
+
+                generate_from_dialog_values(
+                    self.iface,
+                    self._values()
+                )
