@@ -32,10 +32,12 @@ Military Cartography Tools
 """
 
 from qgis.core import (
+    Qgis,
     QgsDefaultValue,
     QgsEditorWidgetSetup,
     QgsField,
     QgsMarkerSymbol,
+    QgsMessageLog,
     QgsProject,
     QgsProperty,
     QgsSingleSymbolRenderer,
@@ -51,6 +53,8 @@ from .land_unit_layer_nonnato import AFFILIATION_LABELS, ECHELON_LABELS
 from .nonnato_symbol_engine import ECHELON_MARKER_ENTITIES
 
 
+PLUGIN_LOG = "Military Cartography Tools"
+
 LAYER_NAME = "Echelons (Non-NATO)"
 
 # DERIVED from the Land Unit dialog's own names, minus Unspecified,
@@ -65,8 +69,45 @@ LAYER_NAME = "Echelons (Non-NATO)"
 # when in doubt the echelon naming in land units is the master". The
 # Office companion's own list already agreed with Land Unit, so this
 # was the only list out of step anywhere.
+#
+# Indexed through _label_for() rather than directly, so a table
+# mismatch cannot stop the plugin loading. Hardened 2026-10-25, from
+# the 2026-10-04 code review: a bare ECHELON_LABELS[entity] here
+# raises KeyError at MODULE scope, and plugin.py imports this module
+# at module scope too, so one missing label string took down the whole
+# plugin - MGRS, grids, terrain, layouts, everything - rather than
+# just this layer. The blast radius was wildly out of proportion to
+# the fault.
+#
+# A mismatch is still a bug, and still has to be caught: it is caught
+# by a test instead, where it belongs, so it fails in development
+# rather than on a user's machine. The fallback is a readable
+# placeholder derived from the stored key, so the layer stays usable
+# and the wrong label is obvious on sight rather than silently
+# plausible.
+def _label_for(entity):
+
+    """This scheme's name for `entity`, or a visible placeholder."""
+
+    try:
+        return ECHELON_LABELS[entity]
+
+    except KeyError:
+
+        QgsMessageLog.logMessage(
+            f"No non-NATO echelon label for {entity!r} - "
+            "ECHELON_MARKER_ENTITIES and ECHELON_LABELS disagree. "
+            "Falling back to a placeholder; this is a bug, see "
+            "echelons_layer_nonnato.py.",
+            PLUGIN_LOG,
+            Qgis.MessageLevel.Warning,
+        )
+
+        return entity.replace("_", " ").title()
+
+
 ENTITY_LABELS = {
-    entity: ECHELON_LABELS[entity] for entity in ECHELON_MARKER_ENTITIES
+    entity: _label_for(entity) for entity in ECHELON_MARKER_ENTITIES
 }
 
 DEFAULT_ENTITY = "company"

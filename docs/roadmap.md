@@ -13896,7 +13896,8 @@ versions, the user guide in three files, and a roadmap entry - call it
       plain contours skip the segment splitting and the per-segment
       DEM sampling entirely, so a whole country at 200 m is one
       ordinary run.
-- [ ] **5. Harden the Echelons label table** (~1 hour). Unrelated to
+- [x] **5. Harden the Echelons label table** (DONE 2026-10-25, ~1 hour
+      as estimated). Unrelated to
       the above, carried from the 2026-10-04 code review.
       `echelons_layer_nonnato.py`'s `ENTITY_LABELS` indexes
       `ECHELON_LABELS` at module scope, so a mismatch between the two
@@ -14107,6 +14108,41 @@ segments (1,496 against 5,969 on the test cone).
 
 ---
 
+## Echelons: a label mismatch no longer takes the plugin down (2026-10-25)
+
+Task 5 of the 2026-10-20 list, carried from the 2026-10-04 code
+review. Unrelated to the Tanaka work around it.
+
+`echelons_layer_nonnato.ENTITY_LABELS` is DERIVED from Land Unit's
+`ECHELON_LABELS`, which has been the master since 2026-10-01. The
+derivation indexed that master directly at module scope, so a missing
+label raised `KeyError` during import - and `plugin.py` imports this
+module at module scope too. One missing label string took down the
+entire plugin: MGRS, grids, terrain analysis, layouts, all of it. The
+blast radius was wildly out of proportion to the fault.
+
+**The fix is not to tolerate drift.** Drift is still a bug. It is now
+caught by a test, in development, instead of on a user's machine:
+
+- `_label_for()` returns the master's label, or logs a warning to the
+  QGIS message log and falls back to a readable placeholder derived
+  from the stored key (`some_unmapped_echelon` -> "Some Unmapped
+  Echelon"). Readable so the layer stays usable; visibly derived from
+  the key so a wrong label looks wrong rather than silently
+  plausible.
+- A new guard-rail test asserts every `ECHELON_MARKER_ENTITIES` key
+  has a real label in the master, and says in its own docstring to
+  add the missing entity rather than lean on the fallback.
+
+Verified by deleting `"army": "Command"` from the master and
+re-running. Before: the module could not import. Now: the suite runs
+and fails cleanly with `AssertionError: Lists differ: ['army'] != []`,
+naming the exact entity. Restored, all twelve pass.
+
+No user-visible change, so the guide is untouched.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
@@ -14122,7 +14158,7 @@ segments (1,496 against 5,969 on the test cone).
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
 12. ✅ ~~Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology)~~ — **complete 2026-08-17**; the appendix work itself finished 2026-08-16 when Appendix H closed, and shipped in 1.0.0. Every appendix built or explicitly triaged out (I/METOC decided not needed). What is left inside this phase is expansion, not completion - the Land entity vocabularies and the Land sector 1/2 modifiers - tracked separately rather than holding the phase open. The history below is kept because the reasoning still matters. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix. **Update 2026-08-09/10**: H0-H14 built and tested headlessly; live hands-on QGIS smoke-testing by the project maintainer (started 2026-08-09, table-by-table henceforth via a dedicated tracker artifact) found and fixed real construction defects in H3 (FLOT/Line of Contact/Phase Line/FEBA/Principal Direction of Fire/Fortified Area, plus building the previously-skipped Limited Access Area) and H4 (echelon placement, Strong Point tick direction/masking, Battle Position's "prepared" line style) - see both dated entries above for the full list. Also, at the maintainer's own request, Table H-VI and Table H-IX's point-type entries moved out of the shared `control_measure_points.py` layer into their own dedicated Points layers (C2 Measures/Defensive Control Measures respectively), matching every other H.5.x group's own "own layer(s)" convention - the remaining groups' own points (Airspace/Maritime control points; everything under the not-yet-built H15-H22) are scoped to move the same way once each group's own mini-phase is built, not preemptively. H15-H22 remain pending. 696 tests passing on both QGIS versions as of 2026-08-10. **Update 2026-08-16: APPENDIX H IS COMPLETE.** H15-H22 are all built, smoke-tested and cleared - the last of them Table H-XXIV's own 24 mission-task lines, finished 2026-08-16. Every drawable row of every Appendix H table now has a symbol; the only rows still recorded as unbuilt anywhere are two group parents the standard gives no template for, kept so each module's row arithmetic still reconciles. See the "Appendix H — complete" section at the end of this file for the authoritative ledger. 1289 tests passing on both QGIS versions.
 13. ✅ ~~Phase 12 — MIL-STD-2525E / APP-6E symbology~~ — **complete
-14. ⬜ **Terrain: the Tanaka extent problem, and a Contours tool** — five tasks, ~4-5 days in all - tasks 1, 2 and 3 done 2026-10-25, two to go - plus an unspecified sixth (aircraft ROA range markers). See "Tanaka Contours at country scale, and a Contours tool (2026-10-20)" above for the measurements behind them and the suggested order. In short: guard the pipeline so a failure names its own stage (~2 h), refuse an extent that would hang instead of hanging (~half a day), give the Tanaka dialog an extent control (~half a day), build a plain Contours tool with military styling (~2-3 days), and harden the Echelons label table against an import-time KeyError (~1 h).
+14. ⬜ **Terrain: the Tanaka extent problem, and a Contours tool** — five tasks, ~4-5 days in all - tasks 1, 2, 3 and 5 done 2026-10-25; only task 4, the Contours tool, remains - plus an unspecified sixth (aircraft ROA range markers). See "Tanaka Contours at country scale, and a Contours tool (2026-10-20)" above for the measurements behind them and the suggested order. In short: guard the pipeline so a failure names its own stage (~2 h), refuse an extent that would hang instead of hanging (~half a day), give the Tanaka dialog an extent control (~half a day), build a plain Contours tool with military styling (~2-3 days), and harden the Echelons label table against an import-time KeyError (~1 h).
     2026-08-18**: 978 entities and 226 sector modifiers across every
     symbol set, an edition setting on the toolbar, every Land layer's
     own modifiers covering both editions, and E-8 (the 93 common

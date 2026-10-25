@@ -31,8 +31,12 @@ from MilitaryCartographyTools.military_symbology.echelons_layer_nonnato import (
     DEFAULT_ENTITY,
     ENTITY_LABELS,
     LAYER_NAME,
+    _label_for,
     add_echelons_layer_nonnato,
     build_echelons_layer_nonnato,
+)
+from MilitaryCartographyTools.military_symbology.land_unit_layer_nonnato import (
+    ECHELON_LABELS,
 )
 from MilitaryCartographyTools.military_symbology.nonnato_symbol_engine import (
     ECHELON_MARKER_ENTITIES,
@@ -194,3 +198,80 @@ class TestAddEchelonsLayerNonnato(QgisTestCase):
 
         self.assertIsNotNone(add_echelons_layer_nonnato(iface))
         self.assertIsNone(add_echelons_layer_nonnato(iface))
+
+
+class TestLabelTablesAgree(QgisTestCase):
+
+    """
+    The two tables that have to agree, and what happens if they ever
+    stop agreeing.
+
+    This layer's labels are DERIVED from Land Unit's ECHELON_LABELS,
+    which is the master (settled 2026-10-01: "when in doubt the
+    echelon naming in land units is the master"). Before 2026-10-25
+    that derivation indexed the master directly at module scope, so a
+    missing label raised KeyError on IMPORT - and plugin.py imports
+    this module at module scope, so the whole plugin failed to load
+    over one missing string. Flagged in the 2026-10-04 code review.
+
+    The fix is not to tolerate drift. It is to catch it HERE, in
+    development, instead of on a user's machine.
+    """
+
+    def test_every_marker_entity_has_a_real_label_in_the_master(self):
+
+        """
+        The guard-rail. If this fails, the tables have drifted: add
+        the missing entity to ECHELON_LABELS in
+        land_unit_layer_nonnato.py rather than working around it - the
+        fallback exists to keep the plugin loadable, not to make a
+        missing label acceptable.
+        """
+
+        missing = [
+            entity
+            for entity in ECHELON_MARKER_ENTITIES
+            if entity not in ECHELON_LABELS
+        ]
+
+        self.assertEqual(missing, [])
+
+
+    def test_a_known_entity_takes_the_masters_own_label(self):
+
+        for entity in ECHELON_MARKER_ENTITIES:
+
+            with self.subTest(entity=entity):
+
+                self.assertEqual(
+                    _label_for(entity),
+                    ECHELON_LABELS[entity]
+                )
+
+
+    def test_an_unknown_entity_falls_back_instead_of_raising(self):
+
+        """
+        The whole point: a missing label must not be able to stop the
+        module importing, because plugin.py imports it at module
+        scope and the blast radius is the entire plugin.
+        """
+
+        self.assertEqual(
+            _label_for("brigade_group"),
+            "Brigade Group"
+        )
+
+
+    def test_the_fallback_is_obviously_a_placeholder(self):
+
+        """
+        Readable so the layer stays usable, but visibly derived from
+        the stored key rather than silently plausible - a wrong label
+        that looks right is worse than one that looks wrong.
+        """
+
+        fallback = _label_for("some_unmapped_echelon")
+
+        self.assertEqual(fallback, "Some Unmapped Echelon")
+        self.assertNotIn(fallback, set(ECHELON_LABELS.values()))
