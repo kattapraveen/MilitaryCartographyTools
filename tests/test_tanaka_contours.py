@@ -8,8 +8,11 @@ Military Cartography Tools
 """
 
 import os
+import re
 
 from unittest.mock import patch
+
+import processing
 
 from qgis.core import (
     QgsCoordinateReferenceSystem,
@@ -17,6 +20,7 @@ from qgis.core import (
     QgsFeature,
     QgsGeometry,
     QgsPointXY,
+    QgsProcessing,
     QgsRasterLayer,
     QgsRectangle,
     QgsSymbolLayer,
@@ -27,12 +31,15 @@ from qgis.PyQt.QtGui import QColor, QPainter
 from .qgis_test_case import build_synthetic_cone_dem, build_synthetic_sloped_dem, QgisTestCase
 
 from MilitaryCartographyTools.core.coordinate_utils import WGS84
+from MilitaryCartographyTools.terrain import tanaka_contours
 from MilitaryCartographyTools.terrain._hypsometric_ramp import (
     LAND_RAMP,
     SEA_RAMP,
 )
 from MilitaryCartographyTools.terrain.tanaka_contours import (
     _apply_style,
+    _predicted_segment_count,
+    _round_up_nicely,
     _band_min_max,
     _build_output_layer,
     _clip_and_reproject,
@@ -1168,3 +1175,202 @@ class TestPipelineNamesTheStageThatFailed(QgisTestCase):
                 os.remove(dem_path)
             except OSError:
                 pass
+
+
+class TestRoundUpNicely(QgisTestCase):
+
+    """A suggested interval has to read as a number someone would type."""
+
+    def test_rounds_up_to_one_two_or_five_times_a_power_of_ten(self):
+
+        for value, expected in (
+            (183.47, 200),
+            (51.0, 100),
+            (99.0, 100),
+            (20.0, 20),
+            (1234.0, 2000),
+            (1.0, 1),
+        ):
+
+            with self.subTest(value=value):
+                self.assertEqual(_round_up_nicely(value), expected)
+
+
+    def test_a_value_already_on_a_step_is_left_alone(self):
+
+        for value in (1, 2, 5, 10, 20, 50, 100, 200, 500):
+
+            with self.subTest(value=value):
+                self.assertEqual(_round_up_nicely(float(value)), value)
+
+
+    def test_zero_and_negative_give_zero(self):
+
+        self.assertEqual(_round_up_nicely(0), 0)
+        self.assertEqual(_round_up_nicely(-5), 0)
+
+
+class TestCostGuards(QgisTestCase):
+
+    """
+    A run that could not finish must be refused with the real numbers,
+    not left to hang - reported live 2026-10-20, where a country-sized
+    extent made QGIS "practically hang" rather than fail.
+    """
+
+    def setUp(self):
+
+        super().setUp()
+
+        self._dem_path = build_synthetic_cone_dem(width=60, height=60)
+
+        dem = QgsRasterLayer(self._dem_path, "cone")
+
+        self._clipped = _clip_and_reproject(
+            dem,
+            dem.extent(),
+            dem.crs()
+        )
+
+
+    def tearDown(self):
+
+        try:
+            os.remove(self._dem_path)
+        except OSError:
+            pass
+
+        super().tearDown()
+
+
+    def test_an_ordinary_run_is_not_refused(self):
+
+        segments = _generate_contour_segments(
+            self._clipped,
+            interval=20.0,
+            segment_length=50.0
+        )
+
+        self.assertGreater(segments.featureCount(), 0)
+
+
+    def test_too_many_segments_is_refused_with_the_numbers(self):
+
+        with patch.object(tanaka_contours, "MAX_SEGMENT_COUNT", 100):
+
+            with self.assertRaises(ValueError) as raised:
+
+                _generate_contour_segments(
+                    self._clipped,
+                    interval=20.0,
+                    segment_length=50.0
+                )
+
+        message = str(raised.exception)
+
+        self.assertIn("100", message)             # the limit
+        self.assertIn("segments", message)
+        # A concrete way out, not just a complaint.
+        self.assertIn("interval", message)
+
+
+    def test_the_refusal_suggests_a_bigger_interval_than_the_one_used(self):
+
+        with patch.object(tanaka_contours, "MAX_SEGMENT_COUNT", 100):
+
+            with self.assertRaises(ValueError) as raised:
+
+                _generate_contour_segments(
+                    self._clipped,
+                    interval=20.0,
+                    segment_length=50.0
+                )
+
+        suggested = re.search(
+            r"to about ([\d.]+) m",
+            str(raised.exception)
+        )
+
+        self.assertIsNotNone(suggested)
+        self.assertGreater(float(suggested.group(1)), 20.0)
+
+
+    def test_too_many_pixels_is_refused_before_any_contouring(self):
+
+        """
+        The pixel check must run BEFORE gdal:contour - the point is
+        that a DEM too big to contour never starts. If processing.run
+        were reached it would be patched out here and the call would
+        fail differently.
+        """
+
+        with patch.object(tanaka_contours, "MAX_DEM_PIXELS", 10):
+
+            with patch.object(
+                tanaka_contours.processing, "run"
+            ) as never_run:
+
+                with self.assertRaises(ValueError) as raised:
+
+                    _generate_contour_segments(
+                        self._clipped,
+                        interval=20.0,
+                        segment_length=50.0
+                    )
+
+        self.assertEqual(never_run.call_count, 0)
+        self.assertIn("too large to contour", str(raised.exception))
+
+
+    def test_the_predicted_count_is_a_lower_bound_on_the_real_one(self):
+
+        """
+        The split gives ceil(length / segment_length) pieces per line,
+        so the prediction is short by up to one per contour line. It
+        must never over-count, or a legitimate job gets refused.
+        """
+
+        contours = processing.run(
+            "gdal:contour",
+            {
+                "INPUT": self._clipped,
+                "BAND": 1,
+                "INTERVAL": 20.0,
+                "FIELD_NAME": "ELEV",
+                "CREATE_3D": False,
+                "IGNORE_NODATA": False,
+                "NODATA": None,
+                "OFFSET": 0.0,
+                "EXTRA": None,
+                "OPTIONS": "",
+                "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT,
+            },
+        )
+
+        contour_layer = QgsVectorLayer(
+            contours["OUTPUT"], "raw", "ogr"
+        )
+
+        predicted = _predicted_segment_count(contour_layer, 50.0)
+
+        actual = _generate_contour_segments(
+            self._clipped,
+            interval=20.0,
+            segment_length=50.0
+        ).featureCount()
+
+        self.assertLessEqual(predicted, actual)
+        self.assertGreater(
+            predicted,
+            actual - contour_layer.featureCount() - 1
+        )
+
+
+    def test_a_zero_segment_length_is_rejected_rather_than_dividing(self):
+
+        contour_layer = QgsVectorLayer(
+            "LineString?crs=EPSG:32737", "empty", "memory"
+        )
+
+        with self.assertRaises(ValueError):
+            _predicted_segment_count(contour_layer, 0)

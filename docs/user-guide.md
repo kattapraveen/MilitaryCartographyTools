@@ -308,8 +308,19 @@ means every line is cut into more pieces, each needing its own elevation
 sample). If a run is taking longer than you want to wait, crop the DEM
 itself first, or start with a coarser interval and refine from there.
 
-**If a run fails, the error names the step that failed and the layer it
-failed on.** "Could not clip and reproject the DEM *name*" means the DEM
+**A run that could not finish is refused up front, with the numbers.**
+Rather than appearing to hang, the tool stops and tells you what you
+asked for: either "this DEM is too large to contour" with its pixel
+count, or "this would produce at least N segments" along with a contour
+interval that would bring it back into range. Every segment is sampled
+against the DEM twice, which is why the segment count — not the area —
+is what decides whether a run is feasible. Clipping the DEM is usually
+the better answer than coarsening the interval, since Tanaka contours
+are a map-sheet technique and the illumination they encode is invisible
+at national scale.
+
+**If a run fails for some other reason, the error names the step that
+failed and the layer it failed on.** "Could not clip and reproject the DEM *name*" means the DEM
 could not be read or warped — check it opens on its own, and note that a
 raster stored inside a GeoPackage cannot be clipped by QGIS's own GDAL
 tools. "Could not read the contours" means the contour step ran but left

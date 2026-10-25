@@ -1049,7 +1049,11 @@
         <h2 style="margin:0 0 18px;font-size:27px;font-weight:700;letter-spacing:-0.015em">When things look wrong</h2>
         <div style="display:grid;gap:14px">
           <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
-            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Tanaka Contours stopped with an error about the DEM</div>
+            <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">
+            <div style="font-weight:600;font-size:15px;margin-bottom:6px">Tanaka Contours refused to run and quoted a number</div>
+            <div style="font-size:14.5px;line-height:1.62;color:#5c635a">That is deliberate: the run would not have finished. Every segment is sampled against the DEM twice, so the segment count rather than the area decides what is feasible. The message gives you a contour interval that would bring it back into range, but <strong>clipping the DEM is usually the better answer</strong> &mdash; Tanaka contours are a map-sheet technique, and the illumination they encode is invisible at national scale.</div>
+          </div>
+          <div style="font-weight:600;font-size:15px;margin-bottom:6px">Tanaka Contours stopped with an error about the DEM</div>
             <div style="font-size:14.5px;line-height:1.62;color:#5c635a">The message names the step that failed and the layer it failed on. <strong>Could not clip and reproject the DEM</strong> means the DEM itself could not be read or warped &mdash; check it opens on its own, and note that a raster stored inside a GeoPackage cannot be clipped by QGIS's GDAL tools. <strong>Could not read the contours</strong> means the contour step ran but produced nothing openable. Either way the named step is where to look, not the one in the traceback's last line.</div>
           </div>
           <div style="background:#fffefb;border:1px solid #ded9cb;border-radius:5px;padding:16px 18px">

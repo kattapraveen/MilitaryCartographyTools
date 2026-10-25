@@ -100,6 +100,95 @@ UPHILL_SAMPLE_OFFSET_PIXEL_MARGIN = 1.25
 ILLUMINATION_SMOOTHING_WINDOW = 9
 
 
+# --- Cost guards -----------------------------------------------------
+#
+# A Tanaka run's real cost is the SPLIT and the per-segment DEM
+# sampling that follows it, not the contouring: every segment gets two
+# raster samples. Ask for a country at the defaults and the job does
+# not fail, it simply never finishes - reported live 2026-10-20, where
+# QGIS "practically hung" on Tanzania. These two guards refuse with
+# the actual numbers instead.
+#
+# The two limits are deliberately different, because they are checked
+# at different points and know different things.
+#
+# MAX_SEGMENT_COUNT is checked AFTER gdal:contour, where the real
+# contour length is known, so no terrain assumption is needed. The
+# count is a close lower bound rather than exact - the split gives
+# ceil(length / segment_length) pieces PER LINE, so the prediction is
+# short by up to one per contour line (measured: 1,376 predicted
+# against 1,397 drawn, 18 lines). That is the right direction for a
+# refusal threshold, and the shortfall is immaterial at a limit of two
+# million. 2,000,000 leaves room for jobs that genuinely work: a
+# 200 x 200 km sheet at the defaults is ~1.6 M, and Kenya at a
+# 100 m interval with 250 m segments is ~0.93 M. It catches what
+# cannot: a 300 km square at the defaults is ~3.6 M, Kenya at the
+# defaults ~23 M, Tanzania ~38 M.
+#
+# MAX_DEM_PIXELS is a cheap pre-check, run BEFORE contouring, so that
+# a DEM too big to contour at all never starts. It has to be far more
+# generous than the segment limit implies, because at this point the
+# interval is not yet accounted for - a 300 km square (100 MP) at a
+# 200 m interval is only ~360 k segments and must be allowed through.
+# 500 MP permits roughly a 670 km square at SRTM 30 m whatever the
+# interval, and still catches the cases that prompted this: Tanzania
+# is ~1,600 MP and the extent in the live report was ~1,290 MP.
+MAX_SEGMENT_COUNT = 2_000_000
+
+MAX_DEM_PIXELS = 500_000_000
+
+
+def _round_up_nicely(value):
+
+    """
+    The next 1, 2 or 5 times a power of ten at or above `value`, so a
+    suggested interval reads as a number someone would actually type
+    (50, 100, 200, 500) rather than 183.47.
+    """
+
+    if value <= 0:
+        return 0
+
+    power = math.floor(math.log10(value))
+
+    for step in (1, 2, 5, 10):
+
+        candidate = step * (10 ** power)
+
+        if candidate >= value:
+            return candidate
+
+    return 10 ** (power + 1)
+
+
+def _predicted_segment_count(contour_layer, segment_length):
+
+    """
+    How many pieces the split is about to produce: the total drawn
+    contour length divided by the segment length. Measured rather than
+    estimated - the lines already exist by this point - and far
+    cheaper than running the split to find out.
+
+    A close LOWER bound, not an exact count: the split produces
+    ceil(length / segment_length) pieces per line, so this is short by
+    up to one per contour line. Fine for a refusal threshold, and
+    deliberately the safe direction - it will never refuse a job
+    smaller than it claims.
+    """
+
+    if segment_length <= 0:
+        raise ValueError(
+            f"Segment length must be positive, got {segment_length}"
+        )
+
+    total_length = sum(
+        feature.geometry().length()
+        for feature in contour_layer.getFeatures()
+    )
+
+    return total_length / segment_length
+
+
 def _generate_contour_segments(dem_layer, interval, segment_length):
 
     """
@@ -119,7 +208,25 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
     because of it. A layer with no FEATURES is fine and is not
     guarded: a DEM flatter than one interval legitimately yields an
     empty contour layer, and the split handles that.
+
+    Also refuses, with the real numbers, work that would not finish -
+    see MAX_DEM_PIXELS and MAX_SEGMENT_COUNT above. The pixel check
+    runs first, before any contouring; the segment check runs between
+    the contouring and the split, where the count is exact.
     """
+
+    pixels = dem_layer.width() * dem_layer.height()
+
+    if pixels > MAX_DEM_PIXELS:
+
+        raise ValueError(
+            f"This DEM is too large to contour: {pixels:,} pixels "
+            f"({dem_layer.width():,} x {dem_layer.height():,}) against "
+            f"a limit of {MAX_DEM_PIXELS:,}. Clip the DEM to the area "
+            "you actually need - Tanaka contours are a map-sheet "
+            "technique, and the illumination they encode is invisible "
+            "at national scale."
+        )
 
     contour_result = processing.run(
         "gdal:contour",
@@ -151,6 +258,24 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
             f"{contour_result['OUTPUT']} (interval {interval}). The "
             "contour step ran but left nothing openable, so there is "
             "nothing to split into segments."
+        )
+
+    predicted = _predicted_segment_count(contour_layer, segment_length)
+
+    if predicted > MAX_SEGMENT_COUNT:
+
+        suggested = _round_up_nicely(
+            interval * (predicted / MAX_SEGMENT_COUNT)
+        )
+
+        raise ValueError(
+            f"This would produce at least {predicted:,.0f} segments, "
+            f"against a limit of {MAX_SEGMENT_COUNT:,}. Each one is "
+            "sampled against the DEM twice, so the run would not "
+            f"finish. Either clip the DEM, or raise the contour "
+            f"interval from {interval:g} m to about {suggested:g} m "
+            f"(or raise the segment length from {segment_length:g} m, "
+            "which costs the same)."
         )
 
     split_result = processing.run(

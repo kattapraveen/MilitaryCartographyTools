@@ -13870,7 +13870,8 @@ versions, the user guide in three files, and a roadmap entry - call it
       layer" two calls downstream. Cheapest item, and it makes every
       other failure here legible - including the GeoPackage one, if it
       ever reaches this code.
-- [ ] **2. An up-front cost guard** (~half a day). Refuse with real
+- [x] **2. An up-front cost guard** (DONE 2026-10-25, ~half a day as
+      estimated). Refuse with real
       numbers rather than hanging: "this extent gives ~46 million
       segments; clip the DEM or raise the interval to 200 m". After
       `gdal:contour` and **before** the split, the contour lengths can
@@ -14015,6 +14016,55 @@ is where to look, not the traceback's last line.
 
 ---
 
+## Tanaka Contours: a run that cannot finish is now refused (2026-10-25)
+
+Task 2 of the 2026-10-20 list, done the same day as task 1.
+
+Two limits, checked at different points because they know different
+things.
+
+**`MAX_DEM_PIXELS = 500,000,000`**, checked BEFORE any contouring, so a
+DEM too big to contour never starts. It is deliberately far more
+generous than the segment limit implies: at that point the interval is
+not yet accounted for, and a 300 km square (100 MP) at a 200 m interval
+is only ~360 k segments and must be allowed through. 500 MP permits
+roughly a 670 km square at SRTM 30 m whatever the interval, and still
+catches what prompted this - Tanzania is ~1,600 MP, and the extent in
+the live report was ~1,290 MP.
+
+**`MAX_SEGMENT_COUNT = 2,000,000`**, checked between the contouring and
+the split, where the real contour length is known so no terrain
+assumption is needed. Chosen to leave room for jobs that genuinely
+work - a 200 x 200 km sheet at the defaults is ~1.6 M, Kenya at a
+100 m interval with 250 m segments ~0.93 M - while catching what
+cannot: a 300 km square at the defaults ~3.6 M, Kenya at the defaults
+~23 M, Tanzania ~38 M.
+
+**The predicted count is a lower bound, not exact**, and the first
+version of this entry claimed otherwise. The split produces
+ceil(length / segment_length) pieces PER LINE, so the prediction is
+short by up to one per contour line - measured at 1,376 predicted
+against 1,397 drawn across 18 lines. That is the safe direction for a
+refusal threshold (it will never refuse a job smaller than it claims)
+and immaterial against a limit of two million, but the code and the
+message now say "at least" rather than implying precision.
+
+The refusal does not merely complain: it quotes the number, the limit,
+and a contour interval that would bring the job back into range,
+rounded up to a value someone would actually type (`_round_up_nicely`
+gives 1, 2 or 5 times a power of ten). It also says plainly that
+clipping the DEM is usually the better answer, because Tanaka contours
+are a map-sheet technique and the illumination they encode is
+invisible at national scale.
+
+Verified by neutering both guards and confirming three of the six
+tests fail, then restoring them. One test asserts the pixel check runs
+before `processing.run` is called at all, by patching `processing.run`
+and asserting its call count is zero - the point of that check being
+that the expensive step never starts.
+
+---
+
 ## Suggested near-term order
 
 1. ✅ ~~Phase 1 leftovers (`mct_mgrs_zone/square/easting/northing`)~~ — done 2026-07-27.
@@ -14030,7 +14080,7 @@ is where to look, not the traceback's last line.
 11. ✅ ~~Phase 9 — navigation & production utilities~~ — complete 2026-08-06. Bearing/range tool, GPX/KML import/export, and map sheet series all done, reusing existing infrastructure with no new subsystem required.
 12. ✅ ~~Phase 10 — tactical graphics (MIL-STD-2525/APP-6 symbology)~~ — **complete 2026-08-17**; the appendix work itself finished 2026-08-16 when Appendix H closed, and shipped in 1.0.0. Every appendix built or explicitly triaged out (I/METOC decided not needed). What is left inside this phase is expansion, not completion - the Land entity vocabularies and the Land sector 1/2 modifiers - tracked separately rather than holding the phase open. The history below is kept because the reasoning still matters. All four original sub-phases (rendering foundation, unit/formation point symbols, control measures, area/perimeter reporting) built, tested, and documented; manual smoke test completed 2026-08-07, three issues found and fixed same-day. Reopened 2026-08-07 at the user's request to verify against the official MIL-STD-2525D standard directly: found and fixed control-measure colouring (H.5.3), added sub-phase 10.5 (Air/Sea Surface/Subsurface unit symbol sets), and made Entity a real cascading dropdown filtered by Symbol Set (confirmed safe in live testing after a native-crash risk was flagged and accepted). A broader scope review the same day (cross-referencing the standard's own table of contents against milsymbol.js's real source) confirmed substantially more of the standard remains uncovered - Land Civilian/Equipment/Installation, Mine Warfare, Activities, SIGINT, Cyberspace (all already rendered by milsymbol.js, a vocabulary gap only), Appendix H's line/area control measures beyond the 5 built so far (no rendering library to lean on - this is where Mission Task graphics like BLOCK/DISRUPT actually live), and METOC (no library support at all, unscoped). Sub-phase 10.6 (control-measure point symbols, Appendix H symbol set "25") and sub-phase 10.7 (Maneuver/Defensive/Offensive control measures and Mission Task symbols, H.5.11-H.5.14/H.5.26) are both done and merged, tested headlessly on both QGIS versions; sub-phase 10.6 has also been live-smoke-tested, sub-phase 10.7 has not yet (see Phase 10's own entry above for all of the above in detail). **Update 2026-08-08/09**: the stage-based plan above was superseded by a strict appendix-by-appendix completion plan - Appendices A-G, J, and L are now DONE (each its own verified layer + icon), Appendix I (METOC) was triaged and explicitly SKIPPED (no felt need, no library support), and Appendix H (Control Measures) is being rebuilt sub-phase by sub-phase (H0-H22) in the standard's own section order, starting with H0 (general rules + Boundaries, done 2026-08-09) - see Phase 10's own entry above for full detail on every appendix. **Update 2026-08-09/10**: H0-H14 built and tested headlessly; live hands-on QGIS smoke-testing by the project maintainer (started 2026-08-09, table-by-table henceforth via a dedicated tracker artifact) found and fixed real construction defects in H3 (FLOT/Line of Contact/Phase Line/FEBA/Principal Direction of Fire/Fortified Area, plus building the previously-skipped Limited Access Area) and H4 (echelon placement, Strong Point tick direction/masking, Battle Position's "prepared" line style) - see both dated entries above for the full list. Also, at the maintainer's own request, Table H-VI and Table H-IX's point-type entries moved out of the shared `control_measure_points.py` layer into their own dedicated Points layers (C2 Measures/Defensive Control Measures respectively), matching every other H.5.x group's own "own layer(s)" convention - the remaining groups' own points (Airspace/Maritime control points; everything under the not-yet-built H15-H22) are scoped to move the same way once each group's own mini-phase is built, not preemptively. H15-H22 remain pending. 696 tests passing on both QGIS versions as of 2026-08-10. **Update 2026-08-16: APPENDIX H IS COMPLETE.** H15-H22 are all built, smoke-tested and cleared - the last of them Table H-XXIV's own 24 mission-task lines, finished 2026-08-16. Every drawable row of every Appendix H table now has a symbol; the only rows still recorded as unbuilt anywhere are two group parents the standard gives no template for, kept so each module's row arithmetic still reconciles. See the "Appendix H — complete" section at the end of this file for the authoritative ledger. 1289 tests passing on both QGIS versions.
 13. ✅ ~~Phase 12 — MIL-STD-2525E / APP-6E symbology~~ — **complete
-14. ⬜ **Terrain: the Tanaka extent problem, and a Contours tool** — five tasks, ~4-5 days in all - task 1 done 2026-10-25, four to go - plus an unspecified sixth (aircraft ROA range markers). See "Tanaka Contours at country scale, and a Contours tool (2026-10-20)" above for the measurements behind them and the suggested order. In short: guard the pipeline so a failure names its own stage (~2 h), refuse an extent that would hang instead of hanging (~half a day), give the Tanaka dialog an extent control (~half a day), build a plain Contours tool with military styling (~2-3 days), and harden the Echelons label table against an import-time KeyError (~1 h).
+14. ⬜ **Terrain: the Tanaka extent problem, and a Contours tool** — five tasks, ~4-5 days in all - tasks 1 and 2 done 2026-10-25, three to go - plus an unspecified sixth (aircraft ROA range markers). See "Tanaka Contours at country scale, and a Contours tool (2026-10-20)" above for the measurements behind them and the suggested order. In short: guard the pipeline so a failure names its own stage (~2 h), refuse an extent that would hang instead of hanging (~half a day), give the Tanaka dialog an extent control (~half a day), build a plain Contours tool with military styling (~2-3 days), and harden the Echelons label table against an import-time KeyError (~1 h).
     2026-08-18**: 978 entities and 226 sector modifiers across every
     symbol set, an edition setting on the toolbar, every Land layer's
     own modifiers covering both editions, and E-8 (the 93 common
