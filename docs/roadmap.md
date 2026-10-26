@@ -13999,13 +13999,16 @@ versions, the user guide in three files, and a roadmap entry - call it
       "Clipping the DEM", "Generating contours", "Sensor 3 of 12"
       says more than a bare number for a tool with one or two stages.
 
-**Suggested order: 1, 2, 3, 4, 5.** Items 6 and 7 are both
-unscheduled - 6 unspecified, 7 awaiting a design decision. Item 1 is cheap and makes the rest
-easier to diagnose; 2 stops the hang; 3 removes the need to pre-clip
-for ordinary work; 4 is the real capability. If only one is done, it
-should be 4 - it is the tool the national sheet actually needs, and
-the Tanaka fixes matter less once it is no longer being asked to do a
-job it was never suited to.
+**Tasks 1 to 5 are DONE** - 1, 2, 3 and 5 on 2026-10-25, task 4 on
+2026-10-26 - and the order they were done in was 1, 2, 3, 5, 4. The
+reasoning at the time, kept because it held up: 1 is cheap and makes
+the rest easier to diagnose; 2 stops the hang; 3 removes the need to
+pre-clip for ordinary work; 4 is the real capability, and the Tanaka
+fixes matter less once Tanaka is no longer being asked to do a job it
+was never suited to.
+
+**Items 6 and 7 remain**, both unscheduled - 6 unspecified, 7
+awaiting a design decision.
 
 ---
 
