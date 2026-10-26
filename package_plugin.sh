@@ -32,6 +32,7 @@ INCLUDE=(
     __init__.py
     metadata.txt
     plugin.py
+    algorithms
     core
     grid
     layout

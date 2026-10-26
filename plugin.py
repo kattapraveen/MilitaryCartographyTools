@@ -159,6 +159,7 @@ from .military_symbology.target_acquisition_control_measures import (
     add_target_acquisition_control_measures_areas_layer,
     add_range_fans_layer,
 )
+from .algorithms import MilitaryCartographyProvider, PROVIDER_ID
 from .terrain import (
     show_contours_dialog,
     show_tanaka_contour_dialog,
@@ -215,6 +216,8 @@ class MilitaryCartographyTools:
         self.new_layout_action = None
         self.coordinate_probe_action = None
         self.bearing_range_action = None
+        self.processing_provider = None
+        self.range_rings_action = None
         self.contours_action = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
@@ -344,10 +347,70 @@ class MilitaryCartographyTools:
     # QGIS Plugin API
     # ------------------------------------------------------------------
 
+    def _register_processing_provider(self):
+
+        """
+        Register the plugin's Processing provider, holding the
+        reference on self.
+
+        The reference is load-bearing, not tidiness: the registry
+        does NOT keep a Python provider alive, and a collected one
+        fails later with the thoroughly unhelpful "Error creating
+        algorithm from createInstance()". Hit while building this
+        2026-10-26.
+        """
+
+        try:
+
+            self.processing_provider = MilitaryCartographyProvider(
+                str(self.plugin_dir / "icons" / "range_rings.svg")
+            )
+
+            QgsApplication.processingRegistry().addProvider(
+                self.processing_provider
+            )
+
+        except Exception as error:
+
+            self.processing_provider = None
+
+            self.log(
+                f"Could not register the Processing provider: {error}",
+                Qgis.MessageLevel.Warning
+            )
+
+
+    def _unregister_processing_provider(self):
+
+        """
+        Remove the provider so a Plugin Reloader cycle does not stack
+        a second copy of every algorithm on top of the first.
+        """
+
+        if self.processing_provider is None:
+            return
+
+        try:
+
+            QgsApplication.processingRegistry().removeProvider(
+                self.processing_provider
+            )
+
+        except (RuntimeError, ValueError):
+
+            # Already gone, or its C++ object has been destroyed -
+            # nothing left to undo.
+            pass
+
+        self.processing_provider = None
+
+
     def initGui(self):
         """
         Initialize plugin GUI.
         """
+
+        self._register_processing_provider()
 
         mgrs_functions.register()
         military_symbology_functions.register()
@@ -376,6 +439,7 @@ class MilitaryCartographyTools:
         self._setup_coordinate_probe_action()
         self._setup_bearing_range_action()
         self._setup_new_layout_action()
+        self._setup_range_rings_action()
         self._setup_contours_action()
         self._setup_tanaka_contours_action()
         self._setup_hypsometric_tint_action()
@@ -777,6 +841,26 @@ class MilitaryCartographyTools:
                 "size, orientation, and starting scale"
             ),
             callback=self.create_new_layout,
+            standalone=False
+        )
+
+
+    def _setup_range_rings_action(self):
+
+        # Geodesic range rings for an aircraft's radius of action.
+        # The work is a Processing algorithm rather than a dialog -
+        # see algorithms/provider.py for why - and this action just
+        # opens its Processing dialog, so it is reachable from the
+        # toolbar like every other tool.
+        self.range_rings_action = self._build_action(
+            "range_rings.svg",
+            "Range Rings",
+            tooltip=(
+                "Draw geodesic range rings around points, for an "
+                "aircraft's radius of action - rings of the same "
+                "type merge where they overlap"
+            ),
+            callback=self.create_range_rings,
             standalone=False
         )
 
@@ -1813,10 +1897,14 @@ class MilitaryCartographyTools:
                 "navigation",
                 "group_navigation.svg",
                 "Navigation",
-                "Coordinate Probe and Bearing/Range measurement tools",
+                (
+                    "Coordinate Probe, Bearing/Range measurement, and "
+                    "Range Rings for an aircraft's radius of action"
+                ),
                 [
                     self.coordinate_probe_action,
                     self.bearing_range_action,
+                    self.range_rings_action,
                 ],
             ),
             (
@@ -2033,6 +2121,8 @@ class MilitaryCartographyTools:
         Unload plugin.
         """
 
+        self._unregister_processing_provider()
+
         mgrs_functions.unregister()
         military_symbology_functions.unregister()
         nonnato_symbology_functions.unregister()
@@ -2186,6 +2276,7 @@ class MilitaryCartographyTools:
         self.coordinate_probe_tool = None
         self.bearing_range_action = None
         self.bearing_range_tool = None
+        self.range_rings_action = None
         self.contours_action = None
         self.tanaka_contours_action = None
         self.hypsometric_tint_action = None
@@ -2398,6 +2489,20 @@ class MilitaryCartographyTools:
 
         show_tanaka_contour_dialog(
             self.iface
+        )
+
+
+    def create_range_rings(self):
+        """
+        Open the Range rings algorithm's own Processing dialog, which
+        brings a progress bar and a working Cancel with it.
+        """
+
+        import processing
+
+        processing.execAlgorithmDialog(
+            f"{PROVIDER_ID}:rangerings",
+            {}
         )
 
 

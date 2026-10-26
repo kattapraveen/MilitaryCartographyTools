@@ -13906,8 +13906,7 @@ versions, the user guide in three files, and a roadmap entry - call it
       it at module level, so the whole plugin fails to load over a
       missing label string.
 
-- [ ] **6. Range rings, to mark an aircraft's ROA** (added 2026-10-23,
-      spec arrived 2026-10-23, not started). Geodesic range circles
+- [x] **6. Range rings, to mark an aircraft's ROA** (DONE 2026-10-26). Geodesic range circles
       around points, overlapping ones merged, outline only with the
       label placed outside.
 
@@ -14007,8 +14006,9 @@ pre-clip for ordinary work; 4 is the real capability, and the Tanaka
 fixes matter less once Tanaka is no longer being asked to do a job it
 was never suited to.
 
-**Items 6 and 7 remain**, both unscheduled - 6 unspecified, 7
-awaiting a design decision.
+**Item 6 is done** (2026-10-26). **Item 7 remains**, awaiting the
+design decision between a modal progress dialog and real background
+tasks.
 
 ---
 
@@ -14402,6 +14402,89 @@ much larger change and has to be careful about creating layers off
 the main thread. The honest options are a modal progress dialog that
 blocks but shows life, or a real background task. That choice has
 not been made.
+
+---
+
+## Range rings: the first Processing algorithm in the plugin (2026-10-26)
+
+Task 6, built from the maintainer's own prototype. The geometry is
+that script's; the ring model is not.
+
+**A ring is a NAME and a radius, and merging is keyed on the name.**
+Asked for in exactly those terms - "I want the rings of same type
+merged if overlapping, so the main condition is the name of the
+ring". Same-type rings union where they overlap, so three bases
+sharing a 600 km combat radius give one continuous envelope. Rings of
+different types never merge, so a 600 km combat radius and a 1,200 km
+ferry range stay two readable outlines rather than one blob. Radii
+are entered comma-separated, and a ring with no name is named after
+its distance - so by default one radius IS one ring type and the
+common case needs no naming at all.
+
+The prototype merged every circle together with a single
+unaryUnion(), which would have produced exactly the blob.
+
+**The radius is a true ground distance**, kept from the prototype:
+each circle is built in an azimuthal equidistant projection centred
+on its own point, then transformed to EPSG:4326. Measured at 600.0 km
+min and max around the ring, and separately at 60 degrees north where
+a degree-based buffer would be half the width it should be.
+
+### Why a Processing algorithm, and the two traps in that
+
+The maintainer chose "both - algorithm plus a toolbar button that
+opens it". The algorithm brings a progress bar and a working Cancel
+for free, which is precisely the gap task 7 exists to close for the
+dialog-based tools, plus Run as Batch. A Navigation-group button
+opens its Processing dialog so it is reachable like everything else.
+
+1. **The package is `algorithms/`, NOT `processing/`.** A package
+   called `processing` inside the plugin would shadow QGIS's own
+   `processing` module on import and break every tool that calls
+   `processing.run()`.
+2. **The provider must be held.** The Processing registry does not
+   keep a Python provider alive. A collected one fails later with
+   "Error creating algorithm from createInstance()", which names
+   neither the provider nor the cause - hit while building this, and
+   again in the tests. `plugin.py` keeps it on `self`, with a comment
+   saying the reference is load-bearing rather than tidiness.
+   `_StylePostProcessor` needs the same treatment and already had it
+   in the prototype.
+
+`algorithms` is added to package_plugin.sh's include list, so the new
+code actually ships.
+
+### Line styles and colours, refined the same day
+
+Two further requirements: "let the user choose the type of outline -
+can be the standard qgis lines" and "let the user choose the colour -
+can be standard colours from NATO. but also option to choose any
+other colour if required".
+
+**The line styles were already there** - all five of QGIS's simple-
+line pen styles, from the prototype. The sixth, "no pen", is
+deliberately absent because it would draw nothing. Nothing to add,
+and said so rather than pretending otherwise.
+
+**The colours were three arbitrary values** (a red, a blue, black)
+and are now the four NATO standard identities plus black, plus
+"Custom..." backed by a QgsProcessingParameterColor.
+
+The standard-identity values are **not invented here**. They are
+lifted from `_control_measure_shared.py`'s own
+`_AFFILIATION_COLOR_EXPRESSION` - the same blue, red, green and
+yellow every NATO control measure in this plugin is already drawn in
+- so a ring matches the symbology beside it. A test parses that
+expression and asserts the two tables still agree, because this is
+exactly the shape of the echelon-label drift of 2026-10-01: two
+copies of the same truth, no check between them.
+
+`resolve_colour()` keeps the enum/custom rule in one testable place
+and falls back to the first standard colour on an out-of-range index
+rather than raising - Processing can hand one over from a saved
+model written against a shorter options list.
+
+2110 tests pass on both QGIS versions, 23 of them new.
 
 ---
 

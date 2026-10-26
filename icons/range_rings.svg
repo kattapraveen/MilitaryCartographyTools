@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- concentric range rings around a base: a filled origin dot with
+       two dashed rings, dashed to read as a planning overlay rather
+       than as drawn ground detail like contours.svg's solid rings -->
+  <circle cx="12" cy="12" r="2" fill="#1f3a5f"/>
+  <circle cx="12" cy="12" r="5.6" fill="none" stroke="#1f3a5f" stroke-width="1.4"
+          stroke-dasharray="2.6 2"/>
+  <circle cx="12" cy="12" r="9.6" fill="none" stroke="#1f3a5f" stroke-width="1.4"
+          stroke-dasharray="2.6 2"/>
+</svg>

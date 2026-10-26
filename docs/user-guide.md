@@ -11,6 +11,7 @@ military grid generation, and automated print-layout production.
 - [The toolbar, at a glance](#the-toolbar-at-a-glance)
 - [Coordinate Probe](#coordinate-probe)
 - [Bearing / Range](#bearing--range)
+- [Range Rings](#range-rings)
 - [Military grids](#military-grids)
 - [New Military Layout](#new-military-layout)
 - [Military Layout Settings panel](#military-layout-settings-panel)
@@ -68,7 +69,7 @@ Left to right:
 | Blue book with a question mark | *(standalone)* | **User Guide** — opens the HTML user guide in your web browser |
 | Toggle switch | *(standalone)* | **Symbology Edition** — MIL-STD-2525D/APP-6D or MIL-STD-2525E/APP-6E; picks which standard newly added symbology layers use, see [below](#tactical-graphics---point-symbol-layers) |
 | 3×3 grid | **Grid** | UTM Grid, MGRS 100km Grid, Sub Grid (10km/5km/1km spacing, itself a nested flyout), Clear Grid |
-| Compass rose | **Navigation** | Coordinate Probe, Bearing / Range |
+| Compass rose | **Navigation** | Coordinate Probe, Bearing / Range, Range Rings |
 | Layered peaks with a contour line | **Terrain Analysis** | Contours, Tanaka Contours, Hypsometric Tint, Hillshade Combinations, Line of Sight, Viewshed, Sensor Coverage, Regenerate Sensor Coverage |
 | Location pin | **Waypoints** | Import Waypoints, Export Waypoints |
 | Hexagonal frame with a centre dot | **NATO Symbols** | Every MIL-STD-2525D/E and APP-6D/E point symbol layer (Space, Air, Land, Sea Surface, Subsurface, Activities, SIGINT, Cyberspace) plus Control Measures |
@@ -138,6 +139,48 @@ active across repeated pairs, like Coordinate Probe and Line of Sight, until
 you select a different tool.
 
 ---
+
+## Range Rings
+
+Click the dashed-rings icon in the **Navigation** group for **range
+rings** — geodesic circles around points, for marking an aircraft's
+radius of action.
+
+Unlike every other tool here, this one opens a **Processing dialog**
+rather than a plain one. That is deliberate: it brings a progress bar
+and a working **Cancel**, and a **Run as Batch** button for several
+sets of points at once. It also appears in the Processing Toolbox
+under *Military Cartography Tools → Planning*.
+
+| Setting | What it does |
+|---|---|
+| **Points** | Any point layer. Tick **Selected features only** to ring just the bases you have selected. |
+| **Radii in km** | One or more, comma separated — `600, 1200`. Each radius is a ring **type**. |
+| **Ring names** | Optional, positional. Leave blank and a ring is named after its distance, e.g. "600 km". |
+| **Line colour** | The four NATO standard identities — Friend blue, Hostile red, Neutral green, Unknown yellow — plus black, or **Custom…** to pick any colour. These are the same values the plugin already draws NATO control measures in. |
+| **Custom colour** | Used only when Line colour is set to Custom… |
+| **Line type / width** | All five QGIS pen styles — solid, dash, dot, dash dot, dash dot dot — and a width in mm. |
+| **Merge overlapping rings of the same type** | On by default — see below. |
+| **Label the rings** | Puts the ring's name outside the outline. |
+
+**Merging is keyed on the ring's name**, and that is the whole point.
+Rings of the *same* type union where they overlap, so three bases
+sharing a 600 km combat radius give one continuous envelope — the
+thing a planner actually wants to see. Rings of *different* types
+never merge with each other, so a 600 km combat radius and a 1,200 km
+ferry range stay as two readable outlines instead of one blob.
+
+**The radius is a true ground distance.** Each circle is built in an
+azimuthal equidistant projection centred on its own point, so a
+600 km ring is 600 km everywhere, at any latitude. Buffering in
+degrees — the obvious shortcut — would give an ellipse that is only
+correct at the equator.
+
+**None of Sensor Coverage's limits apply here**, despite the shared
+word "range". A radius of action is pure geometry: how far an
+aircraft can fly and return. There is no DEM, no line of sight and no
+horizon, so a 900 km ring is perfectly ordinary and needs no
+elevation data at all.
 
 ## Military grids
 

@@ -102,6 +102,7 @@ class TestPluginLifecycle(QgisTestCase):
                 "navigation": [
                     "Coordinate Probe",
                     "Bearing / Range",
+                    "Range Rings",
                 ],
                 "terrain_analysis": [
                     "Contours",
