@@ -160,12 +160,6 @@ from .military_symbology.target_acquisition_control_measures import (
     add_range_fans_layer,
 )
 from .algorithms import MilitaryCartographyProvider, PROVIDER_ID
-from .terrain import (
-    show_contours_dialog,
-    show_tanaka_contour_dialog,
-    show_hypsometric_tint_dialog,
-    show_hillshade_combination_dialog,
-)
 from .terrain.line_of_sight_tool import LineOfSightTool
 from .terrain.sensor_coverage_dialog import SensorCoverageDialog
 from .terrain.sensor_coverage_manager import SensorCoverageManager
@@ -2483,12 +2477,17 @@ class MilitaryCartographyTools:
 
     def create_tanaka_contours(self):
         """
-        Prompt for a DEM and illumination parameters, then generate
-        a Tanaka contour layer for the current map extent.
+        Open the Tanaka Contours algorithm's own Processing dialog.
+
+        The extent is left empty, which the algorithm reads as the
+        whole DEM - the same default the old dialog had.
         """
 
-        show_tanaka_contour_dialog(
-            self.iface
+        import processing
+
+        processing.execAlgorithmDialog(
+            f"{PROVIDER_ID}:tanakacontours",
+            {}
         )
 
 
@@ -2508,34 +2507,67 @@ class MilitaryCartographyTools:
 
     def create_contours(self):
         """
-        Prompt for a DEM, an extent, an interval and a colour, then
-        generate a plain contour layer.
+        Open the Contours algorithm's own Processing dialog.
+
+        The interval is pre-filled from the canvas's current scale -
+        what a sheet at that scale would normally use - because that
+        default is the point of the tool: asking for 20 m contours on
+        a 1:1,000,000 sheet should be a deliberate choice rather than
+        an accident. It is only a starting value; the dialog accepts
+        anything.
+
+        Pre-filling is how that survived the move to Processing from
+        the old dialog's "From scale" button, which cannot be
+        rebuilt as a plain parameter.
         """
 
-        show_contours_dialog(
-            self.iface
+        import processing
+
+        from .terrain.contours import suggested_interval
+
+        parameters = {}
+
+        try:
+            scale = self.iface.mapCanvas().scale()
+
+            if scale and scale > 0:
+                parameters["INTERVAL"] = suggested_interval(scale)
+
+        except (AttributeError, RuntimeError):
+            # No canvas to read a scale from - fall back to the
+            # parameter's own default rather than guessing.
+            pass
+
+        processing.execAlgorithmDialog(
+            f"{PROVIDER_ID}:contours",
+            parameters
         )
 
 
     def create_hypsometric_tint(self):
         """
-        Prompt for a DEM and opacity, then generate a hypsometric
-        tint layer for the current map extent.
+        Open the Hypsometric Tint algorithm's own Processing dialog.
         """
 
-        show_hypsometric_tint_dialog(
-            self.iface
+        import processing
+
+        processing.execAlgorithmDialog(
+            f"{PROVIDER_ID}:hypsometrictint",
+            {}
         )
 
 
     def create_hillshade_combination(self):
         """
-        Prompt for a DEM and an azimuth preset, then generate a
-        combined hillshade layer for the current map extent.
+        Open the Hillshade Combinations algorithm's own Processing
+        dialog.
         """
 
-        show_hillshade_combination_dialog(
-            self.iface
+        import processing
+
+        processing.execAlgorithmDialog(
+            f"{PROVIDER_ID}:hillshadecombination",
+            {}
         )
 
 

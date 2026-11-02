@@ -375,8 +375,9 @@ class TestGenerateHillshadeCombinationIntegration(_RidgeDemTestCase):
 
         # generate_hillshade_combination() deliberately doesn't add
         # its result to the project - see core/_layer_utils.py's
-        # module docstring for why. Insertion is the dialog's job -
-        # see tests/test_hillshade_combination_dialog.py.
+        # module docstring for why. Insertion is the Processing
+        # post-processor's job now that this tool is an algorithm -
+        # see tests/test_terrain_algorithms.py.
         output = generate_hillshade_combination(
             self.dem_layer,
             self.dem_layer.extent(),

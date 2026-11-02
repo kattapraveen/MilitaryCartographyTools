@@ -27,6 +27,7 @@ from qgis.core import (
 from qgis.PyQt.QtGui import QPainter
 
 from ._dem_utils import clip_and_reproject_dem
+from ._progress import cancelled
 from .hypsometric_tint import OUTPUT_LAYER_NAME as HYPSOMETRIC_TINT_LAYER_NAME
 
 
@@ -45,7 +46,9 @@ THREE_DIRECTION_AZIMUTHS = (315.0, 45.0, 180.0)
 DEFAULT_AZIMUTHS = THREE_DIRECTION_AZIMUTHS
 
 
-def _run_hillshade(dem_layer, azimuth_deg, altitude_deg, z_factor):
+def _run_hillshade(
+    dem_layer, azimuth_deg, altitude_deg, z_factor, feedback=None
+):
 
     """
     A single-direction gdal:hillshade run against dem_layer, one band,
@@ -72,7 +75,8 @@ def _run_hillshade(dem_layer, azimuth_deg, altitude_deg, z_factor):
             "OPTIONS": "",
             "EXTRA": None,
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
-        }
+        },
+        feedback=feedback
     )
 
     return QgsRasterLayer(
@@ -81,7 +85,7 @@ def _run_hillshade(dem_layer, azimuth_deg, altitude_deg, z_factor):
     )
 
 
-def _combine_hillshades(hillshade_layers):
+def _combine_hillshades(hillshade_layers, feedback=None):
 
     """
     Average 2 or 3 single-direction hillshade rasters, pixel by pixel,
@@ -135,7 +139,8 @@ def _combine_hillshades(hillshade_layers):
 
     result = processing.run(
         "gdal:rastercalculator",
-        params
+        params,
+        feedback=feedback
     )
 
     return QgsRasterLayer(
@@ -251,7 +256,8 @@ def generate_hillshade_combination(
     azimuths=DEFAULT_AZIMUTHS,
     altitude=DEFAULT_ALTITUDE,
     z_factor=DEFAULT_Z_FACTOR,
-    opacity=DEFAULT_OPACITY
+    opacity=DEFAULT_OPACITY,
+    feedback=None
 ):
 
     """
@@ -260,23 +266,47 @@ def generate_hillshade_combination(
     (2 or 3) and averaging the results. Rendered single-band grayscale
     with an Overlay blend mode. Deliberately does NOT add the layer to
     the project - see core/_layer_utils.py's module docstring for
-    why. Returns the layer.
+    why. Returns the layer, or None if `feedback` reported a
+    cancellation partway - see terrain/_progress.py.
     """
 
+    # The warp, one hillshade per azimuth, then the average. Each
+    # gets the parent's own feedback - see terrain/_progress.py for
+    # why they are not given a slice of it each.
     clipped_dem = clip_and_reproject_dem(
         dem_layer,
         extent,
-        extent_crs
+        extent_crs,
+        feedback=feedback
     )
 
-    hillshade_layers = [
-        _run_hillshade(clipped_dem, azimuth, altitude, z_factor)
-        for azimuth in azimuths
-    ]
+    if cancelled(feedback):
+        return None
+
+    hillshade_layers = []
+
+    for azimuth in azimuths:
+
+        hillshade_layers.append(
+            _run_hillshade(
+                clipped_dem,
+                azimuth,
+                altitude,
+                z_factor,
+                feedback=feedback
+            )
+        )
+
+        if cancelled(feedback):
+            return None
 
     combined = _combine_hillshades(
-        hillshade_layers
+        hillshade_layers,
+        feedback=feedback
     )
+
+    if cancelled(feedback):
+        return None
 
     combined.setName(
         OUTPUT_LAYER_NAME

@@ -13969,8 +13969,8 @@ versions, the user guide in three files, and a roadmap entry - call it
       at all. Do not reuse that module's machinery or inherit its
       ceiling.
 
-- [ ] **7. Progress reporting across the terrain tools** (not
-      started, parked 2026-10-26 to be revisited). Asked for after
+- [x] **7. Progress reporting across the terrain tools** (DONE
+      2026-10-26, option C). Asked for after
       the Contours test pass: "there is no progress bar like what
       gdal displays ... esp in tanaka, sensor coverage and now
       contours - the user is kept wondering if the plugin will work
@@ -13993,6 +13993,24 @@ versions, the user guide in three files, and a roadmap entry - call it
       that approach goes wrong). For "is it alive or hung?" the first
       is enough; for Sensor Coverage over a dozen sensors the second
       is what is actually wanted.
+
+      **Resolved: option C, taken on 2026-10-26.** Neither of the two
+      above. Range rings had shipped as a Processing algorithm the
+      same day, and being one gives a tool a real progress bar, a
+      working Cancel, Run as Batch and a place inside a model - for
+      no progress-reporting code at all. So the four terrain tools
+      that are one generator behind a form were converted rather
+      than instrumented: Contours, Tanaka Contours, Hypsometric Tint
+      and Hillshade Combinations. Each keeps its toolbar button; the
+      button now opens the algorithm's own dialog. Six dialog files
+      went (three tool dialogs, three test modules); see
+      "Terrain tools as Processing algorithms (2026-10-26)" below
+      for what had to be carried across by hand and what it cost.
+
+      Sensor Coverage is NOT converted and is not covered by this.
+      It is not one generator behind a form - it runs a viewshed per
+      sensor through its own manager - and it is the case QgsTask
+      was actually wanted for. Still open.
 
       Whichever is chosen, name the STEP as well as the percentage -
       "Clipping the DEM", "Generating contours", "Sensor 3 of 12"
@@ -14634,3 +14652,273 @@ issues or PRs, not anticipation.
   symbol tables. They feed Boundary's own Field T labelling, built in
   H0.
 
+
+## Terrain tools as Processing algorithms (2026-10-26)
+
+Task 7 closed by option C: rather than instrument the dialogs with a
+progress bar, convert the tools into Processing algorithms, which
+have one. Four moved - **Contours**, **Tanaka Contours**,
+**Hypsometric Tint** and **Hillshade Combinations** - joining Range
+Rings, which had shipped as one earlier the same day.
+
+What being an algorithm gives, for no progress-reporting code:
+
+- a real progress bar and a working Cancel;
+- a NON-modal dialog, which finally makes **Draw on Canvas** work on
+  the extent parameter. It could never work from the old dialogs:
+  they used `exec()`, so the main window took no input while they
+  were open (see the 2026-10-25 entry, where the button was disabled
+  for exactly this reason);
+- Run as Batch, and usability inside a model;
+- a destination parameter, so a result can be written straight to a
+  file instead of only to a temporary layer.
+
+Each tool keeps its toolbar button. The button now calls
+`processing.execAlgorithmDialog()`. Contours still pre-fills its
+interval from the canvas scale, which is how the old dialog's "From
+scale" button survived the move - that cannot be a plain parameter.
+
+**What the conversion does NOT cover.** Sensor Coverage stays a
+dialog. It is not one generator behind a form: it runs a viewshed per
+sensor through its own manager, and it is the case `QgsTask` was
+actually wanted for. Line of Sight and Viewshed stay map tools.
+
+### The two behaviours that had to be carried across by hand
+
+A Processing algorithm always emits a NEW output and drops it at the
+top of the Layers panel. The dialogs deliberately did neither, and
+both departures existed because of real complaints with regression
+coverage behind them:
+
+1. **Replace, do not accumulate.** "Every run of the dialog was
+   creating a brand new layer, so tweaking settings and re-running
+   left a pile of stale layers behind instead of correcting the
+   existing one."
+2. **Keep the place the user put it in.** A layer dragged somewhere
+   in the Layers panel came back at the default position on every
+   regenerate, "which reads as the plugin ignoring their own
+   organisation of the project."
+
+Both now live in `algorithms/_replace_in_place.py`, as a
+post-processor. `core/_layer_utils.py` could not be reused as-is: it
+both builds and inserts the layer, whereas by the time a
+post-processor runs Processing has already added this one to the
+project and to the tree - so the node is MOVED, not inserted.
+
+Order matters there, and cost a test failure before it was right:
+**detach the new layer's node first, then read the old layer's
+position.** Processing's node sits above the old one and shifts every
+index below it down by one, so reading the position first lands the
+replacement one row too low.
+
+The illuminated-overlay warning ("meant to be used together with a
+Hypsometric Tint layer") came across too, as `feedback.pushWarning()`
+in place of the message bar.
+
+### The segfault this uncovered
+
+The new Contours algorithm test passed, and QGIS 3.44 then died on
+the way out - `Ran 8 tests ... OK`, then SIGSEGV, exit 139. QGIS
+4.2.2 was unaffected. The crash report put it in `GDALClose`, under
+PyQt's `cleanup_on_exit`, after `tests/qgis_test_case.py`'s own
+`atexit` had already run `exitQgis`. In other words: **a Python-owned
+`QgsRasterLayer` still reachable at interpreter exit, whose GDAL
+dataset has already been closed underneath it.** The same family as
+the crash that `atexit` registration was added for in the first
+place.
+
+Two separate holders, found by dumping live `QgsRasterLayer` objects
+and their referrers after the test:
+
+- **`raise QgsProcessingException(...)` inside the `except ValueError`
+  block.** That chains the original ValueError on as `__context__`,
+  and the chained exception keeps its own traceback, whose frames
+  still hold the clipped DEM and the contour layer the generator had
+  built before it refused. `from None` does NOT prevent this - it
+  only sets `__cause__`. Fixed by taking the message and raising
+  *outside* the handler, in `algorithms/_terrain_base.py`. Reverting
+  that one line reproduces the crash.
+- **Passing the test's own `QgsRasterLayer` as `INPUT`.** A refusal's
+  traceback keeps the parameters dict alive, and with it a
+  Python-owned raster. Fixed by giving the algorithms their DEM by
+  path, which is how Processing is normally driven: it then loads its
+  own copy into the context, which owns and releases it.
+
+Both fixes are needed; either alone still crashes. Noted in
+`docs/developer-guide.md`, since nothing about this is specific to
+Contours.
+
+### Count
+
+    before   2110 tests
+    after    2082 tests
+
+Six files deleted - `terrain/tanaka_dialog.py`,
+`terrain/hypsometric_tint_dialog.py`,
+`terrain/hillshade_combination_dialog.py` and their three test
+modules, plus `terrain/contours_dialog.py` and its tests earlier in
+the day. 53 dialog tests replaced by 25 algorithm tests: the dialogs'
+own widget plumbing is gone, so what is left to test is the
+behaviour, not the form.
+
+Both suites pass on QGIS 4.2.2 and 3.44.12.
+
+---
+
+## The terrain algorithms added no layer at all (2026-11-02)
+
+Reported from a live QGIS 4.2.2 session: Hypsometric Tint and
+Contours both ran, both showed a progress bar, both reported success
+- and nothing appeared in the Layers panel. Saving to a file wrote
+the file and still added nothing. Every one of the four terrain tools
+converted on 2026-10-26 was affected. Range Rings was not.
+
+### What it was
+
+`algorithms/_replace_in_place.py` repositioned its output by dropping
+the tree node Processing had created and inserting a new one. Between
+those two steps the layer had no node in the tree at all, and that is
+the one state `QgsLayerTreeRegistryBridge` reacts to: it removes such
+a layer from the project. It does so on the next turn of the event
+loop, and re-inserting a node first does not call it off.
+
+So the whole run was correct - the output was generated, written,
+registered in `layersToLoadOnCompletion` with the right project, name
+and post-processor, loaded, styled and placed - and then the layer
+was deleted a moment later, silently, with the run already reported
+as successful.
+
+The fix is only an ordering change: create the new node first, drop
+Processing's original second, so the layer is never node-less.
+Range Rings was untouched because its post-processor only styles; it
+never goes near the layer tree.
+
+### Why 2082 tests missed it
+
+A `unittest` never turns the event loop, so the bridge's removal
+never fired and the broken order looked perfectly healthy. All 25
+algorithm tests passed against it.
+
+Both test modules now call `QCoreApplication.processEvents()` in
+their post-processing helpers before asserting. With that one change
+and the old ordering restored, 4 of the 5 layer-position tests fail -
+including the new
+`test_the_layer_is_still_there_once_the_event_loop_turns`.
+
+**The rule: any test that touches the layer tree has to let the event
+loop turn before it asserts.** Recorded in
+`docs/developer-guide.md`.
+
+### How it was found, which is the part worth keeping
+
+Three paths were tried before the failing one:
+
+- `processing.run()` - works;
+- `processing.runAndLoadResults()` - works;
+- `QgsProcessingAlgRunnerTask` + `handleAlgorithmResults()`, which is
+  what the dialog does - **works**.
+
+All three are fine because none of them is the dialog, and the
+difference was never the threading. What reproduced it was building
+the real `AlgorithmWidget` offscreen against the user's own profile
+and calling `runAlgorithm()` on it - a few seconds per run, and it
+fails exactly as the GUI does. Reach for that before driving the GUI:
+an afternoon went into the GUI first.
+
+A second trap inside the first: checking `layer.id() in
+project.mapLayers()` straight after detaching the node returns
+`True`, which is what made the post-processor look innocent for most
+of the investigation. The removal is asynchronous. Nothing read back
+on the same line as a tree edit means anything.
+
+### Count
+
+    before   2082 tests
+    after    2083 tests
+
+Both suites pass on QGIS 4.2.2 and 3.44.12.
+
+
+## Cancel never reached the work, and the fix for that segfaulted (2026-11-03)
+
+Task 7 was closed on 2026-10-26 on the strength of one sentence: a
+Processing algorithm brings "a real progress bar and a working
+Cancel". The dialog brought the bar and the button. Neither did
+anything.
+
+### What it was
+
+Every terrain generator spends essentially all of its time inside
+child algorithms it runs itself - `gdal:warpreproject`,
+`gdal:contour`, `native:splitlinesbylength`, `gdal:hillshade`,
+`gdal:rastercalculator`, `gdal:translate`. Not one of those calls was
+given the parent's `feedback`, so no child ever learned it had been
+cancelled or ever reported progress. The algorithms checked
+`feedback.isCanceled()` only BETWEEN stages, and the stages are where
+all the time goes.
+
+The visible result, on the user's own 2.25 GB hypsometric run:
+pressing Cancel did nothing at all until the run finished of its own
+accord, and the bar sat at 10% throughout.
+
+The fix is to thread an optional `feedback` through the four
+generators and the shared DEM clip, and hand it to every child. It
+stays optional because Line of Sight, Viewshed and Sensor Coverage
+still call these generators from plain dialogs where there is no
+feedback to pass. A cancelled generator returns `None` rather than
+raising: `ValueError` is reserved here for considered refusals the
+user needs to read, and a cancellation is neither a refusal nor a
+failure.
+
+### The part worth keeping: the wrapper that was the obvious answer
+
+Handing the same feedback to several children makes each one drive
+the whole bar from 0 to 100 in turn, so the bar sweeps once per child
+and says nothing about how far through the run is.
+`QgsProcessingMultiStepFeedback` exists for exactly that and was used
+for exactly that - two steps for Contours, four for Tanaka, one per
+azimuth plus two for Hillshade.
+
+**It segfaults.** A multi-step feedback holds a bare pointer to the
+parent feedback, and nothing owns the wrapper but the Python local it
+was assigned to. Collected after its parent has gone, it leaves Qt
+delivering queued events into freed memory. The whole suite died at
+exit 139, in the same place on three consecutive runs, inside the
+first `QCoreApplication.processEvents()` the process ever reaches -
+which is the `_settle()` call added the day before to catch the
+layer-tree bug. Dropping the wrapper took 2083 tests to OK on both
+QGIS versions.
+
+What made it expensive to pin down: the crash needs the whole suite.
+`test_terrain_algorithms` alone passes, twice. So does it paired with
+`test_contours_algorithm`, with `test_tanaka_contours`, and with
+`test_range_rings` - every module that runs one of these algorithms.
+That is the ordinary signature of a use-after-free: whether it
+crashes at all depends on what has since been written over the freed
+block, so a smaller run is not evidence of anything.
+
+**The rule, which generalises past this class:** do not hold a
+Python-owned Qt object that points at a C++ object Python does not
+own. This is the third bug of that family in this plugin, after the
+GDALClose crash on a layer kept alive by a traceback and the
+post-processor Processing keeps only a weak reference to.
+
+The cost of dropping it is honest and small: the bar now fills and
+restarts once per heavy step instead of advancing once across the
+run. The user guide says so, in §6 and in §13, because a bar that
+returns to the left looks like a restart.
+
+### Why the tests missed it
+
+Nothing asserted that a child algorithm was given anything. The three
+new tests in `TestCancelActuallyReachesTheWork` asserted against
+deliberately broken copies of the code first: two of the three fail
+when the children are handed `feedback=None`, or when the
+cancellation check is removed.
+
+### Count
+
+    before   2083 tests
+    after    2086 tests
+
+Both suites pass on QGIS 4.2.2 and 3.44.12.

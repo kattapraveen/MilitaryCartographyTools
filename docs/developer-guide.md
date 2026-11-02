@@ -247,6 +247,86 @@ of no use to anyone reading the history.
   Tint run. A line of log noise is worth less than four times the work,
   so the warning is accepted. Do not "fix" it by dropping the argument
   without re-measuring.
+- **A `QgsRasterLayer` that Python still owns at interpreter exit
+  segfaults the test run.** The crash lands in `GDALClose`, inside
+  PyQt's own `cleanup_on_exit`, which runs *after*
+  `tests/qgis_test_case.py`'s `atexit` hook has already shut QGIS's
+  GDAL providers down - so the wrapper is destroyed over a dataset
+  that is already gone. It happens strictly on the way out, long
+  after the suite has printed `OK`, and the runner reports exit 139
+  with no failing test. Seen on QGIS 3.44.12; QGIS 4.2.2 does not
+  crash, so a clean run there proves nothing. Two things cause it,
+  and both turn up in Processing algorithms:
+  - **Re-raising from inside an `except` block.**
+    `raise QgsProcessingException(str(refusal))` inside
+    `except ValueError as refusal:` chains the original on as
+    `__context__`, and that keeps its traceback, whose frames still
+    hold whatever layers the generator had built before it refused.
+    `from None` does *not* help - it only sets `__cause__`. Take the
+    message, leave the handler, then raise. See
+    `algorithms/_terrain_base.py`.
+  - **Passing a layer object into `processing.run()`** when the run
+    may raise. The refusal's traceback keeps the parameters dict
+    alive, and the layer with it. Pass the file path instead, and
+    Processing loads its own copy into the context, which owns and
+    releases it.
+
+  To find the holder: `gc.collect()`, then walk `gc.get_objects()`
+  for `QgsRasterLayer` instances and print `gc.get_referrers()` for
+  each. The referrer list names the frame directly. A crash report
+  under `~/Library/Logs/DiagnosticReports/python3.*.ips` confirms
+  the `GDALClose` signature.
+- **Removing a layer's last tree node deletes the layer, one turn of
+  the event loop later.** `QgsLayerTreeRegistryBridge` watches the
+  layer tree and drops from the project any layer left without a
+  node. It does that asynchronously. Read the project back on the
+  same line and the layer is still there; let the event loop turn
+  once and it is gone, and the Python wrapper with it
+  (`RuntimeError: wrapped C/C++ object ... has been deleted`).
+  Re-inserting a node in the same breath does **not** call it off -
+  the bridge has already decided.
+
+  So a post-processor that repositions its own output must create
+  the new node *first* and drop Processing's original *after*, never
+  the other way round. See `algorithms/_replace_in_place.py`.
+
+  This is nasty specifically because a `unittest` never turns the
+  event loop: the broken order passed all 25 algorithm tests and
+  then lost every terrain layer in the real QGIS - the algorithm
+  reported success, wrote its output, and the Layers panel did not
+  change. Any test that touches the layer tree has to call
+  `QCoreApplication.processEvents()` before it asserts; the two
+  algorithm test modules now do this in their post-processing
+  helpers. Found on QGIS 4.2.2 on 2026-11-02, by driving the real
+  `AlgorithmWidget` offscreen - the plain `processing.run()` and
+  `runAndLoadResults()` paths both look healthy.
+
+- **`QgsProcessingMultiStepFeedback` segfaults if Python owns it.**
+  It is the right class for the job - it maps each child
+  algorithm's own 0-100 into its own slice of the parent's bar, so
+  the bar moves forward once across a run instead of sweeping once
+  per child - and it cannot be used from here. It holds a bare
+  pointer to the parent feedback, and nothing owns the wrapper but
+  the Python local it was assigned to. Collected after its parent
+  has gone, it leaves Qt delivering queued events into freed memory.
+
+  The symptom is a bare exit 139 in the test suite, at the first
+  `QCoreApplication.processEvents()` the process reaches, in a test
+  that has nothing to do with feedback. It needs the whole suite:
+  every smaller grouping of the modules that run these algorithms
+  passes, because whether a use-after-free crashes depends on what
+  has since been written over the freed block. A module that passes
+  in isolation is not evidence.
+
+  The terrain generators therefore hand the parent's own `feedback`
+  to every child and accept a bar that sweeps once per heavy step.
+  See `terrain/_progress.py`. Found on 2026-11-03.
+
+  **The general rule, and this is the third bug in its family here:**
+  never hold a Python-owned Qt object that points at a C++ object
+  Python does not own. The other two are the GDALClose crash on a
+  layer kept alive by an exception traceback, and the post-processor
+  Processing keeps only a weak reference to.
 
 ---
 

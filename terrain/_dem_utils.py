@@ -23,7 +23,7 @@ from qgis.core import (
 from ..core.coordinate_utils import WGS84, get_utm_crs
 
 
-def clip_and_reproject_dem(dem_layer, extent, extent_crs):
+def clip_and_reproject_dem(dem_layer, extent, extent_crs, feedback=None):
 
     """
     Clip dem_layer to extent (given in extent_crs) and reproject it
@@ -42,6 +42,10 @@ def clip_and_reproject_dem(dem_layer, extent, extent_crs):
     native:splitlinesbylength, two calls further on, because an
     invalid layer reports wkbType() == Unknown and the sink built from
     it cannot be created. See docs/roadmap.md's own 2026-10-20 entry.
+
+    `feedback` is optional and is handed to gdal:warpreproject so the
+    warp - often the longest single step in a terrain run - can be
+    cancelled and can report progress. See terrain/_progress.py.
     """
 
     transform_to_wgs84 = QgsCoordinateTransform(
@@ -75,7 +79,8 @@ def clip_and_reproject_dem(dem_layer, extent, extent_crs):
             "MULTITHREADING": False,
             "EXTRA": None,
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
-        }
+        },
+        feedback=feedback
     )
 
     clipped = QgsRasterLayer(

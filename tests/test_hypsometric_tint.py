@@ -403,8 +403,9 @@ class TestGenerateHypsometricTintIntegration(QgisTestCase):
 
         # generate_hypsometric_tint() deliberately doesn't add its
         # result to the project - see core/_layer_utils.py's
-        # module docstring for why. Insertion is the dialog's job -
-        # see tests/test_hypsometric_tint_dialog.py.
+        # module docstring for why. Insertion is the Processing
+        # post-processor's job now that this tool is an algorithm -
+        # see tests/test_terrain_algorithms.py.
         dem_layer = QgsRasterLayer(
             self._dem_path,
             "test_dem"

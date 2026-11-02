@@ -793,8 +793,9 @@ class TestGenerateTanakaContoursIntegration(QgisTestCase):
         # module docstring for why (a real bug: generate() self-
         # inserting, then replace_named_layer() moving that same
         # layer to its remembered position, could make the layer
-        # vanish in a live GUI session). Insertion is the dialog's
-        # job - see tests/test_tanaka_dialog.py.
+        # vanish in a live GUI session). Insertion is the Processing
+        # post-processor's job now that this tool is an algorithm -
+        # see tests/test_terrain_algorithms.py.
         from qgis.core import QgsProject
 
         dem_layer = QgsRasterLayer(

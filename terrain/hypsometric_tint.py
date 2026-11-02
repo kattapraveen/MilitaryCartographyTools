@@ -23,6 +23,7 @@ from qgis.core import (
 from qgis.PyQt.QtGui import QColor
 
 from ._dem_utils import band_min_max, clip_and_reproject_dem
+from ._progress import cancelled
 from ._hypsometric_ramp import LAND_RAMP, SEA_RAMP
 
 
@@ -269,7 +270,8 @@ def generate_hypsometric_tint(
     extent,
     extent_crs,
     opacity=DEFAULT_OPACITY,
-    discrete=False
+    discrete=False,
+    feedback=None
 ):
 
     """
@@ -279,14 +281,21 @@ def generate_hypsometric_tint(
     hard-edged discrete bands if discrete=True (see
     _apply_raster_style()'s own docstring). Deliberately does NOT add
     the layer to the project - see core/_layer_utils.py's module
-    docstring for why. Returns the layer.
+    docstring for why. Returns the layer, or None if `feedback`
+    reported a cancellation partway - see terrain/_progress.py.
     """
 
+    # One heavy child, the warp, and it is given the parent's own
+    # feedback - see terrain/_progress.py.
     clipped_dem = clip_and_reproject_dem(
         dem_layer,
         extent,
-        extent_crs
+        extent_crs,
+        feedback=feedback
     )
+
+    if cancelled(feedback):
+        return None
 
     clipped_dem.setName(
         OUTPUT_LAYER_NAME

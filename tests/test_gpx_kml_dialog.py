@@ -6,7 +6,7 @@ export_from_dialog_values() - the accept-flow logic split out of
 show_import_waypoints_dialog()/show_export_waypoints_dialog() so it's
 testable without driving an actual modal QDialog, mirroring the rest
 of this plugin's dialog test modules (e.g.
-tests/test_hypsometric_tint_dialog.py).
+tests/test_viewshed_dialog.py).
 
 Military Cartography Tools
 """

@@ -41,6 +41,7 @@ from qgis.core import (
 from qgis.PyQt.QtGui import QColor, QFont
 
 from ._dem_utils import clip_and_reproject_dem
+from ._progress import cancelled
 
 
 # How many contour LINES is too many. There is deliberately no pixel
@@ -366,13 +367,16 @@ def generate_contours(
     interval=DEFAULT_INTERVAL,
     index_every=DEFAULT_INDEX_EVERY,
     colour=None,
+    feedback=None,
 ):
 
     """
     Build a styled contour layer from dem_layer, clipped to extent.
     Deliberately does NOT add the layer to the project - see
     core/_layer_utils.py's module docstring for why. Returns the
-    layer.
+    layer, or None if `feedback` reported a cancellation partway -
+    see terrain/_progress.py for why that is None rather than a
+    raise.
     """
 
     if interval <= 0:
@@ -387,11 +391,18 @@ def generate_contours(
 
     colour = QColor(colour) if colour is not None else QColor(DEFAULT_COLOUR)
 
+    # Two heavy children, the warp and the contour, and both are
+    # handed the parent's own feedback - see terrain/_progress.py for
+    # why they are not given a slice of it each.
     clipped_dem = clip_and_reproject_dem(
         dem_layer,
         extent,
-        extent_crs
+        extent_crs,
+        feedback=feedback
     )
+
+    if cancelled(feedback):
+        return None
 
     result = processing.run(
         "gdal:contour",
@@ -407,8 +418,12 @@ def generate_contours(
             "EXTRA": None,
             "OPTIONS": "",
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT,
-        }
+        },
+        feedback=feedback
     )
+
+    if cancelled(feedback):
+        return None
 
     layer = QgsVectorLayer(
         result["OUTPUT"],

@@ -6,9 +6,38 @@ description=Military cartography, MIL-STD-2525D/E and APP-6D/E tactical graphics
 author=Praveen Kumar
 license=GPL-2.0+
 email=kattapraveen.kr@gmail.com
-version=1.5.0
+version=1.6.0
 
-changelog=1.5.0
+changelog=1.6.0
+    - New Contours tool: plain contour lines styled the way a
+      topographic sheet draws them - every fifth line heavier and
+      labelled with its height, set into a gap cut in the line, the
+      rest hairlines. It is the small-scale answer Tanaka Contours
+      cannot be: Tanaka splits every line into segments and samples
+      the DEM twice per segment, so a whole country at a sensible
+      interval is an ordinary run here and is not one there.
+    - New Range Rings tool: geodesic circles around any point layer,
+      for marking an aircraft's radius of action. Several radii at
+      once, each named, and a Run as Batch button for several sets of
+      points.
+    - Contours, Tanaka Contours, Hypsometric Tint and Combined
+      Hillshade are now QGIS Processing algorithms rather than
+      dialogs of their own. They keep their place on the toolbar and
+      behave as before, and they gain a progress bar, a Cancel button
+      that stops the run at once, Run as Batch, and use inside a
+      Processing model. Their dialogue is no longer modal, so Draw on
+      Canvas now works on the extent.
+    - Fixed: the four terrain tools above could report success, write
+      their output file, and add no layer to the project at all.
+    - Fixed: Cancel on those four tools did nothing until the run
+      finished of its own accord, and the progress bar sat at 10%
+      throughout.
+    - Fixed: Tanaka Contours refused very large runs by raising an
+      error that reached you as a stack trace rather than as the
+      explanation it was written to be.
+    - Fixed: an echelon whose label did not match its own list could
+      take the plugin down.
+    1.5.0
     - New Non-NATO Symbols toolbar group: a separate symbology scheme
       with its own affiliation colours, entity names and hand-built
       icons, on nine layers of its own. Land Units, Land Equipment,

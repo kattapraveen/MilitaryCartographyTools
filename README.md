@@ -52,9 +52,14 @@ Requires QGIS 3.44 or later.
 - **Grid convergence and magnetic declination** (WMM2025) as expression
   functions, usable anywhere in QGIS or wired into a layout's own
   marginalia.
-- **Terrain analysis** — Tanaka (illuminated) contours, Hypsometric Tint,
-  Combined (multi-directional) Hillshade, Line of Sight, and Viewshed
-  (dead-ground analysis), all generated locally from your own DEM.
+- **Terrain analysis** — Contours, Tanaka (illuminated) contours,
+  Hypsometric Tint, Combined (multi-directional) Hillshade, Line of
+  Sight, and Viewshed (dead-ground analysis), all generated locally from
+  your own DEM. The first four run as QGIS Processing algorithms, so they
+  also work from the Processing Toolbox and in a model.
+- **Range Rings** — geodesic circles around any point layer, for marking
+  an aircraft's radius of action. Several radii at once, each named, and
+  a Run as Batch button for several sets of points.
 - **Sensor Coverage** — plot several sensors at low, medium or high
   level, each with its own height, detection ceiling, range, MIL-STD-2525
   affiliation and designation. Each level's combined coverage is drawn as

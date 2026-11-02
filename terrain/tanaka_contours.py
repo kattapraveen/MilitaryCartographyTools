@@ -36,6 +36,7 @@ from ._dem_utils import (
 from ._hypsometric_ramp import (
     hypsometric_color as _hypsometric_color,
 )
+from ._progress import cancelled
 
 
 # Matches the default light direction QgsHillshadeRenderer/
@@ -189,7 +190,9 @@ def _predicted_segment_count(contour_layer, segment_length):
     return total_length / segment_length
 
 
-def _generate_contour_segments(dem_layer, interval, segment_length):
+def _generate_contour_segments(
+    dem_layer, interval, segment_length, feedback=None
+):
 
     """
     Contour lines from dem_layer at the given interval, split into
@@ -242,7 +245,8 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
             "EXTRA": None,
             "OPTIONS": "",
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
-        }
+        },
+        feedback=feedback
     )
 
     contour_layer = QgsVectorLayer(
@@ -284,7 +288,8 @@ def _generate_contour_segments(dem_layer, interval, segment_length):
             "INPUT": contour_layer,
             "LENGTH": segment_length,
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
-        }
+        },
+        feedback=feedback
     )
 
     # Unlike a GDAL-wrapped algorithm, native:splitlinesbylength's
@@ -489,7 +494,8 @@ def _build_output_layer(
     light_azimuth_deg,
     crs,
     min_elevation,
-    max_elevation
+    max_elevation,
+    feedback=None
 ):
 
     """
@@ -553,7 +559,20 @@ def _build_output_layer(
 
     raw_segments = []
 
-    for segment in segment_layer.getFeatures():
+    # This loop is the slow part of the whole tool - two DEM samples
+    # per segment, hundreds of thousands of segments on a sheet - and
+    # it is pure Python, so no child algorithm's own feedback reaches
+    # it. Cancel has to be tested here or pressing it does nothing
+    # for the longest stretch of the run.
+    total = segment_layer.featureCount()
+
+    for done, segment in enumerate(segment_layer.getFeatures()):
+
+        if cancelled(feedback):
+            return None
+
+        if feedback is not None and total > 0 and done % 500 == 0:
+            feedback.setProgress(100.0 * done / total)
 
         illumination = _segment_illumination(
             segment.geometry(),
@@ -582,6 +601,9 @@ def _build_output_layer(
     features = []
 
     for entry, illumination in zip(raw_segments, smoothed_illumination):
+
+        if cancelled(feedback):
+            return None
 
         red, green, blue = _hypsometric_color(
             entry["elevation"],
@@ -775,7 +797,8 @@ def generate_tanaka_contours(
     light_azimuth_deg=DEFAULT_LIGHT_AZIMUTH,
     min_width_mm=DEFAULT_MIN_WIDTH_MM,
     max_width_mm=DEFAULT_MAX_WIDTH_MM,
-    style_mode=DEFAULT_STYLE_MODE
+    style_mode=DEFAULT_STYLE_MODE,
+    feedback=None
 ):
 
     """
@@ -786,14 +809,25 @@ def generate_tanaka_contours(
     where perpendicular/grazing to it). Color/blend mode depend on
     style_mode - see _apply_style()'s own docstring for what each of
     STYLE_ELEVATION_COLOR/STYLE_MONOCHROME/STYLE_ILLUMINATED_OVERLAY
-    does. Adds the result to the current project and returns it.
+    does. Returns the layer, or None if `feedback` reported a
+    cancellation partway - see terrain/_progress.py.
     """
 
+    # The warp, the contour, the split, and the per-segment
+    # illumination pass, which is the slow one by a wide margin. All
+    # four are handed the parent's own feedback - see
+    # terrain/_progress.py for why they get no slice of it each. The
+    # illumination pass drives the bar itself, since it is pure
+    # Python and has no child algorithm to do it.
     clipped_dem = _clip_and_reproject(
         dem_layer,
         extent,
-        extent_crs
+        extent_crs,
+        feedback=feedback
     )
+
+    if cancelled(feedback):
+        return None
 
     min_elevation, max_elevation = _band_min_max(
         clipped_dem
@@ -802,8 +836,12 @@ def generate_tanaka_contours(
     segment_layer = _generate_contour_segments(
         clipped_dem,
         interval,
-        segment_length
+        segment_length,
+        feedback=feedback
     )
+
+    if cancelled(feedback):
+        return None
 
     output_layer = _build_output_layer(
         segment_layer,
@@ -811,8 +849,12 @@ def generate_tanaka_contours(
         light_azimuth_deg,
         clipped_dem.crs(),
         min_elevation,
-        max_elevation
+        max_elevation,
+        feedback=feedback
     )
+
+    if output_layer is None or cancelled(feedback):
+        return None
 
     _apply_style(
         output_layer,

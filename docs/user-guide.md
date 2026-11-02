@@ -16,6 +16,7 @@ military grid generation, and automated print-layout production.
 - [New Military Layout](#new-military-layout)
 - [Military Layout Settings panel](#military-layout-settings-panel)
 - [Print-layout toolbar](#print-layout-toolbar)
+- [The four terrain tools open Processing dialogs](#the-four-terrain-tools-open-processing-dialogs)
 - [Contours](#contours)
 - [Tanaka Contours](#tanaka-contours)
 - [Hypsometric Tint](#hypsometric-tint)
@@ -146,7 +147,7 @@ Click the dashed-rings icon in the **Navigation** group for **range
 rings** — geodesic circles around points, for marking an aircraft's
 radius of action.
 
-Unlike every other tool here, this one opens a **Processing dialog**
+Like the four terrain tools, this one opens a **Processing dialog**
 rather than a plain one. That is deliberate: it brings a progress bar
 and a working **Cancel**, and a **Run as Batch** button for several
 sets of points at once. It also appears in the Processing Toolbox
@@ -288,6 +289,37 @@ on the neatline rather than labels drawn over the map content.
 
 ---
 
+## The four terrain tools open Processing dialogs
+
+**Contours**, **Tanaka Contours**, **Hypsometric Tint** and **Hillshade
+Combinations** each still have their own toolbar button, but the button
+opens a **Processing dialog** rather than a plain one. That is
+deliberate, and it is what these tools were missing:
+
+- a **progress bar**, and a **Cancel** that works. These tools can run
+  for minutes, and before this there was no way to tell a slow run from
+  a hung one. The bar fills and starts again once for each heavy step
+  of the run — the clip, then the contouring, and so on — so a bar that
+  returns to the left has not restarted the run. Cancel stops it within
+  a second or two at any point, not only between steps.
+- **Draw on Canvas** on the extent. A plain dialog blocks the main
+  window while it is open, so drawing on the map was impossible; a
+  Processing dialog does not, so it works.
+- **Run as Batch**, and use inside a model.
+- a **destination** for the result, so you can write it straight to a
+  file instead of a temporary layer.
+
+Each also appears in the Processing Toolbox under *Military Cartography
+Tools → Terrain*.
+
+Two habits carry over from the old dialogs, unchanged. Re-running
+**replaces** the existing layer rather than leaving a pile of stale
+copies — switch **Replace any existing … layer** off to keep the old one
+— and a layer you have dragged somewhere in the Layers panel comes back
+where you left it, not at the top.
+
+---
+
 ## Contours
 
 Click the contour-rings icon for **plain contours** — ordinary contour
@@ -310,11 +342,12 @@ anyway.
 | Setting | What it does |
 |---|---|
 | **DEM layer** | Any elevation raster in your project. |
-| **Extent** | The ground the contours cover. Starts as the DEM's own and follows whichever DEM you pick. |
-| **Contour interval** | Height between one line and the next. Opens at whatever a sheet at the map's current scale would normally use — press **From scale** to re-derive it after zooming. |
-| **Index contours** | How often a line is drawn heavy and labelled. Every 5th by default; 4 and 10 both appear on real sheets. |
-| **Colour** | Brown by default. Change it to match a sheet, or for a monochrome print. |
-| **Add as a new layer** | Off by default, so re-running corrects the existing Contours layer instead of piling up copies. |
+| **Extent** | The ground the contours cover. Leave it empty for the whole DEM. Narrow it to the canvas, by drawing on the map, or by typing coordinates. |
+| **Contour interval** | Height between one line and the next. Opened from the toolbar, it arrives already set to whatever a sheet at the map's current scale would normally use. |
+| **Index contour every N lines** | How often a line is drawn heavy and labelled. Every 5th by default; 4 and 10 both appear on real sheets. |
+| **Line colour** | Brown by default. Change it to match a sheet, or for a monochrome print. |
+| **Replace any existing "Contours" layer** | On by default, so re-running corrects the existing Contours layer instead of piling up copies. |
+| **Contours** | Where to write the result. Leave it alone for a temporary layer, or give it a file to keep. |
 
 **The interval suggestion follows what sheets actually use** — 20 m at
 1:50,000, 50 m at 1:250,000, 200 m at 1:1,000,000 — not the bare limit
@@ -355,9 +388,10 @@ underneath. *Style* (color) is one of three modes:
   instead of clean highlights; Soft Light gives a gentler version of the
   same effect that keeps the tint's own hue recognisable. **Use this
   together with a Hypsometric Tint layer** — without
-  one, lit segments will look nearly invisible against a blank canvas (the
-  dialog warns if no Hypsometric Tint layer exists in the project when you
-  pick this mode, but still generates the layer either way).
+  one, lit segments will look nearly invisible against a blank canvas (a
+  warning appears in the log if no Hypsometric Tint layer exists in the
+  project when you pick this mode, but the layer is still generated
+  either way).
 
 Requires a DEM (elevation raster) layer already loaded in your project;
 this plugin doesn't fetch or download one for you (see "Getting a DEM"
@@ -368,37 +402,38 @@ The dialog asks for:
 | Field | Notes |
 |---|---|
 | DEM layer | Any loaded raster layer |
+| Extent | The ground the contours cover. Leave it empty for the whole DEM |
 | Contour interval | Vertical spacing between contour lines, in metres |
 | Segment length | How finely each contour is subdivided for illumination to vary smoothly along it, in metres — smaller values give a smoother gradient at the cost of more features |
 | Light azimuth | Direction the virtual light comes from, in degrees (0 = north). Defaults to 315° (north-west), matching QGIS's own hillshade default |
 | Min line width (perpendicular to light) / Max line width (facing toward/away from light) | Line width at the grazing case and at either illumination extreme, in mm |
 | Style | Elevation colour (default) / Monochrome / Illuminated overlay — see above |
-| Add as new layer | Off by default — re-running the dialog corrects the existing "Tanaka Contours" layer in place. Check this to keep the previous layer and add a new one alongside it instead, e.g. to compare two parameter sets |
+| Replace any existing "Tanaka Contours" layer | On by default — re-running corrects the existing layer in place. Switch it off to keep the previous layer and add a new one alongside it, e.g. to compare two parameter sets |
 
-Contours are generated for the **DEM layer's own full extent**, clipped and
-reprojected to the appropriate local UTM zone automatically — the current
-map canvas view has no effect on the result, so regenerating (e.g. after
-tweaking a parameter) always produces the same output regardless of where
-you've since panned or zoomed.
+Leave **Extent** empty and the contours cover the **DEM layer's own full
+extent**, clipped and reprojected to the appropriate local UTM zone
+automatically — the current map canvas view has no effect unless you ask
+for it, so regenerating after tweaking a parameter produces the same
+output regardless of where you've since panned or zoomed.
 
-The dialog carries a standing **caution** about generation time, and it's
+The tool carries a standing **caution** about generation time, and it's
 a real one: a large DEM and a fine contour interval multiply together into
-a lot of work, and QGIS will simply look busy until it finishes rather
-than showing progress. The two settings that cost the most are **contour
+a lot of work. The progress bar will tell you it is alive, and **Cancel**
+will stop it, but it is still the slowest tool in the plugin by a wide
+margin. The two settings that cost the most are **contour
 interval** (smaller means far more lines) and **segment length** (smaller
 means every line is cut into more pieces, each needing its own elevation
 sample). If a run is taking longer than you want to wait, crop the DEM
 itself first, or start with a coarser interval and refine from there.
 
-**Extent** sets the ground the contours cover. It starts as the DEM's
-own full extent and follows whichever DEM you pick, so leaving it alone
-behaves exactly as before. Narrow it — to the canvas, by drawing on the
-map, or by typing coordinates — when the DEM covers far more ground
-than the sheet you are making. This is the setting to reach for when a
-run is refused as too large, and it is usually better than coarsening
-the interval. Changing the DEM resets the extent to that DEM's own,
-deliberately: an extent left over from a different DEM might not
-overlap the new one at all, which would quietly produce nothing.
+**Extent** sets the ground the contours cover. Leave it empty and it
+covers the whole DEM. Narrow it — to the canvas, by drawing on the map,
+or by typing coordinates — when the DEM covers far more ground than the
+sheet you are making. This is the setting to reach for when a run is
+refused as too large, and it is usually better than coarsening the
+interval. Make sure an extent you typed or drew actually overlaps the
+DEM you picked: one left over from a different DEM will quietly produce
+nothing.
 
 **A run that could not finish is refused up front, with the numbers.**
 Rather than appearing to hang, the tool stops and tells you what you
@@ -466,15 +501,17 @@ above). The dialog asks for:
 | Field | Notes |
 |---|---|
 | DEM layer | Any loaded raster layer |
+| Extent | The ground the tint covers. Leave it empty for the whole DEM |
 | Opacity | 0–100%, default 100 |
-| Stepped colour ramp | Off by default (a smooth gradient). Check this for hard-edged discrete colour bands instead, matching the classic banded "layer tint" look used by most published hypsometric references, rather than a continuous blend |
-| Add as new layer | Off by default — re-running the dialog corrects the existing "Hypsometric Tint" layer in place. Check this to keep the previous layer and add a new one alongside it instead |
+| Hard-edged bands instead of a smooth gradient | Off by default (a smooth gradient). Switch it on for discrete colour bands instead, matching the classic banded "layer tint" look used by most published hypsometric references |
+| Replace any existing "Hypsometric Tint" layer | On by default — re-running corrects the existing layer in place. Switch it off to keep the previous layer and add a new one alongside it |
 
-Like Tanaka Contours, it's generated for the **DEM layer's own full
+Leave **Extent** empty and it covers the **DEM layer's own full
 extent**, clipped and reprojected automatically — the current map canvas
-view has no effect on the result. New layers are always placed at the
-**bottom** of the layer panel, so it won't cover any grid or contour
-layers already in your project.
+view has no effect unless you ask for it. New layers are placed at the
+**bottom** of the layer panel, so they won't cover any grid or contour
+layers already in your project; a layer you have since dragged elsewhere
+comes back where you left it.
 
 **Tip:** for a fuller, textured relief look (closer to a shaded physical
 relief map), generate a **Hillshade Combinations** layer (see below) over
@@ -543,13 +580,16 @@ above). The dialog asks for:
 | Field | Notes |
 |---|---|
 | DEM layer | Any loaded raster layer |
+| Extent | The ground the shading covers. Leave it empty for the whole DEM |
 | Light directions | Two-direction (NW + NE) or Three-direction (NW + NE + S) — default Three-direction |
+| Light altitude | Height of the virtual sun above the horizon, in degrees. 45° by default |
+| Vertical exaggeration | Multiplies the relief. 1 is true scale; raise it to bring out gentle ground |
 | Opacity | How strongly the relief shading shows through (default 100%) |
-| Add as new layer | Off by default — re-running the dialog corrects the existing "Combined Hillshade" layer in place. Check this to keep the previous layer and add a new one alongside it instead |
+| Replace any existing "Combined Hillshade" layer | On by default — re-running corrects the existing layer in place. Switch it off to keep the previous layer and add a new one alongside it |
 
-Like Tanaka Contours and Hypsometric Tint, it's generated for the **DEM
-layer's own full extent**, clipped and reprojected automatically — the
-current map canvas view has no effect on the result. The layer is
+Leave **Extent** empty and it covers the **DEM layer's own full
+extent**, clipped and reprojected automatically — the current map canvas
+view has no effect unless you ask for it. The layer is
 rendered in grayscale with an **Overlay** blending mode already applied
 (darkens shadowed slopes and lightens sunlit ones, while keeping the
 underlying colour's own hue — a plain Multiply blend was tried first but
