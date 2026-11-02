@@ -789,3 +789,152 @@ class TestWhatTheChildAlgorithmsAreGiven(_TerrainAlgorithmTestCase):
                 feedback=feedback
             )
         )
+
+
+class TestThePostProcessorCannotTakeTheLayersPanelDown(QgisTestCase):
+
+    """
+    `handleAlgorithmResults` calls every post-processor between
+    `setUpdatesEnabled(False)` and `setUpdatesEnabled(True)`, and
+    that loop is not wrapped in try/except. An exception leaving
+    postProcessLayer() therefore skips the re-enable and the Layers
+    panel stops repainting for the rest of the QGIS session, making
+    every later algorithm look as though it did nothing too.
+
+    The registry is tested here as well, because both live in
+    postProcessLayer()'s own try/finally and a change to one can
+    easily break the other.
+    """
+
+    LAYER_NAME = "Combined Hillshade"
+
+    def setUp(self):
+
+        super().setUp()
+
+        StyleAndReplacePostProcessor._instances = []
+
+    def _layer(self):
+
+        layer = QgsVectorLayer(
+            "LineString?crs=EPSG:4326", self.LAYER_NAME, "memory"
+        )
+
+        QgsProject.instance().addMapLayer(layer)
+
+        return layer
+
+    def _context(self):
+
+        context = QgsProcessingContext()
+        context.setProject(QgsProject.instance())
+
+        return context
+
+    @staticmethod
+    def _throwing_style(_loaded):
+        raise RuntimeError("band statistics unavailable")
+
+    def test_a_failing_style_is_reported_rather_than_raised(self):
+
+        class RecordingFeedback(QgsProcessingFeedback):
+
+            def __init__(self):
+                super().__init__()
+                self.errors = []
+
+            def reportError(self, error, fatalError=False):
+                self.errors.append(error)
+
+        feedback = RecordingFeedback()
+
+        processor = StyleAndReplacePostProcessor.create(
+            self.LAYER_NAME, self._throwing_style, True, None
+        )
+
+        # Must not raise.
+        processor.postProcessLayer(self._layer(), self._context(), feedback)
+
+        self.assertTrue(
+            any(
+                "could not be styled" in error
+                for error in feedback.errors
+            ),
+            "the failure was swallowed instead of reported"
+        )
+
+        self.assertTrue(
+            any(
+                "band statistics unavailable" in error
+                for error in feedback.errors
+            ),
+            "the report did not name the underlying cause"
+        )
+
+    def test_with_no_feedback_a_failure_is_re_raised(self):
+
+        """
+        The negative control, and the reason the guard cannot be a
+        bare `except: pass`. A direct call has nobody to report to,
+        so the failure has to surface - otherwise this guard would
+        hide the next bug of the kind it was added for.
+        """
+
+        processor = StyleAndReplacePostProcessor.create(
+            self.LAYER_NAME, self._throwing_style, True, None
+        )
+
+        with self.assertRaises(RuntimeError):
+            processor.postProcessLayer(self._layer(), self._context(), None)
+
+    def test_the_registry_holds_the_instance_until_it_has_run(self):
+
+        """
+        The registry is not optional: measured on 2026-11-03, once
+        the last Python reference goes the subclass is collected and
+        what the context hands back is a bare
+        QgsProcessingLayerPostProcessorInterface, whose
+        postProcessLayer() does nothing at all.
+        """
+
+        processor = StyleAndReplacePostProcessor.create(
+            self.LAYER_NAME, None, True, None
+        )
+
+        self.assertIn(processor, StyleAndReplacePostProcessor._instances)
+
+    def test_the_registry_does_not_grow_across_runs(self):
+
+        """
+        These tools are used by re-running them - that is what
+        replace-in-place is for - so an entry per run is an unbounded
+        leak over a session.
+        """
+
+        for _ in range(5):
+
+            processor = StyleAndReplacePostProcessor.create(
+                self.LAYER_NAME, None, True, None
+            )
+
+            processor.postProcessLayer(
+                self._layer(), self._context(), None
+            )
+
+        self.assertEqual(StyleAndReplacePostProcessor._instances, [])
+
+    def test_a_failed_run_is_still_dropped_from_the_registry(self):
+
+        """
+        The pruning is in a `finally`, so a post-processor that threw
+        does not stay behind for the session either.
+        """
+
+        processor = StyleAndReplacePostProcessor.create(
+            self.LAYER_NAME, self._throwing_style, True, None
+        )
+
+        with self.assertRaises(RuntimeError):
+            processor.postProcessLayer(self._layer(), self._context(), None)
+
+        self.assertEqual(StyleAndReplacePostProcessor._instances, [])

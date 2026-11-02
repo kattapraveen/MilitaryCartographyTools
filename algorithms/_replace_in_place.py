@@ -42,11 +42,27 @@ from qgis.core import QgsProcessingLayerPostProcessorInterface
 class StyleAndReplacePostProcessor(QgsProcessingLayerPostProcessorInterface):
 
     """
-    Held in a class-level registry because Processing keeps only a
-    weak reference to a post-processor: without it Python collects
-    the object before the layer is loaded and the styling silently
-    never happens. The same trap the range-rings prototype already
-    guarded against.
+    Held in a class-level registry because Python collects the
+    object before the layer is loaded otherwise, and the styling
+    then silently never happens. The same trap the range-rings
+    prototype already guarded against.
+
+    The mechanism, measured on 2026-11-03 rather than assumed, is
+    worth stating precisely because it is not the usual weak
+    reference. `LayerDetails.setPostProcessor()` TRANSFERS ownership
+    of the C++ instance to C++ - `sip.ispyowned()` goes from True to
+    False across the call - so the C++ object itself survives and
+    `postProcessor()` keeps returning something non-None. What does
+    not survive is the PYTHON subclass: drop the last Python
+    reference, collect, and what comes back out of the context is a
+    bare `QgsProcessingLayerPostProcessorInterface`. Calling
+    postProcessLayer() on it dispatches to the C++ base, which does
+    nothing. Hence a run that reports success and styles nothing,
+    with no error anywhere.
+
+    The registry is pruned in postProcessLayer()'s own `finally`,
+    which is the one moment the object is certainly no longer needed
+    - see _forget().
     """
 
     _instances = []
@@ -76,6 +92,87 @@ class StyleAndReplacePostProcessor(QgsProcessingLayerPostProcessorInterface):
         return instance
 
     def postProcessLayer(self, layer, context, feedback):
+
+        """
+        Nothing may escape this method, and that is not defensive
+        habit - it is the shape of the code that calls it.
+        `processing/gui/Postprocessing.py:handleAlgorithmResults`
+        does:
+
+            iface.layerTreeView().setUpdatesEnabled(False)
+            QgsProcessingGuiUtils.addResultLayers(...)
+            for layer, details in layers_to_post_process:
+                details.postProcessor().postProcessLayer(...)
+            iface.layerTreeView().setUpdatesEnabled(True)
+
+        Only the earlier layer-resolution loop is wrapped in
+        try/except; this one is not. So an exception leaving here
+        skips both the remaining post-processors and
+        `setUpdatesEnabled(True)`, and the Layers panel then stops
+        repainting for the REST OF THE SESSION. Every later algorithm
+        would look as though it did nothing - indistinguishable from
+        the bug fixed on 2026-11-02, and far harder to trace back.
+
+        The risk is real rather than theoretical: `style()` is
+        supplied by the caller and reads the written raster.
+        `_apply_raster_style()` asks the provider for band statistics,
+        which fails on a full or disconnected volume, and
+        `_build_labeling()` assumes a field that a hand-edited model
+        could leave absent.
+
+        A failure is reported through `feedback` instead, where it
+        lands in the algorithm dialog's own log. With no feedback to
+        report to - a direct call, as the tests make - it is re-raised
+        rather than swallowed: there is nobody to tell, and a silent
+        pass would hide exactly the kind of bug these tests exist to
+        catch.
+        """
+
+        try:
+            self._place(layer, context)
+
+        except Exception as failure:
+
+            if feedback is None:
+                raise
+
+            feedback.reportError(
+                f"The \"{self.layer_name}\" layer was created, but "
+                "could not be styled or moved to its place in the "
+                f"Layers panel: {failure}. The layer itself is "
+                "usable - restyle it by hand, or run the tool again.",
+                fatalError=False
+            )
+
+        finally:
+            self._forget()
+
+    def _forget(self):
+
+        """
+        Drop this instance from the registry, once it has done the
+        one job it was kept alive for.
+
+        Without this the list grows for the lifetime of the QGIS
+        session - one post-processor plus its captured style closure
+        per run - and these tools are used by re-running them, since
+        that is the whole point of replace-in-place.
+
+        Safe to do from inside postProcessLayer(): the executing
+        frame holds `self`, so the object cannot go before the method
+        returns, and the C++ instance belongs to C++ (see the class
+        docstring), so dropping the last Python reference afterwards
+        frees only the wrapper. Identity, not ==, so no __eq__ of a
+        sip object is involved.
+        """
+
+        cls = type(self)
+
+        cls._instances = [
+            held for held in cls._instances if held is not self
+        ]
+
+    def _place(self, layer, context):
 
         if layer is None or not layer.isValid():
             return

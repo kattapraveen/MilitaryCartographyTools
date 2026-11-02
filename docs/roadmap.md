@@ -14990,3 +14990,96 @@ have to work with no context at all, or the three main-thread
 features break.
 
 Both suites pass on QGIS 4.2.2 and 3.44.12.
+
+
+## The post-processor could take the Layers panel down for the session (2026-11-03)
+
+The last two code-review findings, both in
+`algorithms/_replace_in_place.py` and both fixed in the same
+try/finally.
+
+### Nothing may escape postProcessLayer()
+
+`processing/gui/Postprocessing.py:handleAlgorithmResults` does this:
+
+    iface.layerTreeView().setUpdatesEnabled(False)
+    QgsProcessingGuiUtils.addResultLayers(...)
+    for layer, details in layers_to_post_process:
+        details.postProcessor().postProcessLayer(...)
+    iface.layerTreeView().setUpdatesEnabled(True)
+
+Only the earlier layer-resolution loop is wrapped in try/except; this
+one is not. An exception leaving a post-processor therefore skips the
+remaining post-processors AND `setUpdatesEnabled(True)`, and the
+Layers panel stops repainting for the rest of the QGIS session. Every
+later algorithm would then look as though it did nothing -
+indistinguishable from the bug fixed on 2026-11-02 and considerably
+harder to trace, since the cause would be several runs back.
+
+The risk is not theoretical: `style()` is supplied by the caller and
+reads the raster that was just written. `_apply_raster_style()` asks
+the provider for band statistics, which fails on a full or
+disconnected volume, and `_build_labeling()` assumes a field a
+hand-edited model could leave out.
+
+A failure is now reported through `feedback`, where it lands in the
+algorithm dialog's own log, and says the layer itself is still usable.
+With no feedback to report to - a direct call, as the tests make - it
+is re-raised rather than swallowed. That distinction is the point: a
+bare `except: pass` here would hide the next bug of exactly the kind
+this guard was added for.
+
+### The registry, and what it is actually for
+
+`_instances` existed to stop Python collecting a post-processor before
+Processing used it, and nothing ever pruned it, so one object plus its
+captured style closure accumulated per run for the whole session.
+These tools are used by re-running them - that is what
+replace-in-place is for - so it was unbounded in normal use.
+
+Before pruning it, the ownership was measured rather than assumed,
+because dropping the reference at the wrong moment would be a
+use-after-free. The mechanism is NOT the weak reference the old
+docstring claimed:
+
+  - `LayerDetails.setPostProcessor()` transfers ownership of the C++
+    instance to C++. `sip.ispyowned()` goes True -> False across the
+    call, and the context goes on returning something non-None from
+    `postProcessor()` long after every Python reference is gone.
+  - What does not survive is the PYTHON subclass. Drop the last
+    Python reference, collect, and what comes back out of the context
+    is a bare `QgsProcessingLayerPostProcessorInterface`, whose
+    `postProcessLayer()` does nothing whatsoever. Hence a run that
+    reports success and styles nothing, with no error anywhere.
+
+So the registry is necessary and the fix is to prune, not to remove.
+Pruning inside `postProcessLayer()`'s own `finally` is safe: the
+executing frame holds `self`, so the object cannot go before the
+method returns, and the C++ instance belongs to C++, so dropping the
+last Python reference afterwards frees only the wrapper.
+
+### Verified on the real path, not just in unittest
+
+Both halves were checked through the offscreen `AlgorithmWidget`
+against a real DEM, because the unit tests call `postProcessLayer()`
+directly and would not notice the registry breaking Processing's own
+route to it. All four tools ran, each output carried its own renderer
+rather than a default (`QgsRuleBasedRenderer`,
+`QgsSingleSymbolRenderer`, `QgsSingleBandPseudoColorRenderer`,
+`QgsSingleBandGrayRenderer`), the registry read 0 after every run, a
+re-run replaced in place and kept its position, and the process
+exited clean.
+
+### Count
+
+    before   2089 tests
+    after    2094 tests
+
+Five new tests, including two negative controls - the registry must
+still hold the instance until it has run, and a failure with no
+feedback must still surface. Each was checked against a deliberately
+broken copy: removing the guard errors the report test, and making
+the pruning a no-op fails both registry tests.
+
+Both suites pass on QGIS 4.2.2 and 3.44.12. This closes every finding
+from the 2026-11-02 review.

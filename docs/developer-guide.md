@@ -353,6 +353,35 @@ of no use to anyone reading the history.
   the context to the caller, and these generators need the layer
   back out of `results["OUTPUT"]`.
 
+- **A post-processor must hold a Python reference to itself, and
+  nothing may escape `postProcessLayer()`.** Two separate traps in
+  the same method.
+
+  `LayerDetails.setPostProcessor()` transfers ownership of the C++
+  instance to C++ (`sip.ispyowned()` goes True to False across the
+  call), so `postProcessor()` keeps returning something non-None.
+  What does not survive is the PYTHON subclass: once the last Python
+  reference goes, what the context hands back is a bare
+  `QgsProcessingLayerPostProcessorInterface` whose
+  `postProcessLayer()` does nothing. A run then reports success and
+  styles nothing, with no error anywhere. Keep the instance in a
+  class-level registry, and prune it in `postProcessLayer()`'s own
+  `finally` or the registry grows for the session.
+
+  Separately, `handleAlgorithmResults` calls the post-processors
+  between `setUpdatesEnabled(False)` and `setUpdatesEnabled(True)`
+  with NO try/except around that loop. An exception escaping leaves
+  the Layers panel not repainting for the rest of the session, so
+  every later algorithm looks as though it did nothing. Report
+  through `feedback` instead - but re-raise when there is no
+  feedback, or the guard hides the next real bug.
+
+  Both measured and fixed on 2026-11-03. The unit tests call
+  `postProcessLayer()` directly and so cannot see the registry
+  breaking Processing's own route to it; check that half through the
+  offscreen `AlgorithmWidget` and assert the output's renderer type
+  is the plugin's and not a default.
+
 ---
 
 ## QGIS 3.44 compatibility (branch `qgis-3.44-compat`)
