@@ -14911,7 +14911,7 @@ returns to the left looks like a restart.
 ### Why the tests missed it
 
 Nothing asserted that a child algorithm was given anything. The three
-new tests in `TestCancelActuallyReachesTheWork` asserted against
+new tests in `TestWhatTheChildAlgorithmsAreGiven` asserted against
 deliberately broken copies of the code first: two of the three fail
 when the children are handed `feedback=None`, or when the
 cancellation check is removed.
@@ -14920,5 +14920,73 @@ cancellation check is removed.
 
     before   2083 tests
     after    2086 tests
+
+Both suites pass on QGIS 4.2.2 and 3.44.12.
+
+
+## The conversion changed the thread without changing the calls (2026-11-03)
+
+Three findings from the code review, fixed together because they are
+one mistake made in three places. None of the four terrain algorithms
+overrides `flags()`, so the Processing dialog hands them to
+`QgsProcessingAlgRunnerTask` and `processAlgorithm()` runs on a
+BACKGROUND thread. Until 2026-10-26 the same code was only ever
+reached from modal dialogs on the GUI thread, where every one of
+these calls was safe. The conversion changed the threading context
+and left the calls alone.
+
+  - `algorithms/tanaka_contours.py` read
+    `QgsProject.instance().mapLayersByName()` from the worker thread,
+    to decide whether to warn that Illuminated overlay has no
+    Hypsometric Tint to sit on. The GUI thread may be adding or
+    removing a layer while that read happens. Now `context.project()`,
+    which the post-processor in the same file already used.
+  - `terrain/_dem_utils.py` built its `QgsCoordinateTransform` from
+    `QgsProject.instance()`. This is the first thing every terrain
+    generator does, so all four hit it on every run.
+  - Every nested `processing.run()` omitted `context=`, so each child
+    called `dataobjects.createContext()` - which reads
+    `QgsProject.instance()` and `QgsSettings()`, again off-thread.
+
+### Why it is a threaded parameter and not a swap
+
+`context.transformContext()` cannot simply replace
+`QgsProject.instance()` at the call site, because Line of Sight,
+Viewshed and Sensor Coverage still call these same generators from
+plain dialogs on the main thread and have no `QgsProcessingContext`
+to offer. So `context` is threaded through exactly as `feedback` was
+the day before: optional, defaulting to None, with
+`_dem_utils.transform_context()` falling back to the project when
+there is nothing better. The four algorithms always pass it; the
+three main-thread features never do, and are unchanged.
+
+`is_child_algorithm=True` was named in the finding and is NOT set.
+It suppresses the post-processing step that transfers layer ownership
+from the context to the caller, and these generators rely on getting
+the layer or path back from `results["OUTPUT"]`. Passing `context=`
+alone removes the off-thread read with no change to what a child
+hands back; setting the flag as well would be a behavioural change
+for no further safety.
+
+### What is deliberately left alone
+
+`terrain/viewshed.py`, `terrain/line_of_sight.py` and the
+`sensor_coverage*` modules still read `QgsProject.instance()` freely.
+They are map tools and dialogs that run on the GUI thread, which is
+where that call belongs. Sensor Coverage is the one case
+`QgsTask` was actually wanted for, and it stays a dialog - see the
+2026-10-26 entry.
+
+### Count
+
+    before   2086 tests
+    after    2089 tests
+
+Three new tests, each checked against a deliberately broken copy
+first: reverting the `context.project()` read fails the overlay
+warning test, and handing the children `context=None` fails the
+context test. The third pins the fallback - the generators still
+have to work with no context at all, or the three main-thread
+features break.
 
 Both suites pass on QGIS 4.2.2 and 3.44.12.

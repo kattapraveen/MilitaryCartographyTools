@@ -252,6 +252,79 @@ class TestTanakaContoursAlgorithm(_TerrainAlgorithmTestCase):
             any("Hypsometric Tint" in warning for warning in feedback.warnings)
         )
 
+    def test_the_overlay_warning_reads_the_contexts_own_project(self):
+
+        """
+        processAlgorithm() runs on a background thread, so the layer
+        registry it looks in has to be the context's, not the GUI
+        thread's QgsProject.instance().
+
+        The two are given DIFFERENT contents here to tell them apart:
+        a Hypsometric Tint exists in QgsProject.instance() and not in
+        the context's project, so a run that warns is reading the
+        context and a run that stays quiet is reading the singleton.
+        """
+
+        from qgis.core import QgsProcessingFeedback
+
+        class RecordingFeedback(QgsProcessingFeedback):
+
+            def __init__(self):
+                super().__init__()
+                self.warnings = []
+
+            def pushWarning(self, warning):
+                self.warnings.append(warning)
+
+        import processing
+
+        tint = QgsVectorLayer(
+            "Point?crs=EPSG:4326", "Hypsometric Tint", "memory"
+        )
+
+        QgsProject.instance().addMapLayer(tint)
+
+        overlay = [
+            mode for _, mode in STYLE_MODES
+        ].index(STYLE_ILLUMINATED_OVERLAY)
+
+        parameters = dict(self.DEFAULTS)
+        parameters["INPUT"] = self.dem_path
+        parameters["OUTPUT"] = QgsProcessing.TEMPORARY_OUTPUT
+        parameters["STYLE_MODE"] = overlay
+
+        feedback = RecordingFeedback()
+
+        # The project is created FIRST and deleted LAST on purpose.
+        # QgsProcessingContext holds a bare pointer to it, so the
+        # context has to go while the project is still alive - the
+        # same rule that made QgsProcessingMultiStepFeedback
+        # unusable here. See terrain/_progress.py.
+        other_project = QgsProject()
+
+        context = QgsProcessingContext()
+        context.setProject(other_project)
+
+        try:
+            processing.run(
+                f"{PROVIDER_ID}:tanakacontours",
+                parameters,
+                feedback=feedback,
+                context=context
+            )
+
+        finally:
+            del context
+
+        self.assertTrue(
+            any(
+                "Hypsometric Tint" in warning
+                for warning in feedback.warnings
+            ),
+            "the warning was suppressed, so the layer registry read "
+            "was QgsProject.instance() and not context.project()"
+        )
+
 
 class TestHypsometricTintAlgorithm(_TerrainAlgorithmTestCase):
 
@@ -523,23 +596,29 @@ class TestReplacementKeepsThePlaceTheUserPutItIn(QgisTestCase):
         self.assertIn(existing.id(), QgsProject.instance().mapLayers())
 
 
-class TestCancelActuallyReachesTheWork(_TerrainAlgorithmTestCase):
+class TestWhatTheChildAlgorithmsAreGiven(_TerrainAlgorithmTestCase):
 
     """
-    The reason these four tools were made Processing algorithms in
-    the first place: "a progress bar and a working Cancel, which was
-    the whole complaint". Cancel did not work. Every generator spends
-    its time inside child algorithms - gdal:warpreproject,
-    gdal:contour, gdal:hillshade - and none of them was given the
-    parent's feedback, so pressing Cancel did nothing until the run
-    finished of its own accord. The algorithms only looked at
-    isCanceled() BETWEEN stages, and the stages are where the time
-    goes.
+    These generators do almost none of their own work: they delegate
+    to gdal:warpreproject, gdal:contour, native:splitlinesbylength,
+    gdal:hillshade, gdal:rastercalculator and gdal:translate. What
+    they hand those children decides two separate things, and both
+    were wrong after the 2026-10-26 conversion.
 
-    Both halves of that are tested here, because fixing either one
-    alone leaves Cancel broken: the feedback has to reach the
-    children, and a cancelled run has to stop quietly rather than
-    raise or return half a layer.
+    **The feedback decides whether Cancel works**, which was the
+    whole reason for the conversion - "a progress bar and a working
+    Cancel, which was the whole complaint". No child was given it,
+    so pressing Cancel did nothing until the run finished of its own
+    accord; the algorithms only looked at isCanceled() between
+    stages, and the stages are where the time goes. Fixing either
+    half alone leaves Cancel broken, so both are tested: the
+    feedback has to reach the children, and a cancelled run has to
+    stop quietly rather than raise or hand back half a layer.
+
+    **The context decides whether the run is thread-safe.** A child
+    run without one calls dataobjects.createContext(), which reads
+    QgsProject.instance() and QgsSettings() - GUI-thread objects -
+    from the background thread the algorithm runs on.
     """
 
     ALGORITHM = "hypsometrictint"
@@ -599,6 +678,69 @@ class TestCancelActuallyReachesTheWork(_TerrainAlgorithmTestCase):
         # terrain/_progress.py.
         for given in seen:
             self.assertIs(given, feedback)
+
+    def test_every_child_algorithm_is_given_the_parents_context(self):
+
+        """
+        The same contract as the feedback above, for the same reason
+        in reverse. A child run without a context calls
+        `dataobjects.createContext()`, which reads
+        `QgsProject.instance()` and `QgsSettings()` - both GUI-thread
+        objects - from the worker thread the algorithm runs on.
+        """
+
+        import processing
+
+        real_run = processing.run
+
+        seen = []
+
+        def recording_run(*args, **kwargs):
+            seen.append(kwargs.get("context"))
+            return real_run(*args, **kwargs)
+
+        context = QgsProcessingContext()
+        context.setProject(QgsProject.instance())
+
+        processing.run = recording_run
+
+        try:
+            generate_hillshade_combination(
+                QgsRasterLayer(self.dem_path, "dem"),
+                self._dem_extent(),
+                QgsRasterLayer(self.dem_path, "dem").crs(),
+                azimuths=TWO_DIRECTION_AZIMUTHS,
+                context=context
+            )
+
+        finally:
+            processing.run = real_run
+
+        self.assertGreater(
+            len(seen), 1, "the generator ran no child algorithm"
+        )
+
+        for given in seen:
+            self.assertIs(given, context)
+
+    def test_the_generators_still_work_with_no_context(self):
+
+        """
+        `context` has to stay optional. Line of Sight, Viewshed and
+        Sensor Coverage still call these generators from plain
+        dialogs on the main thread, where there is no
+        QgsProcessingContext to hand over, and the fallback to
+        QgsProject.instance() is correct there.
+        """
+
+        tint = generate_hypsometric_tint(
+            QgsRasterLayer(self.dem_path, "dem"),
+            self._dem_extent(),
+            QgsRasterLayer(self.dem_path, "dem").crs()
+        )
+
+        self.assertIsNotNone(tint)
+        self.assertTrue(tint.isValid())
 
     def test_a_cancelled_run_stops_quietly(self):
 

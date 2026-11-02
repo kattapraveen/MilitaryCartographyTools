@@ -191,7 +191,7 @@ def _predicted_segment_count(contour_layer, segment_length):
 
 
 def _generate_contour_segments(
-    dem_layer, interval, segment_length, feedback=None
+    dem_layer, interval, segment_length, feedback=None, context=None
 ):
 
     """
@@ -246,7 +246,8 @@ def _generate_contour_segments(
             "OPTIONS": "",
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         },
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     contour_layer = QgsVectorLayer(
@@ -289,7 +290,8 @@ def _generate_contour_segments(
             "LENGTH": segment_length,
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         },
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     # Unlike a GDAL-wrapped algorithm, native:splitlinesbylength's
@@ -798,7 +800,8 @@ def generate_tanaka_contours(
     min_width_mm=DEFAULT_MIN_WIDTH_MM,
     max_width_mm=DEFAULT_MAX_WIDTH_MM,
     style_mode=DEFAULT_STYLE_MODE,
-    feedback=None
+    feedback=None,
+    context=None
 ):
 
     """
@@ -823,7 +826,8 @@ def generate_tanaka_contours(
         dem_layer,
         extent,
         extent_crs,
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     if cancelled(feedback):
@@ -837,7 +841,8 @@ def generate_tanaka_contours(
         clipped_dem,
         interval,
         segment_length,
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     if cancelled(feedback):

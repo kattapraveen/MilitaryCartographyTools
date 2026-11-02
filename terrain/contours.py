@@ -368,6 +368,7 @@ def generate_contours(
     index_every=DEFAULT_INDEX_EVERY,
     colour=None,
     feedback=None,
+    context=None,
 ):
 
     """
@@ -398,7 +399,8 @@ def generate_contours(
         dem_layer,
         extent,
         extent_crs,
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     if cancelled(feedback):
@@ -419,7 +421,8 @@ def generate_contours(
             "OPTIONS": "",
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT,
         },
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     if cancelled(feedback):

@@ -20,7 +20,6 @@ Military Cartography Tools
 
 from qgis.core import (
     QgsFeatureSink,
-    QgsProject,
     QgsProcessing,
     QgsProcessingException,
     QgsProcessingParameterEnum,
@@ -218,11 +217,21 @@ class TanakaContoursAlgorithm(TerrainAlgorithm):
             # An index out of a model saved against a shorter list.
             style_mode = DEFAULT_STYLE_MODE
 
+        # context.project(), never QgsProject.instance(): this method
+        # runs on a background thread (the dialog hands it to
+        # QgsProcessingAlgRunnerTask, since this algorithm does not
+        # set FlagNoThreading), and the project's layer registry
+        # belongs to the GUI thread, which may be adding or removing
+        # a layer while this reads it. A context with no project at
+        # all - possible from a script - is left alone rather than
+        # warned about: there is nothing to look in, so there is
+        # nothing truthful to say.
+        project = context.project()
+
         if (
             style_mode == STYLE_ILLUMINATED_OVERLAY
-            and not QgsProject.instance().mapLayersByName(
-                HYPSOMETRIC_TINT_LAYER_NAME
-            )
+            and project is not None
+            and not project.mapLayersByName(HYPSOMETRIC_TINT_LAYER_NAME)
         ):
 
             # Non-blocking, exactly as the dialog had it - the layer
@@ -260,6 +269,7 @@ class TanakaContoursAlgorithm(TerrainAlgorithm):
             max_width_mm=max_width,
             style_mode=style_mode,
             feedback=feedback,
+            context=context,
         )
 
         if self.cancelledOrMissing(layer, feedback):

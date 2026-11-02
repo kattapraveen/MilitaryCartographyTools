@@ -328,6 +328,31 @@ of no use to anyone reading the history.
   layer kept alive by an exception traceback, and the post-processor
   Processing keeps only a weak reference to.
 
+- **`processAlgorithm()` runs on a background thread, so
+  `QgsProject.instance()` is off limits inside it.** Unless an
+  algorithm sets `FlagNoThreading`, the Processing dialog runs it
+  through `QgsProcessingAlgRunnerTask`. The project and its layer
+  registry belong to the GUI thread, which may be adding or removing
+  a layer while the worker reads it. Use `context.project()`,
+  `context.transformContext()`, and pass `context=` to every nested
+  `processing.run()` - without it the child calls
+  `dataobjects.createContext()`, which reads `QgsProject.instance()`
+  and `QgsSettings()` on the worker thread anyway.
+
+  This is easy to introduce by *moving* working code rather than by
+  writing anything new: converting the four terrain tools from modal
+  dialogs to algorithms on 2026-10-26 made three previously safe
+  calls unsafe without touching them. When a generator is shared with
+  something still on the GUI thread - Line of Sight, Viewshed and
+  Sensor Coverage share these - thread an optional `context` through
+  with a project fallback rather than swapping the call. See
+  `terrain/_dem_utils.py`'s `transform_context()`.
+
+  `is_child_algorithm=True` is a separate question and is NOT set
+  here: it suppresses the step that transfers layer ownership from
+  the context to the caller, and these generators need the layer
+  back out of `results["OUTPUT"]`.
+
 ---
 
 ## QGIS 3.44 compatibility (branch `qgis-3.44-compat`)

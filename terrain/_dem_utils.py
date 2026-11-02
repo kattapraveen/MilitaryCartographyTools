@@ -23,7 +23,38 @@ from qgis.core import (
 from ..core.coordinate_utils import WGS84, get_utm_crs
 
 
-def clip_and_reproject_dem(dem_layer, extent, extent_crs, feedback=None):
+def transform_context(context):
+
+    """
+    The coordinate transform context to build a QgsCoordinateTransform
+    against, taken from a QgsProcessingContext when there is one.
+
+    This exists because of where these generators are now called
+    from. A Processing algorithm runs on a BACKGROUND thread - none
+    of the four terrain algorithms overrides flags(), so the dialog
+    hands them to QgsProcessingAlgRunnerTask - and
+    `QgsProject.instance()` belongs to the GUI thread. Reading it
+    from the worker while the GUI thread is adding or removing a
+    layer is an unsynchronised read of a main-thread object. Until
+    2026-10-26 these generators were only ever called from modal
+    dialogs on the GUI thread, so the call was safe; the conversion
+    to algorithms changed the threading without changing the call.
+
+    Line of Sight, Viewshed and Sensor Coverage still call them from
+    the main thread with no context at all, which is why the fallback
+    stays - and why this cannot simply be swapped for
+    context.transformContext() at the call site.
+    """
+
+    if context is not None:
+        return context.transformContext()
+
+    return QgsProject.instance().transformContext()
+
+
+def clip_and_reproject_dem(
+    dem_layer, extent, extent_crs, feedback=None, context=None
+):
 
     """
     Clip dem_layer to extent (given in extent_crs) and reproject it
@@ -46,12 +77,18 @@ def clip_and_reproject_dem(dem_layer, extent, extent_crs, feedback=None):
     `feedback` is optional and is handed to gdal:warpreproject so the
     warp - often the longest single step in a terrain run - can be
     cancelled and can report progress. See terrain/_progress.py.
+
+    `context` is optional too, and for a different reason: a
+    Processing algorithm runs this on a background thread, where both
+    the transform context and the child algorithm's own context have
+    to come from the caller rather than off QgsProject.instance().
+    See transform_context() above.
     """
 
     transform_to_wgs84 = QgsCoordinateTransform(
         extent_crs,
         WGS84,
-        QgsProject.instance()
+        transform_context(context)
     )
 
     centre_wgs84 = transform_to_wgs84.transform(
@@ -80,7 +117,8 @@ def clip_and_reproject_dem(dem_layer, extent, extent_crs, feedback=None):
             "EXTRA": None,
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         },
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     clipped = QgsRasterLayer(

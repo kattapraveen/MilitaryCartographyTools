@@ -114,6 +114,7 @@ class HypsometricTintAlgorithm(TerrainAlgorithm):
             opacity=opacity,
             discrete=discrete,
             feedback=feedback,
+            context=context,
         )
 
         if self.cancelledOrMissing(tint, feedback):
@@ -126,7 +127,8 @@ class HypsometricTintAlgorithm(TerrainAlgorithm):
         )
 
         written = write_raster_to_destination(
-            tint, destination, feedback=feedback
+            tint, destination, feedback=feedback,
+            context=context
         )
 
         if feedback.isCanceled():

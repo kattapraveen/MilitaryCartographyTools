@@ -271,7 +271,8 @@ def generate_hypsometric_tint(
     extent_crs,
     opacity=DEFAULT_OPACITY,
     discrete=False,
-    feedback=None
+    feedback=None,
+    context=None
 ):
 
     """
@@ -291,7 +292,8 @@ def generate_hypsometric_tint(
         dem_layer,
         extent,
         extent_crs,
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     if cancelled(feedback):

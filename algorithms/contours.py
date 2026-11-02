@@ -161,6 +161,7 @@ class ContoursAlgorithm(TerrainAlgorithm):
             index_every=index_every,
             colour=colour_hex,
             feedback=feedback,
+            context=context,
         )
 
         if self.cancelledOrMissing(layer, feedback):

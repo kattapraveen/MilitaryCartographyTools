@@ -184,6 +184,7 @@ class HillshadeCombinationAlgorithm(TerrainAlgorithm):
             z_factor=z_factor,
             opacity=opacity,
             feedback=feedback,
+            context=context,
         )
 
         if self.cancelledOrMissing(combined, feedback):
@@ -196,7 +197,8 @@ class HillshadeCombinationAlgorithm(TerrainAlgorithm):
         )
 
         written = write_raster_to_destination(
-            combined, destination, feedback=feedback
+            combined, destination, feedback=feedback,
+            context=context
         )
 
         if feedback.isCanceled():

@@ -21,7 +21,7 @@ from qgis.core import QgsProcessingException
 
 
 def write_raster_to_destination(
-    generated_layer, destination, feedback=None
+    generated_layer, destination, feedback=None, context=None
 ):
 
     """
@@ -30,7 +30,9 @@ def write_raster_to_destination(
     renderer, so the caller re-applies it in the post-processor.
 
     `feedback` is passed on so the copy can be cancelled and can
-    report progress. It is not a trivial step: the user's own
+    report progress, and `context` so gdal:translate does not build
+    one of its own off QgsProject.instance() on the worker thread -
+    see terrain/_dem_utils.py's transform_context(). It is not a trivial step: the user's own
     hypsometric run on 2026-11-02 wrote 2.25 GB here, and without
     this the Cancel button did nothing for the whole of it.
     """
@@ -47,7 +49,8 @@ def write_raster_to_destination(
             "DATA_TYPE": 0,
             "OUTPUT": destination,
         },
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     written = result.get("OUTPUT")

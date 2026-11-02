@@ -47,7 +47,8 @@ DEFAULT_AZIMUTHS = THREE_DIRECTION_AZIMUTHS
 
 
 def _run_hillshade(
-    dem_layer, azimuth_deg, altitude_deg, z_factor, feedback=None
+    dem_layer, azimuth_deg, altitude_deg, z_factor, feedback=None,
+    context=None
 ):
 
     """
@@ -76,7 +77,8 @@ def _run_hillshade(
             "EXTRA": None,
             "OUTPUT": QgsProcessing.TEMPORARY_OUTPUT
         },
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     return QgsRasterLayer(
@@ -85,7 +87,7 @@ def _run_hillshade(
     )
 
 
-def _combine_hillshades(hillshade_layers, feedback=None):
+def _combine_hillshades(hillshade_layers, feedback=None, context=None):
 
     """
     Average 2 or 3 single-direction hillshade rasters, pixel by pixel,
@@ -140,7 +142,8 @@ def _combine_hillshades(hillshade_layers, feedback=None):
     result = processing.run(
         "gdal:rastercalculator",
         params,
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     return QgsRasterLayer(
@@ -257,7 +260,8 @@ def generate_hillshade_combination(
     altitude=DEFAULT_ALTITUDE,
     z_factor=DEFAULT_Z_FACTOR,
     opacity=DEFAULT_OPACITY,
-    feedback=None
+    feedback=None,
+    context=None
 ):
 
     """
@@ -277,7 +281,8 @@ def generate_hillshade_combination(
         dem_layer,
         extent,
         extent_crs,
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     if cancelled(feedback):
@@ -293,7 +298,8 @@ def generate_hillshade_combination(
                 azimuth,
                 altitude,
                 z_factor,
-                feedback=feedback
+                feedback=feedback,
+                context=context
             )
         )
 
@@ -302,7 +308,8 @@ def generate_hillshade_combination(
 
     combined = _combine_hillshades(
         hillshade_layers,
-        feedback=feedback
+        feedback=feedback,
+        context=context
     )
 
     if cancelled(feedback):
